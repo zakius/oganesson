@@ -1,0 +1,123 @@
+--- a/chrome/browser/ui/BUILD.gn
++++ b/chrome/browser/ui/BUILD.gn
+@@ -2753,6 +2753,9 @@ static_library("ui") {
+       "views/frame/layout/browser_view_popup_layout_impl.h",
+       "views/frame/layout/browser_view_tabbed_layout_impl.cc",
+       "views/frame/layout/browser_view_tabbed_layout_impl.h",
++      "views/frame/mouse_gesture_event_rewriter.cc",
++      "views/frame/mouse_gesture_event_rewriter.h",
++      "views/frame/mouse_gesture_tracker.h",
+       "views/frame/multi_contents_view.cc",
+       "views/frame/multi_contents_view.h",
+       "views/frame/picture_in_picture_browser_frame_view.cc",
+--- a/chrome/browser/ui/views/frame/browser_view.cc
++++ b/chrome/browser/ui/views/frame/browser_view.cc
+@@ -408,6 +408,10 @@
+ #include "components/remote_cocoa/browser/application_host.h"
+ #endif
+ 
++#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_WIN)
++#include "chrome/browser/ui/views/frame/mouse_gesture_event_rewriter.h"
++#endif
++
+ #if defined(USE_AURA)
+ #include "chrome/browser/ui/views/theme_profile_key.h"
+ #include "ui/aura/client/window_parenting_client.h"
+@@ -1201,6 +1205,9 @@ BrowserView::BrowserView(BrowserWindowInterface* browser)
+ }
+ 
+ BrowserView::~BrowserView() {
++#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_WIN)
++  mouse_gesture_rewriter_.reset();
++#endif
+   if (browser_shortcut_service_) {
+     browser_shortcut_service_->RemoveObserver(this);
+     browser_shortcut_service_ = nullptr;
+@@ -3652,6 +3659,11 @@ void BrowserView::OnTabStripModelChanged(
+   // can change its preferred size. Re-lay-out the toolbar to reflect the
+   // possible change.
+   if (selection.active_tab_changed()) {
++#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_WIN)
++    if (mouse_gesture_rewriter_) {
++      mouse_gesture_rewriter_->OnActiveTabChanged();
++    }
++#endif
+     toolbar_->InvalidateLayout();
+ 
+     // Update the accessible URL when the selected tab changes. This ensures
+@@ -4241,6 +4253,9 @@ views::View* BrowserView::CreateMacOverlayView() {
+ #endif  // IS_MAC
+ 
+ void BrowserView::OnWidgetDestroying(views::Widget* widget) {
++#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_WIN)
++  mouse_gesture_rewriter_.reset();
++#endif
+   DCHECK(widget_observation_.IsObservingSource(widget));
+   widget_observation_.Reset();
+ 
+@@ -4267,6 +4282,11 @@ void BrowserView::OnWidgetDestroying(views::Widget* widget) {
+ 
+ void BrowserView::OnWidgetActivationChanged(views::Widget* widget,
+                                             bool active) {
++#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_WIN)
++  if (!active && mouse_gesture_rewriter_) {
++    mouse_gesture_rewriter_->Cancel();
++  }
++#endif
+   if (browser_->GetWindow()) {
+     if (active) {
+       if (restore_focus_on_activation_.has_value() &&
+@@ -4292,6 +4312,11 @@ void BrowserView::OnWidgetActivationChanged(views::Widget* widget,
+ 
+ void BrowserView::OnWidgetBoundsChanged(views::Widget* widget,
+                                         const gfx::Rect& new_bounds) {
++#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_WIN)
++  if (mouse_gesture_rewriter_) {
++    mouse_gesture_rewriter_->Cancel();
++  }
++#endif
+   TryNotifyWindowBoundsChanged(new_bounds);
+ }
+ 
+@@ -5091,6 +5116,11 @@ void BrowserView::ViewHierarchyChanged(
+ }
+ 
+ void BrowserView::AddedToWidget() {
++#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_WIN)
++  if (!mouse_gesture_rewriter_) {
++    mouse_gesture_rewriter_ = MouseGestureEventRewriter::Create(this);
++  }
++#endif
+   // BrowserView may be added to a widget more than once if the user changes
+   // themes after starting the browser. Do not re-initialize BrowserView in
+   // this case.
+@@ -5290,6 +5320,9 @@ void BrowserView::AddedToWidget() {
+ }
+ 
+ void BrowserView::RemovedFromWidget() {
++#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_WIN)
++  mouse_gesture_rewriter_.reset();
++#endif
+   CHECK(GetFocusManager());
+ #if BUILDFLAG(IS_WIN)
+   pip_exclusion_observer_.reset();
+--- a/chrome/browser/ui/views/frame/browser_view.h
++++ b/chrome/browser/ui/views/frame/browser_view.h
+@@ -84,6 +84,7 @@ class ExclusiveAccessBubbleViews;
+ class ExclusiveAccessBubbleViewsContext;
+ class InfoBarContainerView;
+ class LocationBarView;
++class MouseGestureEventRewriter;
+ class MultiContentsView;
+ class OrganizerTrayView;
+ class ScrimView;
+@@ -1421,6 +1422,9 @@ class BrowserView : public BrowserWindow,
+       tab_strip_web_apps_reparented_state_;
+ 
+   std::unique_ptr<TabCyclingEventHandler> tab_cycling_event_handler_;
++#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_WIN)
++  std::unique_ptr<MouseGestureEventRewriter> mouse_gesture_rewriter_;
++#endif
+ 
+   mutable base::WeakPtrFactory<BrowserView> weak_ptr_factory_{this};
+ };

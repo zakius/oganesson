@@ -1,0 +1,11 @@
+# Serves the release tree's work/dl (tools/pack.sh's packages) on port 8000,
+# for the tailnet.
+[Unit]
+Description=oganesson package downloads (work/dl)
+
+[Service]
+ExecStart=/usr/bin/python3 -m http.server 8000 --directory %h/.t3/worktrees/oganesson-core/t3code-67d2954d/work/dl
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

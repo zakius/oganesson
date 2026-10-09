@@ -1,0 +1,78 @@
+--- a/chrome/app/chrome_command_ids.h
++++ b/chrome/app/chrome_command_ids.h
+@@ -191,6 +191,10 @@
+ #define IDC_FIND_PREVIOUS               37002
+ #define IDC_CLOSE_FIND_OR_STOP          37003
+ 
++// Page scrolling
++#define IDC_SCROLL_TO_TOP               37100
++#define IDC_SCROLL_TO_BOTTOM            37101
++
+ // Profile sub menu
+ #define IDC_CUSTOMIZE_CHROME            37350
+ #define IDC_CLOSE_PROFILE               35351
+--- a/chrome/app/generated_resources.grd
++++ b/chrome/app/generated_resources.grd
+@@ -1916,6 +1916,12 @@
+       <message name="IDS_SHORTCUT_COMMAND_CYCLE_PREVIOUS_MRU_TAB" desc="Command name shown on the Settings shortcuts page for the Ctrl+Shift+Tab command when it switches tabs in reverse order of most recent use.">
+         Cycle to recently used tab in reverse
+       </message>
++      <message name="IDS_SHORTCUT_COMMAND_SCROLL_TO_TOP" desc="Command name shown on the Settings shortcuts page for scrolling to the top of the page.">
++        Scroll to top of page
++      </message>
++      <message name="IDS_SHORTCUT_COMMAND_SCROLL_TO_BOTTOM" desc="Command name shown on the Settings shortcuts page for scrolling to the bottom of the page.">
++        Scroll to bottom of page
++      </message>
+       <message name="IDS_SHORTCUT_COMMAND_FOCUS_LOCATION" desc="Command name shown on the Settings shortcuts page for focusing the address bar.">
+         Focus address bar
+       </message>
+--- a/chrome/browser/ui/browser_command_controller.cc
++++ b/chrome/browser/ui/browser_command_controller.cc
+@@ -1081,6 +1081,16 @@ void BrowserCommandController::HandleCom
+     case IDC_FORCE_PASTE:
+       ForcePaste(browser_);
+       break;
++    case IDC_SCROLL_TO_TOP:
++      browser_->tab_strip_model()
++          ->GetActiveWebContents()
++          ->ScrollToTopOfDocument();
++      break;
++    case IDC_SCROLL_TO_BOTTOM:
++      browser_->tab_strip_model()
++          ->GetActiveWebContents()
++          ->ScrollToBottomOfDocument();
++      break;
+ 
+     // Clipboard commands
+     case IDC_CUT:
+@@ -2134,6 +2144,8 @@ void BrowserCommandController::InitComma
+ 
+   // Initialize other commands whose state changes based on various conditions.
+   command_updater_->UpdateCommandEnabled(IDC_FORCE_PASTE, true);
++  command_updater_->UpdateCommandEnabled(IDC_SCROLL_TO_TOP, true);
++  command_updater_->UpdateCommandEnabled(IDC_SCROLL_TO_BOTTOM, true);
+   UpdateCommandsForFullscreenMode();
+   UpdateCommandsForContentRestrictionState();
+   UpdateCommandsForBookmarkEditing();
+--- a/chrome/browser/ui/browser_shortcuts/browser_shortcut_metadata.cc
++++ b/chrome/browser/ui/browser_shortcuts/browser_shortcut_metadata.cc
+@@ -140,6 +140,10 @@ std::optional<BrowserShortcutCommandLabe
+       return Label(IDS_SHORTCUT_COMMAND_CYCLE_NEXT_MRU_TAB);
+     case IDC_CYCLE_TO_PREV_TAB:
+       return Label(IDS_SHORTCUT_COMMAND_CYCLE_PREVIOUS_MRU_TAB);
++    case IDC_SCROLL_TO_TOP:
++      return Label(IDS_SHORTCUT_COMMAND_SCROLL_TO_TOP);
++    case IDC_SCROLL_TO_BOTTOM:
++      return Label(IDS_SHORTCUT_COMMAND_SCROLL_TO_BOTTOM);
+     case IDC_SELECT_LAST_TAB:
+       return Label(IDS_SHORTCUT_COMMAND_SELECT_LAST_TAB);
+     case IDC_SELECT_TAB_0:
+@@ -313,6 +317,8 @@ std::vector<int> GetBrowserShortcutComma
+   commands.push_back(ShouldUseVerticalCollapseLabel(prefs)
+                          ? IDC_SAVE_PAGE
+                          : IDC_TOGGLE_VERTICAL_TABS_COLLAPSE);
++  commands.push_back(IDC_SCROLL_TO_TOP);
++  commands.push_back(IDC_SCROLL_TO_BOTTOM);
+ 
+   commands.push_back(ShouldUseCopyPageUrlLabel(prefs) ? IDC_DEV_TOOLS_INSPECT
+                                                       : IDC_COPY_URL);

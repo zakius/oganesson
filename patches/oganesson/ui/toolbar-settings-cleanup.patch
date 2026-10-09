@@ -1,0 +1,80 @@
+--- a/chrome/app/settings_strings.grdp
++++ b/chrome/app/settings_strings.grdp
+@@ -268,8 +268,8 @@
+     <message name="IDS_SETTINGS_SHIFT_RIGHT_CLICK_CONTEXT_MENU" desc="Label for the checkbox which makes Shift+right click show the browser context menu even when a page blocks it.">
+       Force context menu with Shift+Right Click
+     </message>
+-    <message name="IDS_SETTINGS_SHOW_HOME_BUTTON" desc="Label for the checkbox which enables or disables showing the home button in the toolbar.">
+-      Show home button
++    <message name="IDS_SETTINGS_SHOW_HOME_BUTTON" desc="Heading of the choice of what the toolbar's home button opens.">
++      Home button opens
+     </message>
+     <message name="IDS_SETTINGS_CTRL_TAB_MRU" desc="Label for the checkbox which enables or disables switching between the two most recently used tabs with Ctrl+Tab.">
+       Switch between two most recently used tabs with Ctrl+Tab
+--- a/chrome/browser/resources/settings/appearance_page/appearance_page.html.ts
++++ b/chrome/browser/resources/settings/appearance_page/appearance_page.html.ts
+@@ -66,13 +66,11 @@ export function getHtml(this: SettingsAppearancePageElement) {
+     <div class="hr" ?hidden="${!this.showHr_(
+         this.pageVisibility_.setTheme, this.pageVisibility_.homeButton)}">
+     </div>
+-    <settings-toggle-button elide-label
+-        ?hidden="${!this.pageVisibility_.homeButton}"
+-        pref-key="browser.show_home_button"
+-        label="$i18n{showHomeButton}"
+-        sub-label="${this.getShowHomeSubLabel_()}">
+-    </settings-toggle-button>
+     ${this.showHomeButtonPref_?.value ? html`
++      <!-- Customize toolbar shows or hides the Home button. -->
++      <div class="cr-row" ?hidden="${!this.pageVisibility_.homeButton}">
++        <div class="flex cr-padded-text">$i18n{showHomeButton}</div>
++      </div>
+       <div id="home-button-options" class="list-frame"
+           ?hidden="${!this.pageVisibility_.homeButton}">
+         <settings-radio-group pref-key="homepage_is_newtabpage">
+@@ -187,12 +185,6 @@ export function getHtml(this: SettingsAppearancePageElement) {
+       </div>
+     ` : ''}
+ 
+-    <settings-toggle-button id="showTabSearchButton" class="hr"
+-        pref-key="tab_search.pinned_to_tabstrip"
+-        label="$i18n{showTabSearchButton}"
+-        @change="${this.onShowTabSearchButtonChange_}">
+-    </settings-toggle-button>
+-
+     <settings-toggle-button class="hr" id="showSavedTabGroups"
+         pref-key="bookmark_bar.show_tab_groups"
+         label="$i18n{showTabGroupsInBookmarksBar}"
+--- a/chrome/browser/ui/tabs/tab_strip_prefs.cc
++++ b/chrome/browser/ui/tabs/tab_strip_prefs.cc
+@@ -20,7 +20,8 @@
+ namespace tabs {
+ 
+ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
+-  registry->RegisterBooleanPref(prefs::kTabSearchPinnedToTabstrip, true);
++  // Tab search is pinned to the toolbar instead (see toolbar_pref_names.cc).
++  registry->RegisterBooleanPref(prefs::kTabSearchPinnedToTabstrip, false);
+   registry->RegisterBooleanPref(prefs::kOrganizerPanelPinnedToTabstrip, true);
+   registry->RegisterBooleanPref(prefs::kEverythingMenuPinnedToTabstrip, true);
+   registry->RegisterBooleanPref(prefs::kTabScrollButtonsPinnedToTabstrip, true);
+--- a/chrome/browser/ui/toolbar/toolbar_pref_names.cc
++++ b/chrome/browser/ui/toolbar/toolbar_pref_names.cc
+@@ -14,13 +14,15 @@ namespace toolbar {
+ 
+ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
+   base::ListValue default_pinned_actions;
+-  const std::optional<std::string>& chrome_labs_action =
+-      actions::ActionIdMap::ActionIdToString(kActionShowChromeLabs);
++  // Tab search is a toolbar item, not a tab strip button (see
++  // tab_strip_prefs.cc). There is no Chrome Labs to pin.
++  const std::optional<std::string>& tab_search_action =
++      actions::ActionIdMap::ActionIdToString(kActionTabSearch);
+   // ActionIdToStringMappings are not initialized in unit tests, therefore will
+   // not have a value. In the normal case, the action should always have a
+   // value.
+-  if (chrome_labs_action.has_value()) {
+-    default_pinned_actions.Append(chrome_labs_action.value());
++  if (tab_search_action.has_value()) {
++    default_pinned_actions.Append(tab_search_action.value());
+   }
+ 
+   if (base::FeatureList::IsEnabled(

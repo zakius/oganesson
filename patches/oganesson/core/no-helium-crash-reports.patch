@@ -1,0 +1,17 @@
+# Keeps crash reports on disk: Helium's crash server is a Helium service.
+# No upload URL in any build.
+--- a/components/crash/core/app/crash_reporter_client.cc
++++ b/components/crash/core/app/crash_reporter_client.cc
+@@ -153,11 +153,8 @@ std::string CrashReporterClient::GetUploadUrl() {
+   }
+ #endif
+ 
+-#if defined(OFFICIAL_BUILD)
+-  return "https://crash.helium.computer/crash";
+-#else
++  // Crash reports stay on disk: Helium's crash server is a Helium service.
+   return std::string();
+-#endif
+ }
+ 
+ bool CrashReporterClient::ShouldRateLimitUploads() {

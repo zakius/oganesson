@@ -1,0 +1,41 @@
+--- a/build/config/compiler_cpu_abi.gn
++++ b/build/config/compiler_cpu_abi.gn
+@@ -22,6 +22,14 @@ if (target_os == "chromeos") {
+   }
+ }
+ 
++declare_args() {
++  # oganesson's release tiers: an x86-64 microarchitecture level for all code
++  # (C, C++ and Rust), such as "x86-64-v2" or "x86-64-v4". Empty keeps
++  # Chromium's baseline. Build tools are built with it too, so the build
++  # machine must support the level.
++  oganesson_x86_64_level = ""
++}
++
+ cpu_abi_cflags = []
+ cpu_abi_ldflags = []
+ cpu_abi_defines = []
+@@ -56,6 +64,11 @@ if ((is_posix && !is_apple) || is_fuchsi
+       cpu_abi_ldflags += [ "-m64" ]
+     }
+     cpu_abi_cflags += [ "-msse3" ]
++    if (oganesson_x86_64_level != "") {
++      # Also a linker flag, for code generated at (Thin)LTO link time.
++      cpu_abi_cflags += [ "-march=$oganesson_x86_64_level" ]
++      cpu_abi_ldflags += [ "-march=$oganesson_x86_64_level" ]
++    }
+     if (target_os == "chromeos" && cros_target_cpu_arch != "" &&
+         is_a_target_toolchain) {
+       cpu_abi_cflags += [ "-march=$cros_target_cpu_arch" ]
+--- a/build/config/compiler/BUILD.gn
++++ b/build/config/compiler/BUILD.gn
+@@ -1007,6 +1007,9 @@ config("compiler") {
+   if (rust_abi_target != "") {
+     rustflags += [ "--target=$rust_abi_target" ]
+   }
++  if (current_cpu == "x64" && oganesson_x86_64_level != "") {
++    rustflags += [ "-Ctarget-cpu=$oganesson_x86_64_level" ]
++  }
+   if (!use_thin_lto || !toolchain_supports_rust_thin_lto) {
+     # Don't include bitcode if it won't be used.
+     rustflags += [ "-Cembed-bitcode=no" ]

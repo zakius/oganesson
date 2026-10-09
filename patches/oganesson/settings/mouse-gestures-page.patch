@@ -1,0 +1,636 @@
+--- a/chrome/app/generated_resources.grd
++++ b/chrome/app/generated_resources.grd
+@@ -321,6 +321,7 @@ are declared in tools/grit/grit_args.gni.
+ 
+       <!-- Settings specific strings -->
+       <part file="settings_strings.grdp" />
++      <part file="oganesson_mouse_gestures_strings.grdp" />
+       <if expr="not is_android">
+         <part file="shared_settings_strings.grdp"/>
+       </if>
+--- a/chrome/app/generated_resources.grd.gritdeps
++++ b/chrome/app/generated_resources.grd.gritdeps
+@@ -14,6 +14,7 @@ chrome/app/media_live_preview_strings.grdp
+ chrome/app/media_router_strings.grdp
+ chrome/app/nearby_share_strings.grdp
+ chrome/app/notebooks_strings.grdp
++chrome/app/oganesson_mouse_gestures_strings.grdp
+ chrome/app/os_settings_search_tag_strings.grdp
+ chrome/app/os_settings_strings.grdp
+ chrome/app/password_manager_ui_strings.grdp
+--- a/chrome/browser/resources/settings/system_page/browser_shortcuts_page.html
++++ b/chrome/browser/resources/settings/system_page/browser_shortcuts_page.html
+@@ -1,4 +1,4 @@
+-<style include="cr-shared-style settings-shared action-link">
++<style include="cr-shared-style settings-shared action-link md-select">
+   .command-row {
+     align-items: center;
+     gap: 16px;
+@@ -132,6 +132,11 @@
+     outline: none;
+   }
+ 
++  #gestureDescription,
++  #gestureInput {
++    margin-top: 12px;
++  }
++
+   .warning {
+     color: var(--google-red-700);
+     margin-top: 12px;
+@@ -216,6 +221,21 @@
+               </template>
+             </span>
+           </template>
++          <template is="dom-repeat"
++              items="[[getGestures_(command.commandId, gestures_)]]"
++              as="chain">
++            <span class="shortcut-chip"
++                title="$i18n{shortcutsGestureLabel}">
++              <span class="shortcut-label">[[getGestureLabel_(chain)]]</span>
++              <cr-icon-button class="icon-clear"
++                  title="$i18n{remove}"
++                  data-chain$="[[chain]]"
++                  aria-label$="[[getRemoveLabel_(command.name,
++                      getGestureLabel_(chain))]]"
++                  on-click="onRemoveGestureClick_">
++              </cr-icon-button>
++            </span>
++          </template>
+         </div>
+       </div>
+       <div class="separator"></div>
+@@ -224,6 +244,12 @@
+             on-click="onAddShortcutClick_">
+           $i18n{add}
+         </cr-button>
++        <template is="dom-if" if="[[showMouseGestures_]]">
++          <cr-button data-command-id$="[[command.commandId]]"
++              on-click="onAddGestureClick_">
++            $i18n{shortcutsAddGesture}
++          </cr-button>
++        </template>
+         <template is="dom-if" if="[[command.modified]]">
+           <cr-button data-command-id$="[[command.commandId]]"
+               on-click="onResetCommandClick_">
+@@ -234,6 +260,41 @@
+     </div>
+   </template>
+ 
++  <template is="dom-if" if="[[filteredExtensionCommands_.length]]">
++    <h2 class="cr-title-text">$i18n{shortcutsExtensionCommands}</h2>
++    <template is="dom-repeat" items="[[filteredExtensionCommands_]]"
++        as="command">
++      <div class="cr-row command-row">
++        <div class="command-details cr-padded-text">
++          <div class="command-name">[[command.name]]</div>
++          <div class="shortcut-list secondary">
++            <template is="dom-repeat"
++                items="[[getExtensionGestures_(command, gestures_)]]"
++                as="chain">
++              <span class="shortcut-chip"
++                  title="$i18n{shortcutsGestureLabel}">
++                <span class="shortcut-label">[[getGestureLabel_(chain)]]</span>
++                <cr-icon-button class="icon-clear"
++                    title="$i18n{remove}"
++                    data-chain$="[[chain]]"
++                    aria-label$="[[getRemoveLabel_(command.name,
++                        getGestureLabel_(chain))]]"
++                    on-click="onRemoveGestureClick_">
++                </cr-icon-button>
++              </span>
++            </template>
++          </div>
++        </div>
++        <div class="separator"></div>
++        <div class="actions">
++          <cr-button on-click="onAddExtensionGestureClick_">
++            $i18n{shortcutsAddGesture}
++          </cr-button>
++        </div>
++      </div>
++    </template>
++  </template>
++
+   <template is="dom-if"
+       if="[[showNoResults_(commandsLoaded_, filteredCommands_.length)]]">
+     <div id="noResults" class="cr-row secondary">
+@@ -263,6 +324,45 @@
+       </div>
+     </cr-dialog>
+   </template>
++  <template is="dom-if" if="[[showGestureDialog_]]" restamp>
++    <cr-dialog id="gestureDialog" show-on-attach>
++      <div slot="title">$i18n{shortcutsAddGestureDialogTitle}</div>
++      <div slot="body">
++        <select class="md-select" aria-label="$i18n{shortcutsGestureLabel}"
++            on-change="onGestureTypeChange_">
++          <template is="dom-repeat" items="[[gestureTypes_]]" as="type">
++            <option value="[[type]]">[[getGestureLabel_(type)]]</option>
++          </template>
++        </select>
++        <template is="dom-if" if="[[isStroke_(gestureType_)]]">
++          <div id="gestureDescription" class="secondary">
++            $i18n{shortcutsGestureDescription}
++          </div>
++          <cr-input id="gestureInput" label="$i18n{shortcutsGestureLabel}"
++              value="{{gestureChain_}}"
++              invalid="[[isGestureInvalid_(gestureChain_)]]"
++              spellcheck="false" autofocus>
++          </cr-input>
++        </template>
++        <template is="dom-if"
++            if="[[getGestureMessage_(gestureType_, gestureChain_)]]">
++          <div class="warning">
++            [[getGestureMessage_(gestureType_, gestureChain_)]]
++          </div>
++        </template>
++      </div>
++      <div slot="button-container">
++        <cr-button class="cancel-button" on-click="onCancelDialogClick_">
++          $i18n{cancel}
++        </cr-button>
++        <cr-button class="action-button"
++            disabled="[[!canSaveGesture_(gestureType_, gestureChain_)]]"
++            on-click="onSaveGestureClick_">
++          $i18n{save}
++        </cr-button>
++      </div>
++    </cr-dialog>
++  </template>
+   <template is="dom-if" if="[[showResetDialog_]]" restamp>
+     <cr-dialog id="resetDialog" show-on-attach>
+       <div slot="title">$i18n{shortcutsResetDialogTitle}</div>
+--- a/chrome/browser/resources/settings/system_page/browser_shortcuts_page.ts
++++ b/chrome/browser/resources/settings/system_page/browser_shortcuts_page.ts
+@@ -6,14 +6,18 @@ import 'chrome://resources/cr_elements/action_link.css.js';
+ import 'chrome://resources/cr_elements/cr_button/cr_button.js';
+ import 'chrome://resources/cr_elements/cr_dialog/cr_dialog.js';
+ import 'chrome://resources/cr_elements/cr_icon_button/cr_icon_button.js';
++import 'chrome://resources/cr_elements/cr_input/cr_input.js';
++import 'chrome://resources/cr_elements/md_select.css.js';
+ import 'chrome://resources/js/action_link.js';
+ import '../settings_page/settings_subpage.js';
+ import '../settings_shared.css.js';
+ 
++import {PrefService} from '/shared/settings/prefs2/pref_service.js';
++import {PrefServiceObserverMixin} from '/shared/settings/prefs2/pref_service_observer_mixin.js';
+ import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+ 
+ import {BrowserShortcutAssignmentResult, BrowserShortcutsHandlerFactory, BrowserShortcutsHandlerRemote, BrowserShortcutsPageCallbackRouter} from '../browser_shortcuts.mojom-webui.js';
+-import type {BrowserShortcutCommand} from '../browser_shortcuts.mojom-webui.js';
++import type {BrowserShortcutCommand, ExtensionCommand} from '../browser_shortcuts.mojom-webui.js';
+ import {loadTimeData} from '../i18n_setup.js';
+ 
+ import {getTemplate} from './browser_shortcuts_page.html.js';
+@@ -21,6 +25,30 @@ import {SystemPageBrowserProxyImpl} from './system_page_browser_proxy.js';
+ 
+ type Command = BrowserShortcutCommand;
+ 
++// Maps mouse gestures to a GestureValue. Keys are stroke chains, such as "DR",
++// or one of the non-stroke gestures below.
++const GESTURES_PREF = 'oganesson.mouse_gestures';
++const STROKE = 'stroke';
++
++// A browser command id, or an extension command.
++type GestureValue = number|{extension: string, command: string};
++
++function isSameGestureValue(a: GestureValue, b: GestureValue): boolean {
++  return typeof a === 'number' || typeof b === 'number' ?
++      a === b :
++      a.extension === b.extension && a.command === b.command;
++}
++
++function toGestureValue(command: ExtensionCommand): GestureValue {
++  return {extension: command.extensionId, command: command.commandName};
++}
++const GESTURE_LABELS: Record<string, string> = {
++  'rocker-rl': 'shortcutsGestureRockerRightLeft',
++  'rocker-lr': 'shortcutsGestureRockerLeftRight',
++  'wheel-up': 'shortcutsGestureWheelUp',
++  'wheel-down': 'shortcutsGestureWheelDown',
++};
++
+ interface DialogState {
+   command: Command;
+ }
+@@ -30,7 +58,19 @@ function isModifierKey(e: KeyboardEvent): boolean {
+       e.key === 'Meta' || e.key === 'Shift';
+ }
+ 
+-export class SettingsBrowserShortcutsPageElement extends PolymerElement {
++// The recognizer collapses repeated directions, so "LL" can never match.
++function normalizeGesture(chain: string): string|null {
++  const normalized = chain.trim().toUpperCase();
++  return /^[LRUD]{1,64}$/.test(normalized) && !/(.)\1/.test(normalized) ?
++      normalized :
++      null;
++}
++
++const SettingsBrowserShortcutsPageElementBase =
++    PrefServiceObserverMixin(PolymerElement);
++
++export class SettingsBrowserShortcutsPageElement extends
++    SettingsBrowserShortcutsPageElementBase {
+   static get is() {
+     return 'settings-browser-shortcuts-page';
+   }
+@@ -75,6 +115,38 @@ export class SettingsBrowserShortcutsPageElement extends PolymerElement {
+         type: Boolean,
+         value: false,
+       },
++      gestures_: {
++        type: Object,
++        value: () => ({}),
++      },
++      extensionCommands_: {
++        type: Array,
++        value: () => [],
++      },
++      filteredExtensionCommands_: {
++        type: Array,
++        value: () => [],
++      },
++      showMouseGestures_: {
++        type: Boolean,
++        value: () => loadTimeData.getBoolean('showMouseGestures'),
++      },
++      showGestureDialog_: {
++        type: Boolean,
++        value: false,
++      },
++      gestureChain_: {
++        type: String,
++        value: '',
++      },
++      gestureType_: {
++        type: String,
++        value: STROKE,
++      },
++      gestureTypes_: {
++        type: Array,
++        value: () => [STROKE, ...Object.keys(GESTURE_LABELS)],
++      },
+       capturedAccelerator_: String,
+       capturedDisplayText_: String,
+       captureMessage_: String,
+@@ -94,6 +166,14 @@ export class SettingsBrowserShortcutsPageElement extends PolymerElement {
+   declare private searchTerm_: string;
+   declare private showCaptureDialog_: boolean;
+   declare private showResetDialog_: boolean;
++  declare private gestures_: Record<string, GestureValue>;
++  declare private extensionCommands_: ExtensionCommand[];
++  declare private filteredExtensionCommands_: ExtensionCommand[];
++  declare private showMouseGestures_: boolean;
++  declare private showGestureDialog_: boolean;
++  declare private gestureChain_: string;
++  declare private gestureType_: string;
++  declare private gestureTypes_: string[];
+   declare private capturedAccelerator_: string;
+   declare private capturedDisplayText_: string;
+   declare private captureMessage_: string;
+@@ -105,6 +185,7 @@ export class SettingsBrowserShortcutsPageElement extends PolymerElement {
+       new BrowserShortcutsPageCallbackRouter();
+   private systemBrowserProxy_ = SystemPageBrowserProxyImpl.getInstance();
+   private dialogState_: DialogState|null = null;
++  private gestureTarget_: {value: GestureValue, name: string}|null = null;
+   private keyDisplayRequestId_ = 0;
+ 
+   override connectedCallback() {
+@@ -122,6 +203,17 @@ export class SettingsBrowserShortcutsPageElement extends PolymerElement {
+       });
+       this.sortAndFilter_();
+     });
++    this.addPrefObserver<Record<string, GestureValue>>(GESTURES_PREF, pref => {
++      this.gestures_ = pref.value;
++      this.sortAndFilter_();
++    });
++    if (this.showMouseGestures_) {
++      this.handler_.getExtensionCommands().then(({commands}) => {
++        this.extensionCommands_ =
++            commands.sort((a, b) => a.name.localeCompare(b.name));
++        this.sortAndFilter_();
++      });
++    }
+     this.handler_.getCommands().then(({commands}) => {
+       this.commands_ = commands;
+       this.commandsLoaded_ = true;
+@@ -146,6 +238,12 @@ export class SettingsBrowserShortcutsPageElement extends PolymerElement {
+     const commands =
+         [...this.commands_].sort((a, b) => a.name.localeCompare(b.name));
+     const query = this.normalizeSearchText_(this.searchTerm_);
++    this.filteredExtensionCommands_ = this.extensionCommands_.filter(
++        command => [
++          command.name,
++          ...this.getExtensionGestures_(command, this.gestures_)
++              .map(gesture => this.getGestureLabel_(gesture)),
++        ].some(field => this.normalizeSearchText_(field).includes(query)));
+     if (!query) {
+       this.filteredCommands_ = commands;
+       return;
+@@ -179,6 +277,8 @@ export class SettingsBrowserShortcutsPageElement extends PolymerElement {
+     const ranks =
+         [
+           command.name,
++          ...this.getGestures_(command.commandId, this.gestures_)
++              .map(gesture => this.getGestureLabel_(gesture)),
+           ...command.accelerators.flatMap(
+               accelerator =>
+                   [accelerator.displayText, accelerator.serializedAccelerator]),
+@@ -319,10 +419,108 @@ export class SettingsBrowserShortcutsPageElement extends PolymerElement {
+         loadTimeData.getString('shortcutsInvalid');
+   }
+ 
++  private getGestures_(
++      commandId: number, gestures: Record<string, GestureValue>): string[] {
++    return Object.keys(gestures)
++        .filter(chain => gestures[chain] === commandId)
++        .sort();
++  }
++
++  private getExtensionGestures_(
++      command: ExtensionCommand,
++      gestures: Record<string, GestureValue>): string[] {
++    const value = toGestureValue(command);
++    return Object.keys(gestures)
++        .filter(chain => isSameGestureValue(gestures[chain], value))
++        .sort();
++  }
++
++  private onAddGestureClick_(e: Event) {
++    const command = this.getCommandFromEvent_(e);
++    if (command) {
++      this.openGestureDialog_(command.commandId, command.name);
++    }
++  }
++
++  private onAddExtensionGestureClick_(
++      e: {model: {command: ExtensionCommand}}) {
++    const command = e.model.command;
++    this.openGestureDialog_(toGestureValue(command), command.name);
++  }
++
++  private openGestureDialog_(value: GestureValue, name: string) {
++    this.gestureTarget_ = {value, name};
++    this.gestureChain_ = '';
++    this.gestureType_ = STROKE;
++    this.showGestureDialog_ = true;
++  }
++
++  private getGestureLabel_(gesture: string): string {
++    if (gesture === STROKE) {
++      return loadTimeData.getString('shortcutsGestureStroke');
++    }
++    const label = GESTURE_LABELS[gesture];
++    return label ? loadTimeData.getString(label) : gesture;
++  }
++
++  private isStroke_(type: string): boolean {
++    return type === STROKE;
++  }
++
++  private onGestureTypeChange_(e: Event) {
++    this.gestureType_ = (e.target as HTMLSelectElement).value;
++  }
++
++  private getGestureKey_(type: string, chain: string): string|null {
++    return type === STROKE ? normalizeGesture(chain) : type;
++  }
++
++  private isGestureInvalid_(chain: string): boolean {
++    return !!chain && normalizeGesture(chain) === null;
++  }
++
++  private canSaveGesture_(type: string, chain: string): boolean {
++    return this.getGestureKey_(type, chain) !== null;
++  }
++
++  private getGestureMessage_(type: string, chain: string): string {
++    const key = this.getGestureKey_(type, chain);
++    const existing = key === null ? undefined : this.gestures_[key];
++    if (existing === undefined || !this.gestureTarget_ ||
++        isSameGestureValue(existing, this.gestureTarget_.value)) {
++      return '';
++    }
++    const name = typeof existing === 'number' ?
++        this.commands_.find(c => c.commandId === existing)?.name :
++        this.extensionCommands_
++            .find(c => isSameGestureValue(toGestureValue(c), existing))
++            ?.name;
++    return name ? loadTimeData.getStringF('shortcutsWillOverride', name) : '';
++  }
++
++  private onSaveGestureClick_() {
++    const key = this.getGestureKey_(this.gestureType_, this.gestureChain_);
++    if (!this.gestureTarget_ || key === null) {
++      return;
++    }
++    PrefService.getInstance().setPrefDictEntry(
++        GESTURES_PREF, key, this.gestureTarget_.value);
++    this.closeDialogs_();
++  }
++
++  private onRemoveGestureClick_(e: Event) {
++    const chain = (e.currentTarget as HTMLElement).dataset['chain'];
++    if (chain) {
++      PrefService.getInstance().deletePrefDictEntry(GESTURES_PREF, chain);
++    }
++  }
++
+   private closeDialogs_() {
+     this.showCaptureDialog_ = false;
++    this.showGestureDialog_ = false;
+     this.showResetDialog_ = false;
+     this.dialogState_ = null;
++    this.gestureTarget_ = null;
+     this.keyDisplayRequestId_++;
+   }
+ 
+--- a/chrome/browser/ui/webui/settings/browser_shortcuts.mojom
++++ b/chrome/browser/ui/webui/settings/browser_shortcuts.mojom
+@@ -17,6 +17,13 @@ struct BrowserShortcutCommand {
+   array<BrowserShortcutAccelerator> accelerators;
+ };
+ 
++// An extension command that a mouse gesture can run.
++struct ExtensionCommand {
++  string extension_id;
++  string command_name;
++  string name;
++};
++
+ struct BrowserShortcutsEvent {
+   map<int32, BrowserShortcutCommand> added_or_updated;
+   array<int32> removed;
+@@ -49,6 +56,7 @@ interface BrowserShortcutsHandler {
+   ResetAccelerators() => ();
+   GetAcceleratorDisplayText(string serialized_accelerator) =>
+       (string display_text);
++  GetExtensionCommands() => (array<ExtensionCommand> commands);
+ };
+ 
+ interface BrowserShortcutsHandlerFactory {
+--- a/chrome/browser/ui/webui/settings/browser_shortcuts_handler.cc
++++ b/chrome/browser/ui/webui/settings/browser_shortcuts_handler.cc
+@@ -11,7 +11,14 @@
+ 
+ #include "base/strings/utf_string_conversions.h"
+ #include "build/build_config.h"
++#include "chrome/browser/extensions/commands/command_service.h"
++#include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/ui/browser_shortcuts/browser_shortcut_serialization.h"
++#include "chrome/grit/generated_resources.h"
++#include "extensions/browser/extension_registry.h"
++#include "extensions/common/command.h"
++#include "extensions/common/api/extension_action/action_info.h"
++#include "ui/base/l10n/l10n_util.h"
+ 
+ namespace settings {
+ 
+@@ -44,10 +51,12 @@ std::string GetCommandName(
+ BrowserShortcutsHandler::BrowserShortcutsHandler(
+     mojo::PendingRemote<mojom::BrowserShortcutsPage> page,
+     mojo::PendingReceiver<mojom::BrowserShortcutsHandler> receiver,
+-    browser_shortcuts::BrowserShortcutService* service)
++    browser_shortcuts::BrowserShortcutService* service,
++    Profile* profile)
+     : page_(std::move(page)),
+       receiver_(this, std::move(receiver)),
+-      service_(service) {
++      service_(service),
++      profile_(profile) {
+   service_->AddObserver(this);
+ }
+ 
+@@ -126,6 +135,44 @@ void BrowserShortcutsHandler::GetAcceleratorDisplayText(
+           : std::string());
+ }
+ 
++void BrowserShortcutsHandler::GetExtensionCommands(
++    GetExtensionCommandsCallback callback) {
++  std::vector<mojom::ExtensionCommandPtr> result;
++  const auto* command_service = extensions::CommandService::Get(profile_);
++  const auto add = [&](const extensions::Extension& extension,
++                       const ui::Command& command) {
++    auto item = mojom::ExtensionCommand::New();
++    item->extension_id = extension.id();
++    item->command_name = command.command_name();
++    const std::u16string description =
++        command.description().empty()
++            ? l10n_util::GetStringUTF16(IDS_EXTENSION_COMMANDS_GENERIC_ACTIVATE)
++            : command.description();
++    item->name = extension.name() + ": " + base::UTF16ToUTF8(description);
++    result.push_back(std::move(item));
++  };
++  for (const auto& extension :
++       extensions::ExtensionRegistry::Get(profile_)->enabled_extensions()) {
++    ui::CommandMap commands;
++    command_service->GetNamedCommands(
++        extension->id(), extensions::CommandService::ALL,
++        extensions::CommandService::ANY_SCOPE, &commands);
++    for (const auto& [name, command] : commands) {
++      add(*extension, command);
++    }
++    const extensions::ActionInfo* action =
++        extensions::ActionInfo::GetExtensionActionInfo(extension.get());
++    extensions::Command action_command;
++    if (action && command_service->GetExtensionActionCommand(
++                      extension->id(), action->type,
++                      extensions::CommandService::ALL, &action_command,
++                      nullptr)) {
++      add(*extension, action_command);
++    }
++  }
++  std::move(callback).Run(std::move(result));
++}
++
+ void BrowserShortcutsHandler::OnBrowserShortcutsChanged() {
+   if (page_.is_bound()) {
+     page_->Changed(MakeFullEvent());
+--- a/chrome/browser/ui/webui/settings/browser_shortcuts_handler.h
++++ b/chrome/browser/ui/webui/settings/browser_shortcuts_handler.h
+@@ -10,6 +10,8 @@
+ #include "mojo/public/cpp/bindings/receiver.h"
+ #include "mojo/public/cpp/bindings/remote.h"
+ 
++class Profile;
++
+ namespace settings {
+ 
+ class BrowserShortcutsHandler
+@@ -19,7 +21,8 @@ class BrowserShortcutsHandler
+   BrowserShortcutsHandler(
+       mojo::PendingRemote<mojom::BrowserShortcutsPage> page,
+       mojo::PendingReceiver<mojom::BrowserShortcutsHandler> receiver,
+-      browser_shortcuts::BrowserShortcutService* service);
++      browser_shortcuts::BrowserShortcutService* service,
++      Profile* profile);
+   BrowserShortcutsHandler(const BrowserShortcutsHandler&) = delete;
+   BrowserShortcutsHandler& operator=(const BrowserShortcutsHandler&) = delete;
+   ~BrowserShortcutsHandler() override;
+@@ -41,6 +44,7 @@ class BrowserShortcutsHandler
+   void GetAcceleratorDisplayText(
+       const std::string& serialized_accelerator,
+       GetAcceleratorDisplayTextCallback callback) override;
++  void GetExtensionCommands(GetExtensionCommandsCallback callback) override;
+ 
+   // browser_shortcuts::BrowserShortcutService::Observer:
+   void OnBrowserShortcutsChanged() override;
+@@ -53,6 +57,7 @@ class BrowserShortcutsHandler
+   mojo::Remote<mojom::BrowserShortcutsPage> page_;
+   mojo::Receiver<mojom::BrowserShortcutsHandler> receiver_;
+   raw_ptr<browser_shortcuts::BrowserShortcutService> service_;
++  raw_ptr<Profile> profile_;
+ };
+ 
+ }  // namespace settings
+--- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
++++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
+@@ -4373,7 +4373,25 @@ void AddSystemStrings(content::WebUIDataSource* html_source) {
+       {"isolationStateLabel", IDS_SETTINGS_SYSTEM_ISOLATION_STATE_LABEL},
+ #endif  // BUILDFLAG(IS_WIN)
+       {"proxySettingsLabel", IDS_SETTINGS_SYSTEM_PROXY_SETTINGS_LABEL},
++#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_WIN)
++      {"shortcutsPageTitle", IDS_SETTINGS_SHORTCUTS_AND_GESTURES_TITLE},
++#else
+       {"shortcutsPageTitle", IDS_SETTINGS_SHORTCUTS_TITLE},
++#endif
++      {"shortcutsAddGesture", IDS_SETTINGS_SHORTCUTS_ADD_GESTURE},
++      {"shortcutsExtensionCommands", IDS_SETTINGS_SHORTCUTS_EXTENSION_COMMANDS},
++      {"shortcutsAddGestureDialogTitle",
++       IDS_SETTINGS_SHORTCUTS_ADD_GESTURE_DIALOG_TITLE},
++      {"shortcutsGestureDescription",
++       IDS_SETTINGS_SHORTCUTS_GESTURE_DESCRIPTION},
++      {"shortcutsGestureLabel", IDS_SETTINGS_SHORTCUTS_GESTURE_LABEL},
++      {"shortcutsGestureStroke", IDS_SETTINGS_SHORTCUTS_GESTURE_STROKE},
++      {"shortcutsGestureRockerRightLeft",
++       IDS_SETTINGS_SHORTCUTS_GESTURE_ROCKER_RIGHT_LEFT},
++      {"shortcutsGestureRockerLeftRight",
++       IDS_SETTINGS_SHORTCUTS_GESTURE_ROCKER_LEFT_RIGHT},
++      {"shortcutsGestureWheelUp", IDS_SETTINGS_SHORTCUTS_GESTURE_WHEEL_UP},
++      {"shortcutsGestureWheelDown", IDS_SETTINGS_SHORTCUTS_GESTURE_WHEEL_DOWN},
+       {"shortcutsSearchLabel", IDS_SETTINGS_SHORTCUTS_SEARCH_LABEL},
+       {"shortcutsRemoveA11yLabel", IDS_SETTINGS_SHORTCUTS_REMOVE_A11Y_LABEL},
+       {"shortcutsReset", IDS_SETTINGS_SITE_SETTINGS_SITE_RESET_ALL},
+@@ -4406,6 +4424,9 @@ void AddSystemStrings(content::WebUIDataSource* html_source) {
+   html_source->AddBoolean(
+       "showCustomizableBrowserShortcuts",
+       base::FeatureList::IsEnabled(features::kCustomizableBrowserShortcuts));
++  // Mouse gestures are only recognized on Aura.
++  html_source->AddBoolean("showMouseGestures",
++                          BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_WIN));
+ 
+ #if BUILDFLAG(IS_WIN)
+   html_source->AddString("isolationStateLearnMoreUrl",
+--- a/chrome/browser/ui/webui/settings/settings_ui.cc
++++ b/chrome/browser/ui/webui/settings/settings_ui.cc
+@@ -881,7 +881,8 @@ void SettingsUI::CreateBrowserShortcutsHandler(
+   Profile* profile = Profile::FromWebUI(web_ui());
+   browser_shortcuts_handler_ = std::make_unique<BrowserShortcutsHandler>(
+       std::move(page), std::move(handler),
+-      browser_shortcuts::BrowserShortcutServiceFactory::GetForProfile(profile));
++      browser_shortcuts::BrowserShortcutServiceFactory::GetForProfile(profile),
++      profile);
+ }
+ 
+ void SettingsUI::CreateCustomizeColorSchemeModeHandler(

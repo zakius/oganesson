@@ -1,0 +1,59 @@
+--- a/chrome/browser/spellchecker/spellcheck_hunspell_dictionary.cc
++++ b/chrome/browser/spellchecker/spellcheck_hunspell_dictionary.cc
+@@ -285,7 +285,6 @@ GURL SpellcheckHunspellDictionary::GetDictionaryURL() {
+ }
+ 
+ void SpellcheckHunspellDictionary::DownloadDictionary(GURL url) {
+-  return;
+   DCHECK_CURRENTLY_ON(BrowserThread::UI);
+   DCHECK(browser_context_);
+ 
+--- a/extensions/browser/updater/extension_downloader.cc
++++ b/extensions/browser/updater/extension_downloader.cc
+@@ -347,6 +347,11 @@ void ExtensionDownloader::DoStartAllPending() {
+     AddToFetches(fetches_preparing, std::move(task));
+   pending_tasks_.clear();
+ 
++  for (auto& fetch_list : fetches_preparing) {
++    for (auto& fetch : fetch_list.second)
++      StartUpdateCheck(std::move(fetch));
++  }
++
+ }
+ 
+ void ExtensionDownloader::SetIdentityManager(
+--- a/third_party/ublock/assets/assets.json
++++ b/third_party/ublock/assets/assets.json
+@@ -3,6 +3,7 @@
+ 		"content": "internal",
+ 		"updateAfter": 13,
+ 		"contentURL": [
++			"https://raw.githubusercontent.com/imputnet/uBlock/refs/heads/main/assets/assets.json",
+ 			"assets/assets.json"
+ 		]
+ 	},
+--- a/chrome/browser/extensions/updater/extension_updater.cc
++++ b/chrome/browser/extensions/updater/extension_updater.cc
+@@ -808,18 +808,10 @@
+     return true;
+   }
+ 
+-  // UpdateService can only update extensions that have been installed on the
+-  // system.
+-  // TODO(crbug.com/482088398): Eliminate this constraint.
+-  if (!extension) {
+-    return false;
+-  }
+-
+-  // UpdateService can only update extensions from the store. If `update_url`
+-  // is empty, we default to checking from the store.
+-  GURL update_url = GetEffectiveUpdateURL(*extension);
+-  return update_url.is_empty() ||
+-         extension_urls::IsWebstoreUpdateUrl(update_url);
++  // oganesson: update_client's checks are blocked (ungoogled-chromium's
++  // block-requests.patch), so store extensions update through
++  // ExtensionDownloader, the XML protocol the store still serves.
++  return false;
+ }
+ 
+ void ExtensionUpdater::InstallCRXFile(FetchedCRXFile crx_file) {

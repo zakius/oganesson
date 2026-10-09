@@ -1,0 +1,37 @@
+--- a/chrome/browser/ui/views/frame/horizontal_tab_strip_region_view.cc
++++ b/chrome/browser/ui/views/frame/horizontal_tab_strip_region_view.cc
+@@ -98,6 +98,20 @@ class FrameGrabHandle : public views::View {
+ 
+   void RemovedFromWidget() override { dialog_anchor_.reset(); }
+ 
++  bool OnMousePressed(const ui::MouseEvent& event) override {
++    // Firefox opens a new tab when the tab strip is middle-clicked outside
++    // any tab or button; this view covers the empty strip space.
++    if (event.IsOnlyMiddleMouseButton()) {
++      // Same as the New Tab button: the tab goes at the end of the strip.
++      if (auto* browser_view = BrowserView::GetBrowserViewForNativeWindow(
++              GetWidget()->GetNativeWindow())) {
++        chrome::NewTab(browser_view->browser(), NewTabTypes::kNewTabButton);
++      }
++      return true;
++    }
++    return View::OnMousePressed(event);
++  }
++
+   gfx::Size CalculatePreferredSize(
+       const views::SizeBounds& available_size) const override {
+     // Reserve some space for the frame to be grabbed by, even if the tabstrip
+--- a/ui/views/widget/desktop_aura/window_event_filter_linux.cc
++++ b/ui/views/widget/desktop_aura/window_event_filter_linux.cc
+@@ -85,6 +85,11 @@ bool WindowEventFilterLinux::HandleMouseEventWithHitTest(
+   }
+ 
+   if (hit_test == HTCAPTION) {
++    // Firefox opens a new tab when the empty tab strip is middle-clicked; the
++    // press must reach the views tree for that, so don't consume it here.
++    if (event->changed_button_flags() & ui::EF_MIDDLE_MOUSE_BUTTON) {
++      return false;
++    }
+     OnClickedCaption(event, previous_click_component);
+     return true;
+   }

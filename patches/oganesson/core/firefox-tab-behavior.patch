@@ -1,0 +1,432 @@
+--- a/chrome/app/settings_strings.grdp
++++ b/chrome/app/settings_strings.grdp
+@@ -259,6 +259,39 @@
+     <message name="IDS_SETTINGS_COLOR_SCHEME_MODE" desc="Text of the label for selecting a color scheme mode for the browser.">
+       Mode
+     </message>
++    <message name="IDS_SETTINGS_TAB_BEHAVIOR" desc="Label for the dropdown that sets where new tabs open and which tab is selected after closing one to the rules of Chromium or of Firefox. The switches below it set each rule.">
++      Tab behavior
++    </message>
++    <message name="IDS_SETTINGS_TAB_BEHAVIOR_CHROMIUM" desc="Option of the Tab behavior dropdown: tabs open and close as in Chromium.">
++      Chromium_unreplace
++    </message>
++    <message name="IDS_SETTINGS_TAB_BEHAVIOR_FIREFOX" desc="Option of the Tab behavior dropdown: tabs open and close as in Firefox.">
++      Firefox
++    </message>
++    <message name="IDS_SETTINGS_TAB_BEHAVIOR_CUSTOM" desc="Option of the Tab behavior dropdown, shown when the switches below it match neither Chromium nor Firefox.">
++      Custom
++    </message>
++    <message name="IDS_SETTINGS_TAB_LINK_POSITION" desc="Label for the dropdown that chooses where a link opened in a new tab opens.">
++      Open links in new tabs
++    </message>
++    <message name="IDS_SETTINGS_TAB_LINK_POSITION_CHROMIUM" desc="Option of the dropdown for where a link opened in a new tab opens, as Chromium does: a link opened in the foreground opens right after the tab it came from, one opened in the background after the tabs that tab opened before.">
++      As in Chromium_unreplace
++    </message>
++    <message name="IDS_SETTINGS_TAB_LINK_POSITION_AFTER_RELATED" desc="Option of the dropdown for where a link opened in a new tab opens, as Firefox does: after the tab it came from and the tabs that tab opened before, in the foreground and in the background.">
++      As in Firefox
++    </message>
++    <message name="IDS_SETTINGS_TAB_LINK_POSITION_AT_END" desc="Option of the dropdown for where a link opened in a new tab opens: at the end of the tab strip.">
++      At the end
++    </message>
++    <message name="IDS_SETTINGS_TAB_SELECT_RELATED_ON_CLOSE" desc="Label for the switch: closing a tab first selects a tab it opened, or another tab opened by the tab that opened it, as Chromium does.">
++      Closing a tab first selects a tab it opened, or one opened from the same tab
++    </message>
++    <message name="IDS_SETTINGS_TAB_SELECT_OWNER_ON_CLOSE" desc="Label for the switch: closing a tab selects the tab it was opened from, if the user hasn't switched tabs since.">
++      Closing a tab returns to the tab that opened it
++    </message>
++    <message name="IDS_SETTINGS_TAB_SELECT_MRU_ON_CLOSE" desc="Label for the switch: when no rule above applies, closing a tab selects the most recently used tab instead of the tab on its right.">
++      Otherwise, closing a tab selects the most recently used tab, not the one on its right
++    </message>
+     <message name="IDS_SETTINGS_NEW_TAB_NEXT_TO_ACTIVE_BUTTON" desc="Label for the checkbox which enables or disables behaviour of opening new tabs next to current active tab.">
+       Open new tabs next to the active tab
+     </message>
+--- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
++++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
+@@ -34,6 +34,7 @@
+ #include "chrome/browser/ssl/generated_https_first_mode_pref.h"
+ #include "chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_prefs.h"
+ #include "chrome/browser/ui/safety_hub/safety_hub_prefs.h"
++#include "chrome/browser/ui/tabs/oganesson_tab_behavior.h"
+ #include "chrome/browser/ui/tabs/tab_strip_prefs.h"
+ #include "chrome/browser/ui/toolbar/toolbar_pref_names.h"
+ #include "chrome/common/chrome_features.h"
+@@ -306,6 +307,13 @@ const PrefsUtil::TypedPrefMap& PrefsUtil::GetAllowlistedKeys() {
+       settings_api::PrefType::kBoolean;
+ #endif
+ 
++  (*s_allowlist)[oganesson::kLinkPositionPref] =
++      settings_api::PrefType::kNumber;
++  for (const char* pref : {oganesson::kSelectRelatedOnClosePref,
++                           oganesson::kSelectOwnerOnClosePref,
++                           oganesson::kSelectMRUOnClosePref}) {
++    (*s_allowlist)[pref] = settings_api::PrefType::kBoolean;
++  }
+   (*s_allowlist)[::prefs::kNewTabNextToActive] =
+       settings_api::PrefType::kBoolean;
+   (*s_allowlist)[::prefs::kTabCyclingMRU] =
+--- a/chrome/browser/extensions/api/tabs/tabs_api.cc
++++ b/chrome/browser/extensions/api/tabs/tabs_api.cc
+@@ -42,6 +42,7 @@
+ #include "chrome/browser/ui/recently_audible_helper.h"
+ #include "chrome/browser/ui/tabs/tab_enums.h"
+ #include "chrome/browser/ui/tabs/tab_muted_utils.h"
++#include "chrome/browser/ui/tabs/tab_strip_model.h"
+ #include "chrome/browser/web_applications/web_app_helpers.h"
+ #include "chrome/common/pref_names.h"
+ #include "chrome/common/webui_url_constants.h"
+@@ -2380,8 +2381,12 @@ void TabsCreateFunction::OpenTabInBrowser(BrowserWindowInterface& browser,
+   options.index = index_;
+   options.split_with_tab_id = split_with_tab_id_;
+ 
++  TabStripModel* const tab_strip = browser.GetTabStripModel();
++  tab_strip->set_firefox_next_opener(
++      opener_tab ? ::tabs::TabInterface::GetFromContents(opener_tab) : nullptr);
+   base::expected<content::WebContents*, std::string> result =
+       OpenTabHelper::OpenTab(validated_url_, browser, *this, options);
++  tab_strip->set_firefox_next_opener(nullptr);
+   if (!result.has_value()) {
+     Respond(Error(result.error()));
+     return;
+--- a/chrome/browser/prefs/browser_prefs.cc
++++ b/chrome/browser/prefs/browser_prefs.cc
+@@ -94,6 +94,7 @@
+ #include "chrome/browser/ui/performance_controls/performance_controls_metrics.h"
+ #include "chrome/browser/ui/prefs/prefs_tab_helper.h"
+ #include "chrome/browser/ui/safety_hub/safety_hub_prefs.h"
++#include "chrome/browser/ui/tabs/oganesson_tab_behavior.h"
+ #include "chrome/browser/ui/tabs/organizer/organizer_prefs.h"
+ #include "chrome/browser/ui/tabs/tab_strip_prefs.h"
+ #include "chrome/browser/ui/toolbar/chrome_labs/chrome_labs_prefs.h"
+@@ -2502,6 +2503,7 @@ void MigrateObsoleteProfilePrefs(PrefService* profile_prefs,
+   // Added 09/2025.
+ #if !BUILDFLAG(IS_ANDROID)
+   PageColorsController::MigrateObsoleteProfilePrefs(profile_prefs);
++  oganesson::MigrateTabBehaviorPref(profile_prefs);
+ #endif
+   profile_prefs->ClearPref(kGaiaCookieLastListAccountsData);
+ 
+--- a/chrome/browser/resources/settings/appearance_page/appearance_behavior_page.html
++++ b/chrome/browser/resources/settings/appearance_page/appearance_behavior_page.html
+@@ -1,10 +1,45 @@
+-<style include="cr-shared-style settings-shared"></style>
++<style include="cr-shared-style settings-shared md-select"></style>
+ <settings-section page-title="$i18n{behaviorPageTitle}">
+ 
+-  <settings-toggle-button id="newTabNextToActive"
+-      pref-key="helium.browser.new_tab_next_to_active"
+-      label="$i18n{openNewTabNextToActive}">
+-  </settings-toggle-button>
++  <div class="cr-row first">
++    <div class="flex cr-padded-text" aria-hidden="true">
++      $i18n{tabBehavior}
++    </div>
++    <select id="tabBehavior" class="md-select" aria-label="$i18n{tabBehavior}"
++        value="[[tabBehaviorPreset_]]" on-change="onTabBehaviorPresetChange_">
++      <option value="chromium">$i18n{tabBehaviorChromium}</option>
++      <option value="firefox">$i18n{tabBehaviorFirefox}</option>
++      <option value="custom" disabled>$i18n{tabBehaviorCustom}</option>
++    </select>
++  </div>
++
++  <div class="list-frame">
++    <div class="cr-row first">
++      <div class="flex cr-padded-text" aria-hidden="true">
++        $i18n{tabLinkPosition}
++      </div>
++      <settings-dropdown-menu id="linkPosition"
++          pref-key="oganesson.tabs.link_position"
++          label="$i18n{tabLinkPosition}" menu-options="[[linkPositions_]]">
++      </settings-dropdown-menu>
++    </div>
++    <settings-toggle-button class="hr" id="newTabNextToActive"
++        pref-key="helium.browser.new_tab_next_to_active"
++        label="$i18n{openNewTabNextToActive}">
++    </settings-toggle-button>
++    <settings-toggle-button class="hr" id="selectRelatedOnClose"
++        pref-key="oganesson.tabs.select_related_on_close"
++        label="$i18n{tabSelectRelatedOnClose}">
++    </settings-toggle-button>
++    <settings-toggle-button class="hr" id="selectOwnerOnClose"
++        pref-key="oganesson.tabs.select_owner_on_close"
++        label="$i18n{tabSelectOwnerOnClose}">
++    </settings-toggle-button>
++    <settings-toggle-button class="hr" id="selectMruOnClose"
++        pref-key="oganesson.tabs.select_mru_on_close"
++        label="$i18n{tabSelectMruOnClose}">
++    </settings-toggle-button>
++  </div>
+ 
+   <settings-toggle-button class="hr" id="tabCyclingMRU"
+       pref-key="helium.browser.mru_tab_cycling"
+--- a/chrome/browser/resources/settings/appearance_page/appearance_behavior_page.ts
++++ b/chrome/browser/resources/settings/appearance_page/appearance_behavior_page.ts
+@@ -2,14 +2,44 @@
+ // You can use, redistribute, and/or modify this source code under
+ // the terms of the GPL-3.0 license that can be found in the LICENSE file.
+ 
++import 'chrome://resources/cr_elements/md_select.css.js';
++import '../controls/settings_dropdown_menu.js';
+ import '../controls/settings_toggle_button.js';
+ import '../settings_page/settings_section.js';
+ 
++import {PrefService} from '/shared/settings/prefs2/pref_service.js';
++import {PrefServiceObserverMixin} from '/shared/settings/prefs2/pref_service_observer_mixin.js';
++import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
+ import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+ 
++import type {DropdownMenuOptionList} from '../controls/settings_dropdown_menu.js';
++
+ import {getTemplate} from './appearance_behavior_page.html.js';
+ 
+-export class AppearanceBehaviorPageElement extends PolymerElement {
++// The Tab behavior presets, as values of the knobs' prefs
++// (oganesson_tab_behavior.h). Any other combination is Custom.
++const TAB_BEHAVIOR_PRESETS: Record<string, Record<string, boolean|number>> = {
++  chromium: {
++    'oganesson.tabs.link_position': 0,
++    'helium.browser.new_tab_next_to_active': false,
++    'oganesson.tabs.select_related_on_close': true,
++    'oganesson.tabs.select_owner_on_close': true,
++    'oganesson.tabs.select_mru_on_close': false,
++  },
++  firefox: {
++    'oganesson.tabs.link_position': 1,
++    'helium.browser.new_tab_next_to_active': false,
++    'oganesson.tabs.select_related_on_close': false,
++    'oganesson.tabs.select_owner_on_close': true,
++    'oganesson.tabs.select_mru_on_close': false,
++  },
++};
++
++const AppearanceBehaviorPageElementBase =
++    PrefServiceObserverMixin(PolymerElement);
++
++export class AppearanceBehaviorPageElement extends
++    AppearanceBehaviorPageElementBase {
+   static get is() {
+     return 'settings-appearance-behavior-page';
+   }
+@@ -17,6 +47,51 @@ export class AppearanceBehaviorPageElement extends PolymerElement {
+   static get template() {
+     return getTemplate();
+   }
++
++  static get properties() {
++    return {
++      // A key of TAB_BEHAVIOR_PRESETS, or 'custom'.
++      tabBehaviorPreset_: String,
++
++      // oganesson.tabs.link_position's values (oganesson_tab_behavior.h).
++      linkPositions_: {
++        type: Array,
++        value: () => [
++          'tabLinkPositionChromium',
++          'tabLinkPositionAfterRelated',
++          'tabLinkPositionAtEnd',
++        ].map((name, value) => ({name: loadTimeData.getString(name), value})),
++      },
++    };
++  }
++
++  declare private tabBehaviorPreset_: string;
++  declare private linkPositions_: DropdownMenuOptionList;
++  private tabBehaviorKnobs_: Record<string, boolean|number> = {};
++
++  override connectedCallback() {
++    super.connectedCallback();
++    for (const key of Object.keys(TAB_BEHAVIOR_PRESETS['chromium'])) {
++      this.addPrefObserver<boolean|number>(key, pref => {
++        this.tabBehaviorKnobs_[key] = pref.value;
++        this.tabBehaviorPreset_ = this.matchingTabBehaviorPreset_();
++      });
++    }
++  }
++
++  private matchingTabBehaviorPreset_(): string {
++    return Object.keys(TAB_BEHAVIOR_PRESETS).find(preset => {
++      return Object.entries(TAB_BEHAVIOR_PRESETS[preset])
++          .every(([knob, value]) => this.tabBehaviorKnobs_[knob] === value);
++    }) ?? 'custom';
++  }
++
++  private onTabBehaviorPresetChange_(e: Event) {
++    const preset = TAB_BEHAVIOR_PRESETS[(e.target as HTMLSelectElement).value];
++    for (const [knob, value] of Object.entries(preset ?? {})) {
++      PrefService.getInstance().setPrefValue(knob, value);
++    }
++  }
+ }
+ 
+ declare global {
+--- a/chrome/browser/ui/tabs/BUILD.gn
++++ b/chrome/browser/ui/tabs/BUILD.gn
+@@ -358,6 +358,7 @@ if (!is_android) {
+       "tab_close_types_data.cc",
+       "tab_strip_model.cc",
+       "tab_strip_model_delegate.cc",
++      "tab_strip_model_firefox.cc",
+       "tab_strip_model_selection_state.cc",
+       "tab_strip_model_stats_recorder.cc",
+       "tab_strip_prefs.cc",
+--- a/chrome/browser/ui/tabs/tab_model.h
++++ b/chrome/browser/ui/tabs/tab_model.h
+@@ -63,6 +63,13 @@ class TabModel final : public TabInterface,
+     reset_opener_on_active_tab_change_ = reset_opener_on_active_tab_change;
+   }
+ 
++  // Firefox's tab owner, the tab to select when this one closes
++  // (tab_strip_model_firefox.cc).
++  tabs::TabInterface* firefox_owner() const { return firefox_owner_.Get(); }
++  void set_firefox_owner(tabs::TabInterface* owner) {
++    firefox_owner_ = owner ? owner->GetHandle() : tabs::TabHandle();
++  }
++
+   void SetPinned(bool pinned);
+   void SetGroup(std::optional<tab_groups::TabGroupId> group);
+ 
+@@ -237,6 +244,7 @@ class TabModel final : public TabInterface,
+   bool will_be_detaching_ = false;
+   tabs::TabHandle opener_handle_;
+   bool reset_opener_on_active_tab_change_ = false;
++  tabs::TabHandle firefox_owner_;
+   bool pinned_ = false;
+   bool blocked_ = false;
+   bool visible_ = false;
+--- a/chrome/browser/ui/tabs/tab_strip_model.cc
++++ b/chrome/browser/ui/tabs/tab_strip_model.cc
+@@ -57,6 +57,7 @@
+ #include "chrome/browser/ui/send_tab_to_self/send_tab_to_self_bubble.h"
+ #include "chrome/browser/ui/tab_ui_helper.h"
+ #include "chrome/browser/ui/tabs/features.h"
++#include "chrome/browser/ui/tabs/oganesson_tab_behavior.h"
+ #include "chrome/browser/ui/tabs/split_tab_metrics.h"
+ #include "chrome/browser/ui/tabs/tab_change_type.h"
+ #include "chrome/browser/ui/tabs/tab_close_types_data.h"
+@@ -778,6 +779,7 @@ tabs::TabModel* TabStripModel::GetActiveTabModel() const {
+ void TabStripModel::OnChange(const TabStripModelChange& change,
+                              const TabStripSelectionChange& selection) {
+   CompleteModelUpdateTransaction();
++  FirefoxOnChange(change, selection);
+   OnActiveTabChanged(selection);
+ 
+   for (auto& observer : observers_) {
+@@ -1824,7 +1826,10 @@ void TabStripModel::AddTab(std::unique_ptr<tabs::TabModel> tab,
+   // closed we'll jump back to the parent tab.
+   bool inherit_opener = (add_types & ADD_INHERIT_OPENER) == ADD_INHERIT_OPENER;
+ 
+-  if (ui::PageTransitionTypeIncludingQualifiersIs(transition,
++  if (UsesFirefoxTabRules()) {
++    inherit_opener |=
++        FirefoxPlaceNewTab(tab.get(), transition, add_types, &index, &group);
++  } else if (ui::PageTransitionTypeIncludingQualifiersIs(transition,
+                                                   ui::PAGE_TRANSITION_LINK) &&
+       (add_types & ADD_FORCE_INDEX) == 0) {
+     // We assume tabs opened via link clicks are part of the same task as their
+@@ -5872,6 +5877,13 @@ std::optional<int> TabStripModel::DetermineNewSelectedIndex(
+ 
+   gfx::Range block_tabs = gfx::Range(start_index, start_index + block_size);
+ 
++  if (UsesFirefoxTabRules()) {
++    if (std::optional<int> firefox_index =
++            FirefoxTabToSelectOnClose(block_tabs)) {
++      return GetTabIndexAfterClosing(*firefox_index, block_tabs);
++    }
++  }
++
+   // First preference is a tab the block opened.
+   int new_selected_index = GetIndexOfNextWebContentsOpenedBy(block_tabs);
+   if (new_selected_index != TabStripModel::kNoTab &&
+--- a/chrome/browser/ui/tabs/tab_strip_model.h
++++ b/chrome/browser/ui/tabs/tab_strip_model.h
+@@ -898,6 +898,12 @@ class TabStripModel {
+   tabs::TabInterface* GetTabForWebContents(
+       const content::WebContents* contents) const;
+ 
++  // The opener an extension's tabs.create() names for the tab it adds next,
++  // for the Firefox tab behavior.
++  void set_firefox_next_opener(tabs::TabInterface* opener) {
++    firefox_next_opener_ = opener ? opener->GetHandle() : tabs::TabHandle();
++  }
++
+  private:
+   FRIEND_TEST_ALL_PREFIXES(TabStripModelTest, GetIndicesClosedByCommand);
+   // Temporary private API.
+@@ -1397,6 +1403,22 @@ class TabStripModel {
+   // Takes the `selection` change and decides whether to forget the openers.
+   void OnActiveTabChanged(const TabStripSelectionChange& selection);
+ 
++  // Settings > Behavior > Tab behavior: whether its knobs (in
++  // oganesson_tab_behavior.h) leave Chromium's rules for Firefox's
++  // (tab_strip_model_firefox.cc). FirefoxPlaceNewTab sets the index and group
++  // of a tab AddTab adds, and returns whether the active tab opened it.
++  bool UsesFirefoxTabRules() const;
++  bool FirefoxPlaceNewTab(tabs::TabModel* tab,
++                          ui::PageTransition transition,
++                          int add_types,
++                          int* index,
++                          std::optional<tab_groups::TabGroupId>* group);
++  int ChromiumLinkIndex(int opener_index, bool foreground) const;
++  void FirefoxOnChange(const TabStripModelChange& change,
++                       const TabStripSelectionChange& selection);
++  std::optional<int> FirefoxTabToSelectOnClose(
++      const gfx::Range& block_tabs) const;
++
+   // Determine where to shift selection after a tab or collection is closed.
+   std::optional<int> DetermineNewSelectedIndex(
+       std::variant<tabs::DanglingUntriagedTabInterface,
+@@ -1510,6 +1532,11 @@ class TabStripModel {
+   // List of tabs for MRU cycling
+   std::vector<tabs::TabHandle> mru_cycle_list_;
+ 
++  // Firefox's #lastRelatedTabMap: the last tab each opener opened since the
++  // last tab switch, after which Firefox's rules place the next one.
++  std::map<tabs::TabHandle, tabs::TabHandle> firefox_last_related_tabs_;
++  tabs::TabHandle firefox_next_opener_;
++
+   base::WeakPtrFactory<TabStripModel> weak_factory_{this};
+ };
+ 
+--- a/chrome/browser/ui/tabs/tab_strip_prefs.cc
++++ b/chrome/browser/ui/tabs/tab_strip_prefs.cc
+@@ -7,6 +7,7 @@
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/ui/actions/chrome_action_id.h"
+ #include "chrome/browser/ui/tabs/features.h"
++#include "chrome/browser/ui/tabs/oganesson_tab_behavior.h"
+ #include "chrome/browser/ui/tabs/vertical_tab_strip_state.h"
+ #include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
+ #include "chrome/browser/ui/toolbar/toolbar_pref_names.h"
+@@ -33,6 +34,12 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
+   registry->RegisterBooleanPref(prefs::kVerticalTabsCollapsedState, false);
+   registry->RegisterIntegerPref(prefs::kVerticalTabsUncollapsedWidth,
+                                 kVerticalTabStripDefaultUncollapsedWidth);
++  registry->RegisterIntegerPref(oganesson::kLinkPositionPref,
++                                oganesson::kLinkPositionChromium);
++  registry->RegisterBooleanPref(oganesson::kSelectRelatedOnClosePref, true);
++  registry->RegisterBooleanPref(oganesson::kSelectOwnerOnClosePref, true);
++  registry->RegisterBooleanPref(oganesson::kSelectMRUOnClosePref, false);
++  registry->RegisterIntegerPref(oganesson::kObsoleteTabBehaviorPref, 0);
+ }
+ 
+ void MigrateHoverCardMemoryPref(PrefService* local_prefs) {
+--- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
++++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
+@@ -595,6 +595,18 @@ void AddAppearanceStrings(content::WebUIDataSource* html_source,
+       {"lightMode", IDS_NTP_CUSTOMIZE_CHROME_COLOR_SCHEME_MODE_LIGHT_LABEL},
+       {"darkMode", IDS_NTP_CUSTOMIZE_CHROME_COLOR_SCHEME_MODE_DARK_LABEL},
+       {"systemMode", IDS_NTP_CUSTOMIZE_CHROME_COLOR_SCHEME_MODE_SYSTEM_LABEL},
++      {"tabBehavior", IDS_SETTINGS_TAB_BEHAVIOR},
++      {"tabBehaviorChromium", IDS_SETTINGS_TAB_BEHAVIOR_CHROMIUM},
++      {"tabBehaviorFirefox", IDS_SETTINGS_TAB_BEHAVIOR_FIREFOX},
++      {"tabBehaviorCustom", IDS_SETTINGS_TAB_BEHAVIOR_CUSTOM},
++      {"tabLinkPosition", IDS_SETTINGS_TAB_LINK_POSITION},
++      {"tabLinkPositionChromium", IDS_SETTINGS_TAB_LINK_POSITION_CHROMIUM},
++      {"tabLinkPositionAfterRelated",
++       IDS_SETTINGS_TAB_LINK_POSITION_AFTER_RELATED},
++      {"tabLinkPositionAtEnd", IDS_SETTINGS_TAB_LINK_POSITION_AT_END},
++      {"tabSelectRelatedOnClose", IDS_SETTINGS_TAB_SELECT_RELATED_ON_CLOSE},
++      {"tabSelectOwnerOnClose", IDS_SETTINGS_TAB_SELECT_OWNER_ON_CLOSE},
++      {"tabSelectMruOnClose", IDS_SETTINGS_TAB_SELECT_MRU_ON_CLOSE},
+       {"openNewTabNextToActive", IDS_SETTINGS_NEW_TAB_NEXT_TO_ACTIVE_BUTTON},
+       {"cycleTabsInMRUOrder", IDS_SETTINGS_CYCLE_TABS_IN_MRU_ORDER},
+       {"shiftRightClickContextMenu",

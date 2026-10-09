@@ -1,0 +1,42 @@
+--- a/extensions/browser/api/web_request/web_request_api.cc
++++ b/extensions/browser/api/web_request/web_request_api.cc
+@@ -48,6 +48,7 @@
+ #include "extensions/browser/bad_message.h"
+ #include "extensions/browser/browser_frame_context_data.h"
+ #include "extensions/browser/browser_process_context_data.h"
++#include "extensions/browser/disable_reason.h"
+ #include "extensions/browser/event_router.h"
+ #include "extensions/browser/extension_navigation_ui_data.h"
+ #include "extensions/browser/extension_prefs.h"
+@@ -58,6 +59,7 @@
+ #include "extensions/browser/install_prefs_helper.h"
+ #include "extensions/browser/process_manager.h"
+ #include "extensions/browser/process_map.h"
++#include "extensions/browser/unloaded_extension_reason.h"
+ #include "extensions/browser/warning_service.h"
+ #include "extensions/browser/warning_set.h"
+ #include "extensions/buildflags/buildflags.h"
+@@ -1202,8 +1204,22 @@
+     CHECK_EQ(web_view_extension_ids_.erase(extension->id()), 1u);
+     update_may_have_proxies = true;
+   }
++  // A reloading or updating extension usually comes right back, in this same
++  // task. Dropping the proxies until then resets the URL loader factories,
++  // and a request that waited for its listener could never start: a pending
++  // navigation ended blank (#281). One that doesn't come back (a failed
++  // reload, an update that disables it) gets the check a task later.
+   if (update_may_have_proxies) {
+-    UpdateMayHaveProxies();
++    if (reason == UnloadedExtensionReason::UPDATE ||
++        ExtensionPrefs::Get(browser_context)
++            ->HasDisableReason(extension->id(),
++                               disable_reason::DISABLE_RELOAD)) {
++      base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
++          FROM_HERE, base::BindOnce(&WebRequestAPI::UpdateMayHaveProxies,
++                                    weak_factory_.GetWeakPtr()));
++    } else {
++      UpdateMayHaveProxies();
++    }
+   }
+ 
+   if (declarative_net_request::HasAnyDNRPermission(*extension)) {

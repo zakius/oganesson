@@ -1,0 +1,30 @@
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -841,6 +841,8 @@ source_set("core") {
+     "about_flags.cc",
+     "after_startup_task_utils.cc",
+     "browser_about_handler.cc",
++    "firefox_about_urls.cc",
++    "firefox_about_urls.h",
+     "browser_process_impl.cc",
+     "chrome_browser_field_trials.cc",
+     "chrome_browser_interface_binders.cc",
+--- a/chrome/browser/ui/navigator/browser_navigator.cc
++++ b/chrome/browser/ui/navigator/browser_navigator.cc
+@@ -24,6 +24,7 @@
+ #include "chrome/browser/apps/app_service/web_contents_app_id_utils.h"
+ #include "chrome/browser/apps/link_capturing/link_capturing_tab_data.h"
+ #include "chrome/browser/browser_about_handler.h"
++#include "chrome/browser/firefox_about_urls.h"
+ #include "chrome/browser/picture_in_picture/picture_in_picture_window_manager.h"
+ #include "chrome/browser/platform_util.h"
+ #include "chrome/browser/prefs/incognito_mode_prefs.h"
+@@ -668,6 +669,8 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
+   }
+ #endif  // BUILDFLAG(IS_CHROMEOS)
+ 
++  RewriteFirefoxAboutURL(&params->url);
++
+   // Open System Apps in their standalone window if necessary.
+   // TODO(crbug.com/40136163): Remove this code after we integrate with intent
+   // handling.

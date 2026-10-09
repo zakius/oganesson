@@ -1,0 +1,930 @@
+"""Installed web apps' out-of-scope links open in the system default browser
+(#270), with the scope rules the user adds on chrome://app-settings (#271,
+#346) and the start address set there (#346), and from a link's context menu
+in an app window (#345); also for DIY apps, and not for isolated web apps
+(#351). A stub `xdg-open` on PATH stands in for the desktop's default
+handler and records the URLs it gets, and the activation token variables it
+sees, which decide whether the browser it starts may take focus; a stub `xdg-settings` and a desktop
+file make oganesson the default browser when a test needs it.
+"""
+
+import base64
+import hashlib
+import json
+import os
+import shutil
+import struct
+import subprocess
+import tempfile
+import unittest
+import zlib
+from pathlib import Path
+
+from harness import BrowserTest, Page, Server, wait_for
+
+PREF = 'oganesson.web_apps.open_out_of_scope_links_in_default_browser'
+
+APP_PAGE = b'''<!doctype html><link rel="manifest" href="/app/manifest.json">
+<a id="plain" href="/out.html?plain">out</a>
+<a id="blank" href="/out.html?blank" target="_blank">out in a new tab</a>
+<a id="inside" href="/app/inside.html">in scope</a>
+<form method="post" action="/post.html" target="_blank"><input name="q" value="1">
+<button id="post">post</button></form>
+<form method="post" action="/post-opener.html" target="_blank" rel="opener"><input name="q" value="2">
+<button id="post-opener">post with opener</button></form>
+<button id="sign-in" onclick="(async () => { await fetch('/app/inside.html');
+  location.assign('/out.html?assign'); })()">sign in</button>
+<a id="cross-in" href="/other/in.html">another origin, in a user rule</a>
+<a id="cross-out" href="/elsewhere.html">another origin, in no rule</a>
+<a id="excluded" href="/app/excluded.html">excluded by a user rule</a>
+<a id="mail" href="/app/mail/x.html">in a rule on the app's own site</a>
+<script>for (const id of ['cross-in', 'cross-out'])
+  document.getElementById(id).host = `localhost:${location.port}`;</script>'''
+
+# Rules for the app: localhost's /other/ joins its scope, and one page of its
+# manifest scope leaves it.
+RULES = 'http://localhost:*/other/*\n!http://127.0.0.1:*/app/excluded.html'
+# A rule on the app's own site, which narrows its scope there to /app/mail/.
+NARROW = 'http://127.0.0.1:*/app/mail/*'
+
+
+
+def png(size):
+    """A blank square PNG: install wants a manifest icon of at least 144px."""
+    def chunk(kind, data):
+        return (struct.pack('>I', len(data)) + kind + data
+                + struct.pack('>I', zlib.crc32(kind + data)))
+    rows = b''.join(b'\0' + b'\x80' * size * 3 for _ in range(size))
+    return (b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', size, size, 8, 2, 0, 0, 0))
+            + chunk(b'IDAT', zlib.compress(rows)) + chunk(b'IEND', b''))
+
+
+class WebAppTest(BrowserTest):
+    """The app installed and the stubs on PATH; tests in the classes below."""
+
+    debugging_pipe = True
+    # The host the app is installed from, and members to add to its manifest.
+    app_host = '127.0.0.1'
+    manifest_extra = {}
+    # The app's start page, and its manifest ID's path.
+    app_page = APP_PAGE
+    manifest_path = '/app/'
+
+    @classmethod
+    def setUpClass(cls):
+        cls.stubs = Path(tempfile.mkdtemp(prefix='oganesson-e2e-stubs-'))
+        cls.opened_file = cls.stubs / 'opened'
+        cls.tokens_file = cls.stubs / 'tokens'
+        cls.is_default_file = cls.stubs / 'is-default'
+        cls.desktop_file = cls.stubs / 'data/applications/oganesson.desktop'
+        cls.handler_file = cls.stubs / 'https-handler'
+        cls.other_desktop_file = cls.stubs / 'data/applications/other.desktop'
+        (cls.stubs / 'bin').mkdir()
+        for name, body in (
+                # The token variables first: tests wait for the URL.
+                ('xdg-open', 'printf "%s\\n" "$(env | grep -oE'
+                             ' "^(XDG_ACTIVATION_TOKEN|DESKTOP_STARTUP_ID)=" | tr -d =)"'
+                             f' >> {cls.tokens_file}\n'
+                             f'printf "%s\\n" "$1" >> {cls.opened_file}\n'),
+                # Chromium asks `xdg-settings check default-web-browser
+                # oganesson.desktop`, and `xdg-settings get
+                # default-url-scheme-handler https` for the handler's name.
+                ('xdg-settings', f'if [ "$1" = get ]; then cat {cls.handler_file} 2>/dev/null\n'
+                                 f'elif [ -e {cls.is_default_file} ]; then echo yes; else echo no; fi\n')):
+            (cls.stubs / 'bin' / name).write_text('#!/bin/sh\n' + body)
+            (cls.stubs / 'bin' / name).chmod(0o755)
+        cls.browser_env = {'PATH': f'{cls.stubs / "bin"}:{os.environ["PATH"]}',
+                           'XDG_DATA_HOME': str(cls.stubs / 'data')}
+        super().setUpClass()
+        cls.server = Server(ipv6=cls.app_host == '[::1]', routes={
+            '/app/index.html': (200, {'Content-Type': 'text/html'}, cls.app_page),
+            '/app/inside.html': (200, {'Content-Type': 'text/html'}, b'inside'),
+            '/app/popup.html': (200, {'Content-Type': 'text/html'},
+                                b'<a id="out" href="/out.html?popup">out</a>'),
+            '/out.html': (200, {'Content-Type': 'text/html'}, b'out'),
+            '/other/in.html': (200, {'Content-Type': 'text/html'}, b'other'),
+            '/elsewhere.html': (200, {'Content-Type': 'text/html'}, b'elsewhere'),
+            '/app/excluded.html': (200, {'Content-Type': 'text/html'}, b'excluded'),
+            '/app/mail/x.html': (200, {'Content-Type': 'text/html'}, b'mail'),
+            '/app/start.html': (200, {'Content-Type': 'text/html'}, b'start'),
+            '/post.html': (200, {'Content-Type': 'text/html'}, b'posted'),
+            '/post-opener.html': (200, {'Content-Type': 'text/html'}, b'posted'),
+            '/app/icon.png': (200, {'Content-Type': 'image/png'}, png(192)),
+            '/app/manifest.json': (200, {'Content-Type': 'application/manifest+json'}, json.dumps({
+                'name': 'Links', 'id': '/app/', 'start_url': '/app/index.html',
+                'scope': '/app/', 'display': 'standalone',
+                'icons': [{'src': 'icon.png', 'sizes': '192x192', 'type': 'image/png'}],
+                **cls.manifest_extra}).encode()),
+        })
+        # Out of the app's scope, and redirects into it.
+        cls.server.routes['/bounce'] = (302, {'Location': cls.server.url('/app/start.html', cls.app_host)}, b'')
+        cls.manifest_id = cls.server.url(cls.manifest_path, cls.app_host)
+        cls.install()
+        # GenerateAppIdFromManifestId: a crx-style ID of the manifest ID's hash.
+        cls.app_id = hashlib.sha256(hashlib.sha256(cls.manifest_id.encode()).digest()).hexdigest()[:32].translate(
+            str.maketrans('0123456789abcdef', 'abcdefghijklmnop'))
+
+    @classmethod
+    def install(cls):
+        cls.browser.pipe_call('PWA.install', manifestId=cls.manifest_id,
+                              installUrlOrBundleUrl=cls.server.url('/app/index.html', cls.app_host))
+        # Installed this way, an app opens in a tab until set to its own window.
+        cls.browser.pipe_call('PWA.changeAppUserSettings', manifestId=cls.manifest_id,
+                              displayMode='standalone')
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.server.stop()
+        super().tearDownClass()
+        shutil.rmtree(cls.stubs, ignore_errors=True)
+
+    def setUp(self):
+        self.opened_file.unlink(missing_ok=True)
+        self.tokens_file.unlink(missing_ok=True)
+        self.is_default_file.unlink(missing_ok=True)
+        self.desktop_file.unlink(missing_ok=True)
+        self.handler_file.unlink(missing_ok=True)
+
+    def launch_app(self, close=True, url=None, launch=None):
+        """Launches the app with PWA.launch, or with `launch()`, and returns
+        its window's page once on screen; it must open at `url`."""
+        # PWA.launch's targetId isn't the window's page target: take the new one.
+        before = {t['id'] for t in self.browser.targets()}
+        if launch:
+            launch()
+        else:
+            self.browser.pipe_call('PWA.launch', manifestId=self.manifest_id)
+        start = url or self.server.url('/app/index.html', self.app_host)
+        target = wait_for(lambda: next((t for t in self.browser.targets() if t['id'] not in before
+                                        and t['url'] == start), None),
+                          what='the app window')
+        app = Page(target)
+        if close:
+            self.addCleanup(self.browser.close_target, app)
+        # An eval while the page is still provisional fails a DCHECK in its
+        # renderer (crbug.com/897816); the browser knows once it commits.
+        wait_for(lambda: (lambda h: h['entries'][h['currentIndex']]['url'] == start)(
+            app.call('Page.getNavigationHistory')), what='the start page committed')
+        if url:
+            wait_for(lambda: app.eval('document.readyState === "complete"'), what='the start page')
+            return app
+        self.wait_on_screen(app)
+        return app
+
+    @staticmethod
+    def wait_on_screen(app):
+        # The first app window shows a while after its page loads; a click
+        # before its first frame misses the link.
+        wait_for(lambda: app.eval('!!document.getElementById("plain") && innerWidth > 0'
+                                  ' && document.visibilityState === "visible"'),
+                 what='the app page on screen')
+        app.eval('new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))')
+
+    def opened(self):
+        return self.opened_file.read_text().splitlines() if self.opened_file.exists() else []
+
+    def out_tabs(self, path='/out.html'):
+        return [t['url'] for t in self.browser.targets() if path in t['url']]
+
+    def link_menu(self, app, selector):
+        """Right-clicks the link `selector` in the app window; returns the
+        context menu's first item group, its "Open link in" items."""
+        app.click(selector, button='right')
+        return wait_for(lambda: self.browser.menus(), what='the context menu')[0][0]
+
+    def close_menus(self):
+        # The open menu has the keyboard grab.
+        self.browser.xdotool('key', 'Escape')
+        wait_for(lambda: not self.browser.menus(), what='the menu to close')
+
+    def set_pref(self, value):
+        tab = self.browser.new_tab('chrome://config/')
+        try:
+            # The tab is on about:blank, already complete, at first.
+            wait_for(lambda: tab.eval('location.href === "chrome://config/"'
+                                      ' && document.readyState === "complete"'),
+                     what='chrome://config')
+            # An error message, empty on success.
+            self.assertEqual(tab.eval("import('chrome://resources/js/cr.js').then(cr => "
+                                      f"cr.sendWithPromise('setPref', 'profile', {json.dumps(PREF)}, "
+                                      f"{json.dumps(json.dumps(value))}))"), '')
+        finally:
+            self.browser.close_target(tab)
+
+    def set_default_browser_name(self, name):
+        """Makes the default https handler a desktop entry named `name`."""
+        self.other_desktop_file.parent.mkdir(parents=True, exist_ok=True)
+        self.other_desktop_file.write_text(f'[Desktop Entry]\nType=Application\nName={name}\n')
+        self.handler_file.write_text('other.desktop\n')
+
+    def wait_link_menu_titles(self, app, selector, titles):
+        """Right-clicks the link `selector` and waits, in that one menu, for
+        the default browser items' titles to be `titles`."""
+        app.click(selector, button='right')
+        try:
+            wait_for(lambda: [v['Title'] for v in (self.browser.menus() or [[[]]])[0][0][1:3]] == titles,
+                     what=f'the menu items {titles}')
+        finally:
+            self.close_menus()
+
+    def make_default_browser(self):
+        self.desktop_file.parent.mkdir(parents=True, exist_ok=True)
+        self.desktop_file.write_text('[Desktop Entry]\nType=Application\nName=oganesson\n')
+        self.is_default_file.touch()
+
+    def settings_rules(self, rules=None, layout=False):
+        """Opens the app's settings page; with `rules`, saves them there.
+        Returns the rules the page shows, its error message, and whether that
+        message is on screen; with `layout`, then the rules row's content box
+        and the textarea, its error message and the Save button's boxes."""
+        tab = self.browser.new_tab(f'chrome://app-settings/{self.app_id}')
+        try:
+            item = ('document.querySelector("web-app-settings-app")?.shadowRoot?'
+                    '.querySelector("app-management-scope-rules-item")')
+            # The tab shows about:blank first, then the page before its
+            # elements upgrade, then the app, then the app's rules. Asked after
+            # the item's own request, on the same pipe, the backend answers
+            # after it too.
+            wait_for(lambda: tab.eval(
+                f'(async () => {{ const item = {item};'
+                f' if (item?.app?.id !== {json.dumps(self.app_id)}) return false;'
+                ' await item.updateComplete;'
+                ' const {browserProxyFactory} = await import("chrome://resources/'
+                'cr_components/app_management/app_management.mojom-webui.js");'
+                ' const {rules} = await browserProxyFactory.getInstance().handler'
+                f'.getScopeRules({json.dumps(self.app_id)});'
+                ' await item.updateComplete;'
+                ' return item.shadowRoot.querySelector("#rules").value === rules; })()'),
+                     what='the scope rules on the settings page')
+            if rules is not None:
+                tab.eval(f'(async () => {{ const item = {item};'
+                         ' const textarea = item.shadowRoot.querySelector("#rules");'
+                         f' textarea.value = {json.dumps(rules)};'
+                         ' await textarea.updateComplete; await item.updateComplete;'
+                         ' item.shadowRoot.querySelector("#save").click(); })()')
+                wait_for(lambda: tab.eval(f'{item}.shadowRoot.querySelector("#save")'
+                                          '.textContent.trim() === "Saved"'
+                                          f' || !!{item}.shadowRoot.querySelector("#rules").firstFooter'),
+                         what='the rules saved or rejected')
+            return tab.eval(f'(async () => {{ const rules = {item}.shadowRoot.querySelector("#rules");'
+                            ' await rules.updateComplete;'
+                            ' const footer = rules.shadowRoot.querySelector("#firstFooter");'
+                            ' const box = e => { const r = e.getBoundingClientRect();'
+                            ' return {left: r.left, right: r.right, top: r.top, bottom: r.bottom}; };'
+                            f' const card = {item}; const style = getComputedStyle(card);'
+                            ' const content = box(card);'
+                            ' content.left += parseFloat(style.paddingLeft);'
+                            ' content.right -= parseFloat(style.paddingRight);'
+                            ' return [rules.value, rules.firstFooter,'
+                            ' footer.checkVisibility() && footer.offsetHeight > 0,'
+                            f' ...({json.dumps(layout)} ? [{{card: content, textarea: box(rules.shadowRoot.querySelector("#input")),'
+                            ' error: box(footer), save: box(card.shadowRoot.querySelector("#save"))}] : [])]; })()')
+        finally:
+            self.browser.close_target(tab)
+
+    def set_rules(self, rules):
+        self.assertEqual(self.settings_rules(rules), [rules, '', False])
+        self.addCleanup(self.settings_rules, '')
+
+    def settings_start_url(self, url=None):
+        """Opens the app's settings page; with `url`, saves it as the start
+        address there. Returns the address the page shows, its placeholder
+        and its error message."""
+        tab = self.browser.new_tab(f'chrome://app-settings/{self.app_id}')
+        try:
+            item = ('document.querySelector("web-app-settings-app")?.shadowRoot?'
+                    '.querySelector("app-management-start-url-item")')
+            # As in settings_rules: asked after the item's own request.
+            wait_for(lambda: tab.eval(
+                f'(async () => {{ const item = {item};'
+                f' if (item?.app?.id !== {json.dumps(self.app_id)}) return false;'
+                ' await item.updateComplete;'
+                ' const {browserProxyFactory} = await import("chrome://resources/'
+                'cr_components/app_management/app_management.mojom-webui.js");'
+                ' const {url} = await browserProxyFactory.getInstance().handler'
+                f'.getStartUrl({json.dumps(self.app_id)});'
+                ' await item.updateComplete;'
+                ' return item.shadowRoot.querySelector("#url").value === url; })()'),
+                     what='the start address on the settings page')
+            if url is not None:
+                tab.eval(f'(async () => {{ const item = {item};'
+                         ' const input = item.shadowRoot.querySelector("#url");'
+                         f' input.value = {json.dumps(url)};'
+                         ' await input.updateComplete; await item.updateComplete;'
+                         ' item.shadowRoot.querySelector("#save").click(); })()')
+                wait_for(lambda: tab.eval(f'{item}.shadowRoot.querySelector("#save")'
+                                          '.textContent.trim() === "Saved"'
+                                          f' || !!{item}.shadowRoot.querySelector("#url").errorMessage'),
+                         what='the start address saved or rejected')
+            return tab.eval(f'(async () => {{ const input = {item}.shadowRoot.querySelector("#url");'
+                            ' await input.updateComplete;'
+                            ' return [input.value, input.placeholder, input.errorMessage]; })()')
+        finally:
+            self.browser.close_target(tab)
+
+    def set_start_url(self, url):
+        self.assertEqual(self.settings_start_url(url),
+                         [url, self.server.url('/app/index.html'), ''])
+        self.addCleanup(self.settings_start_url, '')
+
+    def custom_tab_bar_shown(self):
+        return any(v.visible for v in self.browser.views('CustomTabBarView'))
+
+
+class WebAppLinksTest(WebAppTest):
+
+    def test_user_rule_keeps_link_in_app(self):
+        self.set_rules(RULES)
+        app = self.launch_app()
+        app.click('#cross-in')
+        wait_for(lambda: app.eval('location.href') == self.server.url('/other/in.html', 'localhost'),
+                 what='the matched page in the app window')
+        self.assertEqual(self.opened(), [])
+
+    def test_user_rule_change_updates_open_window(self):
+        # An app window on a page a rule brought into scope shows no
+        # out-of-app bar; once the rule is gone, it does, without navigating.
+        self.set_rules(RULES)
+        app = self.launch_app()
+        app.click('#cross-in')
+        wait_for(lambda: app.eval('location.href') == self.server.url('/other/in.html', 'localhost'),
+                 what='the matched page in the app window')
+        self.assertFalse(self.custom_tab_bar_shown())
+        self.assertEqual(self.settings_rules(''), ['', '', False])
+        wait_for(self.custom_tab_bar_shown, what='the out-of-app bar')
+        self.assertEqual(app.eval('location.href'), self.server.url('/other/in.html', 'localhost'))
+
+    def test_user_rule_unmatched_link_opens_in_default_browser(self):
+        self.set_rules(RULES)
+        app = self.launch_app()
+        app.click('#cross-out')
+        wait_for(self.opened, what='xdg-open')
+        self.assertEqual(self.opened(), [self.server.url('/elsewhere.html', 'localhost')])
+        self.assertEqual(app.eval('location.href'), self.server.url('/app/index.html'))
+
+    def test_user_rule_excludes_manifest_scope(self):
+        self.set_rules(RULES)
+        app = self.launch_app()
+        app.click('#excluded')
+        wait_for(self.opened, what='xdg-open')
+        self.assertEqual(self.opened(), [self.server.url('/app/excluded.html')])
+        self.assertEqual(app.eval('location.href'), self.server.url('/app/index.html'))
+
+    def test_user_rule_on_app_site_narrows_scope(self):
+        # #346: the manifest's /app/ on 127.0.0.1 gives way to the rule there.
+        self.set_rules(NARROW)
+        app = self.launch_app()
+        app.click('#inside')
+        wait_for(self.opened, what='xdg-open')
+        self.assertEqual(self.opened(), [self.server.url('/app/inside.html')])
+        self.assertEqual(app.eval('location.href'), self.server.url('/app/index.html'))
+
+    def test_user_rule_on_app_site_keeps_its_pages(self):
+        self.set_rules(NARROW)
+        app = self.launch_app()
+        app.click('#mail')
+        wait_for(lambda: app.eval('location.href') == self.server.url('/app/mail/x.html'),
+                 what='the matched page in the app window')
+        self.assertEqual(self.opened(), [])
+
+    def test_user_rule_elsewhere_adds_beside_narrowing(self):
+        self.set_rules(f'{NARROW}\nhttp://localhost:*/other/*')
+        app = self.launch_app()
+        app.click('#cross-in')
+        wait_for(lambda: app.eval('location.href') == self.server.url('/other/in.html', 'localhost'),
+                 what='the matched page in the app window')
+        self.assertEqual(self.opened(), [])
+
+    def test_exclusion_wins_over_narrowing(self):
+        self.set_rules(f'{NARROW}\n!http://127.0.0.1:*/app/mail/x.html')
+        app = self.launch_app()
+        app.click('#mail')
+        wait_for(self.opened, what='xdg-open')
+        self.assertEqual(self.opened(), [self.server.url('/app/mail/x.html')])
+
+    def test_removing_narrowing_rule_restores_scope(self):
+        # The start page is out of the narrowed scope, so the window shows the
+        # out-of-app bar; without the rule, the whole /app/ is back in.
+        self.set_rules(NARROW)
+        app = self.launch_app()
+        wait_for(self.custom_tab_bar_shown, what='the out-of-app bar')
+        self.assertEqual(self.settings_rules(''), ['', '', False])
+        wait_for(lambda: not self.custom_tab_bar_shown(), what='the out-of-app bar gone')
+        app.click('#inside')
+        wait_for(lambda: app.eval('location.href') == self.server.url('/app/inside.html'),
+                 what='the in-scope page in the app window')
+        self.assertEqual(self.opened(), [])
+
+    def test_user_rule_invalid_rejected(self):
+        self.set_rules(RULES)
+        # URLPattern without regexp groups: SimpleUrlPatternMatcher's limit.
+        rules, error, shown = self.settings_rules('http://localhost:*/other/*\nhttp://example.com/(\\d+)')
+        self.assertTrue(error.startswith('Invalid pattern "http://example.com/(\\d+)": '), error)
+        self.assertTrue(shown)
+        self.assertEqual(self.settings_rules(), [RULES, '', False])
+
+    def test_rules_row_stacks(self):
+        # #287: the textarea spans the row, the error and Save below it.
+        *_, shown, boxes = self.settings_rules('http://example.com/(\\d+)', layout=True)
+        self.assertTrue(shown)
+        card, textarea, error, save = (boxes[k] for k in ('card', 'textarea', 'error', 'save'))
+        self.assertGreaterEqual(textarea['right'] - textarea['left'], 0.8 * (card['right'] - card['left']))
+        self.assertGreaterEqual(error['top'], textarea['bottom'])
+        self.assertGreaterEqual(save['top'], error['bottom'])
+        self.assertAlmostEqual(save['right'], card['right'], delta=1)
+
+    def test_user_rules_persist_across_restart(self):
+        self.set_rules(RULES)
+        self.browser.quit()
+        prefs = json.loads((self.browser.profile / 'Default/Preferences').read_text())
+        self.assertEqual(prefs['oganesson']['web_apps']['user_scope_rules'],
+                         {self.app_id: RULES.split('\n')})
+        self.browser.start()
+        self.assertEqual(self.settings_rules(), [RULES, '', False])
+        app = self.launch_app()
+        app.click('#cross-in')
+        wait_for(lambda: app.eval('location.href') == self.server.url('/other/in.html', 'localhost'),
+                 what='the matched page in the app window')
+        self.assertEqual(self.opened(), [])
+
+    def test_plain_link_opens_in_default_browser(self):
+        app = self.launch_app()
+        app.click('#plain')
+        wait_for(self.opened, what='xdg-open')
+        self.assertEqual(self.opened(), [self.server.url('/out.html?plain')])
+        self.assertEqual(app.eval('location.href'), self.server.url('/app/index.html'))
+        self.assertEqual(self.out_tabs(), [])
+
+    def test_blank_link_opens_in_default_browser(self):
+        app = self.launch_app()
+        app.click('#blank')
+        wait_for(self.opened, what='xdg-open')
+        self.assertEqual(self.opened(), [self.server.url('/out.html?blank')])
+        self.assertEqual(self.out_tabs(), [])
+
+    def test_window_open_opens_in_default_browser(self):
+        app = self.launch_app()
+        app.eval('void window.open("/out.html?open")')
+        wait_for(self.opened, what='xdg-open')
+        self.assertEqual(self.opened(), [self.server.url('/out.html?open')])
+        self.assertEqual(self.out_tabs(), [])
+
+    def test_popup_link_stays_in_popup(self):
+        # A sign-in popup: its links stay in it, opener and all.
+        app = self.launch_app()
+        app.eval('void window.open("/app/popup.html", "", "popup,width=400,height=300")')
+        popup = self.browser.page('/app/popup.html')
+        self.addCleanup(self.browser.close_target, popup)
+        wait_for(lambda: popup.eval('!!document.getElementById("out") && innerWidth > 0'
+                                    ' && document.visibilityState === "visible"'),
+                 what='the popup on screen')
+        popup.eval('new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))')
+        popup.click('#out')
+        wait_for(lambda: popup.eval('location.href') == self.server.url('/out.html?popup'),
+                 what='the link in the popup')
+        self.assertEqual(popup.eval('opener.location.href'), self.server.url('/app/index.html'))
+        self.assertEqual(self.opened(), [])
+
+    def test_blank_form_post_stays_in_oganesson(self):
+        app = self.launch_app()
+        app.click('#post')
+        tab = self.browser.page('/post.html')
+        self.addCleanup(self.browser.close_target, tab)
+        # The tab shows the URL before the request reaches the server.
+        self.assertEqual(wait_for(lambda: self.server.bodies.get('/post.html'),
+                                  what='the form post'), b'q=1')
+        self.assertEqual(self.opened(), [])
+
+    def test_blank_form_post_with_opener_stays_in_oganesson(self):
+        app = self.launch_app()
+        app.click('#post-opener')
+        tab = self.browser.page('/post-opener.html')
+        self.addCleanup(self.browser.close_target, tab)
+        # The tab shows the URL before the request reaches the server.
+        self.assertEqual(wait_for(lambda: self.server.bodies.get('/post-opener.html'),
+                                  what='the form post'), b'q=2')
+        self.assertEqual(self.opened(), [])
+
+    def test_script_navigation_from_click_stays_in_app(self):
+        # A sign-in button fetching the provider's URL, then assigning it.
+        app = self.launch_app()
+        app.click('#sign-in')
+        wait_for(lambda: app.eval('location.href') == self.server.url('/out.html?assign'),
+                 what='the script navigation in the app window')
+        self.assertEqual(self.opened(), [])
+
+    def test_in_scope_link_stays_in_app(self):
+        app = self.launch_app()
+        app.click('#inside')
+        wait_for(lambda: app.eval('location.href') == self.server.url('/app/inside.html'),
+                 what='the in-scope page in the app window')
+        self.assertEqual(self.opened(), [])
+
+    def test_normal_tab_unaffected(self):
+        tab = self.browser.new_tab(self.server.url('/app/index.html'))
+        wait_for(lambda: tab.eval('location.href') == self.server.url('/app/index.html'),
+                 what='the app page in a tab')
+        tab.click('#plain')
+        wait_for(lambda: tab.eval('location.href') == self.server.url('/out.html?plain'),
+                 what='the link in the tab')
+        self.assertEqual(self.opened(), [])
+        self.browser.close_target(tab)
+
+    def test_default_browser_keeps_links_in_oganesson(self):
+        self.make_default_browser()
+        app = self.launch_app()
+        app.click('#blank')
+        tab = self.browser.page('/out.html?blank')
+        self.addCleanup(self.browser.close_target, tab)
+        wait_for(lambda: tab.eval('document.body?.textContent') == 'out', what='the page')
+        self.assertEqual(self.out_tabs(), [self.server.url('/out.html?blank')])
+        app.click('#plain')
+        wait_for(lambda: app.eval('location.href') == self.server.url('/out.html?plain'),
+                 what='the link in the app window')
+        self.assertEqual(self.opened(), [])
+
+    def test_default_browser_window_open_keeps_opener(self):
+        self.make_default_browser()
+        app = self.launch_app()
+        app.eval('void window.open("/out.html?open")')
+        tab = self.browser.page('/out.html?open')
+        self.addCleanup(self.browser.close_target, tab)
+        wait_for(lambda: tab.eval('document.body?.textContent') == 'out', what='the page')
+        self.assertEqual(tab.eval('opener.location.href'), self.server.url('/app/index.html'))
+        # A tab of a regular window, not an app window.
+        self.assertTrue(tab.eval('matchMedia("(display-mode: browser)").matches'))
+        self.assertEqual(self.opened(), [])
+
+    def test_menu_opens_link_in_default_browser(self):
+        # #345: also a link in the app's scope, which a click keeps in the app.
+        app = self.launch_app()
+        self.browser.click_view(self.link_menu(app, '#inside')[1])
+        wait_for(self.opened, what='xdg-open')
+        self.assertEqual(self.opened(), [self.server.url('/app/inside.html')])
+        self.assertEqual(app.eval('location.href'), self.server.url('/app/index.html'))
+        self.assertEqual(self.out_tabs('/app/inside.html'), [])
+
+    def test_menu_opens_link_in_default_browser_in_background(self):
+        app = self.launch_app()
+        self.browser.click_view(self.link_menu(app, '#plain')[2])
+        wait_for(self.opened, what='xdg-open')
+        self.assertEqual(self.opened(), [self.server.url('/out.html?plain')])
+        self.assertEqual(app.eval('location.href'), self.server.url('/app/index.html'))
+        self.assertEqual(self.out_tabs(), [])
+
+    def test_pref_off_hides_menu_items(self):
+        app = self.launch_app()
+        shown = len(self.link_menu(app, '#plain'))
+        self.close_menus()
+        self.set_pref(False)
+        self.addCleanup(self.set_pref, True)
+        self.assertEqual(len(self.link_menu(app, '#plain')), shown - 2)
+        self.close_menus()
+
+    def test_default_browser_hides_menu_items(self):
+        app = self.launch_app()
+        shown = len(self.link_menu(app, '#plain'))
+        self.close_menus()
+        self.make_default_browser()
+
+        # Each menu checks again, and shows the last answer.
+        def hidden():
+            items = len(self.link_menu(app, '#plain'))
+            self.close_menus()
+            return items == shown - 2
+        wait_for(hidden, what='the menu without the default browser items')
+        self.assertEqual(self.opened(), [])
+
+    def test_default_browser_change_updates_open_menu(self):
+        # The window's first check found another browser the default; the
+        # menu's own check hides the items in the menu already open.
+        app = self.launch_app()
+        shown = len(self.link_menu(app, '#plain'))
+        self.close_menus()
+        self.make_default_browser()
+        app.click('#plain', button='right')
+        wait_for(lambda: len((self.browser.menus() or [[[]]])[0][0]) == shown - 2,
+                 what='the open menu without the default browser items')
+        self.close_menus()
+        self.assertEqual(self.opened(), [])
+
+    def test_menu_names_default_browser(self):
+        app = self.launch_app()
+        self.set_default_browser_name('Floorp')
+        self.wait_link_menu_titles(app, '#plain', ['Open link in Floorp',
+                                                   'Open link in Floorp in background'])
+        # Another default browser: the open menu takes its name.
+        self.set_default_browser_name('Firefox')
+        self.wait_link_menu_titles(app, '#plain', ['Open link in Firefox',
+                                                   'Open link in Firefox in background'])
+
+    def test_menu_default_browser_name_escaped_and_shortened(self):
+        app = self.launch_app()
+        # Escaped, an ampersand isn't a mnemonic.
+        self.set_default_browser_name('A&B')
+        self.wait_link_menu_titles(app, '#plain', ['Open link in A&&B',
+                                                   'Open link in A&&B in background'])
+        # Cut to 32 characters, "in background" stays in view.
+        self.set_default_browser_name('Browser ' * 10)
+        short = 'Browser ' * 3 + 'Browser\u2026'
+        self.wait_link_menu_titles(app, '#plain', [f'Open link in {short}',
+                                                   f'Open link in {short} in background'])
+
+    def test_restored_app_window_knows_default_browser(self):
+        # A restored app window's page doesn't load through Navigate(); its
+        # first window.open still finds oganesson the default browser.
+        self.make_default_browser()
+        self.launch_app(close=False)
+        self.browser.quit()
+        # Chromium reopens app windows only after chrome://restart, which
+        # leaves this flag for the next start.
+        local_state = self.browser.profile / 'Local State'
+        state = json.loads(local_state.read_text())
+        state.setdefault('was', {})['restarted'] = True
+        local_state.write_text(json.dumps(state))
+        self.browser.start()
+        app = Page(wait_for(lambda: next((t for t in self.browser.targets()
+                                          if t['url'] == self.server.url('/app/index.html')), None),
+                            what='the restored app window'))
+        self.addCleanup(self.browser.close_target, app)
+        # The regular window opens over it, so it stays hidden.
+        wait_for(lambda: app.eval('document.readyState === "complete"'),
+                 what='the restored app page')
+        app.eval('void window.open("/out.html?restored")')
+        tab = self.browser.page('/out.html?restored')
+        self.addCleanup(self.browser.close_target, tab)
+        wait_for(lambda: tab.eval('document.body?.textContent') == 'out', what='the page')
+        self.assertEqual(tab.eval('opener.location.href'), self.server.url('/app/index.html'))
+        self.assertEqual(self.opened(), [])
+
+
+class StartUrlTest(WebAppTest):
+    """The start address the user sets on chrome://app-settings (#346)."""
+
+    def test_launch_opens_start_url(self):
+        self.set_start_url(self.server.url('/app/start.html'))
+        self.launch_app(url=self.server.url('/app/start.html'))
+
+    def test_desktop_entry_opens_start_url(self):
+        # The Exec line of the app's desktop entry, handed to the running
+        # browser by a second process.
+        self.set_start_url(self.server.url('/app/start.html'))
+        self.launch_app(url=self.server.url('/app/start.html'), launch=lambda: subprocess.run(
+            [str(self.browser.binary), f'--user-data-dir={self.browser.profile}',
+             '--profile-directory=Default', f'--app-id={self.app_id}'],
+            env=self.browser.env(), check=True, timeout=60,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
+
+    def test_cleared_start_url_opens_manifest_start_url(self):
+        self.set_start_url(self.server.url('/app/start.html'))
+        self.assertEqual(self.settings_start_url(''), ['', self.server.url('/app/index.html'), ''])
+        self.launch_app()
+
+    def test_start_url_out_of_scope_opens_with_bar(self):
+        # Allowed: the window opens there and shows that it is out of the app.
+        self.set_start_url(self.server.url('/elsewhere.html', 'localhost'))
+        self.launch_app(url=self.server.url('/elsewhere.html', 'localhost'))
+        wait_for(self.custom_tab_bar_shown, what='the out-of-app bar')
+
+    def test_start_url_redirected_into_scope(self):
+        self.set_start_url(self.server.url('/bounce', 'localhost'))
+        self.launch_app(url=self.server.url('/app/start.html'))
+
+    def test_invalid_start_url_rejected(self):
+        self.set_start_url(self.server.url('/app/start.html'))
+        self.assertEqual(self.settings_start_url('ftp://example.com/'),
+                         ['ftp://example.com/', self.server.url('/app/index.html'),
+                          'Not an http or https URL: "ftp://example.com/"'])
+        self.assertEqual(self.settings_start_url(),
+                         [self.server.url('/app/start.html'), self.server.url('/app/index.html'), ''])
+
+    def test_start_url_persists_across_restart(self):
+        self.set_start_url(self.server.url('/app/start.html'))
+        self.browser.quit()
+        prefs = json.loads((self.browser.profile / 'Default/Preferences').read_text())
+        self.assertEqual(prefs['oganesson']['web_apps']['user_start_urls'],
+                         {self.app_id: self.server.url('/app/start.html')})
+        self.browser.start()
+        self.launch_app(url=self.server.url('/app/start.html'))
+
+    def test_stored_file_start_url_ignored(self):
+        # Set outside the page, as about:config can: launches don't take it.
+        self.browser.quit()
+        path = self.browser.profile / 'Default/Preferences'
+        prefs = json.loads(path.read_text())
+        prefs.setdefault('oganesson', {}).setdefault('web_apps', {})['user_start_urls'] = {
+            self.app_id: 'file:///etc/hostname'}
+        path.write_text(json.dumps(prefs))
+        self.browser.start()
+        self.addCleanup(self.settings_start_url, '')
+        self.launch_app()
+
+
+class DiyAppTest(WebAppTest):
+    """A page without a manifest, installed with "Install page as app…": a
+    DIY app, which opens in its own window (#351). It gets all a PWA gets. On
+    Linux, Chromium's "Create shortcut…" only puts a desktop shortcut to the
+    page, which opens in a tab."""
+
+    app_page = APP_PAGE.replace(b'<link rel="manifest" href="/app/manifest.json">', b'')
+    # A DIY app's manifest ID is its start URL, the page installed.
+    manifest_path = '/app/index.html'
+
+    @classmethod
+    def install(cls):
+        browser = cls.browser
+        tab = browser.new_tab(cls.manifest_id)
+        wait_for(lambda: tab.eval('location.href') == cls.manifest_id, what='the page')
+        browser.click_view(browser.wait_view('BrowserAppMenuButton'))
+        for menu, title in ((0, 'Cast, save, and share'), (1, '&Install page as app…')):
+            browser.click_view(wait_for(lambda: next((item for items in browser.menus()[menu:menu + 1]
+                                                      for group in items for item in group
+                                                      if item['Title'] == title), None),
+                                        what=title))
+        # The dialog ignores clicks for a moment after it shows or moves:
+        # click Install again while it is still there.
+        installed = lambda: tab.eval('!matchMedia("(display-mode: browser)").matches')
+
+        def click_install():
+            if installed():
+                return True
+            buttons = browser.views('MdTextButton', Text='Install')
+            if buttons:
+                browser.click_view(browser.wait_view('MdTextButton', Text='Install'))
+            return installed()
+        # The tab moves to the app's new window.
+        wait_for(click_install, timeout=30, interval=1, what='the app window')
+        browser.close_target(tab)
+
+    def test_plain_link_opens_in_default_browser(self):
+        app = self.launch_app()
+        app.click('#plain')
+        wait_for(self.opened, what='xdg-open')
+        self.assertEqual(self.opened(), [self.server.url('/out.html?plain')])
+        self.assertEqual(self.out_tabs(), [])
+
+    def test_menu_opens_link_in_default_browser(self):
+        app = self.launch_app()
+        self.browser.click_view(self.link_menu(app, '#inside')[1])
+        wait_for(self.opened, what='xdg-open')
+        self.assertEqual(self.opened(), [self.server.url('/app/inside.html')])
+        self.assertEqual(app.eval('location.href'), self.server.url('/app/index.html'))
+
+    def test_user_rule_on_app_site_narrows_scope(self):
+        self.set_rules(NARROW)
+        app = self.launch_app()
+        app.click('#inside')
+        wait_for(self.opened, what='xdg-open')
+        self.assertEqual(self.opened(), [self.server.url('/app/inside.html')])
+
+    def test_launch_opens_start_url(self):
+        self.set_start_url(self.server.url('/app/start.html'))
+        self.launch_app(url=self.server.url('/app/start.html'))
+
+
+class IsolatedWebAppTest(WebAppTest):
+    """An isolated web app, from a dev-mode proxy: its links keep Chromium's
+    handling, which opens other origins in a browser tab, and its link menu
+    has no default browser items (#351). Hosted (extension) apps can't open
+    their window on Linux: Chromium 154 refuses to launch Chrome apps there."""
+
+    browser_args = ('--enable-features=IsolatedWebApps,IsolatedWebAppDevMode',)
+
+    @classmethod
+    def install(cls):
+        # A proxy-mode bundle ID: 32 bytes and the type 00 00 02, in base32.
+        cls.manifest_id = 'isolated-app://{}/'.format(
+            base64.b32encode(bytes(32) + b'\0\0\2').decode().rstrip('=').lower())
+        cls.server.routes.update({
+            '/': (200, {'Content-Type': 'text/html'},
+                  f'<!doctype html><a id="plain" href="{cls.server.url("/out.html?iwa")}">out</a>'.encode()),
+            '/.well-known/manifest.webmanifest': (200, {'Content-Type': 'application/manifest+json'}, json.dumps({
+                'name': 'Isolated', 'version': '1.0.0', 'start_url': '/', 'display': 'standalone',
+                'icons': [{'src': '/app/icon.png', 'sizes': '192x192', 'type': 'image/png'}]}).encode()),
+        })
+        cls.browser.pipe_call('PWA.install', manifestId=cls.manifest_id,
+                              installUrlOrBundleUrl=cls.server.url('/'))
+
+    def launch_iwa(self):
+        app = self.launch_app(url=self.manifest_id)
+        self.wait_on_screen(app)
+        return app
+
+    def test_link_stays_in_oganesson(self):
+        self.launch_iwa().click('#plain')
+        wait_for(lambda: self.out_tabs('/out.html?iwa'), what='the link in a tab')
+        self.assertEqual(self.out_tabs('/out.html?iwa'), [self.server.url('/out.html?iwa')])
+        self.addCleanup(self.browser.close_target, self.browser.page('/out.html?iwa'))
+        self.assertEqual(self.opened(), [])
+
+    def test_menu_has_no_default_browser_items(self):
+        self.launch_iwa().click('#plain', button='right')
+        titles = [item['Title'] for group in wait_for(self.browser.menus, what='the context menu')[0]
+                  for item in group]
+        self.close_menus()
+        self.assertIn('Open link in new oganesson &tab', titles)
+        self.assertEqual([t for t in titles if 'default browser' in t], [])
+
+
+class IdnHostTest(WebAppTest):
+    """An app on a host with a non-ASCII name; *.localhost needs no resolver."""
+
+    app_host = 'xn--bcher-kva.localhost'
+
+    def test_unicode_rule_on_app_site_narrows_scope(self):
+        # The rule spells the host in Unicode; the app's URLs in punycode.
+        self.set_rules('http://bücher.localhost:*/app/mail/*')
+        app = self.launch_app()
+        app.click('#inside')
+        wait_for(self.opened, what='xdg-open')
+        self.assertEqual(self.opened(), [self.server.url('/app/inside.html', self.app_host)])
+
+
+class Ipv6HostTest(WebAppTest):
+    """An app on a literal IPv6 host."""
+
+    app_host = '[::1]'
+
+    def test_ipv6_rule_on_app_site_narrows_scope(self):
+        # A pattern's colons start named groups unless escaped.
+        self.set_rules(r'http://[\:\:1]:*/app/mail/*')
+        app = self.launch_app()
+        app.click('#inside')
+        wait_for(self.opened, what='xdg-open')
+        self.assertEqual(self.opened(), [self.server.url('/app/inside.html', self.app_host)])
+
+
+class FocusExistingTest(WebAppTest):
+    """An app whose launch_handler focuses its open window."""
+
+    manifest_extra = {'launch_handler': {'client_mode': 'focus-existing'}}
+
+    def test_out_of_scope_start_url_navigates_open_window(self):
+        # Its launch queue takes only URLs in scope, so the window goes there.
+        app = self.launch_app()
+        self.set_start_url(self.server.url('/elsewhere.html', 'localhost'))
+        before = {t['id'] for t in self.browser.targets()}
+        self.browser.pipe_call('PWA.launch', manifestId=self.manifest_id)
+        wait_for(lambda: app.eval('location.href') == self.server.url('/elsewhere.html', 'localhost'),
+                 what='the open window at the start address')
+        self.assertEqual({t['id'] for t in self.browser.targets()
+                          if t['type'] == 'page'} - before, set())
+
+    def test_start_url_redirected_into_scope_navigates_open_window(self):
+        app = self.launch_app()
+        self.set_start_url(self.server.url('/bounce', 'localhost'))
+        self.browser.pipe_call('PWA.launch', manifestId=self.manifest_id)
+        wait_for(lambda: app.eval('location.href') == self.server.url('/app/start.html'),
+                 what='the open window at the redirect target')
+
+
+class ActivationTokenTest(WebAppTest):
+    """On Wayland, where the browser has activation tokens to hand on (#317)."""
+
+    wayland = True
+
+    @classmethod
+    def setUpClass(cls):
+        if not shutil.which('labwc'):
+            raise unittest.SkipTest('needs labwc')
+        super().setUpClass()
+
+    def test_middle_click_opens_without_token(self):
+        # NEW_BACKGROUND_TAB: the default browser stays behind the app.
+        app = self.launch_app()
+        app.click('#plain', button='middle')
+        wait_for(self.opened, what='xdg-open')
+        self.assertEqual(self.opened(), [self.server.url('/out.html?plain')])
+        self.assertEqual(self.tokens_file.read_text().splitlines(), [''])
+
+    def test_plain_click_opens_with_token(self):
+        app = self.launch_app()
+        app.click('#plain')
+        wait_for(self.opened, what='xdg-open')
+        self.assertEqual(self.opened(), [self.server.url('/out.html?plain')])
+        self.assertEqual(self.tokens_file.read_text().splitlines(), ['XDG_ACTIVATION_TOKEN'])
+
+    def test_menu_item_opens_with_token(self):
+        app = self.launch_app()
+        self.browser.click_view(self.link_menu(app, '#plain')[1])
+        wait_for(self.opened, what='xdg-open')
+        self.assertEqual(self.opened(), [self.server.url('/out.html?plain')])
+        self.assertEqual(self.tokens_file.read_text().splitlines(), ['XDG_ACTIVATION_TOKEN'])
+
+    def test_menu_background_item_opens_without_token(self):
+        app = self.launch_app()
+        self.browser.click_view(self.link_menu(app, '#plain')[2])
+        wait_for(self.opened, what='xdg-open')
+        self.assertEqual(self.opened(), [self.server.url('/out.html?plain')])
+        self.assertEqual(self.tokens_file.read_text().splitlines(), [''])
+
+    def test_blank_link_opens_with_token(self):
+        app = self.launch_app()
+        app.click('#blank')
+        wait_for(self.opened, what='xdg-open')
+        self.assertEqual(self.opened(), [self.server.url('/out.html?blank')])
+        self.assertEqual(self.tokens_file.read_text().splitlines(), ['XDG_ACTIVATION_TOKEN'])
+
+
+if __name__ == '__main__':
+    unittest.main()

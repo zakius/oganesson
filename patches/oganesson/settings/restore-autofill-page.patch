@@ -1,0 +1,12 @@
+--- a/chrome/browser/resources/settings/autofill_page/autofill_page.ts
++++ b/chrome/browser/resources/settings/autofill_page/autofill_page.ts
+@@ -184,7 +184,8 @@ export class SettingsAutofillPageElement extends
+             id: YourSavedInfoDataChip.PASSKEYS,
+             label: this.i18n('passkeysLabel'),
+             icon: 'settings20:passkey',
+-            isVisibleWhenNoEntitiesOfTypeExists: () => true,
++            // Linux has no passkey store without Google Password Manager.
++            isVisibleWhenNoEntitiesOfTypeExists: () => false,
+           },
+         ],
+       },

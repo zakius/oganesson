@@ -1,0 +1,55 @@
+--- a/chrome/app/settings_strings.grdp
++++ b/chrome/app/settings_strings.grdp
+@@ -40,8 +40,8 @@
+     </if>
+ 
+     <!-- About Page -->
+-    <message name="IDS_SETTINGS_ABOUT_PAGE_BROWSER_VERSION" desc="The text label describing the version of the browser, example: Version 57.0.2937.0-r123456 (Developer Build) unknown (64-bit). The suffix of the version (eg. '-r123456') exists only in limited cases.)">
+-      Version <ph name="PRODUCT_VERSION">$1<ex>15.0.865.0</ex></ph><ph name="PRODUCT_VERSION_SUFFIX">$2<ex>-r123456</ex></ph>  (<ph name="PRODUCT_CHANNEL">$3<ex>Developer Build</ex></ph>) <ph name="PRODUCT_MODIFIER">$4</ph> <ph name="PRODUCT_VERSION_BITS">$5</ph>
++    <message name="IDS_SETTINGS_ABOUT_PAGE_BROWSER_VERSION" desc="The text label describing the version of the browser, example: Version 57.0.2937.0-r123456 (Developer Build) unknown (64-bit). The suffix of the version (eg. '-r123456') exists only in limited cases. The build date and time are in YYYY-MM-DD HH:MM UTC form.)">
++      Version <ph name="PRODUCT_VERSION">$1<ex>15.0.865.0</ex></ph><ph name="PRODUCT_VERSION_SUFFIX">$2<ex>-r123456</ex></ph>  (<ph name="PRODUCT_CHANNEL">$3<ex>Developer Build</ex></ph>) <ph name="PRODUCT_MODIFIER">$4</ph> <ph name="PRODUCT_VERSION_BITS">$5</ph>, built <ph name="BUILD_DATE">$6<ex>2026-09-29 07:11 UTC</ex></ph>
+     </message>
+     <message name="IDS_SETTINGS_ABOUT_PAGE_LEARN_MORE_UPDATE_ERRORS" desc="The accessibility label for a 'Learn more' link next to an error message about how an update has failed.">
+       Learn more about fixing update errors
+--- a/chrome/browser/ui/webui/version/BUILD.gn
++++ b/chrome/browser/ui/webui/version/BUILD.gn
+@@ -5,7 +5,19 @@
+ import("//build/config/compiler/compiler.gni")
+ import("//ui/webui/webui_features.gni")
+ 
++declare_args() {
++  # The build's date and time ("YYYY-MM-DD HH:MM UTC"), shown on the About
++  # page. Set by
++  # oganesson's tools/container-build.sh.
++  oganesson_build_date = ""
++}
++
++config("build_date") {
++  defines = [ "OGANESSON_BUILD_DATE=\"$oganesson_build_date\"" ]
++}
++
+ source_set("version") {
++  configs += [ ":build_date" ]
+   sources = [
+     "version_handler.cc",
+     "version_handler.h",
+--- a/chrome/browser/ui/webui/version/version_ui.cc
++++ b/chrome/browser/ui/webui/version/version_ui.cc
+@@ -340,12 +340,15 @@ void VersionUI::AddVersionDetailStrings(content::WebUIDataSource* html_source) {
+ std::u16string VersionUI::GetAnnotatedVersionStringForUi() {
+   return l10n_util::GetStringFUTF16(
+       IDS_SETTINGS_ABOUT_PAGE_BROWSER_VERSION,
+-      base::UTF8ToUTF16(version_info::GetVersionNumber()),
++      {base::UTF8ToUTF16(version_info::GetVersionNumber()),
+       base::UTF8ToUTF16(GetVersionInformationalSuffix()),
+       l10n_util::GetStringUTF16(version_info::IsOfficialBuild()
+                                     ? IDS_VERSION_UI_OFFICIAL
+                                     : IDS_VERSION_UI_UNOFFICIAL),
+       base::UTF8ToUTF16(GetProductModifier()),
+-      l10n_util::GetStringUTF16(VersionUI::VersionProcessorVariation()));
++      l10n_util::GetStringUTF16(VersionUI::VersionProcessorVariation()),
++       // Set by oganesson's container build: the build's date and time.
++       u"" OGANESSON_BUILD_DATE},
++      nullptr);
+ }
+ #endif  // !BUILDFLAG(IS_ANDROID)

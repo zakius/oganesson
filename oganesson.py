@@ -1,0 +1,523 @@
+#!/usr/bin/env python3
+"""Builds oganesson: Helium's tree with the patch series in patches/, linux/
+patches and late/, and our new files in src/.
+
+build:    prepares the Chromium tree in work/ (once per patch set) and builds it
+          in helium-linux's builder container.
+snapshot: makes work/ a btrfs snapshot of the shared base tree, so a first
+          build reuses its sources and build cache.
+run:      starts the dev build with a profile in work/profile.
+test:     runs the end-to-end tests in tools/e2e against the dev build.
+stamp:    marks work/ as prepared for the current patches, after the same edit
+          was made in the tree by hand, so build doesn't reset it. Refuses
+          when a patch or src/ file changed since the last stamp isn't in
+          the tree, or a removed one still is.
+shell:    opens a shell in the builder container.
+check-patches: applies the whole series to a sparse checkout, zero fuzz, and
+               lists every patch that fails.
+"""
+import argparse
+import fcntl
+import hashlib
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+from datetime import datetime
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent
+WORK = ROOT / 'work'
+# helium-linux's layout, which the shared base tree and its build cache use.
+SRC = WORK / 'helium-linux/build/src'
+SERIES = (ROOT / 'patches', ROOT / 'linux/patches', ROOT / 'late')
+# What preparation reads besides the series and src/: the Chromium pin (a new
+# one also refetches the sources, see tools/container-build.sh), version files,
+# dependency and transformation lists, translations, resources and the scripts
+# that apply them.
+PREP_INPUTS = ('chromium_version.txt', 'version.txt', 'revision.txt', 'linux/revision.txt',
+               'deps.ini', 'pruning.list', 'domain_regex.list', 'domain_substitution.list',
+               'i18n', 'resources', 'utils', 'tools/branding.py', 'linux/scripts/shared.sh')
+# Caches, tests and resources/generated, which preparation itself writes.
+PREP_SKIP = {'__pycache__', 'tests', 'generated'}
+IMAGE = 'oganesson-builder'
+MOUNT = '/oganesson'
+
+
+def fail(message):
+    sys.exit(f'oganesson: {message}')
+
+
+def series_entries(text):
+    return [line.strip() for line in text.splitlines()
+            if line.strip() and not line.startswith('#')]
+
+
+def series_patches():
+    """Every series patch, in the order preparation applies them."""
+    return [patches / line for patches in SERIES
+            for line in series_entries((patches / 'series').read_text())]
+
+
+def sections(text):
+    """(preamble, [(file, section_text)]); a section starts at a '--- ' line
+    followed by a '+++ ' line, and a deletion's file is its '--- ' name."""
+    lines = text.splitlines(keepends=True)
+    starts = [i for i in range(len(lines) - 1)
+              if lines[i].startswith('--- ') and lines[i + 1].startswith('+++ ')]
+    pre = ''.join(lines[:starts[0]]) if starts else text
+    secs = []
+    for j, i in enumerate(starts):
+        end = starts[j + 1] if j + 1 < len(starts) else len(lines)
+        header = lines[i + 1] if not lines[i + 1].startswith('+++ /dev/null') else lines[i]
+        name = header[4:].split('\t')[0].strip()
+        name = name.split('/', 1)[1] if '/' in name else name
+        secs.append((name, ''.join(lines[i:end])))
+    return pre, secs
+
+
+def patch_hash():
+    """Hashes every input of the prepared tree: each series and its patches,
+    our new files and PREP_INPUTS."""
+    digest = hashlib.sha256()
+    for patches in SERIES:
+        series = (patches / 'series').read_text()
+        digest.update(series.encode())
+        for line in series_entries(series):
+            digest.update((patches / line).read_bytes())
+    paths = []
+    for top in ('src', *PREP_INPUTS):
+        top = ROOT / top
+        paths += [top] if top.is_file() else top.rglob('*')
+    for path in sorted(paths):
+        relative = path.relative_to(ROOT)
+        if path.is_file() and not PREP_SKIP & set(relative.parts):
+            digest.update(str(relative).encode())
+            digest.update(path.read_bytes())
+    return digest.hexdigest()
+
+
+def input_hashes():
+    """Each series patch's and src/ file's hash, by path: what stamp compares
+    with the last stamp's to find the changes it checks in the tree."""
+    paths = series_patches() + sorted(p for p in (ROOT / 'src').rglob('*') if p.is_file()
+                                      and not PREP_SKIP & set(p.relative_to(ROOT).parts))
+    return {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}
+
+
+def failed_hunks(path, section):
+    """The numbers of the section's hunks that path doesn't hold: those that
+    don't reverse-apply, dry run and zero fuzz."""
+    result = subprocess.run(['patch', '-f', '-R', '--dry-run', '--fuzz=0', str(path)],
+                            input=section, capture_output=True, text=True, check=False)
+    failed = {int(n) for n in re.findall(r'^Hunk #(\d+) FAILED', result.stdout, re.M)}
+    if result.returncode and not failed:  # an error before any hunk
+        failed = set(range(1, section.count('\n@@ ') + 1))
+    return failed
+
+
+def applied(path, secs, directory, reverse=False):
+    """A copy of path in directory with secs applied in order, or with
+    reverse, reversed last first; None when one doesn't apply."""
+    copy = Path(directory) / path.name
+    shutil.copyfile(path, copy)
+    for section in reversed(secs) if reverse else secs:
+        if subprocess.run(['patch', '-f', '-s', '--fuzz=0', '--no-backup-if-mismatch', '-r', '-',
+                           *(['-R'] if reverse else []), str(copy)], input=section,
+                          capture_output=True, text=True, check=False).returncode:
+            return None
+    return copy
+
+
+def old_text(path, digest):
+    """path's text with that hash, from disk or from one of the last commits
+    that changed or removed it; None when neither has it."""
+    file = ROOT / path
+    blobs = [file.read_bytes()] if file.is_file() else []
+    revs = subprocess.run(['git', '-C', str(ROOT), 'log', '-n', '10', '--format=%H', '--', path],
+                          capture_output=True, text=True, check=False).stdout.split()
+    for rev in (r for rev in revs for r in (rev, f'{rev}^')):
+        blobs.append(subprocess.run(['git', '-C', str(ROOT), 'show', f'{rev}:{path}'],
+                                    capture_output=True, check=False).stdout)
+    return next((b.decode(errors='replace') for b in blobs
+                 if hashlib.sha256(b).hexdigest() == digest), None)
+
+
+def tree_lacks(previous, current):
+    """Checks the tree against what changed in the inputs since the last stamp.
+    Each series patch and src/ file whose hash differs must be in the tree: a
+    patch's hunks with the later series patches' sections of the same file
+    reversed, a src/ file with the series patches that edit it applied. A hunk
+    of the old version of a changed or dropped patch that no patch still has,
+    and a removed src/ file, must be gone from it. Returns (missing,
+    unverifiable): unverifiable is what can't be checked, such as hunks where
+    the later patches don't reverse, or in branding and translations (.grd,
+    .grdp, .xtb)."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent / 'utils'))
+    from domain_substitution import DomainRegexList  # pylint: disable=import-outside-toplevel
+    pairs = DomainRegexList(ROOT / 'domain_regex.list').regex_pairs
+    domsub = set((ROOT / 'domain_substitution.list').read_text().split())
+
+    def substitute(name, text, whole=False):
+        """Helium's domain substitution, which preparation runs after the
+        patches, on a file or (keeping each line's first character) a diff."""
+        if name not in domsub:
+            return text
+        if whole:
+            for pair in pairs:
+                text = pair.pattern.sub(pair.replacement, text)
+            return text
+        lines = text.splitlines(keepends=True)
+        for pair in pairs:
+            lines = [line[:1] + pair.pattern.sub(pair.replacement, line[1:]) for line in lines]
+        return ''.join(lines)
+
+    patches = series_patches()
+    texts = [p.read_text() for p in patches]
+    parsed = [sections(text)[1] for text in texts]
+    missing, unverifiable = [], []
+    for path, digest in sorted(current.items()):
+        if previous.get(path) == digest:
+            continue
+        if path.startswith('src/'):
+            name, tree = path[4:], SRC / path[4:]
+            edits = [s for secs in parsed for n, s in secs if n == name]
+            with tempfile.TemporaryDirectory() as directory:
+                expected = applied(ROOT / path, edits, directory)
+                expected = expected and substitute(name, expected.read_text(errors='replace'), True)
+            if expected is None:
+                unverifiable.append(f'{path}: the series patches that edit it don\'t apply to '
+                                    'it; check the tree holds its change')
+            elif not tree.is_file() or tree.read_text(errors='replace') != expected:
+                missing.append(f'{path}: differs from the tree copy'
+                               + (' with the series patches that edit it' if edits else ''))
+            continue
+        index = patches.index(ROOT / path)
+        lacking, hunks = [], 0
+        for name, section in parsed[index]:
+            tree = SRC / name
+            if '\n+++ /dev/null' in section:
+                if tree.exists():
+                    missing.append(f'{path}: {name} still exists')
+                continue
+            if not tree.is_file():
+                missing.append(f'{path}: {name} is not in the tree')
+                continue
+            later = [substitute(name, s) for secs in parsed[index + 1:] for n, s in secs if n == name]
+            with tempfile.TemporaryDirectory() as directory:
+                held = applied(tree, later, directory, reverse=True) if later else tree
+                failed = failed_hunks(held or tree, substitute(name, section))
+            if name.endswith(('.grd', '.grdp', '.xtb')):
+                why = 'branding and translations rewrite it'
+            elif held is None:
+                why = 'a later patch\'s change there doesn\'t reverse'
+            else:
+                hunks += section.count('\n@@ ')
+                lacking += [f'{path}: {name} hunk {hunk}' for hunk in sorted(failed)]
+                continue
+            unverifiable += [f'{path}: {name} hunk {hunk} ({why}); check the tree holds it'
+                             for hunk in sorted(failed)]
+        if hunks and len(lacking) == hunks:
+            missing.append(f'{path}: none of its hunks are in the tree')
+        else:
+            missing += lacking
+    for path, digest in sorted(previous.items()):
+        if path in current and current[path] == digest:
+            continue
+        if path.startswith('src/'):
+            tree = SRC / path[4:]
+            if tree.is_file() and hashlib.sha256(tree.read_bytes()).hexdigest() == digest:
+                missing.append(f'{path}: removed, but the tree still has it')
+            continue
+        old = old_text(path, digest)
+        if old is None:
+            if path not in current:
+                unverifiable.append(f'{path}: dropped from the series, and no copy of it is left; '
+                                    'check the tree doesn\'t keep its change')
+            continue
+        for name, section in sections(old)[1]:
+            tree = SRC / name
+            if ('\n+++ /dev/null' in section or not tree.is_file()
+                    or name.endswith(('.grd', '.grdp', '.xtb'))):
+                continue
+            failed = failed_hunks(tree, substitute(name, section))
+            for hunk, body in enumerate(section.split('\n@@ ')[1:], 1):
+                body = body.split('\n', 1)[1]
+                if hunk not in failed and not any(body in text for text in texts):
+                    missing.append(f'{path}: {name} hunk {hunk} of the previous version, which '
+                                   'no patch has now, is still in the tree')
+    return missing, unverifiable
+
+
+def write_stamp(force=False, amended=None):
+    """Stamps the tree as prepared for the current inputs, after checking it
+    against what changed since the last stamp (see tree_lacks). amended, a
+    patch tools/amend.py just rebuilt from the tree, counts as unchanged."""
+    stamp_file, record_file = SRC / '.oganesson-prepared', SRC / '.oganesson-inputs'
+    current = input_hashes()
+    record = json.loads(record_file.read_text()) if record_file.is_file() else {}
+    stamped = stamp_file.read_text().split()[1:2] if stamp_file.is_file() else []
+    # A failed build's preparation removes the stamp and, with git clean, the
+    # record, and leaves the tree half patched.
+    if not force and not stamped and (SRC / '.downloaded.stamp').is_file():
+        fail('the tree was fetched but has no stamp, so a failed build may have left it half '
+             'prepared; run ./oganesson.py build, or, if it holds the current patches, '
+             'stamp with --force.')
+    if not force and (not record or [record['tree']] != stamped):
+        print('oganesson: no record of the last stamp\'s inputs; stamping without a check',
+              file=sys.stderr)
+    elif not force:
+        if amended:
+            record['files'][amended] = current[amended]
+        missing, unverifiable = tree_lacks(record['files'], current)
+        for where in unverifiable:
+            print(f'oganesson: can\'t check {where}', file=sys.stderr)
+        if missing:
+            fail('the tree doesn\'t match these changes since the last stamp:\n  '
+                 + '\n  '.join(missing) + '\nApply them to the tree, or, if it holds them in '
+                 'another form, stamp with --force.')
+    record_inputs(patch_hash(), current)
+
+
+def record_inputs(tree_hash, files):
+    """Writes the stamp and, next to it, the per-file hashes it was made for."""
+    (SRC / '.oganesson-inputs').write_text(json.dumps({'tree': tree_hash, 'files': files}) + '\n')
+    (SRC / '.oganesson-prepared').write_text(f'tree {tree_hash}\n')
+
+
+def docker_run(command, env=(), nice=0, cpu_shares=None):
+    tty = ['-t'] if sys.stdin.isatty() else []
+    # --init: a stop signal the docker CLI forwards ends the build (bash as
+    # PID 1 would ignore it, and the container would outlive the checkout lock).
+    cmd = ['docker', 'run', '--rm', '--init', '-i', *tty, '-u', f'{os.getuid()}:{os.getgid()}',
+           '-v', f'{ROOT}:{MOUNT}', '-w', MOUNT]
+    if cpu_shares:
+        cmd += ['--cpu-shares', str(cpu_shares)]
+    for key, value in env:
+        cmd += ['-e', f'{key}={value}']
+    if nice:
+        # Lower CPU and disk priority for everything the build starts.
+        command = ['nice', '-n', str(nice), 'ionice', '-c', '2', '-n', '7', *command]
+    # The docker CLI inherits the checkout lock: killing only this process
+    # leaves the lock held for as long as the build goes on.
+    return subprocess.run(cmd + [IMAGE, *command], check=False, pass_fds=held_lock()).returncode
+
+
+def build_image():
+    uid_args = []
+    if os.getuid() != 0:
+        uid_args = ['--build-arg', f'UID={os.getuid()}', '--build-arg', f'GID={os.getgid()}']
+    subprocess.run(['docker', 'build', '-t', IMAGE, *uid_args, '-f',
+                    str(ROOT / 'linux/docker/build.Dockerfile'), str(ROOT / 'linux/docker')],
+                   check=True)
+
+
+# Builds started on a weekday from 2:00 to 15:00, while the machine is in
+# use, default to these limits; others get every CPU at normal priority.
+QUIET_JOBS, QUIET_NICE = 24, 19
+
+
+def quiet_hours(now):
+    return now.weekday() < 5 and 2 <= now.hour < 15
+
+
+def build(args):
+    lock = hold_checkout('build')  # noqa: F841 (held until exit)
+    if args.jobs is None and args.nice is None and quiet_hours(datetime.now()):
+        args.jobs, args.nice = QUIET_JOBS, QUIET_NICE
+        print(f'oganesson: weekday daytime build: -j {QUIET_JOBS}, nice {QUIET_NICE}', file=sys.stderr)
+    build_image()
+    tree_hash, files = patch_hash(), input_hashes()
+    env = [('OGANESSON_PATCH_HASH', tree_hash)]
+    if args.jobs:
+        env.append(('OGANESSON_JOBS', str(args.jobs)))
+    mode = 'release' if args.release else 'dev'
+    # With --nice, the container also gets a low CPU weight, so it yields to
+    # other containers too.
+    code = docker_run(['bash', f'{MOUNT}/tools/container-build.sh', mode], env,
+                      nice=args.nice, cpu_shares=256 if args.nice else None)
+    # A tree prepared for these inputs gets their record, for the next stamp.
+    stamp_file = SRC / '.oganesson-prepared'
+    if stamp_file.is_file() and stamp_file.read_text() == f'tree {tree_hash}\n':
+        record_inputs(tree_hash, files)
+    if code == 0:
+        out = SRC / 'out' / ('Release' if args.release else 'Default')
+        print(f'Built {out}/oganesson')
+    sys.exit(code)
+
+
+def snapshot(args):
+    base = args.base.expanduser()
+    if not base.is_dir():
+        fail(f'no base tree at {base}')
+    if WORK.exists():
+        fail('work/ already exists; remove it to snapshot the base tree')
+    subprocess.run(['btrfs', 'subvolume', 'snapshot', str(base), str(WORK)], check=True)
+    print(f'work/ is a snapshot of {base}; the next build resets it to this series')
+
+
+def run(args):
+    binary = SRC / 'out/Default/oganesson'
+    if not binary.exists():
+        fail('nothing built yet; run ./oganesson.py build')
+    os.execv(str(binary), [str(binary), f'--user-data-dir={WORK / "profile"}', *args.extra])
+
+
+def e2e_tests():
+    """Maps each suite to its test names, in the order unittest runs them."""
+    return {path.stem.removeprefix('test_'):
+            sorted(re.findall(r'^    def test_(\w+)', path.read_text(), re.M))
+            for path in sorted((ROOT / 'tools/e2e').glob('test_*.py'))}
+
+
+def test(args):
+    tests = e2e_tests()
+    if args.list:
+        print('\n'.join(f'{suite}.{name}' for suite, names in tests.items() for name in names))
+        return
+    modules, patterns = [], []
+    for selection in args.suites:
+        suite, _, name = selection.partition('.')
+        if suite not in tests:
+            fail(f'no suite {suite!r}; suites: {", ".join(tests)}')
+        if name and name not in tests[suite]:
+            fail(f'no test {name!r} in {suite}; tests: {", ".join(tests[suite])}')
+        modules.append(f'test_{suite}')
+        # Numbered tests are steps of one session, so the earlier steps run too.
+        steps = [t for t in tests[suite] if t[0].isdigit() and t < name] if name[:1].isdigit() else []
+        patterns += [f'-ktest_{suite}.*.test_{t}' for t in [*steps, name or '*']]
+    missing = [tool for tool in ('Xvfb', 'xdotool', 'xwd') if not shutil.which(tool)]
+    if missing:
+        fail(f'the end-to-end tests need {", ".join(missing)}')
+    binary = (args.binary or SRC / 'out' / ('Release' if args.release else 'Default') / 'oganesson').resolve()
+    # The harness skips, rather than fails, without a browser.
+    if not binary.is_file():
+        fail(f'no browser binary at {binary}; run ./oganesson.py build')
+    lock = hold_checkout('test')  # noqa: F841 (held until exit)
+    env = dict(os.environ, OGANESSON_BINARY=str(binary))
+    # Test profiles, kept when a test fails, go under work/ on the home disk:
+    # /tmp is a tmpfs with a per-user quota.
+    (WORK / 'tmp').mkdir(parents=True, exist_ok=True)
+    env['TMPDIR'] = str(WORK / 'tmp')
+    if args.keep:
+        env['OGANESSON_E2E_KEEP'] = '1'
+    # unittest takes `discover` only as its first argument.
+    args_ = [*dict.fromkeys(modules), *patterns]
+    args_ = ['-v', *args_] if args_ else ['discover', '-v', '-p', 'test_*.py']
+    sys.exit(subprocess.run([sys.executable, '-m', 'unittest', *args_], cwd=ROOT / 'tools/e2e',
+                            env=env, check=False, pass_fds=held_lock()).returncode)
+
+
+def stamp(args):
+    if not SRC.is_dir():
+        fail(f'no tree at {SRC}; run ./oganesson.py snapshot or build')
+    lock = hold_checkout('stamp')  # noqa: F841 (held until exit)
+    write_stamp(args.force)
+
+
+def shell(_):
+    build_image()
+    sys.exit(docker_run(['bash']))
+
+
+def check_patches(args):
+    sys.exit(subprocess.run([sys.executable, str(ROOT / 'tools/check_patches.py'), *args.extra],
+                            check=False).returncode)
+
+
+_LOCK = None
+
+
+def held_lock():
+    """The checkout lock's fd for pass_fds, so children hold it too."""
+    return (_LOCK.fileno(),) if _LOCK else ()
+
+
+def hold_checkout(command):
+    """Waits for, then holds until exit, this checkout's lock: one build,
+    test run or stamp at a time per work/ tree, so concurrent agents queue
+    here instead of polling logs or processes. Callers take it after their
+    own checks, so a command that fails them never waits. Without work/
+    there is nothing to share yet, and work/ stays absent for `snapshot`."""
+    if not WORK.is_dir():
+        return None
+    lock = open(WORK / '.checkout.lock', 'a+')
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        lock.seek(0)
+        print(f'oganesson: waiting for {lock.read().strip() or "another command"} '
+              'to finish in this checkout', file=sys.stderr, flush=True)
+        fcntl.flock(lock, fcntl.LOCK_EX)
+    lock.truncate(0)
+    lock.write(f'pid {os.getpid()}: oganesson.py {" ".join(sys.argv[1:]) or command}\n')
+    lock.flush()
+    global _LOCK
+    _LOCK = lock
+    return lock  # held until the process exits
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    commands = parser.add_subparsers(dest='command', required=True)
+    build_parser = commands.add_parser('build', help='prepare the tree and build it in a container')
+    build_parser.add_argument('--release', action='store_true',
+                              help='official build for x86-64-v2 instead of a component build (much slower)')
+    build_parser.add_argument('-j', '--jobs', type=int,
+                              help='parallel compile jobs (weekdays 2:00-15:00 default: 24, with --nice 19)')
+    build_parser.add_argument('--nice', type=int, metavar='N',
+                              help='run at nice level N with idle-ish disk priority, so the '
+                                   'machine stays responsive (e.g. 10)')
+    build_parser.set_defaults(handler=build)
+    snapshot_parser = commands.add_parser(
+        'snapshot', help='make work/ a btrfs snapshot of the shared base tree')
+    snapshot_parser.add_argument('--base', type=Path,
+                                 default=Path(os.environ.get('OGANESSON_BASE', '~/dev/oganesson-base')),
+                                 help='base tree subvolume (default: $OGANESSON_BASE or '
+                                      '~/dev/oganesson-base)')
+    snapshot_parser.set_defaults(handler=snapshot)
+    run_parser = commands.add_parser('run', help='start the built browser')
+    run_parser.add_argument('extra', nargs=argparse.REMAINDER, help='extra browser flags')
+    run_parser.set_defaults(handler=run)
+    test_parser = commands.add_parser('test', help='run the end-to-end tests against the build')
+    test_parser.add_argument('suites', nargs='*',
+                             help='suites or suite.test to run, e.g. toolbar urls.firefox_about_names '
+                                  '(default: all)')
+    test_parser.add_argument('--list', action='store_true', help='list the suite.test names')
+    test_target = test_parser.add_mutually_exclusive_group()
+    test_target.add_argument('--binary', type=Path, help='browser to test (default: the dev build)')
+    test_target.add_argument('--release', action='store_true', help='test the release build, out/Release')
+    test_parser.add_argument('--keep', action='store_true',
+                             help="keep every run's profile and log, not only failed ones")
+    test_parser.set_defaults(handler=test)
+    stamp_parser = commands.add_parser(
+        'stamp', help='mark the tree as prepared for the current patches, after making the same '
+                      'edit in it by hand; refuses when a patch or src/ file changed since the '
+                      'last stamp is not in the tree, or a removed one still is')
+    stamp_parser.add_argument('--force', action='store_true',
+                              help='stamp without checking the tree, e.g. when it holds the '
+                                   'change in another form')
+    stamp_parser.set_defaults(handler=stamp)
+    commands.add_parser('shell', help='shell in the builder container').set_defaults(handler=shell)
+    check_parser = commands.add_parser('check-patches',
+                                       help='apply the whole series to a sparse checkout, zero fuzz')
+    check_parser.add_argument('extra', nargs=argparse.REMAINDER,
+                              help='options for tools/check_patches.py')
+    check_parser.set_defaults(handler=check_patches)
+    argv = sys.argv[1:]
+    if argv[:1] in (['run'], ['check-patches']):
+        # Everything after these goes to the browser or tools/check_patches.py
+        # as is: argparse rejects a leading option before REMAINDER takes it.
+        args = parser.parse_args(argv[:1])
+        args.extra = argv[1:]
+    else:
+        args = parser.parse_args(argv)
+    args.handler(args)
+
+
+if __name__ == '__main__':
+    main()
