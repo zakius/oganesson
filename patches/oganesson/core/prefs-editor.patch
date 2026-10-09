@@ -12,6 +12,8 @@
        "//ash/webui/vc_background_ui",
      ]
    }
+ }
+ 
 +source_set("prefs_editor") {
 +  sources = [ "prefs_editor/prefs_editor_ui.cc" ]
 +  public = [ "prefs_editor/prefs_editor_ui.h" ]
@@ -27,8 +29,6 @@
 +  ]
 +}
 +
- }
- 
  if (enable_extensions_core) {
 --- a/chrome/browser/ui/webui/chrome_web_ui_configs.cc
 +++ b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
