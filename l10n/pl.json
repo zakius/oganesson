@@ -340,11 +340,6 @@
     "message": "Nie zapisuj historii przeglądania"
   },
   {
-    "name": "IDS_SETTINGS_HISTORY_SAVING_DISABLED_DESCRIPTION",
-    "source": "Visited pages aren't saved, closed tabs can't be reopened, and Firefox Sync skips history. History saved before stays until you delete it.",
-    "message": "Odwiedzane strony nie są zapisywane, zamkniętych kart nie można przywrócić, a Firefox Sync pomija historię. Zapisana wcześniej historia zostaje, dopóki jej nie usuniesz."
-  },
-  {
     "name": "IDS_SETTINGS_DOWNLOAD_HISTORY_SAVING_DISABLED",
     "source": "Don't save download history",
     "message": "Nie zapisuj historii pobierania"
@@ -353,5 +348,20 @@
     "name": "IDS_SETTINGS_DOWNLOAD_HISTORY_SAVING_DISABLED_DESCRIPTION",
     "source": "Downloads are listed until you close the browser. Downloads saved before stay until you delete them.",
     "message": "Pobrane pliki są widoczne na liście do zamknięcia przeglądarki. Zapisane wcześniej pobrania zostają, dopóki ich nie usuniesz."
+  },
+  {
+    "name": "IDS_SETTINGS_HISTORY_SAVING_DISABLED_DESCRIPTION",
+    "source": "Visited pages aren't saved, and Firefox Sync skips history. History saved before stays until you delete it.",
+    "message": "Odwiedzane strony nie są zapisywane, a Firefox Sync pomija historię. Zapisana wcześniej historia zostaje, dopóki jej nie usuniesz."
+  },
+  {
+    "name": "IDS_SETTINGS_KEEP_CLOSED_TABS",
+    "source": "Reopen closed tabs until the browser closes",
+    "message": "Przywracaj zamknięte karty do zamknięcia przeglądarki"
+  },
+  {
+    "name": "IDS_SETTINGS_KEEP_CLOSED_TABS_DESCRIPTION",
+    "source": "Closed tabs and windows are kept in memory only, never on disk, so Ctrl+Shift+T and Recently closed work. Turn off to keep nothing.",
+    "message": "Zamknięte karty i okna są przechowywane tylko w pamięci, nigdy na dysku, więc Ctrl+Shift+T i lista ostatnio zamkniętych działają. Wyłącz, aby nic nie przechowywać."
   }
 ]

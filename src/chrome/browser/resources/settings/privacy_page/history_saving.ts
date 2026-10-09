@@ -3,7 +3,8 @@
 // the terms of the GPL-3.0 license that can be found in the LICENSE file.
 
 // The Privacy page's switches that stop saving browsing history and
-// download history.
+// download history, and, while browsing history isn't saved, the one that
+// still keeps closed tabs in memory to reopen.
 
 import '../controls/settings_toggle_button.js';
 import '../settings_shared.css.js';
@@ -26,6 +27,12 @@ export class SettingsHistorySavingElement extends
           pref="{{prefs.history.saving_disabled}}"
           label="[[i18n('historySavingDisabled')]]"
           sub-label="[[i18n('historySavingDisabledDescription')]]">
+      </settings-toggle-button>
+      <settings-toggle-button id="keepClosedTabs" class="hr"
+          hidden="[[!prefs.history.saving_disabled.value]]"
+          pref="{{prefs.oganesson.history.keep_closed_tabs}}"
+          label="[[i18n('keepClosedTabs')]]"
+          sub-label="[[i18n('keepClosedTabsDescription')]]">
       </settings-toggle-button>
       <settings-toggle-button id="downloadHistory" class="hr"
           pref="{{prefs.oganesson.downloads.saving_disabled}}"

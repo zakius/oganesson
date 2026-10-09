@@ -36,13 +36,23 @@
  #include "components/language/core/browser/pref_names.h"
  #include "components/live_caption/pref_names.h"
  #include "components/media_router/common/pref_names.h"
-@@ -447,6 +449,10 @@
+@@ -67,6 +69,7 @@
+ #include "components/proxy_config/proxy_config_pref_names.h"
+ #include "components/saved_tab_groups/public/pref_names.h"
+ #include "components/search_engines/default_search_manager.h"
++#include "components/sessions/core/closed_tabs_in_memory.h"
+ #include "components/skills/public/skills_prefs.h"
+ #include "components/spellcheck/browser/pref_names.h"
+ #include "components/supervised_user/core/common/pref_names.h"
+@@ -447,6 +450,12 @@
        settings_api::PrefType::kNumber;
  
    // Privacy page
 +  (*s_allowlist)[::prefs::kSavingBrowserHistoryDisabled] =
 +      settings_api::PrefType::kBoolean;
 +  (*s_allowlist)[::prefs::kSavingDownloadHistoryDisabled] =
++      settings_api::PrefType::kBoolean;
++  (*s_allowlist)[::sessions::kKeepClosedTabsInMemory] =
 +      settings_api::PrefType::kBoolean;
    (*s_allowlist)[::prefs::kDnsOverHttpsMode] = settings_api::PrefType::kString;
    (*s_allowlist)[::prefs::kDnsOverHttpsTemplates] =
@@ -153,3 +163,180 @@
  
  #if BUILDFLAG(IS_WIN)
    html_source->AddString("isolationStateLearnMoreUrl",
+--- a/chrome/browser/profiles/profile_impl.cc
++++ b/chrome/browser/profiles/profile_impl.cc
+@@ -134,6 +134,7 @@
+ #include "components/guest_view/buildflags/buildflags.h"
+ #include "components/heavy_ad_intervention/heavy_ad_service.h"
+ #include "components/history/core/common/pref_names.h"
++#include "components/sessions/core/closed_tabs_in_memory.h"
+ #include "components/keyed_service/content/browser_context_dependency_manager.h"
+ #include "components/keyed_service/core/simple_dependency_manager.h"
+ #include "components/keyed_service/core/simple_key_map.h"
+@@ -401,6 +402,7 @@
+ void ProfileImpl::RegisterProfilePrefs(
+     user_prefs::PrefRegistrySyncable* registry) {
+   registry->RegisterBooleanPref(prefs::kSavingBrowserHistoryDisabled, false);
++  registry->RegisterBooleanPref(sessions::kKeepClosedTabsInMemory, true);
+   registry->RegisterBooleanPref(prefs::kAllowDeletingBrowserHistory, true);
+   registry->RegisterBooleanPref(policy::policy_prefs::kForceGoogleSafeSearch,
+                                 false);
+--- a/chrome/browser/ui/tabs/recent_tabs_builder.cc
++++ b/chrome/browser/ui/tabs/recent_tabs_builder.cc
+@@ -34,6 +34,7 @@
+ #include "chrome/grit/generated_resources.h"
+ #include "components/history/core/common/pref_names.h"
+ #include "components/prefs/pref_service.h"
++#include "components/sessions/core/closed_tabs_in_memory.h"
+ #include "components/sessions/core/tab_restore_service.h"
+ #include "components/signin/public/identity_manager/identity_manager.h"
+ #include "components/split_tabs/split_tab_visual_data.h"
+@@ -249,8 +250,9 @@
+                std::make_move_iterator(history_items.end()));
+ 
+   // When history saving is disabled by policy, don't populate local recently
+-  // closed tabs or synced tabs from other devices.
+-  if (profile->GetPrefs()->GetBoolean(prefs::kSavingBrowserHistoryDisabled)) {
++  // closed tabs (unless they're kept in memory) or synced tabs from other
++  // devices.
++  if (!sessions::KeepsClosedTabs(*profile->GetPrefs())) {
+     return items;
+   }
+ 
+@@ -261,6 +263,9 @@
+                  std::make_move_iterator(local_items.end()));
+   }
+ 
++  if (profile->GetPrefs()->GetBoolean(prefs::kSavingBrowserHistoryDisabled)) {
++    return items;
++  }
+   auto remote_items = BuildRemoteEntries(profile);
+   if (!remote_items.empty()) {
+     items.emplace_back(RecentTabItem::Type::kDivider, u"");
+--- a/chrome/browser/ui/tabs/recent_tabs_sub_menu_model.cc
++++ b/chrome/browser/ui/tabs/recent_tabs_sub_menu_model.cc
+@@ -51,6 +51,7 @@
+ #include "components/favicon_base/favicon_types.h"
+ #include "components/history/core/common/pref_names.h"
+ #include "components/prefs/scoped_user_pref_update.h"
++#include "components/sessions/core/closed_tabs_in_memory.h"
+ #include "components/sessions/core/session_id.h"
+ #include "components/sessions/core/tab_restore_service.h"
+ #include "components/signin/public/identity_manager/identity_manager.h"
+@@ -202,11 +203,15 @@
+       base::BindRepeating(
+           &RecentTabsSubMenuModel::OnSavingBrowserHistoryDisabledChanged,
+           base::Unretained(this)));
++  pref_change_registrar_.Add(
++      sessions::kKeepClosedTabsInMemory,
++      base::BindRepeating(
++          &RecentTabsSubMenuModel::OnSavingBrowserHistoryDisabledChanged,
++          base::Unretained(this)));
+ }
+ 
+ bool RecentTabsSubMenuModel::ShouldShowRecentTabEntries() const {
+-  return !browser_->GetProfile()->GetPrefs()->GetBoolean(
+-      prefs::kSavingBrowserHistoryDisabled);
++  return sessions::KeepsClosedTabs(*browser_->GetProfile()->GetPrefs());
+ }
+ 
+ void RecentTabsSubMenuModel::OnSavingBrowserHistoryDisabledChanged() {
+--- a/components/sessions/core/tab_restore_service_impl.cc
++++ b/components/sessions/core/tab_restore_service_impl.cc
+@@ -30,6 +30,7 @@
+ #include "components/history/core/common/pref_names.h"
+ #include "components/prefs/pref_service.h"
+ #include "components/sessions/core/base_session_service_commands.h"
++#include "components/sessions/core/closed_tabs_in_memory.h"
+ #include "components/sessions/core/command_storage_manager.h"
+ #include "components/sessions/core/command_storage_manager_delegate.h"
+ #include "components/sessions/core/session_command.h"
+@@ -1797,6 +1798,15 @@
+ 
+ // TabRestoreServiceImpl -------------------------------------------------
+ 
++namespace {
++
++// Saving history is off, and closed tabs aren't kept in memory either.
++bool KeepsNothing(const PrefChangeRegistrar& registrar) {
++  return registrar.prefs() && !KeepsClosedTabs(*registrar.prefs());
++}
++
++}  // namespace
++
+ TabRestoreServiceImpl::TabRestoreServiceImpl(
+     std::unique_ptr<TabRestoreServiceClient> client,
+     PrefService* pref_service,
+@@ -1810,6 +1820,15 @@
+         base::BindRepeating(&TabRestoreServiceImpl::UpdatePersistenceDelegate,
+                             base::Unretained(this),
+                             base::Unretained(os_crypt_async)));
++    pref_change_registrar_.Add(
++        kKeepClosedTabsInMemory,
++        base::BindRepeating(
++            [](TabRestoreServiceImpl* service) {
++              if (KeepsNothing(service->pref_change_registrar_)) {
++                service->ClearEntries();
++              }
++            },
++            base::Unretained(this)));
+   }
+   UpdatePersistenceDelegate(os_crypt_async);
+ }
+@@ -1829,10 +1848,8 @@
+     LiveTab* live_tab,
+     int index) {
+   // When history saving is disabled by policy, don't add tabs to the restore
+-  // list.
+-  if (pref_change_registrar_.prefs() &&
+-      pref_change_registrar_.prefs()->GetBoolean(
+-          prefs::kSavingBrowserHistoryDisabled)) {
++  // list, unless they're kept in memory.
++  if (KeepsNothing(pref_change_registrar_)) {
+     return std::nullopt;
+   }
+   return helper_.CreateHistoricalTab(live_tab, index);
+@@ -1844,6 +1861,10 @@
+ 
+ void TabRestoreServiceImpl::BrowserClosed(LiveTabContext* context) {
+   helper_.BrowserClosed(context);
++  // Closed windows aren't kept either.
++  if (KeepsNothing(pref_change_registrar_)) {
++    ClearEntries();
++  }
+ }
+ 
+ void TabRestoreServiceImpl::CreateHistoricalGroup(
+@@ -1860,6 +1881,9 @@
+ 
+ void TabRestoreServiceImpl::GroupClosed(const tab_groups::TabGroupId& group) {
+   helper_.GroupClosed(group);
++  if (KeepsNothing(pref_change_registrar_)) {
++    ClearEntries();
++  }
+ }
+ 
+ void TabRestoreServiceImpl::GroupCloseStopped(
+@@ -1869,6 +1893,9 @@
+ 
+ void TabRestoreServiceImpl::SplitClosed(const split_tabs::SplitTabId& id) {
+   helper_.SplitClosed(id);
++  if (KeepsNothing(pref_change_registrar_)) {
++    ClearEntries();
++  }
+ }
+ 
+ void TabRestoreServiceImpl::SplitCloseStopped(
+@@ -1960,8 +1987,10 @@
+       persistence_delegate.DeleteLastSession();
+     }
+     // Also clear in-memory entries so they are not shown in the UI after the
+-    // policy is activated mid-session.
+-    helper_.ClearEntries();
++    // policy is activated mid-session, unless they're kept in memory.
++    if (KeepsNothing(pref_change_registrar_)) {
++      helper_.ClearEntries();
++    }
+   } else if (!persistence_delegate_) {
+     // When saving is NOT disabled (or there is no pref service available), and
+     // there are no persistence delegate yet, one must be created and

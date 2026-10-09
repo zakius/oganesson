@@ -5,7 +5,13 @@
     Don't save browsing history
   </message>
   <message name="IDS_SETTINGS_HISTORY_SAVING_DISABLED_DESCRIPTION" desc="Settings, Privacy: what the switch that stops saving browsing history does. History saved before stays until the user deletes it.">
-    Visited pages aren't saved, closed tabs can't be reopened, and Firefox Sync skips history. History saved before stays until you delete it.
+    Visited pages aren't saved, and Firefox Sync skips history. History saved before stays until you delete it.
+  </message>
+  <message name="IDS_SETTINGS_KEEP_CLOSED_TABS" desc="Settings, Privacy: switch shown while browsing history isn't saved, that still keeps closed tabs and windows in memory so they can be reopened until the browser closes.">
+    Reopen closed tabs until the browser closes
+  </message>
+  <message name="IDS_SETTINGS_KEEP_CLOSED_TABS_DESCRIPTION" desc="Settings, Privacy: what the switch that keeps closed tabs in memory does. Ctrl+Shift+T is the keyboard shortcut that reopens the last closed tab.">
+    Closed tabs and windows are kept in memory only, never on disk, so Ctrl+Shift+T and Recently closed work. Turn off to keep nothing.
   </message>
   <message name="IDS_SETTINGS_DOWNLOAD_HISTORY_SAVING_DISABLED" desc="Settings, Privacy: switch that stops saving downloads to the download history.">
     Don't save download history

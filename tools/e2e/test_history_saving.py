@@ -2,6 +2,8 @@
 pref; with browsing history off, Firefox Sync's history switch is off and
 greyed out, and back on when it is; with download history off, a download
 isn't in the History database after quitting, while one from before is.
+While browsing history isn't saved, a closed tab can still be reopened, as
+long as the switch that keeps closed tabs in memory is on.
 """
 
 import json
@@ -14,18 +16,29 @@ from pathlib import Path
 from harness import BrowserTest, Server, wait_for
 from test_firefox_sync import FIND
 
+# Reads and restores recently closed tabs: chrome.sessions goes through the
+# same TabRestoreService as Ctrl+Shift+T.
+MANIFEST = {'manifest_version': 3, 'name': 'History saving test', 'version': '1',
+            'permissions': ['tabs', 'sessions'],
+            'background': {'service_worker': 'background.js'}}
+
 
 class HistorySavingTest(BrowserTest):
 
     @classmethod
     def setUpClass(cls):
         cls.downloads = Path(tempfile.mkdtemp(prefix='oganesson-downloads-'))
+        cls.extension = Path(tempfile.mkdtemp(prefix='oganesson-history-saving-'))
+        (cls.extension / 'manifest.json').write_text(json.dumps(MANIFEST))
+        (cls.extension / 'background.js').write_text('')
+        cls.browser_args = (f'--load-extension={cls.extension}',)
         cls.prefs = {'download': {'default_directory': str(cls.downloads),
                                   'prompt_for_download': False}}
         cls.server = Server({f'/{name}': (200, {
             'Content-Type': 'application/octet-stream',
             'Content-Disposition': f'attachment; filename="{name}"'}, b'data')
-            for name in ('kept.bin', 'unsaved.bin')})
+            for name in ('kept.bin', 'unsaved.bin')} | {
+                '/closed.html': (200, {'Content-Type': 'text/html'}, b'<title>closed</title>')})
         super().setUpClass()
 
     @classmethod
@@ -33,6 +46,7 @@ class HistorySavingTest(BrowserTest):
         super().tearDownClass()
         cls.server.stop()
         shutil.rmtree(cls.downloads)
+        shutil.rmtree(cls.extension)
 
     def privacy(self):
         page = self.browser.new_tab('chrome://settings/privacy')
@@ -92,6 +106,44 @@ class HistorySavingTest(BrowserTest):
             saved = {Path(row[0]).name for row in db.execute('SELECT target_path FROM downloads')}
         self.browser.start()
         self.assertEqual(saved, {'kept.bin'})
+
+    def run_js(self, body):
+        page = self.browser.page('background.js')
+        wait_for(lambda: page.eval('typeof chrome.sessions') == 'object', what='the extension APIs')
+        return page.eval(f'(async () => {{ {body} }})()')
+
+    def close_and_reopen(self):
+        """Whether a tab closed just now can be reopened."""
+        url = self.server.url('/closed.html')
+        return self.run_js(f"""
+            const url = {json.dumps(url)};
+            const tab = await chrome.tabs.create({{url}});
+            while ((await chrome.tabs.get(tab.id)).status !== 'complete')
+                await new Promise(r => setTimeout(r, 100));
+            await chrome.tabs.remove(tab.id);
+            const closed = await chrome.sessions.getRecentlyClosed();
+            if (!closed.length || closed[0].tab?.url !== url) return false;
+            const restored = await chrome.sessions.restore();
+            await chrome.tabs.remove(restored.tab.id);
+            return true;""")
+
+    def test_3_closed_tabs_in_memory(self):
+        page = self.privacy()
+        switch = f"({FIND})('settings-history-saving').shadowRoot.querySelector('#keepClosedTabs')"
+        self.assertTrue(page.eval(f'{switch}.hidden'))
+        self.assertTrue(self.close_and_reopen(), 'with history saved')
+        self.toggle(page, 'browsingHistory')
+        wait_for(lambda: self.pref(page, 'history.saving_disabled'), what='the pref')
+        wait_for(lambda: not page.eval(f'{switch}.hidden'), what='the closed tabs switch')
+        self.assertTrue(self.pref(page, 'oganesson.history.keep_closed_tabs'))
+        self.assertTrue(self.close_and_reopen(), 'kept in memory')
+
+        self.toggle(page, 'keepClosedTabs')
+        wait_for(lambda: not self.pref(page, 'oganesson.history.keep_closed_tabs'),
+                 what='the pref')
+        self.assertFalse(self.close_and_reopen(), 'kept nowhere')
+        self.toggle(page, 'keepClosedTabs')
+        self.toggle(page, 'browsingHistory')
 
 
 if __name__ == '__main__':

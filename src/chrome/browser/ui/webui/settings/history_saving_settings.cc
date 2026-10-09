@@ -15,6 +15,8 @@ void AddHistorySavingStrings(content::WebUIDataSource* html_source) {
       {"historySavingDisabled", IDS_SETTINGS_HISTORY_SAVING_DISABLED},
       {"historySavingDisabledDescription",
        IDS_SETTINGS_HISTORY_SAVING_DISABLED_DESCRIPTION},
+      {"keepClosedTabs", IDS_SETTINGS_KEEP_CLOSED_TABS},
+      {"keepClosedTabsDescription", IDS_SETTINGS_KEEP_CLOSED_TABS_DESCRIPTION},
       {"downloadHistorySavingDisabled",
        IDS_SETTINGS_DOWNLOAD_HISTORY_SAVING_DISABLED},
       {"downloadHistorySavingDisabledDescription",
