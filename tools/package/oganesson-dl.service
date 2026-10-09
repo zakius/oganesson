@@ -4,7 +4,7 @@
 Description=oganesson package downloads (work/dl)
 
 [Service]
-ExecStart=/usr/bin/python3 -m http.server 8000 --directory %h/.t3/worktrees/oganesson-core/t3code-67d2954d/work/dl
+ExecStart=/usr/bin/python3 -m http.server 8000 --directory %h/dev/oganesson-focused/work/dl
 Restart=on-failure
 
 [Install]
