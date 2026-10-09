@@ -68,7 +68,8 @@ write_args() {
 # data, which stays out.
 reset_tree() {
     echo "Resetting the source tree to the fetched sources"
-    python3 /oganesson/tools/keep_mtimes.py save "$_src_dir" "$_mtimes"
+    # A manifest left by a prepare that failed is from the last tree that built.
+    [ -f "$_mtimes" ] || python3 /oganesson/tools/keep_mtimes.py save "$_src_dir" "$_mtimes"
     cd "$_src_dir"
     local repo
     while read -r repo; do
