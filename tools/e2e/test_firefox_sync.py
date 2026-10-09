@@ -63,7 +63,7 @@ class FirefoxSyncTest(BrowserTest):
         return page
 
     def status(self, page):
-        return page.eval(f"({FIND})('settings-autofill-page').firefoxSync_")
+        return page.eval(f"({FIND})('settings-firefox-sync').firefoxSync_")
 
     def sync_now(self, page):
         before = self.status(page).get('lastSync')
@@ -482,7 +482,7 @@ class FirefoxSyncServerTest(BrowserTest):
         cls.server.server_close()
 
     def element(self, page, selector):
-        return (f"({FIND})('settings-autofill-page').shadowRoot"
+        return (f"({FIND})('settings-firefox-sync').shadowRoot"
                 f".querySelector({json.dumps(selector)})")
 
     def enter_server(self, page, text, field='#firefoxSyncServer'):

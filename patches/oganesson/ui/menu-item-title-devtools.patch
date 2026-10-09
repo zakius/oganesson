@@ -1,0 +1,14 @@
+--- a/ui/views/controls/menu/menu_item_view.cc
++++ b/ui/views/controls/menu/menu_item_view.cc
+@@ -1979,6 +1979,11 @@
+ }
+ 
+ BEGIN_METADATA(MenuItemView)
++// The title, for UI DevTools (end-to-end tests read menu labels there). The
++// getter is title(), not the GetTitle() ADD_READONLY_PROPERTY_METADATA wants.
++AddMemberData(std::make_unique<ui::metadata::ObjectPropertyReadOnlyMetaData<
++                  MenuItemView, std::u16string, const std::u16string&,
++                  &MenuItemView::title>>("Title", "std::u16string"));
+ END_METADATA
+ 
+ // EmptyMenuMenuItem ----------------------------------------------------------

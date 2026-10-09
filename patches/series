@@ -178,3 +178,5 @@ oganesson/core/pwa-user-scope.patch
 oganesson/core/pwa-user-start-url.patch
 oganesson/core/firefox-tab-behavior.patch
 oganesson/core/webrequest-extension-reload.patch
+oganesson/core/prefs-editor.patch
+oganesson/ui/menu-item-title-devtools.patch

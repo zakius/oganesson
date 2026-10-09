@@ -29,6 +29,8 @@ else
 fi
 
 stamp="${_src_dir}/.oganesson-prepared"
+# The unchanged files' times across a re-prepare, see tools/keep_mtimes.py.
+_mtimes="${_src_dir}/../oganesson-mtimes.tsv"
 
 # helium-linux's step, pruning only once per tree: pruning also removes the
 # toolchains that setup_toolchain installs later.
@@ -66,6 +68,7 @@ write_args() {
 # data, which stays out.
 reset_tree() {
     echo "Resetting the source tree to the fetched sources"
+    python3 /oganesson/tools/keep_mtimes.py save "$_src_dir" "$_mtimes"
     cd "$_src_dir"
     local repo
     while read -r repo; do
@@ -130,6 +133,10 @@ if [ ! -f "$stamp" ]; then
     write_args
     setup_toolchain
     echo "tree ${OGANESSON_PATCH_HASH}" > "$stamp"
+    if [ -f "$_mtimes" ]; then
+        python3 /oganesson/tools/keep_mtimes.py restore "$_src_dir" "$_mtimes"
+        rm -f "$_mtimes"
+    fi
 fi
 
 write_args
