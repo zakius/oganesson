@@ -516,16 +516,15 @@
  #include "components/apps/link_capturing/intent_picker_info.h"
  #include "components/prefs/pref_member.h"
  #include "ui/base/accelerators/accelerator.h"
-@@ -38,6 +42,8 @@
+@@ -38,6 +42,7 @@
  #include "ui/views/animation/animation_delegate_views.h"
  #include "ui/views/controls/button/menu_button.h"
  #include "ui/views/mouse_watcher.h"
 +#include "ui/views/drag_controller.h"
-+#include "ui/views/context_menu_controller.h"
  #include "ui/views/view.h"
  #include "url/origin.h"
  
-@@ -97,7 +103,8 @@ class ToolbarView : public views::AccessiblePaneView,
+@@ -97,7 +102,8 @@ class ToolbarView : public views::AccessiblePaneView,
                      public AppMenuIconController::Delegate,
                      public ToolbarButtonProvider,
                      public BrowserRootView::DropTarget,
@@ -535,7 +534,7 @@
    METADATA_HEADER(ToolbarView, views::AccessiblePaneView)
  
   public:
-@@ -250,6 +257,28 @@ class ToolbarView : public views::AccessiblePaneView,
+@@ -250,6 +256,28 @@ class ToolbarView : public views::AccessiblePaneView,
    bool AcceleratorPressed(const ui::Accelerator& acc) override;
    void ChildPreferredSizeChanged(views::View* child) override;
    void ChildVisibilityChanged(View* child) override;
@@ -564,7 +563,7 @@
  
    friend class AvatarToolbarButtonBaseBrowserTest;
  
-@@ -359,6 +388,33 @@ class ToolbarView : public views::AccessiblePaneView,
+@@ -359,6 +387,33 @@ class ToolbarView : public views::AccessiblePaneView,
    // Changes the visibility of the Chrome Labs entry point based on prefs.
    void OnChromeLabsPrefChanged();
  
@@ -598,15 +597,13 @@
    // Loads the images for all the child views.
    void LoadImages();
  
-@@ -478,6 +534,12 @@ class ToolbarView : public views::AccessiblePaneView,
+@@ -478,6 +533,10 @@ class ToolbarView : public views::AccessiblePaneView,
  
    BooleanPrefMember show_chrome_labs_button_;
  
 +  PrefChangeRegistrar toolbar_items_registrar_;
 +  // Where the drop indicator is painted while dragging, if at all.
 +  std::optional<int> drop_x_;
-+  // Opens the app menu on a right click while its button is hidden.
-+  std::unique_ptr<views::ContextMenuController> app_menu_fallback_;
 +
    // The display mode used when laying out the toolbar.
    const DisplayMode display_mode_;
@@ -625,6 +622,22 @@
    public = [ "customize_toolbar_handler.h" ]
    public_deps = [
      "//chrome/browser:browser_public_dependencies",
+--- a/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar.mojom
++++ b/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar.mojom
+@@ -35,6 +35,13 @@ enum ActionId {
+   kSplitTab,
+   kContextualTasks,
+   kShowTabsFromOtherDevices,
++  // oganesson: built-in toolbar items that Customize toolbar shows or hides.
++  kBack,
++  kReload,
++  kLocationBar,
++  kExtensions,
++  kAvatar,
++  kAppMenu,
+ };
+ 
+ // Unique identifiers for categories the actions can belong to.
 --- a/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar_handler.cc
 +++ b/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar_handler.cc
 @@ -16,6 +16,7 @@
@@ -684,19 +697,3 @@
  // A boolean pref set to true if the Forward button should be visible on the
  // toolbar.
  inline constexpr char kShowForwardButton[] = "browser.show_forward_button";
---- a/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar.mojom
-+++ b/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar.mojom
-@@ -35,6 +35,13 @@
-   kSplitTab,
-   kContextualTasks,
-   kShowTabsFromOtherDevices,
-+  // oganesson: built-in toolbar items that Customize toolbar shows or hides.
-+  kBack,
-+  kReload,
-+  kLocationBar,
-+  kExtensions,
-+  kAvatar,
-+  kAppMenu,
- };
- 
- // Unique identifiers for categories the actions can belong to.

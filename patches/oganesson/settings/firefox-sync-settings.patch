@@ -1,10 +1,10 @@
 --- a/chrome/browser/resources/settings/BUILD.gn
 +++ b/chrome/browser/resources/settings/BUILD.gn
-@@ -499,6 +499,7 @@ build_webui("build") {
-   }
- 
-   ts_files += [ "system_page/mouse_gestures.ts" ]
-+  ts_files += [ "autofill_page/firefox_sync_section.ts" ]
+@@ -504,6 +504,7 @@ build_webui("build") {
+     "system_page/gesture_chips.ts",
+     "system_page/mouse_gestures.ts",
+   ]
++  ts_files += [ "autofill_page/firefox_sync.ts" ]
  
    # -----------------ts_files end -------------------------------
  
@@ -37,7 +37,7 @@
  import 'chrome://resources/cr_elements/cr_link_row/cr_link_row.js';
  import 'chrome://resources/cr_elements/cr_icon/cr_icon.js';
  import './account_card.js';
-+import './firefox_sync_section.js';
++import './firefox_sync.js';
  import './category_reference_card.js';
  import './collapsible_autofill_settings_card.js';
  import '/shared/settings/prefs/prefs.js';

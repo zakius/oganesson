@@ -112,6 +112,15 @@ class AppMenuFallback : public views::ContextMenuController {
   std::unique_ptr<AppMenu> menu_;
 };
 
+}  // namespace
+
+DEFINE_UI_CLASS_PROPERTY_TYPE(AppMenuFallback*)
+
+namespace {
+
+// Owns the toolbar's AppMenuFallback.
+DEFINE_OWNED_UI_CLASS_PROPERTY_KEY(AppMenuFallback, kAppMenuFallbackKey)
+
 // Drag data of a built-in toolbar item: its pickled token.
 const ui::ClipboardFormatType& GetToolbarItemFormatType() {
   static const base::NoDestructor<ui::ClipboardFormatType> format(
@@ -133,8 +142,8 @@ void ToolbarView::InitToolbarItems() {
       prefs::kToolbarHiddenItems,
       base::BindRepeating(&ToolbarView::ApplyHiddenItems,
                           base::Unretained(this)));
-  app_menu_fallback_ = std::make_unique<AppMenuFallback>(this);
-  set_context_menu_controller(app_menu_fallback_.get());
+  set_context_menu_controller(SetProperty(
+      kAppMenuFallbackKey, std::make_unique<AppMenuFallback>(this)));
   if (extensions_container_) {
     extensions_container_->SetIconsChangedCallback(apply);
     extensions_container_->SetMoveDetachedCallback(move_by);

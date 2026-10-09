@@ -16,6 +16,7 @@
 #include "components/vector_icons/vector_icons.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/models/image_model.h"
+#include "ui/gfx/image/image_skia.h"
 #include "chrome/browser/ui/webui/util/image_util.h"
 #include "url/gurl.h"
 
@@ -43,7 +44,8 @@ base::span<const HideableItem> Items() {
        IDS_OGANESSON_TOOLBAR_ITEM_LOCATION_BAR, vector_icons::kSearchIcon,
        CategoryId::kNavigation},
       {ActionId::kExtensions, "extensions",
-       IDS_OGANESSON_TOOLBAR_ITEM_EXTENSIONS, kExtensionChromeRefreshOldIcon,
+       IDS_OGANESSON_TOOLBAR_ITEM_EXTENSIONS,
+       vector_icons::kExtensionChromeRefreshOldIcon,
        CategoryId::kYourChrome},
       {ActionId::kAvatar, "avatar", IDS_OGANESSON_TOOLBAR_ITEM_AVATAR,
        vector_icons::kAccountCircleIcon, CategoryId::kYourChrome},
