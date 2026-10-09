@@ -8,9 +8,7 @@
      ":webui",
      "//chrome/browser/actor/ui:actor_overlay",
      "//chrome/browser/browser_actuator/internals",
-@@ -649,6 +650,21 @@ source_set("chrome_web_ui_controller_factory") {
-       "//ash/webui/vc_background_ui",
-     ]
+@@ -651,6 +652,21 @@ source_set("chrome_web_ui_controller_factory") {
    }
  }
  
@@ -30,6 +28,8 @@
 +}
 +
  if (enable_extensions_core) {
+   source_set("managed_ui_handler") {
+     sources = [ "managed_ui_handler.cc" ]
 --- a/chrome/browser/ui/webui/chrome_web_ui_configs.cc
 +++ b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
 @@ -48,6 +48,7 @@
