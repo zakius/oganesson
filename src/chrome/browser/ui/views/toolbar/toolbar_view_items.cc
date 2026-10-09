@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/no_destructor.h"
 #include "base/pickle.h"
 #include "base/strings/strcat.h"
@@ -23,6 +24,7 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/layout_constants.h"
+#include "chrome/browser/ui/toolbar/app_menu_model.h"
 #include "chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model.h"
 #include "chrome/browser/ui/toolbar/toolbar_actions_model.h"
 #include "chrome/browser/ui/ui_features.h"
@@ -32,6 +34,7 @@
 #include "chrome/browser/ui/views/global_media_controls/media_toolbar_button_view.h"
 #include "chrome/browser/ui/views/location_bar/location_bar_view.h"
 #include "chrome/browser/ui/views/profiles/avatar_toolbar_button.h"
+#include "chrome/browser/ui/views/toolbar/app_menu.h"
 #include "chrome/browser/ui/views/toolbar/browser_app_menu_button.h"
 #include "chrome/browser/ui/views/toolbar/home_button.h"
 #include "chrome/browser/ui/views/toolbar/pinned_action_toolbar_button.h"
@@ -45,6 +48,7 @@
 #include "components/prefs/scoped_user_pref_update.h"
 #include "extensions/browser/extension_prefs.h"
 #include "ui/actions/actions.h"
+#include "ui/base/class_property.h"
 #include "ui/base/clipboard/clipboard_format_type.h"
 #include "ui/base/dragdrop/drag_drop_types.h"
 #include "ui/base/dragdrop/drop_target_event.h"
@@ -54,6 +58,7 @@
 #include "ui/compositor/layer_tree_owner.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/geometry/rect.h"
+#include "ui/views/context_menu_controller.h"
 #include "ui/views/controls/button/button_controller.h"
 
 namespace {
@@ -62,6 +67,50 @@ namespace {
 // pinned buttons.
 constexpr std::string_view kExtensionItemPrefix = "extension:";
 constexpr std::string_view kActionItemPrefix = "action:";
+
+// The built-in items Customize toolbar can hide, by prefs::kToolbarItems
+// token (customize_toolbar_oganesson.cc lists them).
+constexpr std::string_view kHideableItems[] = {
+    "back", "reload", "location_bar", "extensions", "avatar", "app_menu"};
+
+// Set on an item while ApplyHiddenItems() keeps it hidden.
+DEFINE_UI_CLASS_PROPERTY_KEY(bool, kHiddenByPrefKey, false)
+
+bool IsItemHidden(const PrefService* prefs, std::string_view token) {
+  return std::ranges::contains(prefs->GetList(prefs::kToolbarHiddenItems),
+                               base::Value(token));
+}
+
+// With the app menu button hidden, a right click on the toolbar opens the
+// app menu where the click was.
+class AppMenuFallback : public views::ContextMenuController {
+ public:
+  explicit AppMenuFallback(ToolbarView* toolbar) : toolbar_(toolbar) {}
+
+ private:
+  // views::ContextMenuController:
+  void ShowContextMenuForViewImpl(
+      views::View* source,
+      const gfx::Point& point,
+      ui::mojom::MenuSourceType source_type) override {
+    BrowserWindowInterface* const browser = toolbar_->browser();
+    if (!IsItemHidden(browser->GetProfile()->GetPrefs(), "app_menu")) {
+      return;
+    }
+    menu_.reset();
+    model_ = std::make_unique<AppMenuModel>(
+        toolbar_, browser, toolbar_->app_menu_icon_controller());
+    model_->Init();
+    menu_ = std::make_unique<AppMenu>(browser, model_.get(), /*run_types=*/0,
+                                      base::DoNothing());
+    menu_->RunMenu(toolbar_->GetWidget(), gfx::Rect(point, gfx::Size()),
+                   source_type);
+  }
+
+  raw_ptr<ToolbarView> toolbar_;
+  std::unique_ptr<AppMenuModel> model_;
+  std::unique_ptr<AppMenu> menu_;
+};
 
 // Drag data of a built-in toolbar item: its pickled token.
 const ui::ClipboardFormatType& GetToolbarItemFormatType() {
@@ -80,6 +129,12 @@ void ToolbarView::InitToolbarItems() {
       base::BindRepeating(&ToolbarView::MoveItemBy, base::Unretained(this));
   toolbar_items_registrar_.Init(browser_->GetProfile()->GetPrefs());
   toolbar_items_registrar_.Add(prefs::kToolbarItems, apply);
+  toolbar_items_registrar_.Add(
+      prefs::kToolbarHiddenItems,
+      base::BindRepeating(&ToolbarView::ApplyHiddenItems,
+                          base::Unretained(this)));
+  app_menu_fallback_ = std::make_unique<AppMenuFallback>(this);
+  set_context_menu_controller(app_menu_fallback_.get());
   if (extensions_container_) {
     extensions_container_->SetIconsChangedCallback(apply);
     extensions_container_->SetMoveDetachedCallback(move_by);
@@ -110,6 +165,7 @@ void ToolbarView::InitToolbarItems() {
 }
 
 void ToolbarView::ShutdownToolbarItems() {
+  set_context_menu_controller(nullptr);
   // Hand the pinned items back to their containers, which own their state, so
   // they are destroyed with them.
   if (extensions_container_) {
@@ -300,7 +356,33 @@ void ToolbarView::ApplyToolbarItems() {
       }
     }
   }
+  ApplyHiddenItems();
   InvalidateLayout();
+}
+
+void ToolbarView::ApplyHiddenItems() {
+  if (display_mode_ != DisplayMode::kNormal) {
+    return;
+  }
+  const PrefService* const prefs = browser_->GetProfile()->GetPrefs();
+  for (const auto& [token, item] : GetBuiltInItems()) {
+    if (!item || !std::ranges::contains(kHideableItems, token)) {
+      continue;
+    }
+    if (IsItemHidden(prefs, token)) {
+      item->SetProperty(kHiddenByPrefKey, true);
+      item->SetVisible(false);
+    } else if (item->GetProperty(kHiddenByPrefKey)) {
+      item->ClearProperty(kHiddenByPrefKey);
+      item->SetVisible(true);
+    }
+  }
+}
+
+void ToolbarView::ReapplyHiddenItem(views::View* child) {
+  if (child->GetVisible() && child->GetProperty(kHiddenByPrefKey)) {
+    child->SetVisible(false);
+  }
 }
 
 base::ListValue ToolbarView::WithAbsentItems(std::vector<std::string> tokens) {

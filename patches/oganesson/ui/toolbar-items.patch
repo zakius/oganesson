@@ -1,30 +1,53 @@
+--- a/chrome/app/generated_resources.grd
++++ b/chrome/app/generated_resources.grd
+@@ -322,6 +322,7 @@ are declared in tools/grit/grit_args.gni.
+       <!-- Settings specific strings -->
+       <part file="settings_strings.grdp" />
+       <part file="oganesson_mouse_gestures_strings.grdp" />
++      <part file="oganesson_toolbar_strings.grdp" />
+       <if expr="not is_android">
+         <part file="shared_settings_strings.grdp"/>
+       </if>
+--- a/chrome/app/generated_resources.grd.gritdeps
++++ b/chrome/app/generated_resources.grd.gritdeps
+@@ -15,6 +15,7 @@ chrome/app/media_router_strings.grdp
+ chrome/app/nearby_share_strings.grdp
+ chrome/app/notebooks_strings.grdp
+ chrome/app/oganesson_mouse_gestures_strings.grdp
++chrome/app/oganesson_toolbar_strings.grdp
+ chrome/app/os_settings_search_tag_strings.grdp
+ chrome/app/os_settings_strings.grdp
+ chrome/app/password_manager_ui_strings.grdp
 --- a/chrome/browser/ui/browser_ui_prefs.cc
 +++ b/chrome/browser/ui/browser_ui_prefs.cc
-@@ -137,6 +137,7 @@ void RegisterBrowserUserPrefs(user_prefs::PrefRegistrySyncable* registry) {
+@@ -137,6 +137,8 @@ void RegisterBrowserUserPrefs(user_prefs::PrefRegistrySyncable* registry) {
                                  pref_registration_flags);
    registry->RegisterBooleanPref(prefs::kShowHomeButton, false,
                                  pref_registration_flags);
 +  registry->RegisterListPref(prefs::kToolbarItems);
++  registry->RegisterListPref(prefs::kToolbarHiddenItems);
    registry->RegisterBooleanPref(prefs::kSplitViewDragAndDropEnabled, true,
                                  pref_registration_flags);
  
 --- a/chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model.cc
 +++ b/chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model.cc
-@@ -218,6 +218,8 @@ void PinnedToolbarActionsModel::ResetToDefault() {
+@@ -218,6 +218,9 @@ void PinnedToolbarActionsModel::ResetToDefault() {
    pref_service_->ClearPref(prefs::kShowForwardButton);
    pref_service_->ClearPref(prefs::kPinSplitTabButton);
    pref_service_->ClearPref(prefs::kPinnedActions);
 +  // The toolbar's item order (#62).
 +  pref_service_->ClearPref(prefs::kToolbarItems);
++  pref_service_->ClearPref(prefs::kToolbarHiddenItems);
  }
  
  bool PinnedToolbarActionsModel::IsDefault() const {
-@@ -229,7 +231,7 @@ bool PinnedToolbarActionsModel::IsDefault() const {
+@@ -229,7 +232,8 @@ bool PinnedToolbarActionsModel::IsDefault() const {
    return std::ranges::all_of(
        std::initializer_list{prefs::kPinnedActions, prefs::kShowHomeButton,
                              prefs::kShowForwardButton,
 -                            prefs::kPinSplitTabButton},
-+                            prefs::kPinSplitTabButton, prefs::kToolbarItems},
++                            prefs::kPinSplitTabButton, prefs::kToolbarItems,
++                            prefs::kToolbarHiddenItems},
        is_default_pref_value);
  }
  
@@ -461,6 +484,14 @@
    initialized_ = true;
  }
  
+@@ -1523,6 +1525,7 @@ void ToolbarView::ChildPreferredSizeChanged(views::View* child) {
+ }
+ 
+ void ToolbarView::ChildVisibilityChanged(views::View* child) {
++  ReapplyHiddenItem(child);
+   if (child == home_) {
+     if (!home_->GetVisible() && show_home_button_.GetValue()) {
+       base::UmaHistogramBoolean("Toolbar.Overflow.HomeButton", true);
 --- a/chrome/browser/ui/views/toolbar/toolbar_view.h
 +++ b/chrome/browser/ui/views/toolbar/toolbar_view.h
 @@ -7,10 +7,13 @@
@@ -485,15 +516,16 @@
  #include "components/apps/link_capturing/intent_picker_info.h"
  #include "components/prefs/pref_member.h"
  #include "ui/base/accelerators/accelerator.h"
-@@ -38,6 +42,7 @@
+@@ -38,6 +42,8 @@
  #include "ui/views/animation/animation_delegate_views.h"
  #include "ui/views/controls/button/menu_button.h"
  #include "ui/views/mouse_watcher.h"
 +#include "ui/views/drag_controller.h"
++#include "ui/views/context_menu_controller.h"
  #include "ui/views/view.h"
  #include "url/origin.h"
  
-@@ -97,7 +102,8 @@ class ToolbarView : public views::AccessiblePaneView,
+@@ -97,7 +103,8 @@ class ToolbarView : public views::AccessiblePaneView,
                      public AppMenuIconController::Delegate,
                      public ToolbarButtonProvider,
                      public BrowserRootView::DropTarget,
@@ -503,7 +535,7 @@
    METADATA_HEADER(ToolbarView, views::AccessiblePaneView)
  
   public:
-@@ -250,6 +256,28 @@ class ToolbarView : public views::AccessiblePaneView,
+@@ -250,6 +257,28 @@ class ToolbarView : public views::AccessiblePaneView,
    bool AcceleratorPressed(const ui::Accelerator& acc) override;
    void ChildPreferredSizeChanged(views::View* child) override;
    void ChildVisibilityChanged(View* child) override;
@@ -532,7 +564,7 @@
  
    friend class AvatarToolbarButtonBaseBrowserTest;
  
-@@ -359,6 +387,28 @@ class ToolbarView : public views::AccessiblePaneView,
+@@ -359,6 +388,33 @@ class ToolbarView : public views::AccessiblePaneView,
    // Changes the visibility of the Chrome Labs entry point based on prefs.
    void OnChromeLabsPrefChanged();
  
@@ -557,38 +589,88 @@
 +  base::ListValue WithAbsentItems(std::vector<std::string> tokens);
 +  // Moves `item` past its next visible neighbour, for keyboard reordering.
 +  void MoveItemBy(views::View* item, int delta);
++  // Hides the built-in items listed in prefs::kToolbarHiddenItems and shows
++  // the others it hid; ReapplyHiddenItem() hides `child` again when Chromium
++  // shows it.
++  void ApplyHiddenItems();
++  void ReapplyHiddenItem(views::View* child);
 +
    // Loads the images for all the child views.
    void LoadImages();
  
-@@ -478,6 +528,10 @@ class ToolbarView : public views::AccessiblePaneView,
+@@ -478,6 +534,12 @@ class ToolbarView : public views::AccessiblePaneView,
  
    BooleanPrefMember show_chrome_labs_button_;
  
 +  PrefChangeRegistrar toolbar_items_registrar_;
 +  // Where the drop indicator is painted while dragging, if at all.
 +  std::optional<int> drop_x_;
++  // Opens the app menu on a right click while its button is hidden.
++  std::unique_ptr<views::ContextMenuController> app_menu_fallback_;
 +
    // The display mode used when laying out the toolbar.
    const DisplayMode display_mode_;
  
+--- a/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/BUILD.gn
++++ b/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/BUILD.gn
+@@ -7,7 +7,10 @@ import("//ui/webui/webui_features.gni")
+ assert(!is_android)
+ 
+ source_set("customize_toolbar") {
+-  sources = [ "customize_toolbar_handler.cc" ]
++  sources = [
++    "customize_toolbar_handler.cc",
++    "customize_toolbar_oganesson.cc",
++  ]
+   public = [ "customize_toolbar_handler.h" ]
+   public_deps = [
+     "//chrome/browser:browser_public_dependencies",
 --- a/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar_handler.cc
 +++ b/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar_handler.cc
-@@ -196,6 +196,11 @@ CustomizeToolbarHandler::CustomizeToolbarHandler(
+@@ -16,6 +16,7 @@
+ #include "chrome/browser/ui/ui_features.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
+ #include "chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar.mojom.h"
++#include "chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar_oganesson.h"
+ #include "chrome/browser/ui/webui/util/image_util.h"
+ #include "chrome/browser/ui/webui/webui_embedding_context.h"
+ #include "chrome/common/chrome_features.h"
+@@ -196,6 +197,13 @@ CustomizeToolbarHandler::CustomizeToolbarHandler(
        base::BindRepeating(&CustomizeToolbarHandler::OnActionPinnedChanged,
                            base::Unretained(this), kActionSplitTab,
                            prefs::kPinSplitTabButton));
-+  // A moved toolbar item changes whether the toolbar is customized.
-+  pref_change_registrar_.Add(
-+      prefs::kToolbarItems,
-+      base::BindRepeating(&CustomizeToolbarHandler::OnActionsChanged,
-+                          base::Unretained(this)));
++  // A moved toolbar item changes whether the toolbar is customized, and a
++  // hidden built-in item is listed unpinned.
++  for (const char* pref : {prefs::kToolbarItems, prefs::kToolbarHiddenItems}) {
++    pref_change_registrar_.Add(
++        pref, base::BindRepeating(&CustomizeToolbarHandler::OnActionsChanged,
++                                  base::Unretained(this)));
++  }
  }
  
  CustomizeToolbarHandler::~CustomizeToolbarHandler() = default;
+@@ -261,6 +269,8 @@ void CustomizeToolbarHandler::ListActions(ListActionsCallback callback) {
+           scale_factor)));
+ 
+   actions.push_back(std::move(split_tab_action));
++  AppendHideableToolbarItems(actions, *prefs(), provider, icon_color_id,
++                             scale_factor);
+ 
+   const auto add_action =
+       [&actions, this, &provider, scale_factor, bwi](
+@@ -395,6 +405,9 @@ void CustomizeToolbarHandler::ListCategories(ListCategoriesCallback callback) {
+ void CustomizeToolbarHandler::PinAction(
+     side_panel::customize_chrome::mojom::ActionId action_id,
+     bool pin) {
++  if (PinHideableToolbarItem(action_id, pin, *prefs())) {
++    return;
++  }
+   const std::optional<actions::ActionId> chrome_action =
+       ChromeActionForMojoAction(action_id);
+   if (!chrome_action.has_value()) {
 --- a/chrome/common/pref_names.h
 +++ b/chrome/common/pref_names.h
-@@ -627,6 +627,11 @@ inline constexpr char kShowZoomIndicator[] =
+@@ -627,6 +627,13 @@ inline constexpr char kShowZoomIndicator[] =
  // visible on the toolbar.
  inline constexpr char kShowHomeButton[] = "browser.show_home_button";
  
@@ -596,7 +678,25 @@
 +// ("back", "location_bar", "extensions", ...), "extension:<id>" for a pinned
 +// extension action, or "action:<action id>" for a pinned Chrome button.
 +inline constexpr char kToolbarItems[] = "oganesson.toolbar.items";
++// The built-in toolbar items hidden in Customize toolbar, by token.
++inline constexpr char kToolbarHiddenItems[] = "oganesson.toolbar.hidden";
 +
  // A boolean pref set to true if the Forward button should be visible on the
  // toolbar.
  inline constexpr char kShowForwardButton[] = "browser.show_forward_button";
+--- a/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar.mojom
++++ b/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar.mojom
+@@ -35,6 +35,13 @@
+   kSplitTab,
+   kContextualTasks,
+   kShowTabsFromOtherDevices,
++  // oganesson: built-in toolbar items that Customize toolbar shows or hides.
++  kBack,
++  kReload,
++  kLocationBar,
++  kExtensions,
++  kAvatar,
++  kAppMenu,
+ };
+ 
+ // Unique identifiers for categories the actions can belong to.

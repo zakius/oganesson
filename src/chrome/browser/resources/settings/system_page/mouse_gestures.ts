@@ -69,7 +69,7 @@ function gesturesFor(
   return value === null ?
       [] :
       Object.keys(gestures)
-          .filter(chain => isSameGestureValue(gestures[chain]!, value))
+          .filter(chain => isSameGestureValue(gestures[chain], value))
           .sort();
 }
 

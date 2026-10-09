@@ -1,6 +1,7 @@
 """One toolbar (#25, #37): every button moves anywhere on it, pinned extension
 actions and Chrome's pinned buttons alike, and keeps its place on restart.
-Customize toolbar's reset puts them back (#62). On a fresh profile tab search
+Customize toolbar hides and shows the built-in items too. Customize toolbar's
+reset puts them back (#62). On a fresh profile tab search
 is a toolbar button, in either tab strip (#237).
 """
 
@@ -98,6 +99,22 @@ class ToolbarTest(BrowserTest):
         self.drag(self.browser.wait_view('ExtensionsToolbarButton'), self.back().bounds['x'])
         wait_for(lambda: self.browser.wait_view('ExtensionsToolbarButton').bounds['x']
                  < self.back().bounds['x'], what='the extensions button left of back')
+
+    def test_5c_customize_toolbar_hides_and_shows_back(self):
+        page = self.browser.new_tab(
+            'chrome://customize-chrome-side-panel.top-chrome/?page=toolbar')
+        toggle = r"""(() => { const walk = (root) => { for (const el of root.querySelectorAll('*')) {
+            if (el.localName === 'cr-toggle' && el.ariaLabel === 'Back') return el;
+            const found = el.shadowRoot && walk(el.shadowRoot); if (found) return found; } };
+          return walk(document); })()"""
+        wait_for(lambda: page.eval(f'{toggle}?.checked'), what='Back on in Customize toolbar')
+        page.eval(f'{toggle}.click()')
+        wait_for(lambda: not any(
+            v.visible for v in self.browser.views('BackForwardButton')
+            if (v['TooltipText'] or '').startswith('Click to go back')), what='Back hidden')
+        page.eval(f'{toggle}.click()')
+        wait_for(lambda: self.back().visible, what='Back shown again')
+        self.browser.close_target(page)
 
     def test_6_reset_to_default(self):
         page = self.browser.new_tab(

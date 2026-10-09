@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright 2026 The oganesson Authors. GPL-3.0, see the LICENSE file. -->
+<grit-part>
+  <message name="IDS_OGANESSON_TOOLBAR_ITEM_BACK" desc="Name of the Back button in the Customize toolbar side panel, where it can be shown or hidden.">
+    Back
+  </message>
+  <message name="IDS_OGANESSON_TOOLBAR_ITEM_RELOAD" desc="Name of the Reload button in the Customize toolbar side panel, where it can be shown or hidden.">
+    Reload
+  </message>
+  <message name="IDS_OGANESSON_TOOLBAR_ITEM_LOCATION_BAR" desc="Name of the address and search bar in the Customize toolbar side panel, where it can be shown or hidden.">
+    Address bar
+  </message>
+  <message name="IDS_OGANESSON_TOOLBAR_ITEM_EXTENSIONS" desc="Name of the Extensions button (the puzzle piece) in the Customize toolbar side panel, where it can be shown or hidden.">
+    Extensions
+  </message>
+  <message name="IDS_OGANESSON_TOOLBAR_ITEM_AVATAR" desc="Name of the profile (avatar) button in the Customize toolbar side panel, where it can be shown or hidden.">
+    Profile
+  </message>
+  <message name="IDS_OGANESSON_TOOLBAR_ITEM_APP_MENU" desc="Name of the main menu button in the Customize toolbar side panel, where it can be shown or hidden. When hidden, a right click on the toolbar opens the menu.">
+    Menu
+  </message>
+</grit-part>
