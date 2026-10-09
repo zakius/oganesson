@@ -9,8 +9,11 @@
 
 #include "base/functional/bind.h"
 #include "base/no_destructor.h"
+#include "base/process/kill.h"
+#include "base/process/launch.h"
 #include "base/task/thread_pool.h"
 #include "build/build_config.h"
+#include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/platform_util.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/shell_integration.h"
@@ -28,6 +31,7 @@
 #include "content/public/browser/new_window_form_post.h"
 #include "ui/base/accelerators/menu_label_accelerator_util.h"
 #include "ui/base/l10n/l10n_util.h"
+#include "ui/menus/simple_menu_model.h"
 #include "ui/base/page_transition_types.h"
 #include "ui/gfx/text_elider.h"
 #include "url/gurl.h"
@@ -53,6 +57,24 @@ bool SendsOutOfScopeLinksOut(BrowserWindowInterface* window) {
 }
 
 namespace {
+
+#if BUILDFLAG(IS_LINUX)
+// Opens an http(s) `url` with xdg-open, as platform_util::OpenExternal's
+// fallback does, but without an activation token, so the browser that opens
+// it can't take the focus.
+void OpenExternalInBackground(const GURL& url) {
+  base::LaunchOptions options;
+  options.allow_new_privs = true;
+  options.environment["XDG_ACTIVATION_TOKEN"] = std::string();
+  options.environment["DESKTOP_STARTUP_ID"] = std::string();
+  // See platform_util_linux.cc.
+  options.environment["MM_NOTTTY"] = "1";
+  base::Process process = base::LaunchProcess({"xdg-open", url.spec()}, options);
+  if (process.IsValid()) {
+    base::EnsureProcessGetsReaped(std::move(process));
+  }
+}
+#endif
 
 // Whether a link from `window` to `url` leaves the window's web app. The
 // app's scope is the one Chromium keeps the window to (manifest scope and
@@ -189,6 +211,33 @@ std::u16string DefaultBrowserLinkLabel(bool background) {
       name);
 }
 
+void AppendDefaultBrowserLinkItems(const GURL& url,
+                                   BrowserWindowInterface* window,
+                                   ui::SimpleMenuModel& model,
+                                   UpdateMenuItemCallback update_item) {
+  if (!url.SchemeIsHTTPOrHTTPS() || !SendsOutOfScopeLinksOut(window)) {
+    return;
+  }
+  static constexpr int kIds[] = {
+      IDC_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER,
+      IDC_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER_BACKGROUND};
+  for (int id : kIds) {
+    model.AddItem(id, DefaultBrowserLinkLabel(
+                          id == IDC_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER_BACKGROUND));
+    model.SetVisibleAt(model.GetItemCount() - 1, !IsDefaultBrowser());
+  }
+  RefreshIsDefaultBrowser(base::BindOnce(
+      [](UpdateMenuItemCallback update_item) {
+        for (int id : kIds) {
+          update_item.Run(
+              id, /*enabled=*/true, /*hidden=*/IsDefaultBrowser(),
+              DefaultBrowserLinkLabel(
+                  id == IDC_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER_BACKGROUND));
+        }
+      },
+      std::move(update_item)));
+}
+
 bool OpenInDefaultBrowser(const GURL& url, bool background) {
   // xdg-open would hand it back to us.
   if (IsDefaultBrowser()) {
@@ -196,7 +245,7 @@ bool OpenInDefaultBrowser(const GURL& url, bool background) {
   }
 #if BUILDFLAG(IS_LINUX)
   if (background) {
-    platform_util::OpenExternalInBackground(url);
+    OpenExternalInBackground(url);
     return true;
   }
 #endif

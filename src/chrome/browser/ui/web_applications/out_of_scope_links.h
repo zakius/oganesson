@@ -13,6 +13,10 @@ class BrowserWindowInterface;
 class GURL;
 struct NavigateParams;
 
+namespace ui {
+class SimpleMenuModel;
+}
+
 namespace content {
 class NavigationThrottleRegistry;
 }
@@ -55,6 +59,20 @@ void RefreshIsDefaultBrowser(base::OnceClosure done = {});
 // default browser, `background` or not: named after the browser's desktop
 // entry when the last check found one.
 std::u16string DefaultBrowserLinkLabel(bool background);
+
+// The link context menu's update of one item: (command id, enabled, hidden,
+// label), as RenderViewContextMenuBase::UpdateMenuItem.
+using UpdateMenuItemCallback =
+    base::RepeatingCallback<void(int, bool, bool, const std::u16string&)>;
+
+// Adds "Open link in default browser" and its background twin to `model` for
+// an http(s) `url` in a `window` that sends out-of-scope links out. They are
+// hidden while oganesson is the default browser, set from the last check,
+// and `update_item` updates them in the open menu after the next.
+void AppendDefaultBrowserLinkItems(const GURL& url,
+                                   BrowserWindowInterface* window,
+                                   ui::SimpleMenuModel& model,
+                                   UpdateMenuItemCallback update_item);
 
 // Opens `url` in the system default browser; with `background`, without
 // letting the browser take focus, where the platform can. Returns false,

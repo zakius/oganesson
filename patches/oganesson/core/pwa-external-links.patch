@@ -1,27 +1,37 @@
---- a/chrome/browser/ui/navigator/browser_navigator.cc
-+++ b/chrome/browser/ui/navigator/browser_navigator.cc
-@@ -49,6 +49,7 @@
- #include "chrome/browser/ui/tabs/tab_strip_user_gesture_details.h"
- #include "chrome/browser/ui/web_applications/app_browser_controller.h"
- #include "chrome/browser/ui/web_applications/navigation_capturing_process.h"
-+#include "chrome/browser/ui/web_applications/out_of_scope_links.h"
- #include "chrome/browser/ui/web_applications/web_app_launch_navigation_handle_user_data.h"
- #include "chrome/browser/ui/web_applications/web_app_launch_utils.h"
- #include "chrome/browser/ui/web_applications/web_app_tabbed_utils.h"
-@@ -773,6 +774,10 @@
-         params->source_contents, contents_to_navigate_or_insert);
-   }
- 
-+  if (web_app::MaybeOpenNewContentsOutsideApp(*params)) {
-+    return nullptr;
-+  }
-+
-   int singleton_index = -1;
- 
-   std::unique_ptr<web_app::NavigationCapturingProcess> app_navigation =
+--- a/chrome/app/chrome_command_ids.h
++++ b/chrome/app/chrome_command_ids.h
+@@ -336,6 +336,8 @@
+ #define IDC_CONTENT_CONTEXT_OPENLINKSPLITVIEW 50111
+ #define IDC_CONTENT_CONTEXT_ADD_LINK_TO_READING_LIST 50112
+ #define IDC_CONTENT_CONTEXT_OPENLINK_ISOLATED 50113
++#define IDC_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER 50114
++#define IDC_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER_BACKGROUND 50115
+ // Image items.
+ #define IDC_CONTENT_CONTEXT_SAVEIMAGEAS 50120
+ #define IDC_CONTENT_CONTEXT_COPYIMAGELOCATION 50121
+--- a/chrome/app/generated_resources.grd
++++ b/chrome/app/generated_resources.grd
+@@ -322,6 +322,7 @@ are declared in tools/grit/grit_args.gni.
+       <!-- Settings specific strings -->
+       <part file="settings_strings.grdp" />
+       <part file="oganesson_mouse_gestures_strings.grdp" />
++      <part file="oganesson_web_app_strings.grdp" />
+       <if expr="not is_android">
+         <part file="shared_settings_strings.grdp"/>
+       </if>
+--- a/chrome/app/generated_resources.grd.gritdeps
++++ b/chrome/app/generated_resources.grd.gritdeps
+@@ -15,6 +15,7 @@ chrome/app/media_router_strings.grdp
+ chrome/app/nearby_share_strings.grdp
+ chrome/app/notebooks_strings.grdp
+ chrome/app/oganesson_mouse_gestures_strings.grdp
++chrome/app/oganesson_web_app_strings.grdp
+ chrome/app/os_settings_search_tag_strings.grdp
+ chrome/app/os_settings_strings.grdp
+ chrome/app/password_manager_ui_strings.grdp
 --- a/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
 +++ b/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
-@@ -101,6 +101,7 @@
+@@ -102,6 +102,7 @@
  #include "chrome/browser/ui/read_anything/read_anything_side_panel_navigation_throttle.h"
  #include "chrome/browser/ui/search/chrome_search_navigation_throttle.h"
  #include "chrome/browser/ui/search/new_tab_page_navigation_throttle.h"
@@ -29,7 +39,7 @@
  #include "chrome/browser/ui/web_applications/tabbed_web_app_navigation_throttle.h"
  #include "chrome/browser/ui/web_applications/webui_web_app_navigation_throttle.h"
  #include "chrome/browser/ui/webui/image/image_navigation_throttle.h"
-@@ -490,6 +491,7 @@
+@@ -491,6 +492,7 @@ void CreateAndAddChromeThrottlesForNavigation(
    NewTabPageNavigationThrottle::MaybeCreateAndAdd(registry);
  
    web_app::TabbedWebAppNavigationThrottle::MaybeCreateAndAdd(registry);
@@ -39,7 +49,7 @@
  
 --- a/chrome/browser/prefs/browser_prefs.cc
 +++ b/chrome/browser/prefs/browser_prefs.cc
-@@ -326,6 +326,7 @@
+@@ -328,6 +328,7 @@
  #include "chrome/browser/ui/tabs/pinned_tab_codec.h"
  #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_pref_names.h"
  #include "chrome/browser/ui/tabs/tab_strip_prefs.h"
@@ -47,7 +57,7 @@
  #include "chrome/browser/ui/webui/certificate_manager/certificate_manager_handler.h"
  #include "chrome/browser/ui/webui/cr_components/theme_color_picker/theme_color_picker_handler.h"
  #include "chrome/browser/ui/webui/history/foreign_session_handler.h"
-@@ -1897,6 +1898,8 @@
+@@ -1851,6 +1852,8 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
  
  #if !BUILDFLAG(IS_ANDROID)
    indigo::prefs::RegisterProfilePrefs(registry);
@@ -56,360 +66,9 @@
  #endif
    RegisterPrefersDefaultScrollbarStylesPrefs(registry);
    RegisterSafetyHubProfilePrefs(registry);
---- a/chrome/browser/ui/web_applications/BUILD.gn
-+++ b/chrome/browser/ui/web_applications/BUILD.gn
-@@ -40,6 +40,7 @@
-       "navigation_capturing_process.h",
-       "navigation_capturing_redirection_throttle.h",
-       "navigation_handle_user_data_forwarder.h",
-+      "out_of_scope_links.h",
-       "share_target_utils.h",
-       "tabbed_web_app_navigation_throttle.h",
-       "web_app_browser_controller.h",
-@@ -153,6 +154,7 @@
-       "diagnostics/web_app_icon_health_checks.cc",
-       "navigation_capturing_process.cc",
-       "navigation_capturing_redirection_throttle.cc",
-+      "out_of_scope_links.cc",
-       "share_target_utils.cc",
-       "tabbed_web_app_navigation_throttle.cc",
-       "web_app_browser_controller.cc",
---- a/content/browser/web_contents/web_contents_impl.cc
-+++ b/content/browser/web_contents/web_contents_impl.cc
-@@ -164,6 +164,7 @@
- #include "content/public/browser/keyboard_event_processing_result.h"
- #include "content/public/browser/navigation_details.h"
- #include "content/public/browser/navigation_throttle_registry.h"
-+#include "content/public/browser/new_window_form_post.h"
- #include "content/public/browser/permission_descriptor_util.h"
- #include "content/public/browser/picture_in_picture_window_controller.h"
- #include "content/public/browser/preload_pipeline_info.h"
-@@ -291,6 +292,17 @@
- 
- namespace {
- 
-+// WebContents user data: see IsNewWindowForFormPost().
-+const char kNewWindowForFormPostKey = 0;
-+
-+}  // namespace
-+
-+bool IsNewWindowForFormPost(WebContents* contents) {
-+  return contents->GetUserData(&kNewWindowForFormPostKey);
-+}
-+
-+namespace {
-+
- // These values are persisted to logs. Entries should not be renumbered and
- // numeric values should never be reused.
- //
-@@ -5828,6 +5840,12 @@
-                              false,  // started_from_context_menu
-                              true);  // renderer_initiated
- 
-+  if (params.form_submission_post_data) {
-+    new_contents_impl->SetUserData(
-+        &kNewWindowForFormPostKey,
-+        std::make_unique<base::SupportsUserData::Data>());
-+  }
-+
-   if (!params.opener_suppressed) {
-     return &new_contents_impl->GetPrimaryFrameTree();
-   }
---- a/content/public/browser/BUILD.gn
-+++ b/content/public/browser/BUILD.gn
-@@ -280,6 +280,7 @@
-     "navigation_throttle.h",
-     "navigation_throttle_registry.h",
-     "navigation_ui_data.h",
-+    "new_window_form_post.h",
-     "network_context_client_base.h",
-     "network_quality_observer_factory.h",
-     "network_service_instance.h",
---- a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
-+++ b/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
-@@ -50,6 +50,7 @@
- #include "chrome/browser/ui/views/frame/contents_web_view.h"
- #include "chrome/browser/ui/views/status_bubble_views.h"
- #include "chrome/browser/ui/web_applications/app_browser_controller.h"
-+#include "chrome/browser/ui/web_applications/out_of_scope_links.h"
- #include "chrome/browser/web_applications/web_app_provider.h"
- #include "chrome/browser/web_applications/web_app_registrar.h"
- #include "chrome/browser/web_applications/web_app_tab_helper.h"
-@@ -511,6 +512,10 @@
- BrowserWebContentsDelegate::IsPrerender2Supported(
-     content::WebContents& web_contents,
-     content::PreloadingTriggerType trigger_type) {
-+  // A prerendered page activates without the out-of-scope link throttle.
-+  if (web_app::IsWebAppOwnWindow(&browser_.get())) {
-+    return content::PreloadingEligibility::kPreloadingUnsupportedByWebContents;
-+  }
-   Profile* profile =
-       Profile::FromBrowserContext(web_contents.GetBrowserContext());
-   return prefetch::IsSomePreloadingEnabled(*profile->GetPrefs());
---- a/chrome/browser/ui/web_applications/web_app_launch_utils.cc
-+++ b/chrome/browser/ui/web_applications/web_app_launch_utils.cc
-@@ -58,6 +58,7 @@
- #include "chrome/browser/ui/tabs/tab_strip_model.h"
- #include "chrome/browser/ui/views/frame/browser_view.h"
- #include "chrome/browser/ui/web_applications/app_browser_controller.h"
-+#include "chrome/browser/ui/web_applications/out_of_scope_links.h"
- #include "chrome/browser/ui/web_applications/web_app_browser_controller.h"
- #include "chrome/browser/ui/web_applications/web_app_launch_navigation_handle_user_data.h"
- #include "chrome/browser/ui/web_applications/web_app_launch_process.h"
-@@ -342,6 +343,12 @@
-     web_contents->UpdateWindowControlsOverlay(gfx::Rect());
-   }
- 
-+  // A prerendered page activates without the out-of-scope link throttle, and
-+  // the app window starts none of its own (IsPrerender2Supported()).
-+  if (IsWebAppOwnWindow(target_browser)) {
-+    web_contents->CancelAllPrerendering();
-+  }
-+
-   std::unique_ptr<content::WebContents> contents_move =
-       source_tabstrip->DetachWebContentsAtForInsertion(found_tab_index.value());
- 
---- a/chrome/browser/platform_util.h
-+++ b/chrome/browser/platform_util.h
-@@ -82,6 +82,10 @@
- #else
- void OpenExternal(const GURL& url);
- #endif
-+#if BUILDFLAG(IS_LINUX)
-+// OpenExternal(), without letting the app that opens `url` take focus.
-+void OpenExternalInBackground(const GURL& url);
-+#endif
- 
- // Get the top level window for the native view. This can return NULL.
- gfx::NativeWindow GetTopLevel(gfx::NativeView view);
---- a/chrome/browser/platform_util_linux.cc
-+++ b/chrome/browser/platform_util_linux.cc
-@@ -93,19 +93,30 @@
- 
- void RunCommand(const std::string& command,
-                 const base::FilePath& working_directory,
--                const std::string& arg) {
-+                const std::string& arg,
-+                bool activate) {
-   DCHECK_CURRENTLY_ON(BrowserThread::UI);
-+  if (!activate) {
-+    // Without a token in the environment the launched app can't take focus.
-+    base::LaunchOptions options;
-+    options.environment["XDG_ACTIVATION_TOKEN"] = std::string();
-+    options.environment["DESKTOP_STARTUP_ID"] = std::string();
-+    OnLaunchOptionsCreated(command, working_directory, arg, std::move(options));
-+    return;
-+  }
-   base::nix::CreateLaunchOptionsWithXdgActivation(
-       base::BindOnce(&OnLaunchOptionsCreated, command, working_directory, arg));
- }
- 
- void XDGOpen(const base::FilePath& working_directory, const std::string& path) {
--  RunCommand("xdg-open", working_directory, path);
-+  RunCommand("xdg-open", working_directory, path, /*activate=*/true);
- }
- 
--void XDGEmail(const std::string& email) {
--  RunCommand("xdg-email", base::FilePath(), email);
--}
-+// A URL to open, and whether the app that opens it may take focus.
-+struct ExternalUrl {
-+  GURL url;
-+  bool activate;
-+};
- 
- class PortalHelper {
-  public:
-@@ -139,7 +150,7 @@
-     }
-   }
- 
--  void OpenExternal(const GURL& url) {
-+  void OpenExternal(const GURL& url, bool activate) {
-     if (!internal::AreShellOperationsAllowed()) {
-       return;
-     }
-@@ -148,12 +159,12 @@
-     }
- 
-     if (api_type_.has_value()) {
--      OnApiTypeSet(url);
-+      OnApiTypeSet(ExternalUrl{url, activate});
-       return;
-     }
- 
-     bool api_availability_check_in_progress = !pending_requests_.empty();
--    pending_requests_.push(url);
-+    pending_requests_.push(ExternalUrl{url, activate});
-     if (!api_availability_check_in_progress) {
-       CheckPortalAvailability();
-     }
-@@ -162,7 +173,7 @@
-  private:
-   enum class ApiType { kNone, kPortal, kFileManager };
- 
--  using PendingRequest = std::variant<base::FilePath, GURL>;
-+  using PendingRequest = std::variant<base::FilePath, ExternalUrl>;
- 
-   void CheckPortalAvailability() {
-     if (!bus_) {
-@@ -198,12 +209,12 @@
-       }
-       return;
-     }
--    CHECK(std::holds_alternative<GURL>(request));
--    const GURL& url = std::get<GURL>(request);
-+    CHECK(std::holds_alternative<ExternalUrl>(request));
-+    const auto& [url, activate] = std::get<ExternalUrl>(request);
-     if (*api_type_ == ApiType::kPortal) {
--      OpenExternalUsingPortal(url);
-+      OpenExternalUsingPortal(url, activate);
-     } else {
--      OpenExternalFallback(url);
-+      OpenExternalFallback(url, activate);
-     }
-   }
- 
-@@ -321,14 +332,14 @@
-     CHECK_EQ(requests_.erase(request), 1u);
-   }
- 
--  void OpenExternalUsingPortal(const GURL& url) {
-+  void OpenExternalUsingPortal(const GURL& url, bool activate) {
-     DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-     CHECK(api_type_.has_value());
-     CHECK_EQ(*api_type_, ApiType::kPortal);
-     if (url.SchemeIs("file")) {
-       base::FilePath path;
-       if (!net::FileURLToFilePath(url, &path)) {
--        OpenExternalFallback(url);
-+        OpenExternalFallback(url, activate);
-         return;
-       }
-       base::ThreadPool::PostTaskAndReplyWithResult(
-@@ -343,28 +354,36 @@
-           base::BindOnce(&PortalHelper::OpenExternalUsingPortalFdOpened,
-                          // Unretained is safe, the PortalHelper instance is
-                          // never destroyed.
--                         base::Unretained(this), url));
-+                         base::Unretained(this), url, activate));
-     } else {
--      OpenExternalUsingPortalFdOpened(url, base::ScopedFD());
-+      OpenExternalUsingPortalFdOpened(url, activate, base::ScopedFD());
-     }
-   }
- 
--  void OpenExternalUsingPortalFdOpened(const GURL& url, base::ScopedFD fd) {
-+  void OpenExternalUsingPortalFdOpened(const GURL& url,
-+                                       bool activate,
-+                                       base::ScopedFD fd) {
-     DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-     if (!bus_) {
-       return;
-     }
-     if (url.SchemeIs("file") && !fd.is_valid()) {
--      OpenExternalFallback(url);
-+      OpenExternalFallback(url, activate);
-+      return;
-+    }
-+    if (!activate) {
-+      OpenExternalUsingPortalWithToken(url, /*activate=*/false, std::move(fd),
-+                                       std::string());
-       return;
-     }
-     base::nix::CreateXdgActivationToken(base::BindOnce(
-         &PortalHelper::OpenExternalUsingPortalWithToken,
-         // Unretained is safe, the PortalHelper instance is never destroyed.
--        base::Unretained(this), url, std::move(fd)));
-+        base::Unretained(this), url, activate, std::move(fd)));
-   }
- 
-   void OpenExternalUsingPortalWithToken(const GURL& url,
-+                                        bool activate,
-                                         base::ScopedFD fd,
-                                         std::string activation_token) {
-     DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-@@ -378,8 +397,11 @@
-     }
- 
-     dbus_xdg::Dictionary options;
--    options[kActivationTokenKey] =
--        dbus_utils::Variant::Wrap<"s">(activation_token);
-+    // Without the option the portal launches the app with no token.
-+    if (activate) {
-+      options[kActivationTokenKey] =
-+          dbus_utils::Variant::Wrap<"s">(activation_token);
-+    }
- 
-     std::unique_ptr<dbus_xdg::Request> request;
-     if (fd.is_valid()) {
-@@ -393,19 +415,20 @@
-     }
-     request->SetCallback(
-         base::BindOnce(&PortalHelper::OpenExternalUsingPortalResponse,
--                       base::Unretained(this), request.get(), url));
-+                       base::Unretained(this), request.get(), url, activate));
-     requests_.insert(std::move(request));
-   }
- 
-   void OpenExternalUsingPortalResponse(
-       dbus_xdg::Request* request,
-       const GURL& url,
-+      bool activate,
-       base::expected<dbus_xdg::Dictionary, dbus_xdg::ResponseError> results) {
-     DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
- 
-     if (!results.has_value() &&
-         results.error() != dbus_xdg::ResponseError::kRequestCancelledByUser) {
--      OpenExternalFallback(url);
-+      OpenExternalFallback(url, activate);
-     }
-     CHECK_EQ(requests_.erase(request), 1u);
-   }
-@@ -452,12 +475,9 @@
-         OpenOperationCallback());
-   }
- 
--  void OpenExternalFallback(const GURL& url) {
--    if (url.SchemeIs("mailto")) {
--      XDGEmail(url.spec());
--    } else {
--      XDGOpen(base::FilePath(), url.spec());
--    }
-+  void OpenExternalFallback(const GURL& url, bool activate) {
-+    RunCommand(url.SchemeIs("mailto") ? "xdg-email" : "xdg-open",
-+               base::FilePath(), url.spec(), activate);
-   }
- 
-   scoped_refptr<dbus::Bus> bus_;
-@@ -511,7 +531,12 @@
- 
- void OpenExternal(const GURL& url) {
-   DCHECK_CURRENTLY_ON(BrowserThread::UI);
--  PortalHelper::GetInstance().OpenExternal(url);
-+  PortalHelper::GetInstance().OpenExternal(url, /*activate=*/true);
-+}
-+
-+void OpenExternalInBackground(const GURL& url) {
-+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
-+  PortalHelper::GetInstance().OpenExternal(url, /*activate=*/false);
- }
- 
- }  // namespace platform_util
---- a/chrome/app/chrome_command_ids.h
-+++ b/chrome/app/chrome_command_ids.h
-@@ -337,6 +337,8 @@
- #define IDC_CONTENT_CONTEXT_OPENLINKSPLITVIEW 50111
- #define IDC_CONTENT_CONTEXT_ADD_LINK_TO_READING_LIST 50112
- #define IDC_CONTENT_CONTEXT_OPENLINK_ISOLATED 50113
-+#define IDC_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER 50114
-+#define IDC_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER_BACKGROUND 50115
- // Image items.
- #define IDC_CONTENT_CONTEXT_SAVEIMAGEAS 50120
- #define IDC_CONTENT_CONTEXT_COPYIMAGELOCATION 50121
 --- a/chrome/browser/renderer_context_menu/render_view_context_menu.cc
 +++ b/chrome/browser/renderer_context_menu/render_view_context_menu.cc
-@@ -149,6 +149,7 @@
+@@ -143,6 +143,7 @@
  #include "chrome/browser/ui/ui_features.h"
  #include "chrome/browser/ui/user_education/browser_user_education_interface.h"
  #include "chrome/browser/ui/web_applications/app_browser_controller.h"
@@ -417,7 +76,7 @@
  #include "chrome/browser/ui/webauthn/context_menu_helper.h"
  #include "chrome/browser/ui/webui/history/foreign_session_handler.h"
  #include "chrome/browser/user_education/user_education_service.h"
-@@ -762,6 +763,11 @@
+@@ -759,6 +760,11 @@ int CollapseCommandsForUMA(int id) {
      return IDC_OPEN_LINK_IN_PROFILE_FIRST;
    }
  
@@ -429,48 +88,19 @@
    return id;
  }
  
-@@ -2038,6 +2044,40 @@
+@@ -1984,6 +1990,11 @@ void RenderViewContextMenu::AppendLinkItems() {
                   : IDS_CONTENT_CONTEXT_OPENLINKNEWTAB);
      }
  
-+    if (params_.link_url.SchemeIsHTTPOrHTTPS() &&
-+        web_app::SendsOutOfScopeLinksOut(GetBrowser())) {
-+      // Hidden while oganesson is the default browser. Set from the last
-+      // default-browser check, and updated in the open menu by the next.
-+      for (int id : {IDC_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER,
-+                     IDC_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER_BACKGROUND}) {
-+        menu_model_.AddItem(
-+            id, web_app::DefaultBrowserLinkLabel(
-+                    id == IDC_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER_BACKGROUND));
-+        menu_model_.SetVisibleAt(menu_model_.GetItemCount() - 1,
-+                                 !web_app::IsDefaultBrowser());
-+      }
-+      web_app::RefreshIsDefaultBrowser(base::BindOnce(
-+          [](base::WeakPtr<RenderViewContextMenu> menu) {
-+            if (!menu) {
-+              return;
-+            }
-+            for (int id :
-+                 {IDC_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER,
-+                  IDC_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER_BACKGROUND}) {
-+              const size_t index =
-+                  *menu->menu_model_.GetIndexOfCommandId(id);
-+              const std::u16string label = web_app::DefaultBrowserLinkLabel(
-+                  id == IDC_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER_BACKGROUND);
-+              const bool hidden = web_app::IsDefaultBrowser();
-+              if (menu->menu_model_.GetLabelAt(index) != label ||
-+                  menu->menu_model_.IsVisibleAt(index) == hidden) {
-+                menu->UpdateMenuItem(id, /*enabled=*/true, hidden, label);
-+              }
-+            }
-+          },
-+          weak_pointer_factory_.GetWeakPtr()));
-+    }
++    web_app::AppendDefaultBrowserLinkItems(
++        params_.link_url, GetBrowser(), menu_model_,
++        base::BindRepeating(&RenderViewContextMenu::UpdateMenuItem,
++                            weak_pointer_factory_.GetWeakPtr()));
 +
      if (show_open_in_new_window) {
        AddItemWithOptionalIcon(IDC_CONTENT_CONTEXT_OPENLINKNEWWINDOW,
                                IDS_CONTENT_CONTEXT_OPENLINKNEWWINDOW,
-@@ -3689,6 +3729,8 @@
+@@ -3634,6 +3645,8 @@ bool RenderViewContextMenu::IsCommandIdEnabled(int id) const {
      case IDC_CONTENT_CONTEXT_VIDEO_FRAME:
      case IDC_SPELLCHECK_MENU:
      case IDC_CONTENT_CONTEXT_OPENLINKWITH:
@@ -479,7 +109,7 @@
      case IDC_CONTENT_CONTEXT_PROTOCOL_HANDLER_SETTINGS:
      case IDC_CONTENT_CONTEXT_GENERATEPASSWORD:
      case IDC_CONTENT_CONTEXT_SHOWALLSAVEDPASSWORDS:
-@@ -3856,6 +3898,17 @@
+@@ -3803,6 +3816,17 @@ void RenderViewContextMenu::ExecuteCommand(int id, int event_flags) {
    }
  
    switch (id) {
@@ -497,43 +127,137 @@
      case IDC_CONTENT_CONTEXT_OPENLINKNEWTAB: {
        WindowOpenDisposition new_tab_disposition =
            WindowOpenDisposition::NEW_BACKGROUND_TAB;
---- a/chrome/app/generated_resources.grd
-+++ b/chrome/app/generated_resources.grd
-@@ -816,6 +816,18 @@
-           <message name="IDS_CONTENT_CONTEXT_OPENLINKNEWWINDOW" desc="The name of the Open Link in New Window command in the content area context menu">
-             Open link in new &amp;window
-           </message>
-+          <message name="IDS_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER" desc="The name of the command in an installed web app's window to open a link in the system default browser, which comes to the front">
-+            Open link in default browser
-+          </message>
-+          <message name="IDS_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER_BACKGROUND" desc="The name of the command in an installed web app's window to open a link in the system default browser, which stays behind the app window">
-+            Open link in default browser in background
-+          </message>
-+          <message name="IDS_CONTENT_CONTEXT_OPENLINKNAMEDBROWSER" desc="The name of the command in an installed web app's window to open a link in the system default browser, named, which comes to the front">
-+            Open link in <ph name="BROWSER">$1<ex>Floorp</ex></ph>
-+          </message>
-+          <message name="IDS_CONTENT_CONTEXT_OPENLINKNAMEDBROWSER_BACKGROUND" desc="The name of the command in an installed web app's window to open a link in the system default browser, named, which stays behind the app window">
-+            Open link in <ph name="BROWSER">$1<ex>Floorp</ex></ph> in background
-+          </message>
-           <!-- Also update IDS_CONTENT_CONTEXT_OPENLINKOFFTHERECORD_INAPP in google_chrome_strings.grd and chromium_strings.grd. -->
-           <message name="IDS_CONTENT_CONTEXT_OPENLINKOFFTHERECORD" desc="The name of the open a link in Incognito window command">
-             Open link in inco&amp;gnito window
-@@ -1172,6 +1184,18 @@
-           <message name="IDS_CONTENT_CONTEXT_OPENLINKNEWWINDOW" desc="In Title Case: The name of the Open Link in New Window command in the content area context menu">
-             Open Link in New &amp;Window
-           </message>
-+          <message name="IDS_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER" desc="In Title Case: The name of the command in an installed web app's window to open a link in the system default browser, which comes to the front">
-+            Open Link in Default Browser
-+          </message>
-+          <message name="IDS_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER_BACKGROUND" desc="In Title Case: The name of the command in an installed web app's window to open a link in the system default browser, which stays behind the app window">
-+            Open Link in Default Browser in Background
-+          </message>
-+          <message name="IDS_CONTENT_CONTEXT_OPENLINKNAMEDBROWSER" desc="In Title Case: The name of the command in an installed web app's window to open a link in the system default browser, named, which comes to the front">
-+            Open Link in <ph name="BROWSER">$1<ex>Floorp</ex></ph>
-+          </message>
-+          <message name="IDS_CONTENT_CONTEXT_OPENLINKNAMEDBROWSER_BACKGROUND" desc="In Title Case: The name of the command in an installed web app's window to open a link in the system default browser, named, which stays behind the app window">
-+            Open Link in <ph name="BROWSER">$1<ex>Floorp</ex></ph> in Background
-+          </message>
-           <!-- Also update IDS_CONTENT_CONTEXT_OPENLINKOFFTHERECORD_INAPP in google_chrome_strings.grd and chromium_strings.grd. -->
-           <message name="IDS_CONTENT_CONTEXT_OPENLINKOFFTHERECORD" desc="In Title Case: The name of the open a link in Incognito window command">
-             Open Link in Inco&amp;gnito Window
+--- a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
++++ b/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
+@@ -52,6 +52,7 @@
+ #include "chrome/browser/ui/views/frame/contents_web_view.h"
+ #include "chrome/browser/ui/views/status_bubble_views.h"
+ #include "chrome/browser/ui/web_applications/app_browser_controller.h"
++#include "chrome/browser/ui/web_applications/out_of_scope_links.h"
+ #include "chrome/browser/web_applications/web_app_provider.h"
+ #include "chrome/browser/web_applications/web_app_registrar.h"
+ #include "chrome/browser/web_applications/web_app_tab_helper.h"
+@@ -516,6 +517,10 @@ content::PreloadingEligibility
+ BrowserWebContentsDelegate::IsPrerender2Supported(
+     content::WebContents& web_contents,
+     content::PreloadingTriggerType trigger_type) {
++  // A prerendered page activates without the out-of-scope link throttle.
++  if (web_app::IsWebAppOwnWindow(&browser_.get())) {
++    return content::PreloadingEligibility::kPreloadingUnsupportedByWebContents;
++  }
+   Profile* profile =
+       Profile::FromBrowserContext(web_contents.GetBrowserContext());
+   return prefetch::IsSomePreloadingEnabled(*profile->GetPrefs());
+--- a/chrome/browser/ui/navigator/browser_navigator.cc
++++ b/chrome/browser/ui/navigator/browser_navigator.cc
+@@ -48,6 +48,7 @@
+ #include "chrome/browser/ui/tabs/tab_strip_user_gesture_details.h"
+ #include "chrome/browser/ui/web_applications/app_browser_controller.h"
+ #include "chrome/browser/ui/web_applications/navigation_capturing_process.h"
++#include "chrome/browser/ui/web_applications/out_of_scope_links.h"
+ #include "chrome/browser/ui/web_applications/web_app_launch_navigation_handle_user_data.h"
+ #include "chrome/browser/ui/web_applications/web_app_launch_utils.h"
+ #include "chrome/browser/ui/web_applications/web_app_tabbed_utils.h"
+@@ -768,6 +769,10 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
+         params->source_contents, contents_to_navigate_or_insert);
+   }
+ 
++  if (web_app::MaybeOpenNewContentsOutsideApp(*params)) {
++    return nullptr;
++  }
++
+   int singleton_index = -1;
+ 
+   std::unique_ptr<web_app::NavigationCapturingProcess> app_navigation =
+--- a/chrome/browser/ui/web_applications/BUILD.gn
++++ b/chrome/browser/ui/web_applications/BUILD.gn
+@@ -40,6 +40,7 @@ source_set("web_applications") {
+       "navigation_capturing_process.h",
+       "navigation_capturing_redirection_throttle.h",
+       "navigation_handle_user_data_forwarder.h",
++      "out_of_scope_links.h",
+       "share_target_utils.h",
+       "tabbed_web_app_navigation_throttle.h",
+       "web_app_browser_controller.h",
+@@ -151,6 +152,7 @@ source_set("impl") {
+       "diagnostics/web_app_icon_health_checks.cc",
+       "navigation_capturing_process.cc",
+       "navigation_capturing_redirection_throttle.cc",
++      "out_of_scope_links.cc",
+       "share_target_utils.cc",
+       "tabbed_web_app_navigation_throttle.cc",
+       "web_app_browser_controller.cc",
+--- a/chrome/browser/ui/web_applications/web_app_launch_utils.cc
++++ b/chrome/browser/ui/web_applications/web_app_launch_utils.cc
+@@ -58,6 +58,7 @@
+ #include "chrome/browser/ui/tabs/tab_strip_model.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
+ #include "chrome/browser/ui/web_applications/app_browser_controller.h"
++#include "chrome/browser/ui/web_applications/out_of_scope_links.h"
+ #include "chrome/browser/ui/web_applications/web_app_browser_controller.h"
+ #include "chrome/browser/ui/web_applications/web_app_launch_navigation_handle_user_data.h"
+ #include "chrome/browser/ui/web_applications/web_app_launch_process.h"
+@@ -342,6 +343,12 @@ void ReparentWebContentsIntoBrowserImpl(BrowserWindowInterface* source_browser,
+     web_contents->UpdateWindowControlsOverlay(gfx::Rect());
+   }
+ 
++  // A prerendered page activates without the out-of-scope link throttle, and
++  // the app window starts none of its own (IsPrerender2Supported()).
++  if (IsWebAppOwnWindow(target_browser)) {
++    web_contents->CancelAllPrerendering();
++  }
++
+   std::unique_ptr<content::WebContents> contents_move =
+       source_tabstrip->DetachWebContentsAtForInsertion(found_tab_index.value());
+ 
+--- a/content/browser/web_contents/web_contents_impl.cc
++++ b/content/browser/web_contents/web_contents_impl.cc
+@@ -164,6 +164,7 @@
+ #include "content/public/browser/keyboard_event_processing_result.h"
+ #include "content/public/browser/navigation_details.h"
+ #include "content/public/browser/navigation_throttle_registry.h"
++#include "content/public/browser/new_window_form_post.h"
+ #include "content/public/browser/permission_descriptor_util.h"
+ #include "content/public/browser/picture_in_picture_window_controller.h"
+ #include "content/public/browser/preload_pipeline_info.h"
+@@ -291,6 +292,17 @@ namespace content {
+ 
+ namespace {
+ 
++// WebContents user data: see IsNewWindowForFormPost().
++const char kNewWindowForFormPostKey = 0;
++
++}  // namespace
++
++bool IsNewWindowForFormPost(WebContents* contents) {
++  return contents->GetUserData(&kNewWindowForFormPostKey);
++}
++
++namespace {
++
+ // These values are persisted to logs. Entries should not be renumbered and
+ // numeric values should never be reused.
+ //
+@@ -5832,6 +5844,12 @@ FrameTree* WebContentsImpl::CreateNewWindow(
+                              false,  // started_from_context_menu
+                              true);  // renderer_initiated
+ 
++  if (params.form_submission_post_data) {
++    new_contents_impl->SetUserData(
++        &kNewWindowForFormPostKey,
++        std::make_unique<base::SupportsUserData::Data>());
++  }
++
+   if (!params.opener_suppressed) {
+     return &new_contents_impl->GetPrimaryFrameTree();
+   }
+--- a/content/public/browser/BUILD.gn
++++ b/content/public/browser/BUILD.gn
+@@ -279,6 +279,7 @@ source_set("browser_sources") {
+     "navigation_throttle.h",
+     "navigation_throttle_registry.h",
+     "navigation_ui_data.h",
++    "new_window_form_post.h",
+     "network_context_client_base.h",
+     "network_quality_observer_factory.h",
+     "network_service_instance.h",

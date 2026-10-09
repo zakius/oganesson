@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright 2026 The oganesson Authors. GPL-3.0, see the LICENSE file. -->
+<grit-part>
+  <if expr="not use_titlecase">
+          <message name="IDS_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER" desc="The name of the command in an installed web app's window to open a link in the system default browser, which comes to the front">
+            Open link in default browser
+          </message>
+          <message name="IDS_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER_BACKGROUND" desc="The name of the command in an installed web app's window to open a link in the system default browser, which stays behind the app window">
+            Open link in default browser in background
+          </message>
+          <message name="IDS_CONTENT_CONTEXT_OPENLINKNAMEDBROWSER" desc="The name of the command in an installed web app's window to open a link in the system default browser, named, which comes to the front">
+            Open link in <ph name="BROWSER">$1<ex>Floorp</ex></ph>
+          </message>
+          <message name="IDS_CONTENT_CONTEXT_OPENLINKNAMEDBROWSER_BACKGROUND" desc="The name of the command in an installed web app's window to open a link in the system default browser, named, which stays behind the app window">
+            Open link in <ph name="BROWSER">$1<ex>Floorp</ex></ph> in background
+          </message>
+  </if>
+  <if expr="use_titlecase">
+          <message name="IDS_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER" desc="In Title Case: The name of the command in an installed web app's window to open a link in the system default browser, which comes to the front">
+            Open Link in Default Browser
+          </message>
+          <message name="IDS_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER_BACKGROUND" desc="In Title Case: The name of the command in an installed web app's window to open a link in the system default browser, which stays behind the app window">
+            Open Link in Default Browser in Background
+          </message>
+          <message name="IDS_CONTENT_CONTEXT_OPENLINKNAMEDBROWSER" desc="In Title Case: The name of the command in an installed web app's window to open a link in the system default browser, named, which comes to the front">
+            Open Link in <ph name="BROWSER">$1<ex>Floorp</ex></ph>
+          </message>
+          <message name="IDS_CONTENT_CONTEXT_OPENLINKNAMEDBROWSER_BACKGROUND" desc="In Title Case: The name of the command in an installed web app's window to open a link in the system default browser, named, which stays behind the app window">
+            Open Link in <ph name="BROWSER">$1<ex>Floorp</ex></ph> in Background
+          </message>
+  </if>
+</grit-part>
