@@ -91,6 +91,9 @@
   <message name="IDS_FIREFOX_SYNC_NO_SERVER" desc="Settings: error shown when the user signs in to Firefox Sync with no account server set.">
     Set an account server to sign in.
   </message>
+  <message name="IDS_FIREFOX_SYNC_NO_WINDOW" desc="Settings (Android): error shown when Firefox Sync's sign-in page can't open because no browser window is open.">
+    No browser window to sign in from.
+  </message>
   <message name="IDS_FIREFOX_SYNC_UNKNOWN_ERROR" desc="Settings: Firefox Sync error with no details.">
     Unknown error
   </message>

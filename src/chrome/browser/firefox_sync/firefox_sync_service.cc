@@ -6,6 +6,7 @@
 
 #include <utility>
 
+#include "build/build_config.h"
 #include "base/barrier_closure.h"
 #include "base/base64.h"
 #include "base/base_paths.h"
@@ -17,7 +18,7 @@
 #include "base/json/json_writer.h"
 #include "base/logging.h"
 #include "base/native_library.h"
-#include "base/path_service.h"
+#include "base/no_destructor.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/synchronization/waitable_event.h"
@@ -31,12 +32,9 @@
 #include "chrome/browser/firefox_sync/bookmarks_adapter.h"
 #include "chrome/browser/firefox_sync/history_adapter.h"
 #include "chrome/browser/firefox_sync/passwords_adapter.h"
-#include "chrome/browser/firefox_sync/tabs_adapter.h"
 #include "chrome/browser/history/history_service_factory.h"
 #include "chrome/browser/password_manager/factories/profile_password_store_factory.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/navigator/browser_navigator.h"
-#include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/history/core/common/pref_names.h"
 #include "components/autofill/core/browser/data_manager/personal_data_manager.h"
@@ -52,7 +50,6 @@
 #include "content/public/browser/storage_partition.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_observer.h"
-#include "crypto/nss_util.h"
 #include "net/base/net_errors.h"
 #include "net/base/url_util.h"
 #include "net/http/http_response_headers.h"
@@ -64,6 +61,21 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "url/gurl.h"
 #include "url/origin.h"
+
+// The Android parts are tennessine's: github.com/zakius/tennessine-focused,
+// src/chrome/browser/firefox_sync/android.
+#if BUILDFLAG(IS_ANDROID)
+#include "base/android/bundle_utils.h"
+#include "chrome/browser/firefox_sync/android/tabs_adapter_android.h"
+#include "chrome/browser/ui/android/tab_model/tab_model.h"
+#include "chrome/browser/ui/android/tab_model/tab_model_list.h"
+#else
+#include "base/path_service.h"
+#include "chrome/browser/firefox_sync/tabs_adapter.h"
+#include "chrome/browser/ui/navigator/browser_navigator.h"
+#include "chrome/browser/ui/navigator/browser_navigator_params.h"
+#include "crypto/nss_util.h"
+#endif
 
 namespace firefox_sync {
 
@@ -136,18 +148,35 @@ void HttpCallback(void* ctx,
                   void* out,
                   HttpSetFn set);
 
-// Loads liboganesson_sync.so from the browser's folder. Blocks. Calls into
-// the library are indirect calls CFI can't check, hence DISABLE_CFI_ICALL.
+// Why the library didn't load, for the settings page.
+std::string& LoadError() {
+  static base::NoDestructor<std::string> error;
+  return *error;
+}
+
+// Loads liboganesson_sync.so: from the browser's folder, or on Android from
+// the APK's native libraries. Blocks. Calls into the library are indirect
+// calls CFI can't check, hence DISABLE_CFI_ICALL.
 DISABLE_CFI_ICALL const Library* LoadSyncLibrary() {
+#if BUILDFLAG(IS_ANDROID)
+  // The linker namespace libchrome.so is in doesn't search the APK, so the
+  // path comes from the class loader, as for Chromium's own module libraries.
+  // The library brings its own NSS (Chromium on Android has none).
+  std::string path =
+      base::android::BundleUtils::ResolveLibraryPath("oganesson_sync", "");
+  base::FilePath file(path.empty() ? "liboganesson_sync.so" : path);
+#else
   // Chromium's own NSS setup first; the library then uses it as is.
   crypto::EnsureNSSInit();
   base::FilePath dir;
   base::PathService::Get(base::DIR_MODULE, &dir);
+  base::FilePath file = dir.Append(FILE_PATH_LITERAL("liboganesson_sync.so"));
+#endif
   base::NativeLibraryLoadError error;
-  base::NativeLibrary native = base::LoadNativeLibrary(
-      dir.Append(FILE_PATH_LITERAL("liboganesson_sync.so")), &error);
+  base::NativeLibrary native = base::LoadNativeLibrary(file, &error);
   if (!native) {
-    LOG(WARNING) << "Firefox Sync is unavailable: " << error.ToString();
+    LoadError() = error.ToString();
+    LOG(WARNING) << "Firefox Sync is unavailable: " << LoadError();
     return nullptr;
   }
   auto* lib = new Library{
@@ -159,7 +188,8 @@ DISABLE_CFI_ICALL const Library* LoadSyncLibrary() {
           base::GetFunctionPointerFromNativeLibrary(native, "og_free")),
   };
   if (!lib->init || !lib->call || !lib->free) {
-    LOG(WARNING) << "Firefox Sync is unavailable: bad liboganesson_sync.so";
+    LoadError() = "bad liboganesson_sync.so";
+    LOG(WARNING) << "Firefox Sync is unavailable: " << LoadError();
     return nullptr;
   }
   lib->init(&HttpCallback);
@@ -299,7 +329,7 @@ DISABLE_CFI_ICALL base::DictValue CallLibrary(scoped_refptr<HttpBridge> http,
   const Library* lib = GetLibrary();
   if (!lib) {
     base::DictValue error;
-    error.Set("error", "liboganesson_sync.so is missing");
+    error.Set("error", "liboganesson_sync.so didn't load: " + LoadError());
     return error;
   }
   char* raw = lib->call(http.get(), method.c_str(), args.c_str());
@@ -509,16 +539,36 @@ void FirefoxSyncService::OnBeginSignIn(base::DictValue result) {
     SetError(result);
     return;
   }
+#if BUILDFLAG(IS_ANDROID)
+  // Android's Navigate() needs a browser window, which a profile alone
+  // doesn't give: the tab comes from the profile's tab model.
+  content::WebContents* contents = nullptr;
+  for (TabModel* model : TabModelList::models()) {
+    if (model->GetProfile() == profile_ && !model->IsOffTheRecord()) {
+      contents =
+          model->CreateNewTabForDevTools(GURL(*url), /*new_window=*/false);
+      break;
+    }
+  }
+  if (!contents) {
+    error_ = l10n_util::GetStringUTF8(IDS_FIREFOX_SYNC_NO_WINDOW);
+    NotifyStatus();
+    return;
+  }
+#else
   NavigateParams params(profile_, GURL(*url), ui::PAGE_TRANSITION_LINK);
   params.disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
   Navigate(&params);
-  if (params.navigated_or_inserted_contents) {
-    signin_watcher_ = std::make_unique<SigninWatcher>(
-        params.navigated_or_inserted_contents.get(), GURL(*redirect), this);
-    // The last attempt's error, such as a server that isn't an accounts one.
-    error_.clear();
-    NotifyStatus();
+  content::WebContents* contents = params.navigated_or_inserted_contents.get();
+  if (!contents) {
+    return;
   }
+#endif
+  signin_watcher_ =
+      std::make_unique<SigninWatcher>(contents, GURL(*redirect), this);
+  // The last attempt's error, such as a server that isn't an accounts one.
+  error_.clear();
+  NotifyStatus();
 }
 
 void FirefoxSyncService::CompleteSignIn(const std::string& code,
@@ -854,6 +904,7 @@ base::DictValue FirefoxSyncService::GetStatus() const {
   status.Set("server", profile_->GetPrefs()->GetString(kServerPref));
   status.Set("syncServer", profile_->GetPrefs()->GetString(kSyncServerPref));
   status.Set("canSignIn", HasServer());
+  status.Set("signingIn", !!signin_watcher_);
   base::ListValue types;
   for (const DataType& type : kTypes) {
     base::DictValue entry;

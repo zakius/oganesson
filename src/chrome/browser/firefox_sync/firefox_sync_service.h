@@ -66,7 +66,7 @@ class FirefoxSyncService : public KeyedService {
   void SetTypeEnabled(const std::string& name, bool enabled);
 
   // {signedIn, email, syncing, lastSync (ms), error, needsSignIn, server,
-  // syncServer, canSignIn, types:
+  // syncServer, canSignIn, signingIn, types:
   // [{name, label, supported, enabled, count?, error?}]} for settings.
   base::DictValue GetStatus() const;
   base::CallbackListSubscription AddStatusObserver(

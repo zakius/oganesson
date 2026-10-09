@@ -145,6 +145,11 @@
     "message": "Aby się zalogować, ustaw serwer kont."
   },
   {
+    "name": "IDS_FIREFOX_SYNC_NO_WINDOW",
+    "source": "No browser window to sign in from.",
+    "message": "Brak okna przeglądarki, w którym można się zalogować."
+  },
+  {
     "name": "IDS_FIREFOX_SYNC_UNKNOWN_ERROR",
     "source": "Unknown error",
     "message": "Nieznany błąd"

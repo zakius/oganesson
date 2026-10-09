@@ -2,9 +2,10 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-# Firefox Sync. The protocol runs in liboganesson_sync.so, built
-# by oganesson's tools/build-sync-lib.sh from rust/oganesson_sync and loaded at
-# runtime from the browser's folder.
+# Firefox Sync. The protocol runs in liboganesson_sync.so, built by
+# tools/build-sync-lib.sh from rust/oganesson_sync and loaded at runtime from
+# the browser's folder, or on Android from the APK. The android/ folder is
+# tennessine's (github.com/zakius/tennessine-focused).
 source_set("firefox_sync") {
   sources = [
     "autofill_adapter.cc",
@@ -20,8 +21,6 @@ source_set("firefox_sync") {
     "passwords_adapter.cc",
     "passwords_adapter.h",
     "sync_adapter.h",
-    "tabs_adapter.cc",
-    "tabs_adapter.h",
   ]
   public_deps = [ "//chrome/browser:browser_public_dependencies" ]
   deps = [
@@ -46,4 +45,20 @@ source_set("firefox_sync") {
     "//services/network/public/cpp",
     "//ui/base",
   ]
+  if (is_android) {
+    sources += [
+      "android/firefox_sync_bridge.cc",
+      "android/tabs_adapter_android.cc",
+      "android/tabs_adapter_android.h",
+    ]
+    deps += [
+      "//chrome/browser/firefox_sync/android:jni_headers",
+      "//chrome/browser/ui/android/tab_model",
+    ]
+  } else {
+    sources += [
+      "tabs_adapter.cc",
+      "tabs_adapter.h",
+    ]
+  }
 }
