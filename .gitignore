@@ -17,3 +17,4 @@ __pycache__/
 /devutils/i18n-data
 /work/
 /rust/oganesson_sync/target/
+/.gcs_entries
