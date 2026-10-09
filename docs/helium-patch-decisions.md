@@ -27,8 +27,9 @@ Two review passes produced these lists. Patches are listed by their path in Heli
 - Fingerprint noise (`helium/core/noise/*`, its settings page and page-info UI) is stripped for now, and can return later.
 - Group defaults: degoogling and privacy patches (Inox, Iridium, Bromite, Debian, ungoogled-chromium, Brave) and build fixes are wanted. Remaining `helium/core/*` patches are not wanted unless listed as an exception.
 
-## Want (121)
+## Want (122)
 
+- `helium/core/ridiculous-google-compat-exceptions` (Helium 0.19.2): keeps Google sign-in, session cookies and security-key enrollment working under domain substitution. Maintainer's decision, 2026-10-09.
 - `upstream-fixes/missing-dependencies`
 - `upstream-fixes/tab-restore-live-tabs` (Helium 0.19.1, #359): kept, vendored before `helium/core/lazy-session-restore`. Maintainer's decision, 2026-10-08.
 - `inox-patchset/fix-building-without-safebrowsing`

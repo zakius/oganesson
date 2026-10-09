@@ -131,6 +131,7 @@ helium/core/crash-reporting-prefs.patch
 helium/core/disable-omnibox-webui.patch
 helium/core/use-system-python3.patch
 helium/core/lazy-session-restore.patch
+helium/core/ridiculous-google-compat-exceptions.patch
 
 helium/settings/move-search-suggest.patch
 helium/settings/disable-safety-hub-page.patch
