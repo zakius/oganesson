@@ -4,7 +4,7 @@ The browser's C++ adapters connect Chromium's password, bookmark, history, tab, 
 
 The retained implementation uses OAuth with PKCE, encrypts saved account secrets through Chromium's OS cryptography service, and routes HTTP through the profile's network context. Signing out discards pending results. The client must honor server backoff and preserve local edits made during a sync.
 
-Supported implementation scope: passwords, bookmarks, history, open tabs, addresses, and payment methods. Bookmark keyword and separator code is retained as a Sync dependency. Container synchronization is excluded.
+Supported implementation scope: passwords, bookmarks, history, open tabs, addresses, and payment methods. Bookmark keywords and separators stay in the Sync store (places) only: the browser never sees them, and Sync keeps them in place for Firefox. Container synchronization is excluded.
 
 `python3 tools/check_firefox_sync.py` exercises the built library against the local fake server. `./oganesson.py test firefox_sync` exercises the browser path. These checks must pass on the extracted build. They are not evidence of a real Mozilla-account test.
 

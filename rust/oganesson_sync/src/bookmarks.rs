@@ -8,20 +8,15 @@
 //! between them and the server.
 //!
 //! Each sync gets a snapshot of the browser's bookmarks: `{root: [node]}` by
-//! Firefox root GUID, a node being `{guid, title, added, url, keyword?}`,
-//! `{guid, title, added, children}` or a separator, `{guid, added,
-//! separator: true}`. Places holds what the browser had after
+//! Firefox root GUID, a node being `{guid, title, added, url}`,
+//! `{guid, title, added, children}`. Places holds what the browser had after
 //! the last sync, so the difference between the two is the local changes,
 //! which go into places (bumping its change counters) before the merge. After
 //! the merge, `finish` returns places' tree as ops for the browser to apply.
 //!
-//! Queries (`place:` URLs) and tags live only in places; the browser never
-//! sees them and they are kept in place. So were separators before the
-//! browser had them: until places has delivered its separators once (see
-//! `finish`), they are left out of the comparison, so that a snapshot from
-//! before doesn't read as deleting them. Keywords belong to a
-//! URL in places (as in Firefox) and to a bookmark in the browser: every
-//! bookmark of a URL gets the URL's keyword.
+//! Queries (`place:` URLs), separators and tags live only in places; the
+//! browser never sees them, so they are left out of the comparison and kept
+//! in place for Firefox. Keywords, kept per URL by places, are too.
 
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -33,8 +28,8 @@ use places::bookmark_sync::BookmarksSyncEngine;
 use places::storage::bookmarks::fetch::{fetch_tree, Item as PlacesItem};
 use places::storage::bookmarks::{
     delete_bookmark, insert_bookmark, update_bookmark, BookmarkPosition, InsertableBookmark,
-    InsertableFolder, InsertableItem, InsertableSeparator, UpdatableBookmark, UpdatableFolder,
-    UpdatableItem, UpdatableSeparator, UpdateTreeLocation,
+    InsertableFolder, InsertableItem, UpdatableBookmark, UpdatableFolder, UpdatableItem,
+    UpdateTreeLocation,
 };
 use places::{ConnectionType, PlacesApi, PlacesDb};
 use serde::{Deserialize, Serialize};
@@ -66,23 +61,16 @@ struct LocalNode {
     #[serde(default)]
     url: Option<String>,
     #[serde(default)]
-    keyword: Option<String>,
-    #[serde(default)]
-    separator: bool,
-    #[serde(default)]
     children: Vec<LocalNode>,
 }
 
-/// An item of a tree as the browser sees it: a folder without `url` that
-/// isn't a `separator`. `after` is its previous sibling, which is how order
+/// An item of a tree as the browser sees it: a folder without `url`. `after` is its previous sibling, which is how order
 /// is compared.
 struct Entry {
     parent: String,
     after: Option<String>,
     title: String,
     url: Option<Url>,
-    separator: bool,
-    keyword: Option<String>,
     added: f64,
 }
 
@@ -104,7 +92,7 @@ impl Tree {
             let mut after: Option<String> = None;
             for node in nodes {
                 let url = match node.url.map(|u| Url::parse(&u)) {
-                    Some(Ok(url)) if url.scheme() != "place" && !node.separator => Some(url),
+                    Some(Ok(url)) if url.scheme() != "place" => Some(url),
                     Some(_) => continue,
                     None => None,
                 };
@@ -115,14 +103,12 @@ impl Tree {
                 {
                     continue;
                 }
-                let folder = url.is_none() && !node.separator;
+                let folder = url.is_none();
                 let entry = Entry {
                     parent: parent.into(),
                     after: after.replace(guid.clone()),
-                    title: if node.separator { String::new() } else { node.title },
-                    keyword: node.keyword.filter(|k| url.is_some() && !k.is_empty()),
+                    title: node.title,
                     url,
-                    separator: node.separator,
                     added: node.added,
                 };
                 tree.add(guid.clone(), entry);
@@ -138,26 +124,21 @@ impl Tree {
         tree
     }
 
-    /// Places' tree, without separators unless `separators`.
-    fn from_places(db: &PlacesDb, separators: bool) -> Result<Tree> {
+    /// Places' tree as the browser sees it.
+    fn from_places(db: &PlacesDb) -> Result<Tree> {
         fn walk(
             tree: &mut Tree,
-            keywords: &HashMap<String, String>,
-            separators: bool,
             parent: &str,
             items: Vec<PlacesItem>,
         ) {
             let mut after: Option<String> = None;
             for item in items {
-                let (guid, title, url, separator, children) = match item {
+                let (guid, title, url, children) = match item {
                     PlacesItem::Bookmark { b } if b.url.scheme() != "place" => {
-                        (b.guid, b.title, Some(b.url), false, vec![])
+                        (b.guid, b.title, Some(b.url), vec![])
                     }
                     PlacesItem::Folder { f } => {
-                        (f.guid, f.title, None, false, f.child_nodes.unwrap_or_default())
-                    }
-                    PlacesItem::Separator { s } if separators => {
-                        (s.guid, None, None, true, vec![])
+                        (f.guid, f.title, None, f.child_nodes.unwrap_or_default())
                     }
                     _ => continue,
                 };
@@ -166,20 +147,17 @@ impl Tree {
                     parent: parent.into(),
                     after: after.replace(guid.clone()),
                     title: title.unwrap_or_default(),
-                    keyword: url.as_ref().and_then(|u| keywords.get(u.as_str()).cloned()),
                     url,
-                    separator,
                     added: 0.0,
                 };
                 tree.add(guid.clone(), entry);
-                walk(tree, keywords, separators, &guid, children);
+                walk(tree, &guid, children);
             }
         }
-        let keywords = keywords(db)?;
         let mut tree = Tree::default();
         for root in ROOTS {
             if let Some(PlacesItem::Folder { f }) = fetch_tree(db, &Guid::from(root))? {
-                walk(&mut tree, &keywords, separators, root, f.child_nodes.unwrap_or_default());
+                walk(&mut tree, root, f.child_nodes.unwrap_or_default());
             }
         }
         Ok(tree)
@@ -237,38 +215,6 @@ pub(crate) fn open(path: &Path, args: &Value) -> Result<(Arc<PlacesApi>, PlacesD
     Ok((api, db, state.gen))
 }
 
-/// Keywords by URL.
-fn keywords(db: &PlacesDb) -> Result<HashMap<String, String>> {
-    let mut statement = db.prepare(
-        "SELECT h.url, k.keyword FROM moz_keywords k JOIN moz_places h ON h.id = k.place_id",
-    )?;
-    let rows = statement.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?;
-    Ok(rows.collect::<Result<HashMap<String, String>, _>>()?)
-}
-
-/// Sets or removes the keyword of `url` (a bookmarked URL), and marks the
-/// bookmarks whose keyword changes for upload, as Firefox desktop does.
-fn set_keyword(db: &PlacesDb, url: &str, keyword: Option<&str>) -> Result<()> {
-    let Ok(place) = db.query_row(
-        "SELECT id FROM moz_places WHERE url_hash = hash(?1) AND url = ?1",
-        [url],
-        |r| r.get::<_, i64>(0),
-    ) else {
-        return Ok(());
-    };
-    // A keyword names one URL: take it from any other URL first.
-    db.execute(
-        "UPDATE moz_bookmarks SET syncChangeCounter = syncChangeCounter + 1
-         WHERE fk = ?1 OR fk IN (SELECT place_id FROM moz_keywords WHERE keyword = ?2)",
-        (place, keyword),
-    )?;
-    db.execute("DELETE FROM moz_keywords WHERE place_id = ?1 OR keyword = ?2", (place, keyword))?;
-    if let Some(keyword) = keyword {
-        db.execute("INSERT INTO moz_keywords (keyword, place_id) VALUES (?1, ?2)", (keyword, place))?;
-    }
-    Ok(())
-}
-
 /// Places row IDs by GUID. Merging can change an item's GUID (deduping on the
 /// first sync), never its row.
 fn row_ids(db: &PlacesDb) -> Result<HashMap<String, i64>> {
@@ -278,21 +224,8 @@ fn row_ids(db: &PlacesDb) -> Result<HashMap<String, i64>> {
     Ok(ids)
 }
 
-/// Whether places has delivered its separators to the browser (see `finish`).
-fn separators_delivered(db: &PlacesDb) -> bool {
-    db.query_row("SELECT value FROM moz_meta WHERE key = 'oganesson_separators'", [], |r| {
-        r.get::<_, i64>(0)
-    })
-    .is_ok()
-}
-
-/// An item's parent GUID, position, and previous sibling the browser sees,
-/// a separator only if `separators`.
-fn location(
-    db: &PlacesDb,
-    guid: &str,
-    separators: bool,
-) -> Result<(String, u32, Option<String>)> {
+/// An item's parent GUID, position, and previous sibling the browser sees.
+fn location(db: &PlacesDb, guid: &str) -> Result<(String, u32, Option<String>)> {
     let (parent_id, parent, position): (i64, String, u32) = db.query_row(
         "SELECT b.parent, p.guid, b.position FROM moz_bookmarks b
          JOIN moz_bookmarks p ON p.id = b.parent WHERE b.guid = ?1",
@@ -302,10 +235,10 @@ fn location(
     let previous = db
         .query_row(
             "SELECT b.guid FROM moz_bookmarks b LEFT JOIN moz_places h ON h.id = b.fk
-             WHERE b.parent = ?1 AND b.position < ?2 AND (?3 OR b.type != 3)
+             WHERE b.parent = ?1 AND b.position < ?2 AND b.type != 3
                AND (h.url IS NULL OR h.url NOT LIKE 'place:%')
              ORDER BY b.position DESC LIMIT 1",
-            (parent_id, position, separators),
+            (parent_id, position),
             |r| r.get(0),
         )
         .ok();
@@ -318,12 +251,11 @@ fn target(
     db: &PlacesDb,
     want: &Entry,
     current: Option<(&str, u32)>,
-    separators: bool,
 ) -> Result<BookmarkPosition> {
     let Some(after) = &want.after else {
         return Ok(BookmarkPosition::Specific { pos: 0 });
     };
-    let (_, after_pos, _) = location(db, after, separators)?;
+    let (_, after_pos, _) = location(db, after)?;
     let pos = match current {
         Some((parent, pos)) if parent == want.parent && pos < after_pos => after_pos,
         _ => after_pos + 1,
@@ -331,17 +263,13 @@ fn target(
     Ok(BookmarkPosition::Specific { pos })
 }
 
-fn insert(db: &PlacesDb, guid: &str, want: &Entry, separators: bool) -> Result<()> {
+fn insert(db: &PlacesDb, guid: &str, want: &Entry) -> Result<()> {
     let parent_guid = Guid::from(want.parent.as_str());
-    let position = target(db, want, None, separators)?;
+    let position = target(db, want, None)?;
     let date_added = (want.added >= 1.0).then(|| types::Timestamp(want.added as u64));
     let title = (!want.title.is_empty()).then(|| want.title.clone());
     let guid = Some(Guid::from(guid));
     let item: InsertableItem = match &want.url {
-        None if want.separator => {
-            InsertableSeparator { parent_guid, position, date_added, last_modified: None, guid }
-                .into()
-        }
         Some(url) => InsertableBookmark {
             parent_guid,
             position,
@@ -367,64 +295,33 @@ fn insert(db: &PlacesDb, guid: &str, want: &Entry, separators: bool) -> Result<(
     Ok(())
 }
 
-fn update(db: &PlacesDb, guid: &str, have: &Entry, want: &Entry, separators: bool) -> Result<()> {
-    if have.url.is_some() != want.url.is_some() || have.separator != want.separator {
+fn update(db: &PlacesDb, guid: &str, have: &Entry, want: &Entry) -> Result<()> {
+    if have.url.is_some() != want.url.is_some() {
         bail!("{guid} changed type");
     }
     let id = Guid::from(guid);
     let title = (have.title != want.title).then(|| want.title.clone());
     let url = if have.url != want.url { want.url.clone() } else { None };
-    if (title.is_some() || url.is_some()) && !want.separator {
+    if title.is_some() || url.is_some() {
         let item: UpdatableItem = match want.url {
             Some(_) => UpdatableBookmark { location: UpdateTreeLocation::None, url, title }.into(),
             None => UpdatableFolder { location: UpdateTreeLocation::None, title }.into(),
         };
         update_bookmark(db, &id, &item)?;
     }
-    let (parent, pos, previous) = location(db, guid, separators)?;
+    let (parent, pos, previous) = location(db, guid)?;
     if parent == want.parent && previous == want.after {
         return Ok(());
     }
     let moved = UpdateTreeLocation::Parent {
         guid: Guid::from(want.parent.as_str()),
-        pos: target(db, want, Some((parent.as_str(), pos)), separators)?,
+        pos: target(db, want, Some((parent.as_str(), pos)))?,
     };
     let item: UpdatableItem = match want.url {
-        None if want.separator => UpdatableSeparator { location: moved }.into(),
         Some(_) => UpdatableBookmark { location: moved, ..Default::default() }.into(),
         None => UpdatableFolder { location: moved, ..Default::default() }.into(),
     };
     update_bookmark(db, &id, &item)?;
-    Ok(())
-}
-
-/// Writes the browser's keyword changes to places. Before the browser has
-/// received keywords from places once (see `finish`), a bookmark without one
-/// is not a removal: it may predate keyword support.
-fn sync_keywords(db: &PlacesDb, local: &Tree) -> Result<()> {
-    let delivered = db
-        .query_row("SELECT value FROM moz_meta WHERE key = 'oganesson_keywords'", [], |r| {
-            r.get::<_, i64>(0)
-        })
-        .is_ok();
-    let have = keywords(db)?;
-    // A URL's keyword is its first bookmark's that has one, in pre-order.
-    let mut want: HashMap<&str, Option<&str>> = HashMap::new();
-    for guid in &local.order {
-        let entry = &local.items[guid];
-        if let Some(url) = &entry.url {
-            let keyword = want.entry(url.as_str()).or_insert(None);
-            if keyword.is_none() {
-                *keyword = entry.keyword.as_deref();
-            }
-        }
-    }
-    for (url, keyword) in want {
-        let current = have.get(url).map(String::as_str);
-        if current != keyword && (keyword.is_some() || delivered) {
-            set_keyword(db, url, keyword)?;
-        }
-    }
     Ok(())
 }
 
@@ -448,10 +345,7 @@ impl BookmarksEngine {
         let mut local = Tree::from_local(roots);
         let (api, db, gen) = open(&store_path(profile), args)?;
 
-        // Separators places hasn't delivered yet aren't the browser's to
-        // delete or to order against.
-        let separators = separators_delivered(&db);
-        let before = Tree::from_places(&db, separators)?;
+        let before = Tree::from_places(&db)?;
         let deletions: Vec<&String> =
             before.order.iter().filter(|g| !local.items.contains_key(*g)).collect();
         if deletions.len() > MASS_DELETE_MIN && deletions.len() * 2 > before.items.len() {
@@ -470,8 +364,8 @@ impl BookmarksEngine {
                 want.after = skip;
             }
             let result = match before.items.get(guid) {
-                Some(have) => update(&db, guid, have, want, separators),
-                None => insert(&db, guid, want, separators),
+                Some(have) => update(&db, guid, have, want),
+                None => insert(&db, guid, want),
             };
             if result.is_err() {
                 refused.insert(guid.clone(), want.after.clone());
@@ -485,7 +379,6 @@ impl BookmarksEngine {
         for guid in refused.keys() {
             local.items.remove(guid);
         }
-        sync_keywords(&db, &local)?;
 
         let rows = row_ids(&db)?
             .into_iter()
@@ -498,14 +391,13 @@ impl BookmarksEngine {
 }
 
 impl crate::Collection for BookmarksEngine {
-    /// Ops, in order: `{op: "upsert", guid, old?, parent, after, title, url?,
-    /// keyword?, separator?}`
+    /// Ops, in order: `{op: "upsert", guid, old?, parent, after, title, url?}`
     /// for every item in places, in pre-order (`old` is the item's snapshot
     /// GUID when merging changed it; the browser creates, updates or moves it
     /// to follow `after`, or to be first if null), then `{op: "delete", guid}`
     /// for snapshot items places no longer has.
     fn finish(self: Box<Self>) -> Result<Value> {
-        let merged = Tree::from_places(&self.db, true)?;
+        let merged = Tree::from_places(&self.db)?;
         let ids = row_ids(&self.db)?;
         let mut ops = vec![];
         let mut kept = HashSet::new();
@@ -520,12 +412,6 @@ impl crate::Collection for BookmarksEngine {
             });
             if let Some(url) = &item.url {
                 op["url"] = json!(url.as_str());
-            }
-            if item.separator {
-                op["separator"] = json!(true);
-            }
-            if let Some(keyword) = &item.keyword {
-                op["keyword"] = json!(keyword);
             }
             match ids.get(guid).and_then(|id| self.rows.get(id)) {
                 Some(old) if old != guid => {
@@ -543,15 +429,6 @@ impl crate::Collection for BookmarksEngine {
                 ops.push(json!({ "op": "delete", "guid": guid }));
             }
         }
-        self.db.execute(
-            "INSERT OR REPLACE INTO moz_meta (key, value) VALUES ('oganesson_keywords', 1)",
-            [],
-        )?;
-        // The ops deliver every separator from here on.
-        self.db.execute(
-            "INSERT OR REPLACE INTO moz_meta (key, value) VALUES ('oganesson_separators', 1)",
-            [],
-        )?;
         let state = State { gen: self.gen.borrow().clone() };
         Ok(json!({
             "state": serde_json::to_string(&state)?,
@@ -606,6 +483,7 @@ impl SyncEngine for BookmarksEngine {
 mod tests {
     use super::*;
     use crate::Collection;
+    use places::storage::bookmarks::InsertableSeparator;
 
     fn sync(profile: &str, state: &str, local: Value) -> Value {
         let engine = BookmarksEngine::new(profile, &json!({ "state": state, "local": local })).unwrap();
@@ -627,8 +505,7 @@ mod tests {
         let profile = dir.to_str().unwrap();
         remove_store(profile);
 
-        let a = json!({"guid": "aaaaaaaaaaaa", "title": "A", "url": "https://a.example/",
-                       "keyword": "ak"});
+        let a = json!({"guid": "aaaaaaaaaaaa", "title": "A", "url": "https://a.example/"});
         let b = json!({"guid": "bbbbbbbbbbbb", "title": "B", "url": "https://b.example/"});
         let folder = json!({"guid": "ffffffffffff", "title": "F", "children": [b.clone()]});
         let first = sync(profile, "", json!({"toolbar_____": [a.clone(), folder]}));
@@ -638,20 +515,15 @@ mod tests {
             json!(["bbbbbbbbbbbb", "ffffffffffff", null]),
         ]);
         assert_eq!(first["count"], 3);
-        assert_eq!(first["ops"][0]["keyword"], "ak");
         let state = first["state"].as_str().unwrap();
 
-        // B moves out of the folder to before A, the folder is deleted, and A
-        // loses its keyword.
-        let mut a = a;
-        a.as_object_mut().unwrap().remove("keyword");
+        // B moves out of the folder to before A, and the folder is deleted.
         let second = sync(profile, state, json!({"toolbar_____": [b, a]}));
         assert_eq!(upserts(&second), vec![
             json!(["bbbbbbbbbbbb", "toolbar_____", null]),
             json!(["aaaaaaaaaaaa", "toolbar_____", "bbbbbbbbbbbb"]),
         ]);
         assert_eq!(second["count"], 2);
-        assert_eq!(second["ops"][1]["keyword"], Value::Null);
 
         // A generation places doesn't have starts over: no deletions.
         let third = sync(profile, r#"{"gen":"elsewhere"}"#, json!({}));
@@ -660,19 +532,16 @@ mod tests {
     }
 
     #[test]
-    fn undelivered_separators_are_not_deletions() {
-        let dir = std::env::temp_dir().join(format!("og-undelivered-{}", std::process::id()));
+    fn separators_stay_in_places() {
+        let dir = std::env::temp_dir().join(format!("og-separators-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let profile = dir.to_str().unwrap();
         remove_store(profile);
 
         let a = json!({"guid": "aaaaaaaaaaaa", "title": "A", "url": "https://a.example/"});
         let b = json!({"guid": "bbbbbbbbbbbb", "title": "B", "url": "https://b.example/"});
-        let local = json!({"unfiled_____": [a, b]});
-        let first = sync(profile, "", local.clone());
-        let state = first["state"].as_str().unwrap();
-        // As a library from before separators left places: a separator from
-        // Firefox between A and B that the browser never got.
+        let first = sync(profile, "", json!({"unfiled_____": [a.clone(), b.clone()]}));
+        // A separator from Firefox between A and B.
         {
             let api = PlacesApi::new(store_path(profile)).unwrap();
             let db = api.open_connection(ConnectionType::ReadWrite).unwrap();
@@ -683,49 +552,30 @@ mod tests {
                 last_modified: None,
                 guid: Some(Guid::from("ssssssssssss")),
             }.into()).unwrap();
-            db.execute("DELETE FROM moz_meta WHERE key = 'oganesson_separators'", []).unwrap();
         }
-        // The browser's snapshot without it: it stays, in place, and comes
-        // down, with no deletion.
-        let second = sync(profile, state, local);
+        // The browser never gets it, and its snapshot without it deletes
+        // nothing: B still follows A.
+        let state = first["state"].as_str().unwrap();
+        let second = sync(profile, state, json!({"unfiled_____": [a.clone(), b.clone()]}));
         assert_eq!(upserts(&second), vec![
             json!(["aaaaaaaaaaaa", "unfiled_____", null]),
-            json!(["ssssssssssss", "unfiled_____", "aaaaaaaaaaaa"]),
-            json!(["bbbbbbbbbbbb", "unfiled_____", "ssssssssssss"]),
+            json!(["bbbbbbbbbbbb", "unfiled_____", "aaaaaaaaaaaa"]),
         ]);
-        assert_eq!(second["ops"][1]["separator"], true);
         assert!(second["ops"].as_array().unwrap().iter().all(|op| op["op"] == "upsert"));
-        remove_store(profile);
-    }
-
-    #[test]
-    fn separators_reach_places_and_come_back() {
-        let dir = std::env::temp_dir().join(format!("og-separators-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        let profile = dir.to_str().unwrap();
-        remove_store(profile);
-
-        let a = json!({"guid": "aaaaaaaaaaaa", "title": "A", "url": "https://a.example/"});
-        let s = json!({"guid": "ssssssssssss", "added": 1.0e12, "separator": true});
-        let b = json!({"guid": "bbbbbbbbbbbb", "title": "B", "url": "https://b.example/"});
-        let first = sync(profile, "", json!({"unfiled_____": [a.clone(), s.clone(), b.clone()]}));
-        assert_eq!(upserts(&first), vec![
-            json!(["aaaaaaaaaaaa", "unfiled_____", null]),
-            json!(["ssssssssssss", "unfiled_____", "aaaaaaaaaaaa"]),
-            json!(["bbbbbbbbbbbb", "unfiled_____", "ssssssssssss"]),
-        ]);
-        assert_eq!(first["ops"][1]["separator"], true);
-        assert_eq!(first["ops"][1]["title"], "");
-        assert_eq!(first["ops"][1]["url"], Value::Null);
-        assert_eq!(first["ops"][0]["separator"], Value::Null);
-
-        // The separator moves first, then is deleted.
-        let state = first["state"].as_str().unwrap();
-        let second = sync(profile, state, json!({"unfiled_____": [s, a.clone(), b.clone()]}));
-        assert_eq!(upserts(&second)[0], json!(["ssssssssssss", "unfiled_____", null]));
+        // Moving B before A keeps the separator for Firefox.
         let state = second["state"].as_str().unwrap();
-        let third = sync(profile, state, json!({"unfiled_____": [a, b]}));
+        let third = sync(profile, state, json!({"unfiled_____": [b, a]}));
         assert_eq!(third["count"], 2);
+        let api = PlacesApi::new(store_path(profile)).unwrap();
+        let db = api.open_connection(ConnectionType::ReadOnly).unwrap();
+        let kept: i64 = db
+            .query_row("SELECT COUNT(*) FROM moz_bookmarks WHERE guid = 'ssssssssssss'", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(kept, 1);
+        drop(db);
+        drop(api);
         remove_store(profile);
     }
 }

@@ -22,8 +22,8 @@ namespace firefox_sync {
 // node's Firefox GUID is kept in its meta info. The bookmarks bar, Other
 // bookmarks and Mobile bookmarks are Firefox's toolbar, unfiled and mobile
 // roots; its menu root is a "Bookmarks Menu" folder, created in Other
-// bookmarks when the menu has bookmarks. Separators sync both ways. See bookmarks.rs for the snapshot
-// and the ops.
+// bookmarks when the menu has bookmarks. Separators and keywords stay in the
+// Sync store only; see bookmarks.rs for the snapshot and the ops.
 class BookmarksAdapter : public SyncAdapter,
                          public bookmarks::BaseBookmarkModelObserver {
  public:

@@ -136,14 +136,6 @@ write_args
 if [ ! -f "${_out_dir}/build.ninja" ]; then
     (cd "$_src_dir" && ./buildtools/linux64/gn gen "$_out_dir" --fail-on-unused-args)
 fi
-# The About page's build date and time. Changes every minute, so a build
-# after that reruns gn (ninja does whenever args.gn is touched).
-build_date="oganesson_build_date = \"$(date -u '+%F %H:%M') UTC\""
-if ! grep -qxF "$build_date" "${_out_dir}/args.gn"; then
-    sed -i '/^oganesson_build_date = /d' "${_out_dir}/args.gn"
-    echo "$build_date" >> "${_out_dir}/args.gn"
-fi
-
 cd "$_src_dir"
 jobs=()
 [ -n "${OGANESSON_JOBS:-}" ] && jobs=(-j "$OGANESSON_JOBS")

@@ -5,28 +5,26 @@
    registry->RegisterBooleanPref(prefs::kShowHomeButton, false,
                                  pref_registration_flags);
 +  registry->RegisterListPref(prefs::kToolbarItems);
-   registry->RegisterBooleanPref(prefs::kSearchBarVisible, false);
-   registry->RegisterStringPref(prefs::kSearchBarEngine, std::string());
    registry->RegisterBooleanPref(prefs::kSplitViewDragAndDropEnabled, true,
+                                 pref_registration_flags);
+ 
 --- a/chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model.cc
 +++ b/chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model.cc
-@@ -218,6 +218,9 @@ void PinnedToolbarActionsModel::ResetToDefault() {
+@@ -218,6 +218,8 @@ void PinnedToolbarActionsModel::ResetToDefault() {
    pref_service_->ClearPref(prefs::kShowForwardButton);
    pref_service_->ClearPref(prefs::kPinSplitTabButton);
    pref_service_->ClearPref(prefs::kPinnedActions);
-+  // The separate search bar and the toolbar's item order (#62).
-+  pref_service_->ClearPref(prefs::kSearchBarVisible);
++  // The toolbar's item order (#62).
 +  pref_service_->ClearPref(prefs::kToolbarItems);
  }
  
  bool PinnedToolbarActionsModel::IsDefault() const {
-@@ -229,7 +232,8 @@ bool PinnedToolbarActionsModel::IsDefault() const {
+@@ -229,7 +231,7 @@ bool PinnedToolbarActionsModel::IsDefault() const {
    return std::ranges::all_of(
        std::initializer_list{prefs::kPinnedActions, prefs::kShowHomeButton,
                              prefs::kShowForwardButton,
 -                            prefs::kPinSplitTabButton},
-+                            prefs::kPinSplitTabButton,
-+                            prefs::kSearchBarVisible, prefs::kToolbarItems},
++                            prefs::kPinSplitTabButton, prefs::kToolbarItems},
        is_default_pref_value);
  }
  
@@ -242,7 +240,7 @@
    // The action that triggered the current popup, if any.
 --- a/chrome/browser/ui/views/toolbar/BUILD.gn
 +++ b/chrome/browser/ui/views/toolbar/BUILD.gn
-@@ -157,6 +157,7 @@ source_set("impl") {
+@@ -155,6 +155,7 @@ source_set("impl") {
      "toolbar_icon_container_view.cc",
      "toolbar_ink_drop_util.cc",
      "toolbar_view.cc",
@@ -436,7 +434,7 @@
  #endif  // CHROME_BROWSER_UI_VIEWS_TOOLBAR_TOOLBAR_ACTION_VIEW_H_
 --- a/chrome/browser/ui/views/toolbar/toolbar_view.cc
 +++ b/chrome/browser/ui/views/toolbar/toolbar_view.cc
-@@ -307,6 +307,8 @@ ToolbarView::~ToolbarView() {
+@@ -306,6 +306,8 @@ ToolbarView::~ToolbarView() {
      overflow_button_->set_toolbar_controller(nullptr);
    }
  
@@ -445,7 +443,7 @@
    for (const auto& view_and_command : GetViewCommandMap()) {
      chrome::RemoveCommandObserver(browser_, view_and_command.second, this);
    }
-@@ -411,8 +413,6 @@ void ToolbarView::Init() {
+@@ -410,8 +412,6 @@ void ToolbarView::Init() {
    if (!browser_->GetProfile()->IsGuestSession() &&
        !features::IsWebUIExtensionsContainerEnabled()) {
      extensions_container = std::make_unique<ExtensionsToolbarDesktop>(browser_);
@@ -454,7 +452,7 @@
    }
  
    std::unique_ptr<MediaToolbarButtonView> media_button;
-@@ -712,6 +712,8 @@ void ToolbarView::Init() {
+@@ -708,6 +708,8 @@ void ToolbarView::Init() {
      glic_split_button_controller_->SetVerticalTabsDelegate(this);
    }
  
@@ -495,7 +493,7 @@
  #include "ui/views/view.h"
  #include "url/origin.h"
  
-@@ -98,7 +103,8 @@ class ToolbarView : public views::AccessiblePaneView,
+@@ -97,7 +102,8 @@ class ToolbarView : public views::AccessiblePaneView,
                      public AppMenuIconController::Delegate,
                      public ToolbarButtonProvider,
                      public BrowserRootView::DropTarget,
@@ -505,7 +503,7 @@
    METADATA_HEADER(ToolbarView, views::AccessiblePaneView)
  
   public:
-@@ -251,6 +257,28 @@ class ToolbarView : public views::AccessiblePaneView,
+@@ -250,6 +256,28 @@ class ToolbarView : public views::AccessiblePaneView,
    bool AcceleratorPressed(const ui::Accelerator& acc) override;
    void ChildPreferredSizeChanged(views::View* child) override;
    void ChildVisibilityChanged(View* child) override;
@@ -534,7 +532,7 @@
  
    friend class AvatarToolbarButtonBaseBrowserTest;
  
-@@ -360,6 +388,28 @@ class ToolbarView : public views::AccessiblePaneView,
+@@ -359,6 +387,28 @@ class ToolbarView : public views::AccessiblePaneView,
    // Changes the visibility of the Chrome Labs entry point based on prefs.
    void OnChromeLabsPrefChanged();
  
@@ -563,7 +561,7 @@
    // Loads the images for all the child views.
    void LoadImages();
  
-@@ -480,6 +530,10 @@ class ToolbarView : public views::AccessiblePaneView,
+@@ -478,6 +528,10 @@ class ToolbarView : public views::AccessiblePaneView,
  
    BooleanPrefMember show_chrome_labs_button_;
  
@@ -576,10 +574,10 @@
  
 --- a/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar_handler.cc
 +++ b/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar_handler.cc
-@@ -205,6 +205,11 @@ CustomizeToolbarHandler::CustomizeToolbarHandler(
-                 handler->prefs()->GetBoolean(prefs::kSearchBarVisible));
-           },
-           base::Unretained(this)));
+@@ -196,6 +196,11 @@ CustomizeToolbarHandler::CustomizeToolbarHandler(
+       base::BindRepeating(&CustomizeToolbarHandler::OnActionPinnedChanged,
+                           base::Unretained(this), kActionSplitTab,
+                           prefs::kPinSplitTabButton));
 +  // A moved toolbar item changes whether the toolbar is customized.
 +  pref_change_registrar_.Add(
 +      prefs::kToolbarItems,
@@ -599,6 +597,6 @@
 +// extension action, or "action:<action id>" for a pinned Chrome button.
 +inline constexpr char kToolbarItems[] = "oganesson.toolbar.items";
 +
- // Whether the toolbar shows the separate search bar (Firefox's search bar),
- // and the sync GUID of its search engine; empty for the default engine.
- inline constexpr char kSearchBarVisible[] = "oganesson.search_bar.visible";
+ // A boolean pref set to true if the Forward button should be visible on the
+ // toolbar.
+ inline constexpr char kShowForwardButton[] = "browser.show_forward_button";

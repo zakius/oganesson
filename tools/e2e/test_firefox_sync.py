@@ -1,7 +1,7 @@
 """Firefox Sync in the browser, against tools/fake_firefox_sync.py: sign-in
 from settings, then bookmarks, passwords, and history sync. A bookmark edited
 mid-sync keeps the edit (#39), and signing out drops held sync and sign-in
-replies (#37). Firefox bookmark separators round-trip (#160). Password
+replies (#37). Firefox bookmark separators stay in Firefox. Password
 changes and edits made mid-sync are retained (#258, #259); a login with empty
 field names that Firefox fills keeps its leaked warning. A history deletion
 made before quitting reaches Firefox after restart (#260); clearing all
@@ -114,7 +114,7 @@ class FirefoxSyncTest(BrowserTest):
             'payload': encrypt(self.fake.bundle('bookmarks'), json.dumps(record))},
             self.fake.now())
 
-    def test_5b_separator_round_trip(self):
+    def test_5b_separators_stay_in_firefox(self):
         # Firefox adds a separator at the end of Other bookmarks (unfiled).
         unfiled = self.firefox_record('unfiled')
         unfiled['children'].append('separator012')
@@ -124,16 +124,13 @@ class FirefoxSyncTest(BrowserTest):
         self.firefox_put(unfiled)
         page = self.settings('/autofill', 'settings-autofill-page')
         self.sync_now(page)
+        # The browser doesn't show it, and a second sync keeps it in Firefox.
         marks = self.browser.new_tab('chrome://bookmarks')
         wait_for(lambda: marks.eval('!!chrome.bookmarks'), what='chrome://bookmarks')
-        last = marks.eval("chrome.bookmarks.getChildren('2').then(c => c.at(-1))")
-        self.assertEqual([last['type'], last['title']], ['separator', ''])
-        # Moved first on the bookmarks bar here, it moves there in Firefox.
-        marks.eval(f"chrome.bookmarks.move('{last['id']}', {{parentId: '1', index: 0}})")
+        self.assertFalse(marks.eval(
+            "chrome.bookmarks.getChildren('2').then(c => c.some(n => !n.url && !n.title))"))
         self.sync_now(page)
-        self.assertEqual(self.firefox_record('separator012')['parentid'], 'toolbar')
-        self.assertEqual(self.firefox_record('toolbar')['children'][0], 'separator012')
-        self.assertNotIn('separator012', self.firefox_record('unfiled')['children'])
+        self.assertIn('separator012', self.firefox_record('unfiled')['children'])
 
     PASSWORD_SITE = 'https://login.example'
 

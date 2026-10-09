@@ -14,7 +14,7 @@ uBO comes from the pinned Chromium package in `deps.ini`. It is full uBO, not uB
 
 Firefox Sync keeps the separate Rust library using Mozilla application-services and native C++ store adapters. General Firefox extension compatibility is not a prerequisite for that protocol integration. The containers engine is excluded.
 
-The configurable toolbar currently includes its separate search-bar dependency. Sync keeps bookmark keyword and separator support. Mouse gestures retain browser commands and standard Chromium extension actions, without Firefox page-action emulation. Tab selection retains Chromium extension opener handling, without Firefox hidden-tab APIs.
+Firefox bookmark keywords and separators stay in the Sync store only. Mouse gestures retain browser commands and standard Chromium extension actions, without Firefox page-action emulation. Tab selection retains Chromium extension opener handling, without Firefox hidden-tab APIs.
 
 ## Release acceptance
 

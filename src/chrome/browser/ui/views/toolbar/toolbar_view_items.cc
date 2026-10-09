@@ -37,7 +37,6 @@
 #include "chrome/browser/ui/views/toolbar/pinned_action_toolbar_button.h"
 #include "chrome/browser/ui/views/toolbar/pinned_toolbar_actions_container.h"
 #include "chrome/browser/ui/views/toolbar/reload_button.h"
-#include "chrome/browser/ui/views/toolbar/search_bar_view.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_action_view.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_button.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
@@ -90,16 +89,13 @@ void ToolbarView::InitToolbarItems() {
     pinned_toolbar_actions_container_->SetMoveDetachedCallback(move_by);
   }
   // Built-in items drag like pinned ones, and act on release so a press can
-  // start a drag. The extensions button and the search bar's engine button
-  // drag their item. The location bar stays put; the others move around it.
+  // start a drag. The extensions button drags its container. The location bar stays put; the others move around it.
   // Incognito windows don't change the layout.
   if (!browser_->GetProfile()->IsOffTheRecord()) {
     for (const auto& [token, item] : GetBuiltInItems()) {
       views::View* handle = item;
       if (item && item == extensions_container_.get()) {
         handle = extensions_container_->GetExtensionsButton();
-      } else if (item && item == search_bar_.get()) {
-        handle = search_bar_->engine_button();
       }
       if (handle && token != "location_bar") {
         handle->set_drag_controller(this);
@@ -143,7 +139,6 @@ ToolbarView::GetBuiltInItems() {
           {"home", home_.get()},
           {"split_tabs", split_tabs_.get()},
           {"location_bar", location_bar_view_.get()},
-          {"search_bar", search_bar_.get()},
           {"extensions", extensions_container_.get()},
           {"media", media_button_ && !features::IsWebUIMediaButtonEnabled()
                         ? static_cast<MediaToolbarButtonView*>(
@@ -483,8 +478,7 @@ void ToolbarView::WriteDragDataForView(views::View* sender,
   auto* const button = static_cast<ToolbarButton*>(sender);
   data->provider().SetDragImage(button->GetImage(button->GetState()),
                                 press_pt.OffsetFromOrigin());
-  // A handle inside an item (the extensions button, the search bar's engine
-  // button) drags the item.
+  // A handle inside an item (the extensions button) drags the item.
   views::View* item = sender;
   while (item->parent() != this) {
     item = item->parent();

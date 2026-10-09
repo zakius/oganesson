@@ -21,7 +21,6 @@
 #include "base/uuid.h"
 #include "components/bookmarks/browser/bookmark_model.h"
 #include "components/bookmarks/browser/bookmark_node.h"
-#include "components/bookmarks/browser/bookmark_utils.h"
 #include "components/bookmarks/common/bookmark_metrics.h"
 #include "url/gurl.h"
 
@@ -69,14 +68,8 @@ base::ListValue Walk(const BookmarkNode* folder,
     entry.Set("guid", guid);
     entry.Set("title", base::UTF16ToUTF8(node->GetTitle()));
     entry.Set("added", node->date_added().InMillisecondsFSinceUnixEpoch());
-    if (node->is_separator()) {
-      entry.Set("separator", true);
-    } else if (node->is_url()) {
+    if (node->is_url()) {
       entry.Set("url", node->url().spec());
-      const std::u16string keyword = bookmarks::GetBookmarkKeyword(node);
-      if (!keyword.empty()) {
-        entry.Set("keyword", base::UTF16ToUTF8(keyword));
-      }
     } else {
       entry.Set("children", Walk(node, nodes, menu));
     }
@@ -137,8 +130,7 @@ std::map<std::string, std::string> Prints(const Nodes& nodes) {
     prints[guid] = base::StrCat(
         {guids[node->parent()], "\n", previous ? guids[previous] : "", "\n",
          base::UTF16ToUTF8(node->GetTitle()), "\n",
-         node->is_url() ? node->url().spec() : "", "\n",
-         base::UTF16ToUTF8(bookmarks::GetBookmarkKeyword(node))});
+         node->is_url() ? node->url().spec() : ""});
   }
   return prints;
 }
@@ -235,8 +227,7 @@ void BookmarksAdapter::Apply(const base::ListValue& ops) {
       model_->SetNodeMetaInfo(parent, kGuidKey, kMenu);
       nodes[kMenu] = parent;
     }
-    const bool separator = op->FindBool("separator").value_or(false);
-    const std::string* url_spec = separator ? nullptr : op->FindString("url");
+    const std::string* url_spec = op->FindString("url");
     GURL url(url_spec ? *url_spec : std::string());
     if (!parent || !parent->is_folder() || (url_spec && !url.is_valid())) {
       continue;
@@ -256,17 +247,16 @@ void BookmarksAdapter::Apply(const base::ListValue& ops) {
       if (snapshot_.contains(old ? *old : *guid)) {
         continue;  // Deleted here during the sync.
       }
-      node = separator  ? model_->AddSeparator(parent, index)
-             : url_spec ? model_->AddURL(parent, index, title, url)
-                        : model_->AddFolder(parent, index, title);
+      node = url_spec ? model_->AddURL(parent, index, title, url)
+                      : model_->AddFolder(parent, index, title);
       ++added;
     } else {
       if (node->is_permanent_node() || node->is_url() != !!url_spec ||
-          node->is_separator() != separator || parent->HasAncestor(node)) {
+          parent->HasAncestor(node)) {
         continue;
       }
       bool changed = false;
-      if (!separator && node->GetTitle() != title) {
+      if (node->GetTitle() != title) {
         model_->SetTitle(node, title, BookmarkEditSource::kOther);
         changed = true;
       }
@@ -280,16 +270,6 @@ void BookmarksAdapter::Apply(const base::ListValue& ops) {
         changed = true;
       }
       updated += changed;
-    }
-    // Firefox keeps a keyword per URL, so every bookmark of the URL gets it.
-    const std::string* keyword = op->FindString("keyword");
-    if (url_spec && base::UTF16ToUTF8(bookmarks::GetBookmarkKeyword(node)) !=
-                        (keyword ? *keyword : std::string())) {
-      if (keyword) {
-        model_->SetNodeMetaInfo(node, bookmarks::kKeywordMetaInfoKey, *keyword);
-      } else {
-        model_->DeleteNodeMetaInfo(node, bookmarks::kKeywordMetaInfoKey);
-      }
     }
     std::string meta;
     if (!node->GetMetaInfo(kGuidKey, &meta) || meta != *guid) {
