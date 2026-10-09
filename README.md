@@ -1,6 +1,6 @@
 # oganesson focused
 
-A Linux Chromium browser source layer for mouse gestures, a configurable toolbar, full Chromium uBlock Origin, hidden tab close buttons, middle-click new tabs, Firefox tab rules, Firefox Sync, and installed web app controls.
+A Linux Chromium browser source layer for mouse gestures, a configurable toolbar, full Chromium uBlock Origin, hidden tab close buttons, middle-click new tabs, Firefox tab rules, Firefox Sync, installed web app controls, and switches that stop saving browsing and download history.
 
 This repository extracts a focused feature set from [oganesson-core](https://github.com/zakius/oganesson-core). It keeps the Helium patch baseline and existing build tools. Product code lives in `src/`, with feature patches in `patches/oganesson/`. The Chromium checkout and build outputs live in ignored `work/`.
 

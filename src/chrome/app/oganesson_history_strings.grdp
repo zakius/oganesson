@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright 2026 The oganesson Authors. GPL-3.0, see the LICENSE file. -->
+<grit-part>
+  <message name="IDS_SETTINGS_HISTORY_SAVING_DISABLED" desc="Settings, Privacy: switch that stops saving the pages the user visits to history.">
+    Don't save browsing history
+  </message>
+  <message name="IDS_SETTINGS_HISTORY_SAVING_DISABLED_DESCRIPTION" desc="Settings, Privacy: what the switch that stops saving browsing history does. History saved before stays until the user deletes it.">
+    Visited pages aren't saved, closed tabs can't be reopened, and Firefox Sync skips history. History saved before stays until you delete it.
+  </message>
+  <message name="IDS_SETTINGS_DOWNLOAD_HISTORY_SAVING_DISABLED" desc="Settings, Privacy: switch that stops saving downloads to the download history.">
+    Don't save download history
+  </message>
+  <message name="IDS_SETTINGS_DOWNLOAD_HISTORY_SAVING_DISABLED_DESCRIPTION" desc="Settings, Privacy: what the switch that stops saving download history does. Downloads saved before stay until the user deletes them.">
+    Downloads are listed until you close the browser. Downloads saved before stay until you delete them.
+  </message>
+</grit-part>

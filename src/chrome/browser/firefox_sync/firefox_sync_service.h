@@ -17,6 +17,7 @@
 #include "base/timer/timer.h"
 #include "base/values.h"
 #include "components/keyed_service/core/keyed_service.h"
+#include "components/prefs/pref_change_registrar.h"
 
 class Profile;
 
@@ -100,6 +101,9 @@ class FirefoxSyncService : public KeyedService {
   void OnSynced(base::DictValue result);
   void OnLocalChange();
   void SaveSecrets();
+  void OnHistorySavingChanged();
+  // History syncs only while the browser saves it (history.saving_disabled).
+  bool HistoryBlocked() const;
   void SetError(const base::DictValue& result);
   void ScheduleSync(base::TimeDelta delay);
   void NotifyStatus();
@@ -124,6 +128,7 @@ class FirefoxSyncService : public KeyedService {
 
   bool syncing_ = false;
   bool sync_again_ = false;
+  PrefChangeRegistrar history_saving_;
   // No sync before this time: the servers asked to back off until then.
   base::Time retry_after_;
   std::string error_;

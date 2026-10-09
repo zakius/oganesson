@@ -26,6 +26,8 @@ interface FirefoxSyncType {
   label: string;
   supported: boolean;
   enabled: boolean;
+  // Off because the browser doesn't save this data (history).
+  blocked?: boolean;
   count?: number;
   error?: string;
 }
@@ -210,6 +212,9 @@ export class SettingsFirefoxSyncElement extends SettingsFirefoxSyncElementBase {
     if (!type.supported) {
       return this.i18n('firefoxSyncNotSupported');
     }
+    if (type.blocked) {
+      return this.i18n('firefoxSyncHistoryNotSaved');
+    }
     if (type.error) {
       return type.error;
     }
@@ -220,7 +225,7 @@ export class SettingsFirefoxSyncElement extends SettingsFirefoxSyncElementBase {
 
   private firefoxSyncTypeToggleable_(
       type: FirefoxSyncType, status: FirefoxSyncStatus): boolean {
-    return type.supported && !status.syncing;
+    return type.supported && !type.blocked && !status.syncing;
   }
 
   private onFirefoxSyncTypeChange_(e: DomRepeatEvent<FirefoxSyncType>) {

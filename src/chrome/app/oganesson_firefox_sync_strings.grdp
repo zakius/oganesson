@@ -49,6 +49,9 @@
   <message name="IDS_FIREFOX_SYNC_NOT_SUPPORTED" desc="Settings: description of a Firefox Sync data type this browser can't sync yet.">
     Not supported yet
   </message>
+  <message name="IDS_FIREFOX_SYNC_HISTORY_NOT_SAVED" desc="Settings: description of the Firefox Sync history toggle, switched off and greyed out while the Privacy setting that stops saving browsing history is on.">
+    Off while browsing history isn't saved
+  </message>
   <message name="IDS_FIREFOX_SYNC_COUNT" desc="Settings: description of a Firefox Sync data type, with the number of its synced items.">
     Synced: <ph name="COUNT">$1<ex>120</ex></ph>
   </message>

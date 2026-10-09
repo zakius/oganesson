@@ -38,6 +38,7 @@
 #include "chrome/browser/ui/navigator/browser_navigator.h"
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/grit/generated_resources.h"
+#include "components/history/core/common/pref_names.h"
 #include "components/autofill/core/browser/data_manager/personal_data_manager.h"
 #include "components/keyed_service/core/service_access_type.h"
 #include "components/os_crypt/async/browser/os_crypt_async.h"
@@ -375,6 +376,11 @@ FirefoxSyncService::FirefoxSyncService(Profile* profile)
        }));
   g_browser_process->os_crypt_async()->GetInstance(base::BindOnce(
       &FirefoxSyncService::OnEncryptor, weak_factory_.GetWeakPtr()));
+  history_saving_.Init(prefs);
+  history_saving_.Add(
+      prefs::kSavingBrowserHistoryDisabled,
+      base::BindRepeating(&FirefoxSyncService::OnHistorySavingChanged,
+                          base::Unretained(this)));
 }
 
 FirefoxSyncService::~FirefoxSyncService() = default;
@@ -393,6 +399,7 @@ void FirefoxSyncService::RegisterProfilePrefs(
 }
 
 void FirefoxSyncService::Shutdown() {
+  history_saving_.RemoveAll();
   adapters_.clear();
   signin_watcher_.reset();
   periodic_.Stop();
@@ -576,7 +583,27 @@ void FirefoxSyncService::SignOut() {
   NotifyStatus();
 }
 
+bool FirefoxSyncService::HistoryBlocked() const {
+  return profile_->GetPrefs()->GetBoolean(
+      prefs::kSavingBrowserHistoryDisabled);
+}
+
+void FirefoxSyncService::OnHistorySavingChanged() {
+  // A running sync's history adapter applies nothing (see OnSynced), and
+  // OnSynced swaps the adapters. Before OnEncryptor there are none yet.
+  if (encryptor_ && !syncing_) {
+    CreateAdapters();
+    if (!HistoryBlocked() && IsTypeEnabled("history")) {
+      SyncNow();
+    }
+  }
+  NotifyStatus();
+}
+
 bool FirefoxSyncService::IsTypeEnabled(const std::string& name) const {
+  if (name == "history" && HistoryBlocked()) {
+    return false;
+  }
   const base::ListValue& disabled =
       profile_->GetPrefs()->GetList(kDisabledTypesPref);
   return !disabled.contains(name);
@@ -750,7 +777,7 @@ void FirefoxSyncService::OnSynced(base::DictValue result) {
         if (name == "tabs" && ops) {
           remote_tabs_ = ops->Clone();
         }
-        if (adapter != adapters_.end() && ops) {
+        if (adapter != adapters_.end() && ops && IsTypeEnabled(name)) {
           adapter->second->Apply(*ops);
         }
         if (const std::string* state = engine->FindString("state")) {
@@ -765,6 +792,8 @@ void FirefoxSyncService::OnSynced(base::DictValue result) {
   } else {
     SetError(result);
   }
+  // Drops the history adapter if saving history was turned off meanwhile.
+  CreateAdapters();
   NotifyStatus();
   if (sync_again_) {
     sync_again_ = false;
@@ -832,6 +861,8 @@ base::DictValue FirefoxSyncService::GetStatus() const {
     entry.Set("label", l10n_util::GetStringUTF8(type.label_id));
     entry.Set("supported", type.supported);
     entry.Set("enabled", type.supported && IsTypeEnabled(type.name));
+    entry.Set("blocked", type.name == std::string_view("history") &&
+                             HistoryBlocked());
     auto status_it = type_status_.find(type.name);
     if (status_it != type_status_.end()) {
       entry.Set("count", status_it->second.count);

@@ -328,5 +328,30 @@
     "name": "IDS_SETTINGS_SHOW_HOME_BUTTON",
     "source": "Home button opens",
     "message": "Przycisk strony głównej otwiera"
+  },
+  {
+    "name": "IDS_FIREFOX_SYNC_HISTORY_NOT_SAVED",
+    "source": "Off while browsing history isn't saved",
+    "message": "Wyłączone, gdy historia przeglądania nie jest zapisywana"
+  },
+  {
+    "name": "IDS_SETTINGS_HISTORY_SAVING_DISABLED",
+    "source": "Don't save browsing history",
+    "message": "Nie zapisuj historii przeglądania"
+  },
+  {
+    "name": "IDS_SETTINGS_HISTORY_SAVING_DISABLED_DESCRIPTION",
+    "source": "Visited pages aren't saved, closed tabs can't be reopened, and Firefox Sync skips history. History saved before stays until you delete it.",
+    "message": "Odwiedzane strony nie są zapisywane, zamkniętych kart nie można przywrócić, a Firefox Sync pomija historię. Zapisana wcześniej historia zostaje, dopóki jej nie usuniesz."
+  },
+  {
+    "name": "IDS_SETTINGS_DOWNLOAD_HISTORY_SAVING_DISABLED",
+    "source": "Don't save download history",
+    "message": "Nie zapisuj historii pobierania"
+  },
+  {
+    "name": "IDS_SETTINGS_DOWNLOAD_HISTORY_SAVING_DISABLED_DESCRIPTION",
+    "source": "Downloads are listed until you close the browser. Downloads saved before stay until you delete them.",
+    "message": "Pobrane pliki są widoczne na liście do zamknięcia przeglądarki. Zapisane wcześniej pobrania zostają, dopóki ich nie usuniesz."
   }
 ]
