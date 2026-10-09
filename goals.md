@@ -6,4 +6,4 @@ Keep Chromium's existing extension support and Helium's Manifest V2/uBO maintena
 
 The separate search bar supports the retained toolbar implementation. Bookmark keywords and separators support Firefox Sync without discarding Firefox bookmark structure. These dependencies are explicit rather than a reason to import further features.
 
-Firefox tab rules are the default. Existing preference controls may remain when retaining them is simpler than maintaining a separate implementation. User data uses an isolated profile until migration has dedicated validation.
+Firefox tab rules are always on, with no setting, to keep the tab strip patch small. User data uses an isolated profile until migration has dedicated validation.

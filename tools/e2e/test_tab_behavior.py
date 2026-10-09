@@ -1,8 +1,7 @@
-"""Settings > Behavior > Tab behavior (#315, #338, docs/tab-behavior.md): where
-new tabs open and which tab is selected after closing one, a Chromium or
-Firefox preset of five knobs. The Firefox scenarios are ported from Firefox's
-browser_new_tab_insert_position.js and browser_selectMRUOnClose.js. Tabs are
-named by their page: `a` has the links `1` to `3`, `new` is a new tab page.
+"""Firefox's tab rules, always on (docs/tab-behavior.md): where new tabs open
+and which tab is selected after closing one. The scenarios are ported from
+Firefox's browser_new_tab_insert_position.js. Tabs are named by their page:
+`a` has the links `1` to `3`, `new` is a new tab page.
 """
 
 import json
@@ -12,34 +11,22 @@ import time
 from pathlib import Path
 
 from harness import BrowserTest, Server, wait_for
-from test_appearance import DEEP_QUERY
 
-# A Firefox add-on.
+# An unpacked extension that inspects and arranges the tabs.
 MANIFEST = {
     'manifest_version': 3,
     'name': 'Tab behavior test',
     'version': '1',
     'permissions': ['tabs', 'tabGroups'],
-    'browser_specific_settings': {'gecko': {'id': 'tab-behavior@oganesson.test'}},
-    'background': {'scripts': ['background.js']},
+    'background': {'service_worker': 'background.js'},
 }
-# The knobs' prefs, as the settings page names them.
-LINK_POSITION = 'oganesson.tabs.link_position'
-# Its values: Chromium's, Firefox's insertRelatedAfterCurrent, at the end.
-LINKS_CHROMIUM, LINKS_AFTER_RELATED, LINKS_AT_END = 0, 1, 2
 NEXT_TO_ACTIVE = 'helium.browser.new_tab_next_to_active'
-SELECT_RELATED = 'oganesson.tabs.select_related_on_close'
-SELECT_OWNER = 'oganesson.tabs.select_owner_on_close'
-SELECT_MRU = 'oganesson.tabs.select_mru_on_close'
-CHROMIUM = {LINK_POSITION: LINKS_CHROMIUM, NEXT_TO_ACTIVE: False, SELECT_RELATED: True,
-            SELECT_OWNER: True, SELECT_MRU: False}
-FIREFOX = {**CHROMIUM, LINK_POSITION: LINKS_AFTER_RELATED, SELECT_RELATED: False}
 PAGE = (b'<!doctype html><title>page</title>'
         + b''.join(b'<p><a id="l%d" href="/%d">link %d</a>' % (i, i, i) for i in (1, 2, 3)))
 
 
 class TabBehaviorTest(BrowserTest):
-    """Shared steps; the subclasses set the pref."""
+    """Shared steps."""
 
     @classmethod
     def setUpClass(cls):
@@ -58,14 +45,14 @@ class TabBehaviorTest(BrowserTest):
         shutil.rmtree(cls.folder)
 
     def run_js(self, body):
-        page = self.browser.page('_generated_background_page.html')
-        wait_for(lambda: page.eval('typeof browser') == 'object', what='the extension APIs')
+        page = self.browser.page('background.js')
+        wait_for(lambda: page.eval('typeof chrome.tabs') == 'object', what='the extension APIs')
         return page.eval(f'(async () => {{ {body} }})()')
 
     def tabs(self):
         """The window's tabs by name, the active one in brackets."""
         return self.run_js("""
-            const tabs = await browser.tabs.query({windowType: 'normal'});
+            const tabs = await chrome.tabs.query({windowType: 'normal'});
             return tabs.sort((x, y) => x.index - y.index).map(t => {
                 const url = t.pendingUrl || t.url;
                 const name = url.startsWith('http') ? new URL(url).pathname.slice(1) : 'new';
@@ -84,13 +71,13 @@ class TabBehaviorTest(BrowserTest):
         active and loaded."""
         urls = [self.server.url(f'/{name}') for name in names]
         self.run_js(f"""
-            const old = await browser.tabs.query({{}});
+            const old = await chrome.tabs.query({{}});
             const urls = {json.dumps(urls)};
-            await browser.tabs.create({{url: urls[0], index: 0, active: true}});
+            await chrome.tabs.create({{url: urls[0], index: 0, active: true}});
             // First, as pinned tabs would move the others.
-            await browser.tabs.remove(old.map(t => t.id));
+            await chrome.tabs.remove(old.map(t => t.id));
             for (const [i, url] of urls.slice(1).entries())
-                await browser.tabs.create({{url, index: i + 1, active: false}});""")
+                await chrome.tabs.create({{url, index: i + 1, active: false}});""")
         page = wait_for(lambda: next((t for t in self.browser.targets()
                                       if t['url'] == urls[0]), None), what='the first tab')
         self.page = self.browser.page(page['url'])
@@ -126,17 +113,13 @@ class TabBehaviorTest(BrowserTest):
             page.eval(f'chrome.settingsPrivate.setPref({json.dumps(name)}, {json.dumps(value)})')
         self.browser.close_target(page)
 
-
     def create_with_opener(self, name):
         """An add-on's background tab `name` with the active tab as its opener."""
-        self.run_js(f"await browser.tabs.create({{url: '{self.server.url('/' + name)}', "
-                    "active: false, openerTabId: (await browser.tabs.query({active: true}))[0].id});")
+        self.run_js(f"await chrome.tabs.create({{url: '{self.server.url('/' + name)}', "
+                    "active: false, openerTabId: (await chrome.tabs.query({active: true}))[0].id});")
 
 
 class FirefoxTabBehaviorTest(TabBehaviorTest):
-    prefs = {'oganesson': {'tabs': {'link_position': LINKS_AFTER_RELATED,
-                                    'select_related_on_close': False}}}
-
     def test_links_chain_after_the_opener(self):
         self.start_with('a', 'b')
         for link in (1, 2, 3):
@@ -207,7 +190,7 @@ class FirefoxTabBehaviorTest(TabBehaviorTest):
     def test_background_tab_without_opener_has_no_owner(self):
         self.start_with('a', 'b')
         # An add-on's tabs.create() has no opener.
-        self.run_js(f"await browser.tabs.create({{url: '{self.server.url('/c')}', "
+        self.run_js(f"await chrome.tabs.create({{url: '{self.server.url('/c')}', "
                     "index: 1, active: false});")
         self.assert_tabs('[a] c b')
         self.select(2)
@@ -218,8 +201,8 @@ class FirefoxTabBehaviorTest(TabBehaviorTest):
         # Firefox's ext-tabs.js makes openerTabId the tab's owner and opener,
         # in the background too.
         self.start_with('a', 'b')
-        create = ("await browser.tabs.create({url: '%s', active: false, "
-                  "openerTabId: (await browser.tabs.query({active: true}))[0].id});")
+        create = ("await chrome.tabs.create({url: '%s', active: false, "
+                  "openerTabId: (await chrome.tabs.query({active: true}))[0].id});")
         self.run_js(create % self.server.url('/c'))
         self.assert_tabs('[a] c b')
         # After the opener's last related tab, which no longer has an owner.
@@ -234,8 +217,8 @@ class FirefoxTabBehaviorTest(TabBehaviorTest):
 
     def test_add_on_tab_with_opener_in_the_foreground_closes_to_it(self):
         self.start_with('a', 'b', 'c')
-        self.run_js(f"await browser.tabs.create({{url: '{self.server.url('/d')}', "
-                    "openerTabId: (await browser.tabs.query({url: '*://*/b'}))[0].id});")
+        self.run_js(f"await chrome.tabs.create({{url: '{self.server.url('/d')}', "
+                    "openerTabId: (await chrome.tabs.query({url: '*://*/b'}))[0].id});")
         self.assert_tabs('a b [d] c')
         self.browser.key('ctrl+w')
         self.assert_tabs('a [b] c')
@@ -244,25 +227,25 @@ class FirefoxTabBehaviorTest(TabBehaviorTest):
         # Firefox's addTab: tabGroup ?? openerTab.group, whatever the index.
         self.start_with('a', 'b', 'c')
         self.assertTrue(self.run_js(f"""
-            const [a, b] = await browser.tabs.query({{url: ['*://*/a', '*://*/b']}});
-            const group = await browser.tabs.group({{tabIds: [a.id, b.id]}});
-            const tab = await browser.tabs.create({{url: '{self.server.url('/d')}', active: false,
+            const [a, b] = await chrome.tabs.query({{url: ['*://*/a', '*://*/b']}});
+            const group = await chrome.tabs.group({{tabIds: [a.id, b.id]}});
+            const tab = await chrome.tabs.create({{url: '{self.server.url('/d')}', active: false,
                                                     index: 3, openerTabId: a.id}});
-            return (await browser.tabs.get(tab.id)).groupId == group;"""))
+            return (await chrome.tabs.get(tab.id)).groupId == group;"""))
 
     def test_moving_a_group_away_checks_only_the_active_tabs_owner(self):
         self.start_with('a', 'b', 'c', 'd')
         self.middle_click(1)
         # Closing d ends the run of links, so selecting b keeps 1's owner a.
-        self.run_js("await browser.tabs.remove((await browser.tabs.query({url: '*://*/d'}))[0].id);")
+        self.run_js("await chrome.tabs.remove((await chrome.tabs.query({url: '*://*/d'}))[0].id);")
         self.assert_tabs('[a] 1 b c')
         self.select(3)
         self.run_js("""
-            const tabs = await browser.tabs.query({url: ['*://*/1', '*://*/b']});
-            const group = await browser.tabs.group({tabIds: tabs.map(t => t.id)});
-            const window = await browser.windows.create({});
-            await browser.tabGroups.move(group, {windowId: window.id, index: -1});
-            await browser.windows.remove(window.id);""")
+            const tabs = await chrome.tabs.query({url: ['*://*/1', '*://*/b']});
+            const group = await chrome.tabs.group({tabIds: tabs.map(t => t.id)});
+            const window = await chrome.windows.create({});
+            await chrome.tabGroups.move(group, {windowId: window.id, index: -1});
+            await chrome.windows.remove(window.id);""")
         self.assert_tabs('a [c]')
 
     def test_closing_the_last_tab_selects_the_one_on_its_left(self):
@@ -273,9 +256,9 @@ class FirefoxTabBehaviorTest(TabBehaviorTest):
 
     def test_links_from_a_pinned_tab_open_after_the_pinned_tabs(self):
         self.start_with('a', 'c', 'b')
-        tabs = "(await browser.tabs.query({windowType: 'normal'})).sort((x, y) => x.index - y.index)"
+        tabs = "(await chrome.tabs.query({windowType: 'normal'})).sort((x, y) => x.index - y.index)"
         self.run_js(f"""const tabs = {tabs};
-            for (const tab of tabs.slice(0, 2)) await browser.tabs.update(tab.id, {{pinned: true}});""")
+            for (const tab of tabs.slice(0, 2)) await chrome.tabs.update(tab.id, {{pinned: true}});""")
         self.assert_tabs('[a] c b')
         self.middle_click(1)
         self.middle_click(2)
@@ -289,219 +272,3 @@ class FirefoxTabBehaviorTest(TabBehaviorTest):
         self.start_with('a', 'b')
         self.browser.key('ctrl+t')
         self.assert_tabs('a [new] b')
-
-    def test_links_at_the_end(self):
-        # browser.tabs.insertRelatedAfterCurrent false, for an add-on's
-        # openerTabId too.
-        self.set_prefs({LINK_POSITION: LINKS_AT_END})
-        self.start_with('a', 'b')
-        self.middle_click(1)
-        self.middle_click(2)
-        self.assert_tabs('[a] b 1 2')
-        self.create_with_opener('c')
-        self.assert_tabs('[a] b 1 2 c')
-        # A foreground link tab is still owned by the tab selected before it.
-        self.page.eval("void window.open('/3')")
-        self.assert_tabs('a b 1 2 c [3]')
-        self.browser.key('ctrl+w')
-        self.assert_tabs('[a] b 1 2 c')
-
-    def test_links_next_to_the_active_tab_without_the_chain(self):
-        # Firefox's insertAfterCurrent without insertRelatedAfterCurrent: each
-        # link right after the active tab.
-        self.set_prefs({LINK_POSITION: LINKS_AT_END, NEXT_TO_ACTIVE: True})
-        self.start_with('a', 'b')
-        self.middle_click(1)
-        self.middle_click(2)
-        self.assert_tabs('[a] 2 1 b')
-
-    def test_closing_without_the_owner(self):
-        # browser.tabs.selectOwnerOnClose false.
-        self.set_prefs({SELECT_OWNER: False})
-        self.start_with('a', 'b')
-        self.page.eval("void window.open('/1')")
-        self.assert_tabs('a [1] b')
-        self.browser.key('ctrl+w')
-        self.assert_tabs('a [b]')
-
-    def test_z_most_recently_used_tab_on_close(self):
-        self.set_prefs({SELECT_MRU: True})
-        self.start_with('a', 'b', 'c', 'd')
-        self.select(3)
-        self.select(4)
-        self.select(2)
-        self.browser.key('ctrl+w')
-        self.assert_tabs('a c [d]')
-        # The owner still wins.
-        self.select(1)
-        self.page.eval("void window.open('/1')")
-        self.assert_tabs('a [1] c d')
-        self.browser.key('ctrl+w')
-        self.assert_tabs('[a] c d')
-
-
-class ChromiumTabBehaviorTest(TabBehaviorTest):
-    """The default: Chromium's own rules, unchanged."""
-
-    def test_settings_presets_and_knobs(self):
-        settings = self.settings()
-        select = f"{DEEP_QUERY}(document, '#tabBehavior')"
-        wait_for(lambda: settings.eval(f'!!{select}'), what='the Tab behavior menu')
-        self.assertEqual(settings.eval(f"""[...{select}.options]
-            .map(o => [o.value, o.textContent.trim(), o.disabled])"""),
-            [['chromium', 'Chromium', False], ['firefox', 'Firefox', False],
-             ['custom', 'Custom', True]])
-
-        def knobs():
-            return {name: settings.eval(f'chrome.settingsPrivate.getPref({json.dumps(name)})')['value']
-                    for name in CHROMIUM}
-
-        def preset():
-            return settings.eval(f'{select}.value')
-
-        def choose(value):
-            settings.eval(f"(s => {{ s.value = '{value}'; "
-                          f"s.dispatchEvent(new Event('change')); }})({select})")
-
-        links = f"{DEEP_QUERY}(document, '#linkPosition').shadowRoot.querySelector('select')"
-        self.assertEqual(settings.eval(f"[...{links}.options].slice(0, 3).map(o => o.value)"),
-                         [str(v) for v in (LINKS_CHROMIUM, LINKS_AFTER_RELATED, LINKS_AT_END)])
-
-        def choose_links(value):
-            settings.eval(f"(s => {{ s.value = '{value}'; "
-                          f"s.dispatchEvent(new Event('change')); }})({links})")
-
-        def toggle(knob_id):
-            settings.eval(f"{DEEP_QUERY}(document, '#{knob_id}').shadowRoot"
-                          ".querySelector('cr-toggle').click()")
-
-        wait_for(lambda: preset() == 'chromium', what='Chromium shown')
-        self.assertEqual(knobs(), CHROMIUM)
-        choose('firefox')
-        wait_for(lambda: knobs() == FIREFOX, what='the Firefox knobs')
-        wait_for(lambda: settings.eval(f'{links}.value') == str(LINKS_AFTER_RELATED),
-                 what='the Firefox link position shown')
-        # A knob off the preset shows Custom, and back on it the preset.
-        toggle('selectMruOnClose')
-        wait_for(lambda: knobs() == {**FIREFOX, SELECT_MRU: True}, what='the knob saved')
-        wait_for(lambda: preset() == 'custom', what='Custom shown')
-        toggle('selectMruOnClose')
-        wait_for(lambda: preset() == 'firefox', what='Firefox shown again')
-        choose_links(LINKS_CHROMIUM)
-        wait_for(lambda: preset() == 'custom', what='Custom shown for Chromium links')
-        toggle('selectRelatedOnClose')
-        wait_for(lambda: preset() == 'chromium', what='Chromium shown again')
-        self.assertEqual(knobs(), CHROMIUM)
-
-        # Each preset resets every knob of any Custom combination.
-        custom = {LINK_POSITION: LINKS_AT_END, NEXT_TO_ACTIVE: True, SELECT_RELATED: False,
-                  SELECT_OWNER: False, SELECT_MRU: True}
-        for chosen, expected in (('chromium', CHROMIUM), ('firefox', FIREFOX)):
-            for name, value in custom.items():
-                settings.eval(f'chrome.settingsPrivate.setPref({json.dumps(name)}, '
-                              f'{json.dumps(value)})')
-            wait_for(lambda: preset() == 'custom', what='Custom shown')
-            choose(chosen)
-            wait_for(lambda: knobs() == expected, what=f'the {chosen} knobs')
-            wait_for(lambda: preset() == chosen, what=f'{chosen} shown')
-        choose('chromium')
-        wait_for(lambda: knobs() == CHROMIUM, what='the Chromium knobs')
-        self.browser.close_target(settings)
-
-    def check_chromium_link_order(self):
-        self.start_with('a', 'b')
-        self.middle_click(1)
-        self.middle_click(2)
-        self.assert_tabs('[a] 1 2 b')
-        # A tab switch keeps the openers, so the next link goes after them.
-        self.select(4)
-        self.select(1)
-        self.middle_click(3)
-        self.assert_tabs('[a] 1 2 3 b')
-        # A foreground link goes right after its tab.
-        self.page.eval("void window.open('/c')")
-        self.assert_tabs('a [c] 1 2 3 b')
-
-    def test_link_order(self):
-        self.check_chromium_link_order()
-
-    def test_link_order_with_firefox_rules(self):
-        # Another knob runs Firefox's rules, with Chromium's link positions.
-        self.set_prefs({SELECT_MRU: True})
-        self.check_chromium_link_order()
-
-    def test_add_on_tab_with_opener_opens_at_the_end(self):
-        # Chromium's tabs.create() with openerTabId.
-        self.start_with('a', 'b')
-        self.create_with_opener('c')
-        self.create_with_opener('d')
-        self.assert_tabs('[a] b c d')
-
-    def test_add_on_tab_with_opener_with_firefox_rules(self):
-        # Chromium's rule for a link from the opener.
-        self.set_prefs({SELECT_MRU: True})
-        self.start_with('a', 'b')
-        self.create_with_opener('c')
-        self.create_with_opener('d')
-        self.assert_tabs('[a] c d b')
-
-    def test_closing_a_link_tab_selects_a_sibling(self):
-        self.start_with('a', 'b')
-        self.middle_click(1)
-        self.middle_click(2)
-        self.assert_tabs('[a] 1 2 b')
-        self.select(3)
-        self.browser.key('ctrl+w')
-        self.assert_tabs('a [1] b')
-
-    def test_related_tabs_first_with_firefox_rules(self):
-        # Another knob runs Firefox's rules, where Chromium's related tabs on
-        # close still come first.
-        self.set_prefs({SELECT_MRU: True})
-        self.start_with('a', 'b')
-        self.middle_click(1)
-        self.middle_click(2)
-        self.select(3)
-        self.browser.key('ctrl+w')
-        self.assert_tabs('a [1] b')
-
-    def test_new_tab_next_to_the_active_tab(self):
-        self.set_prefs({NEXT_TO_ACTIVE: True})
-        self.start_with('a', 'b')
-        self.browser.key('ctrl+t')
-        self.assert_tabs('a [new] b')
-
-
-class TabBehaviorMigrationTest(TabBehaviorTest):
-    """The single pref before #338: 2 was Firefox with selectMRUOnClose."""
-    prefs = {'oganesson': {'tabs': {'behavior': 2}}}
-    expected = {**FIREFOX, SELECT_MRU: True}
-
-    def test_old_pref_migrates_to_the_knobs(self):
-        self.browser.quit()
-        prefs = json.loads((self.browser.profile / 'Default/Preferences').read_text())
-        self.browser.start()
-        self.assert_migrated(prefs)
-        # A second start keeps them.
-        self.browser.quit()
-        prefs = json.loads((self.browser.profile / 'Default/Preferences').read_text())
-        self.browser.start()
-        self.assert_migrated(prefs)
-
-    def assert_migrated(self, prefs):
-        tabs = prefs.get('oganesson', {}).get('tabs', {})
-        self.assertNotIn('behavior', tabs)
-        self.assertEqual({name: tabs.get(name.split('.')[-1], CHROMIUM[name])
-                          for name in CHROMIUM if name.startswith('oganesson.')},
-                         {name: value for name, value in self.expected.items()
-                          if name.startswith('oganesson.')})
-
-
-class TabBehaviorFirefoxMigrationTest(TabBehaviorMigrationTest):
-    prefs = {'oganesson': {'tabs': {'behavior': 1}}}
-    expected = FIREFOX
-
-
-class TabBehaviorChromiumMigrationTest(TabBehaviorMigrationTest):
-    prefs = {'oganesson': {'tabs': {'behavior': 0}}}
-    expected = CHROMIUM

@@ -1,15 +1,13 @@
 """Mouse gestures (docs/mouse-gestures.md), the X11 rows of the acceptance
 matrix: strokes on ordinary, internal, event-cancelling, cross-origin, PDF,
-hung, extension and local pages, across the browser's own UI and in incognito,
-a plain right click, Shift and Ctrl, rocker and wheel gestures, no gesture under
-pointer lock, and cancelled strokes. With OGANESSON_E2E_WAYLAND=1, the Wayland
-rows.
+and hung pages, across the browser's own UI and in incognito, a plain right
+click, Shift and Ctrl, rocker and wheel gestures, no gesture under pointer
+lock, and cancelled strokes. With OGANESSON_E2E_WAYLAND=1, the Wayland rows.
 
 Real X11 input (xdotool), so events take the native path the recognizer
 hooks, unlike DOM-generated events.
 """
 
-import json
 import shutil
 import tempfile
 import time
@@ -58,18 +56,10 @@ class GesturesTest(BrowserTest):
 
     @classmethod
     def setUpClass(cls):
-        # An add-on with two pages and a side panel, and two local files.
+        # Two local files cover file URL gestures without a browser add-on.
         cls.folder = Path(tempfile.mkdtemp(prefix='oganesson-gestures-'))
-        (cls.folder / 'addon').mkdir()
-        (cls.folder / 'addon/manifest.json').write_text(json.dumps({
-            'manifest_version': 2, 'name': 'Gestures test', 'version': '1',
-            'background': {'scripts': ['background.js']},
-            'sidebar_action': {'default_panel': 'panel.html'}}))
-        (cls.folder / 'addon/background.js').write_text('')
-        for name in ('A', 'B', 'panel'):
-            (cls.folder / f'addon/{name}.html').write_text(PAGE.format(name, ''))
+        for name in ('A', 'B'):
             (cls.folder / f'{name}.html').write_text(PAGE.format(name, ''))
-        cls.browser_args = (f'--load-extension={cls.folder / "addon"}',)
         page = lambda title, extra='': (200, {'Content-Type': 'text/html'},
                                         PAGE.format(title, extra).encode())
         cls.server = Server({'/a': page('A'), '/b': page('B'), '/cancel': page('Cancel', CANCEL),
@@ -270,14 +260,6 @@ class GesturesTest(BrowserTest):
                              'mouseup', '3')
         wait_for(lambda: self.active()['id'] != before, what='the next tab')
 
-    def addon_page(self):
-        """The test add-on's background page."""
-        return self.browser.page('/_generated_background_page.html')
-
-    def test_extension_page(self):
-        base = self.addon_page().url.rsplit('/', 1)[0]
-        self.assert_goes_back(f'{base}/A.html', f'{base}/B.html')
-
     def test_local_file(self):
         self.assert_goes_back((self.folder / 'A.html').as_uri(), (self.folder / 'B.html').as_uri())
 
@@ -321,21 +303,6 @@ class GesturesTest(BrowserTest):
         wait_for(lambda: page.eval('location.href') == self.server.url('/a'), what='back to /a')
         self.assertEqual(self.active()['id'], before)
         self.assertEqual(self.browser.menus(), [])
-
-    def test_stroke_from_the_side_panel(self):
-        # Drawn from the add-on's side panel into the page, it acts on the tab.
-        page = self.visit(self.server.url('/a'), self.server.url('/b'))
-        background = self.addon_page()
-        background.eval('browser.sidebarAction.open()')
-        wait_for(lambda: self.browser.page('/panel.html').eval('document.title') == 'panel',
-                 what='the panel')
-        panel = self.browser.wait_view('SidePanel')
-        try:
-            self.stroke_left(start=(panel.bounds['x'] + 100, panel.center[1]))
-            wait_for(lambda: page.eval('location.href') == self.server.url('/a'),
-                     what='back to /a')
-        finally:
-            background.eval('browser.sidebarAction.close()')
 
     def assert_cancelled(self, interrupt, then=lambda: None):
         """`interrupt()` halfway through a stroke left cancels it: the stroke

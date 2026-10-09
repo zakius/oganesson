@@ -1,17 +1,11 @@
 """Firefox Sync in the browser, against tools/fake_firefox_sync.py: sign-in
-from settings, then containers synced through Multi-Account Containers'
-storage (#40): Firefox's containers come down, a rename goes up, and a
-container deleted in Firefox goes away here. Then, with the fake holding a
-request mid-sync: a bookmark edited meanwhile keeps the edit (#39), and
-signing out drops the held sync's and sign-in's replies (#37). A separator
-from Firefox comes down in its place, and moved here, goes back up (#160).
-Passwords: Firefox's change applies to a login with empty field names
-(#258), and a password edited during a held sync keeps the edit (#259), a note edited
-then doesn't hold back Firefox's change.
-A login with empty field names that Firefox fills keeps its leaked
-warning. History: a deletion made right before quitting reaches Firefox
-after the restart (#260); clearing all history replaces the saved
-deletions with one; signed out, deletions aren't saved.
+from settings, then bookmarks, passwords, and history sync. A bookmark edited
+mid-sync keeps the edit (#39), and signing out drops held sync and sign-in
+replies (#37). Firefox bookmark separators round-trip (#160). Password
+changes and edits made mid-sync are retained (#258, #259); a login with empty
+field names that Firefox fills keeps its leaked warning. A history deletion
+made before quitting reaches Firefox after restart (#260); clearing all
+history replaces saved deletions, and signed-out deletions aren't saved.
 
 Failures: with the servers gone, syncing and signing in fail with an error
 in settings, the account and local data are kept, also across a restart; a
@@ -41,7 +35,6 @@ except ImportError as e:  # no cryptography package
     fake_firefox_sync = None
     MISSING = str(e)
 
-MAC = '@testpilot-containers'
 # Finds a settings element by tag through shadow roots.
 FIND = """(tag) => { const walk = (root) => { for (const el of root.querySelectorAll('*')) {
     if (el.localName === tag) return el;
@@ -57,7 +50,6 @@ class FirefoxSyncTest(BrowserTest):
             raise unittest.SkipTest(f'the fake sync server needs {MISSING}')
         cls.server, base, cls.fake = fake_firefox_sync.serve()
         cls.browser_env = {'OGANESSON_FXA_SERVER': base}
-        cls.prefs = {'oganesson': {'containers': {'enabled': True}}}
         super().setUpClass()
 
     @classmethod
@@ -79,78 +71,12 @@ class FirefoxSyncTest(BrowserTest):
         wait_for(lambda: self.status(page).get('lastSync') != before and
                  not self.status(page).get('syncing'), timeout=30, what='a sync')
 
-    def containers(self):
-        page = self.settings('/containers', 'settings-containers-page')
-        wait_for(lambda: page.eval(f"({FIND})('settings-containers-page').containersList_"),
-                 what='the containers list')
-        result = page.eval(f"({FIND})('settings-containers-page').containersList_")
-        self.browser.close_target(page)
-        return {c['name']: c for c in result}
-
-    def firefox_area(self):
-        bundle = self.fake.bundle('extension-storage')
-        for bso in self.fake.collections.get('extension-storage', {}).values():
-            record = json.loads(decrypt(bundle, bso['payload']))
-            if record.get('extId') == MAC:
-                return bso['id'], json.loads(record['data'])
-        return 'macrecord01', {}
-
-    def firefox_set(self, area):
-        bso_id, _ = self.firefox_area()
-        record = {'id': bso_id, 'extId': MAC, 'data': json.dumps(area)}
-        self.fake.put('extension-storage', {
-            'id': bso_id,
-            'payload': encrypt(self.fake.bundle('extension-storage'), json.dumps(record))},
-            self.fake.now())
-
     def test_1_sign_in(self):
         page = self.settings('/autofill', 'settings-autofill-page')
         page.eval("chrome.send('firefoxSyncSignIn')")
         wait_for(lambda: self.status(page).get('signedIn'), timeout=30, what='the sign-in')
         wait_for(lambda: 'global' in self.fake.collections.get('meta', {}), timeout=60,
                  what='the first sync')
-
-    def test_2_containers_come_down(self):
-        self.fake.add_engine('extension-storage')
-        self.firefox_set({
-            'identity@@_W': {'name': 'Work', 'icon': 'briefcase', 'color': 'orange',
-                             'macAddonUUID': 'W'},
-            'identity@@_F': {'name': 'Food', 'icon': 'food', 'color': 'green',
-                             'macAddonUUID': 'F'},
-        })
-        page = self.settings('/autofill', 'settings-autofill-page')
-        self.sync_now(page)
-        containers = self.containers()
-        self.assertEqual(containers['Food']['id'], 'F')
-        # Firefox's Work matched the starter Work by name: no second Work,
-        # and the starter keeps its id (and its cookies).
-        self.assertNotEqual(containers['Work']['id'], 'W')
-        self.assertEqual(sorted(containers), ['Food', 'Personal', 'School', 'Social', 'Work'])
-
-    def test_3_rename_goes_up(self):
-        page = self.settings('/containers', 'settings-containers-page')
-        wait_for(lambda: page.eval(f"({FIND})('settings-containers-page').containersList_"),
-                 what='the containers list')
-        page.eval(f"""(async () => {{
-            const el = ({FIND})('settings-containers-page');
-            const food = el.containersList_.find(c => c.name === 'Food');
-            await el.browserProxy.handler.updateContainer({{...food, name: 'Meals'}});
-        }})()""")
-        wait_for(lambda: 'Meals' in self.containers(), what='the rename')
-        page = self.settings('/autofill', 'settings-autofill-page')
-        self.sync_now(page)
-        _, area = self.firefox_area()
-        self.assertEqual(area['identity@@_F']['name'], 'Meals')
-        self.assertEqual(area['identity@@_F']['icon'], 'food')
-
-    def test_4_firefox_deletion(self):
-        _, area = self.firefox_area()
-        area.pop('identity@@_F')
-        area['deletedIdentityList'] = ['F']
-        self.firefox_set(area)
-        page = self.settings('/autofill', 'settings-autofill-page')
-        self.sync_now(page)
-        self.assertNotIn('Meals', self.containers())
 
     def firefox_bookmarks(self):
         bundle = self.fake.bundle('bookmarks')
@@ -401,11 +327,6 @@ class FirefoxSyncTest(BrowserTest):
         self.fake.hold('/storage/1.5/1/info/collections')
         page.eval("chrome.send('firefoxSyncNow')")
         wait_for(self.fake.held.is_set, timeout=30, what='the held sync')
-        # Firefox adds a container; only the held sync downloads it.
-        _, area = self.firefox_area()
-        area['identity@@_L'] = {'name': 'Late', 'icon': 'tree', 'color': 'red',
-                                'macAddonUUID': 'L'}
-        self.firefox_set(area)
         page.eval("chrome.send('firefoxSyncSignOut')")
         wait_for(lambda: not self.status(page).get('signedIn'), what='the sign-out')
         self.fake.let_go()
@@ -417,7 +338,6 @@ class FirefoxSyncTest(BrowserTest):
         self.assertFalse(status.get('signedIn'))
         self.assertFalse(status.get('lastSync'))
         self.assertFalse(status.get('syncing'))
-        self.assertNotIn('Late', self.containers())
 
     def test_7_sign_out_during_sign_in(self):
         page = self.settings('/autofill', 'settings-autofill-page')
