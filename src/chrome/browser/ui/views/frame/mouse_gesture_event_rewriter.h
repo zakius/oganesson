@@ -37,17 +37,11 @@ class BrowserView;
 // fullscreen toolbar and remote Cocoa windows.
 class MouseGestureEventRewriter {
  public:
-  static std::unique_ptr<MouseGestureEventRewriter> Create(
-      BrowserView* browser_view);
-
-  virtual ~MouseGestureEventRewriter() = default;
-
-  // Drops the gesture in progress, if any.
-  virtual void Cancel() = 0;
-
-  // Commands fired mid-gesture, such as wheel tab cycling, may switch tabs
-  // themselves; any other tab switch cancels the gesture.
-  virtual void OnActiveTabChanged() = 0;
+  // Starts recognizing gestures in `browser_view`'s window. Call from
+  // BrowserView::AddedToWidget(): the recognizer lives as long as
+  // `browser_view`, follows it into another widget, and watches the view,
+  // the widget and the tab strip for what cancels a gesture itself.
+  static void AttachTo(BrowserView* browser_view);
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_FRAME_MOUSE_GESTURE_EVENT_REWRITER_H_

@@ -25,6 +25,8 @@
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_shortcuts/browser_shortcut_service_factory.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "chrome/browser/ui/extensions/extensions_toolbar_view_model.h"
 #include "chrome/browser/ui/toolbar/toolbar_action_view_model.h"
 #include "chrome/browser/ui/views/extensions/extension_keybinding_registry_views.h"
@@ -46,8 +48,12 @@
 #include "ui/base/accelerators/command.h"
 #include "ui/events/event.h"
 #include "ui/events/event_rewriter.h"
+#include "ui/base/class_property.h"
 #include "ui/events/event_source.h"
+#include "ui/views/view.h"
+#include "ui/views/view_observer.h"
 #include "ui/views/widget/widget.h"
+#include "ui/views/widget/widget_observer.h"
 
 namespace {
 
@@ -61,31 +67,54 @@ bool WidgetHasChildModalDialog(views::Widget* parent_widget) {
   return false;
 }
 
-class MouseGestureEventRewriterImpl : public MouseGestureEventRewriter,
-                                      public ui::EventRewriter,
+class MouseGestureEventRewriterImpl : public ui::EventRewriter,
                                       public aura::WindowObserver,
-                                      public aura::client::CaptureClientObserver {
+                                      public aura::client::CaptureClientObserver,
+                                      public views::ViewObserver,
+                                      public views::WidgetObserver,
+                                      public TabStripModelObserver {
  public:
   explicit MouseGestureEventRewriterImpl(BrowserView* browser_view)
       : browser_view_(browser_view) {
-    window_observation_.Observe(browser_view->GetWidget()->GetNativeWindow());
+    view_observation_.Observe(browser_view);
     Attach();
   }
 
   ~MouseGestureEventRewriterImpl() override { Detach(); }
 
-  void Cancel() override {
+  // Watches `browser_view_`'s widget, window and tab strip, and takes its
+  // window's input.
+  void Attach() {
+    views::Widget* const widget = browser_view_->GetWidget();
+    if (!widget) {
+      return;
+    }
+    Detach();
+    widget_observation_.Observe(widget);
+    window_observation_.Observe(widget->GetNativeWindow());
+    if (TabStripModel* tabs = browser_view_->browser()->GetTabStripModel()) {
+      tabs->AddObserver(this);
+      tab_strip_ = tabs;
+    }
+    AttachToRoot();
+  }
+
+  // Drops the gesture in progress, if any.
+  void Cancel() {
     ++generation_;
     tracker_.Cancel();
     press_.reset();
     ReleaseCapture();
   }
 
-  // Commands fired mid-gesture, such as wheel tab cycling, may switch tabs
-  // themselves.
-  void OnActiveTabChanged() override {
-    if (!triggered_) {
-      Cancel();
+  // Undoes Attach().
+  void Detach() {
+    DetachFromRoot();
+    window_observation_.Reset();
+    widget_observation_.Reset();
+    if (tab_strip_) {
+      tab_strip_->RemoveObserver(this);
+      tab_strip_ = nullptr;
     }
   }
 
@@ -365,9 +394,9 @@ class MouseGestureEventRewriterImpl : public MouseGestureEventRewriter,
     }
   }
 
-  void Attach() {
+  void AttachToRoot() {
     auto* window = window_observation_.GetSource();
-    if (!window->GetRootWindow()) {
+    if (!window || !window->GetRootWindow()) {
       return;
     }
     capture_client_ = aura::client::GetCaptureClient(window->GetRootWindow());
@@ -378,7 +407,7 @@ class MouseGestureEventRewriterImpl : public MouseGestureEventRewriter,
     source_observation_.Observe(window->GetHost()->GetEventSource());
   }
 
-  void Detach() {
+  void DetachFromRoot() {
     Cancel();
     source_observation_.Reset();
     if (capture_client_) {
@@ -389,14 +418,46 @@ class MouseGestureEventRewriterImpl : public MouseGestureEventRewriter,
 
   void OnWindowRemovingFromRootWindow(aura::Window* window,
                                      aura::Window* new_root) override {
-    Detach();
+    DetachFromRoot();
   }
 
-  void OnWindowAddedToRootWindow(aura::Window* window) override { Attach(); }
+  void OnWindowAddedToRootWindow(aura::Window* window) override {
+    AttachToRoot();
+  }
 
   void OnWindowDestroying(aura::Window* window) override {
-    Detach();
+    DetachFromRoot();
     window_observation_.Reset();
+  }
+
+  // views::ViewObserver:
+  void OnViewRemovedFromWidget(views::View* view) override { Detach(); }
+  void OnViewIsDeleting(views::View* view) override {
+    Detach();
+    view_observation_.Reset();
+  }
+
+  // views::WidgetObserver:
+  void OnWidgetActivationChanged(views::Widget* widget, bool active) override {
+    if (!active) {
+      Cancel();
+    }
+  }
+  void OnWidgetBoundsChanged(views::Widget* widget,
+                             const gfx::Rect& new_bounds) override {
+    Cancel();
+  }
+  void OnWidgetDestroying(views::Widget* widget) override { Detach(); }
+
+  // TabStripModelObserver: a tab switch cancels the gesture, unless a command
+  // it fired, such as wheel tab cycling, switched tabs.
+  void OnTabStripModelChanged(
+      TabStripModel* tab_strip_model,
+      const TabStripModelChange& change,
+      const TabStripSelectionChange& selection) override {
+    if (selection.active_tab_changed() && !triggered_) {
+      Cancel();
+    }
   }
 
   void OnCaptureChanged(aura::Window* lost_capture,
@@ -411,6 +472,11 @@ class MouseGestureEventRewriterImpl : public MouseGestureEventRewriter,
   raw_ptr<aura::client::CaptureClient> capture_client_ = nullptr;
   base::ScopedObservation<aura::Window, aura::WindowObserver>
       window_observation_{this};
+  base::ScopedObservation<views::View, views::ViewObserver> view_observation_{
+      this};
+  base::ScopedObservation<views::Widget, views::WidgetObserver>
+      widget_observation_{this};
+  raw_ptr<TabStripModel> tab_strip_ = nullptr;
   base::ScopedObservation<ui::EventSource, ui::EventRewriter>
       source_observation_{this};
   base::WeakPtr<content::WebContents> contents_;
@@ -428,10 +494,25 @@ class MouseGestureEventRewriterImpl : public MouseGestureEventRewriter,
 
 }  // namespace
 
+DEFINE_UI_CLASS_PROPERTY_TYPE(MouseGestureEventRewriterImpl*)
+
+namespace {
+
+// Owns a BrowserView's recognizer, so it lives as long as the view.
+DEFINE_OWNED_UI_CLASS_PROPERTY_KEY(MouseGestureEventRewriterImpl,
+                                   kMouseGestureRewriterKey)
+
+}  // namespace
+
 // static
-std::unique_ptr<MouseGestureEventRewriter> MouseGestureEventRewriter::Create(
-    BrowserView* browser_view) {
-  return std::make_unique<MouseGestureEventRewriterImpl>(browser_view);
+void MouseGestureEventRewriter::AttachTo(BrowserView* browser_view) {
+  if (auto* rewriter = browser_view->GetProperty(kMouseGestureRewriterKey)) {
+    rewriter->Attach();
+    return;
+  }
+  browser_view->SetProperty(
+      kMouseGestureRewriterKey,
+      std::make_unique<MouseGestureEventRewriterImpl>(browser_view));
 }
 
 #endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_WIN)
