@@ -1,0 +1,260 @@
+// Copyright 2026 The oganesson Authors
+// You can use, redistribute, and/or modify this source code under
+// the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+// The Firefox Sync section of the "Autofill and passwords" page: sign-in,
+// servers, the synced types, and tabs from Firefox devices. Talks to
+// FirefoxSyncHandler.
+
+import 'chrome://resources/cr_elements/cr_button/cr_button.js';
+import 'chrome://resources/cr_elements/cr_input/cr_input.js';
+import 'chrome://resources/cr_elements/cr_toggle/cr_toggle.js';
+import '../settings_page/settings_section.js';
+import '../settings_shared.css.js';
+
+import type {CrInputElement} from 'chrome://resources/cr_elements/cr_input/cr_input.js';
+import type {CrToggleElement} from 'chrome://resources/cr_elements/cr_toggle/cr_toggle.js';
+import {WebUiListenerMixin} from 'chrome://resources/cr_elements/web_ui_listener_mixin.js';
+import {sendWithPromise} from 'chrome://resources/js/cr.js';
+import type {DomRepeatEvent} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {html, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+
+/** From FirefoxSyncHandler (oganesson). */
+interface FirefoxSyncType {
+  name: string;
+  label: string;
+  supported: boolean;
+  enabled: boolean;
+  count?: number;
+  error?: string;
+}
+
+interface FirefoxRemoteTabs {
+  name: string;
+  tabs: {url: string, title: string}[];
+}
+
+interface FirefoxSyncStatus {
+  available: boolean;
+  signedIn?: boolean;
+  email?: string;
+  syncing?: boolean;
+  lastSync?: number;
+  count?: number;
+  error?: string;
+  needsSignIn?: boolean;
+  server?: string;
+  syncServer?: string;
+  canSignIn?: boolean;
+  types?: FirefoxSyncType[];
+  remoteTabs?: FirefoxRemoteTabs[];
+}
+
+const SettingsFirefoxSyncElementBase = WebUiListenerMixin(PolymerElement);
+
+export class SettingsFirefoxSyncElement extends SettingsFirefoxSyncElementBase {
+  static get is() {
+    return 'settings-firefox-sync';
+  }
+
+  static get template() {
+    return html`
+      <style include="cr-shared-style settings-shared">
+        #firefoxSync cr-button,
+        #firefoxSyncServerRow cr-button {
+          margin-inline-start: 8px;
+        }
+      </style>
+      <settings-section page-title="Sync"
+          hidden="[[!firefoxSync_.available]]">
+        <div id="firefoxSync" class="cr-row first">
+          <div class="flex cr-padded-text">
+            <div>[[firefoxSyncTitle_(firefoxSync_)]]</div>
+            <div class="secondary">[[firefoxSyncDetail_(firefoxSync_)]]</div>
+          </div>
+          <cr-button class="action-button" on-click="onFirefoxSyncSignIn_"
+              hidden="[[!showFirefoxSyncSignIn_(firefoxSync_)]]"
+              disabled="[[!firefoxSync_.canSignIn]]">
+            Sign in
+          </cr-button>
+          <cr-button on-click="onFirefoxSyncNow_"
+              hidden="[[!firefoxSync_.signedIn]]"
+              disabled="[[firefoxSync_.syncing]]">
+            Sync now
+          </cr-button>
+          <cr-button on-click="onFirefoxSyncSignOut_"
+              hidden="[[!firefoxSync_.signedIn]]">
+            Sign out
+          </cr-button>
+        </div>
+        <div id="firefoxSyncServerRow" class="cr-row">
+          <cr-input id="firefoxSyncServer" class="flex" label="Account server"
+              placeholder="accounts.example.com" value="[[firefoxSyncServer_]]"
+              on-change="onFirefoxSyncServerChange_">
+          </cr-input>
+          <cr-button on-click="onFirefoxSyncMozilla_">
+            Use Mozilla's servers
+          </cr-button>
+        </div>
+        <div class="cr-row">
+          <cr-input id="firefoxSyncStorageServer" class="flex" label="Sync server"
+              placeholder="The account server's"
+              value="[[firefoxSyncStorageServer_]]"
+              on-change="onFirefoxSyncStorageServerChange_">
+          </cr-input>
+        </div>
+        <template is="dom-repeat" items="[[firefoxSync_.types]]">
+          <div class="cr-row">
+            <div class="flex cr-padded-text">
+              <div>[[item.label]]</div>
+              <div class="secondary">[[firefoxSyncTypeDetail_(item)]]</div>
+            </div>
+            <cr-toggle checked="[[item.enabled]]" aria-label="[[item.label]]"
+                disabled="[[!firefoxSyncTypeToggleable_(item, firefoxSync_)]]"
+                on-change="onFirefoxSyncTypeChange_">
+            </cr-toggle>
+          </div>
+        </template>
+        <div hidden="[[!showFirefoxRemoteTabs_(firefoxSync_)]]">
+          <h2>Tabs from Firefox devices</h2>
+          <template is="dom-repeat" items="[[firefoxSync_.remoteTabs]]">
+            <div class="cr-row">
+              <div class="flex cr-padded-text">
+                <div>[[item.name]]</div>
+                <template is="dom-repeat" items="[[item.tabs]]">
+                  <div><a href$="[[item.url]]" target="_blank"
+                      rel="noopener noreferrer">[[item.title]]</a></div>
+                </template>
+              </div>
+            </div>
+          </template>
+          <div class="cr-row" hidden="[[!showFirefoxRemoteTabsEmpty_(firefoxSync_)]]">
+            <div class="cr-padded-text secondary">No tabs from other devices yet.</div>
+          </div>
+        </div>
+      </settings-section>`;
+  }
+
+  static get properties() {
+    return {
+      firefoxSync_: {
+        type: Object,
+        value: () => ({available: false}),
+      },
+
+      // The field's text, set only when the saved server changes, so status
+      // updates during a sync keep what the user is typing.
+      firefoxSyncServer_: String,
+      firefoxSyncStorageServer_: String,
+    };
+  }
+
+  declare private firefoxSync_: FirefoxSyncStatus;
+  declare private firefoxSyncServer_: string;
+  declare private firefoxSyncStorageServer_: string;
+
+  override connectedCallback() {
+    super.connectedCallback();
+    const setFirefoxSync = (status: FirefoxSyncStatus) => {
+      if (status.server !== this.firefoxSync_.server) {
+        this.firefoxSyncServer_ = status.server || '';
+      }
+      if (status.syncServer !== this.firefoxSync_.syncServer) {
+        this.firefoxSyncStorageServer_ = status.syncServer || '';
+      }
+      this.firefoxSync_ = status;
+    };
+    sendWithPromise<FirefoxSyncStatus>('getFirefoxSyncStatus')
+        .then(setFirefoxSync);
+    this.addWebUiListener('firefox-sync-status-changed', setFirefoxSync);
+  }
+
+  private firefoxSyncTitle_(status: FirefoxSyncStatus): string {
+    return status.signedIn ? `Signed in as ${status.email}` :
+                             'Sync with Firefox';
+  }
+
+  private firefoxSyncDetail_(status: FirefoxSyncStatus): string {
+    if (status.syncing) {
+      return 'Syncing…';
+    }
+    if (status.error) {
+      return status.error;
+    }
+    if (!status.signedIn && !status.canSignIn) {
+      return 'Enter your account server, or use Mozilla\'s, to sign in.';
+    }
+    if (!status.signedIn) {
+      return 'Sign in with your Mozilla account to sync with Firefox.';
+    }
+    if (!status.lastSync) {
+      return 'Not synced yet';
+    }
+    return `Last synced ${new Date(status.lastSync).toLocaleString()}`;
+  }
+
+  private showFirefoxRemoteTabs_(status: FirefoxSyncStatus): boolean {
+    return !!status.signedIn &&
+        !!status.types?.find(type => type.name === 'tabs' && type.enabled);
+  }
+
+  private showFirefoxRemoteTabsEmpty_(status: FirefoxSyncStatus): boolean {
+    return this.showFirefoxRemoteTabs_(status) &&
+        !!status.lastSync && !status.remoteTabs?.length;
+  }
+
+  private firefoxSyncTypeDetail_(type: FirefoxSyncType): string {
+    if (!type.supported) {
+      return 'Not supported yet';
+    }
+    if (type.error) {
+      return type.error;
+    }
+    return type.count === undefined ? '' : `${type.count} synced`;
+  }
+
+  private firefoxSyncTypeToggleable_(
+      type: FirefoxSyncType, status: FirefoxSyncStatus): boolean {
+    return type.supported && !status.syncing;
+  }
+
+  private onFirefoxSyncTypeChange_(e: DomRepeatEvent<FirefoxSyncType>) {
+    const toggle = e.target as CrToggleElement;
+    chrome.send('setFirefoxSyncType', [e.model.item.name, toggle.checked]);
+  }
+
+  private showFirefoxSyncSignIn_(status: FirefoxSyncStatus): boolean {
+    return !status.signedIn || !!status.needsSignIn;
+  }
+
+  private onFirefoxSyncSignIn_() {
+    chrome.send('firefoxSyncSignIn');
+  }
+
+  private onFirefoxSyncServerChange_(e: Event) {
+    chrome.send(
+        'setFirefoxSyncServer', [(e.target as CrInputElement).value, false]);
+  }
+
+  private onFirefoxSyncStorageServerChange_(e: Event) {
+    chrome.send(
+        'setFirefoxSyncServer', [(e.target as CrInputElement).value, true]);
+  }
+
+  private onFirefoxSyncMozilla_() {
+    chrome.send('setFirefoxSyncServer', ['', true]);
+    chrome.send('setFirefoxSyncServer', ['https://accounts.firefox.com', false]);
+  }
+
+  private onFirefoxSyncNow_() {
+    chrome.send('firefoxSyncNow');
+  }
+}
+
+declare global {
+  interface HTMLElementTagNameMap {
+    'settings-firefox-sync': SettingsFirefoxSyncElement;
+  }
+}
+
+customElements.define(SettingsFirefoxSyncElement.is, SettingsFirefoxSyncElement);
