@@ -13,10 +13,10 @@ shift 2
 formats=("$@")
 
 repo=/oganesson
-linux="$repo/work/helium-linux"
+linux="$repo/linux"
 packages="${PACKAGES:-$repo/work/packages}"
 # The version the build itself carries (chrome/VERSION): the vendored files,
-# not work/helium-linux's own checkout, which can be an older Helium.
+# the same ones as the packaging files.
 version=$(python3 "$repo/utils/helium_version.py" \
     --tree "$repo" --platform-tree "$repo/linux" --print)
 name="oganesson-${version}-x86_64-${target}"
