@@ -12,6 +12,10 @@
 
 class Profile;
 
+namespace content {
+class WebUIDataSource;
+}
+
 namespace settings {
 
 // The Firefox Sync section in Autofill and passwords: status, sign in and
@@ -20,6 +24,9 @@ class FirefoxSyncHandler : public SettingsPageUIHandler {
  public:
   explicit FirefoxSyncHandler(Profile* profile);
   ~FirefoxSyncHandler() override;
+
+  // The section's strings, for settings' data source.
+  static void AddStrings(content::WebUIDataSource* html_source);
 
   // SettingsPageUIHandler:
   void RegisterMessages() override;

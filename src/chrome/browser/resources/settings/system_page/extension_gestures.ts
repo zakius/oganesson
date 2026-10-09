@@ -6,6 +6,7 @@ import './add_gesture.js';
 import './gesture_chips.js';
 import '../settings_shared.css.js';
 
+import {I18nMixin} from 'chrome://resources/cr_elements/i18n_mixin.js';
 import {html, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import type {ExtensionCommand} from '../browser_shortcuts.mojom-webui.js';
@@ -15,7 +16,9 @@ import {getCurrentGestures, getGestureLabel, gesturesFor, mouseGesturesEnabled, 
 
 // The extension commands, each with its gestures, filtered by the page's
 // search.
-export class SettingsExtensionGesturesElement extends PolymerElement {
+const SettingsExtensionGesturesElementBase = I18nMixin(PolymerElement);
+
+export class SettingsExtensionGesturesElement extends SettingsExtensionGesturesElementBase {
   static get is() {
     return 'settings-extension-gestures';
   }
@@ -56,7 +59,7 @@ export class SettingsExtensionGesturesElement extends PolymerElement {
         }
       </style>
       <template is="dom-if" if="[[filtered_.length]]">
-        <h2 class="cr-title-text">$i18n{shortcutsExtensionCommands}</h2>
+        <h2 class="cr-title-text">[[i18n('shortcutsExtensionCommands')]]</h2>
         <template is="dom-repeat" items="[[filtered_]]" as="command">
           <div class="cr-row command-row">
             <div class="command-details cr-padded-text">

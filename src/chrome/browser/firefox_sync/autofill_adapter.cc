@@ -10,11 +10,13 @@
 
 #include "base/logging.h"
 #include "base/strings/utf_string_conversions.h"
+#include "chrome/grit/generated_resources.h"
 #include "components/autofill/core/browser/data_model/addresses/autofill_profile.h"
 #include "components/autofill/core/browser/data_model/payments/credit_card.h"
 #include "components/autofill/core/browser/field_types.h"
 #include "components/autofill/core/common/credit_card_network_identifiers.h"
 #include "components/autofill/core/common/credit_card_number_validation.h"
+#include "ui/base/l10n/l10n_util.h"
 
 namespace firefox_sync {
 
@@ -76,8 +78,7 @@ void AddressesAdapter::GetLocal(base::OnceCallback<void(base::Value)> done) {
   // while address autofill is off (Helium's default), adding one does nothing.
   if (!manager_->IsAutofillProfileEnabled()) {
     std::move(done).Run(base::Value(
-        "Turn on \"Save and fill addresses\" under Contact info to sync "
-        "them."));
+        l10n_util::GetStringUTF8(IDS_FIREFOX_SYNC_ADDRESSES_OFF)));
     return;
   }
   if (!manager_->has_initial_load_finished() ||
@@ -169,8 +170,7 @@ void CreditCardsAdapter::GetLocal(base::OnceCallback<void(base::Value)> done) {
   // As for addresses.
   if (!manager_->IsAutofillPaymentMethodsEnabled()) {
     std::move(done).Run(base::Value(
-        "Turn on \"Save and fill payment methods\" under Payments to sync "
-        "them."));
+        l10n_util::GetStringUTF8(IDS_FIREFOX_SYNC_PAYMENT_METHODS_OFF)));
     return;
   }
   if (!manager_->is_payments_data_loaded() ||

@@ -8,7 +8,10 @@
 #include "chrome/browser/firefox_sync/firefox_sync_service.h"
 #include "chrome/browser/firefox_sync/firefox_sync_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/grit/generated_resources.h"
 #include "content/public/browser/web_ui.h"
+#include "content/public/browser/web_ui_data_source.h"
+#include "ui/base/webui/web_ui_util.h"
 
 namespace settings {
 
@@ -23,6 +26,33 @@ firefox_sync::FirefoxSyncService* Service(Profile* profile) {
 FirefoxSyncHandler::FirefoxSyncHandler(Profile* profile) : profile_(profile) {}
 
 FirefoxSyncHandler::~FirefoxSyncHandler() = default;
+
+// static
+void FirefoxSyncHandler::AddStrings(content::WebUIDataSource* html_source) {
+  static constexpr webui::LocalizedString kStrings[] = {
+      {"firefoxSyncSectionTitle", IDS_FIREFOX_SYNC_SECTION_TITLE},
+      {"firefoxSyncTitle", IDS_FIREFOX_SYNC_TITLE},
+      {"firefoxSyncSignedInAs", IDS_FIREFOX_SYNC_SIGNED_IN_AS},
+      {"firefoxSyncSignInDescription", IDS_FIREFOX_SYNC_SIGN_IN_DESCRIPTION},
+      {"firefoxSyncNeedsServer", IDS_FIREFOX_SYNC_NEEDS_SERVER},
+      {"firefoxSyncSyncing", IDS_FIREFOX_SYNC_SYNCING},
+      {"firefoxSyncNotSynced", IDS_FIREFOX_SYNC_NOT_SYNCED},
+      {"firefoxSyncLastSynced", IDS_FIREFOX_SYNC_LAST_SYNCED},
+      {"firefoxSyncSignIn", IDS_FIREFOX_SYNC_SIGN_IN},
+      {"firefoxSyncSyncNow", IDS_FIREFOX_SYNC_SYNC_NOW},
+      {"firefoxSyncSignOut", IDS_FIREFOX_SYNC_SIGN_OUT},
+      {"firefoxSyncAccountServer", IDS_FIREFOX_SYNC_ACCOUNT_SERVER},
+      {"firefoxSyncUseMozilla", IDS_FIREFOX_SYNC_USE_MOZILLA},
+      {"firefoxSyncStorageServer", IDS_FIREFOX_SYNC_STORAGE_SERVER},
+      {"firefoxSyncStorageServerDefault",
+       IDS_FIREFOX_SYNC_STORAGE_SERVER_DEFAULT},
+      {"firefoxSyncNotSupported", IDS_FIREFOX_SYNC_NOT_SUPPORTED},
+      {"firefoxSyncCount", IDS_FIREFOX_SYNC_COUNT},
+      {"firefoxSyncRemoteTabs", IDS_FIREFOX_SYNC_REMOTE_TABS},
+      {"firefoxSyncRemoteTabsEmpty", IDS_FIREFOX_SYNC_REMOTE_TABS_EMPTY},
+  };
+  html_source->AddLocalizedStrings(kStrings);
+}
 
 void FirefoxSyncHandler::RegisterMessages() {
   web_ui()->RegisterMessageCallback(

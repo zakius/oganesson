@@ -19,6 +19,7 @@
 #include "base/native_library.h"
 #include "base/path_service.h"
 #include "base/strings/string_util.h"
+#include "base/strings/utf_string_conversions.h"
 #include "base/synchronization/waitable_event.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/task/thread_pool.h"
@@ -36,6 +37,7 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/navigator/browser_navigator.h"
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
+#include "chrome/grit/generated_resources.h"
 #include "components/autofill/core/browser/data_manager/personal_data_manager.h"
 #include "components/keyed_service/core/service_access_type.h"
 #include "components/os_crypt/async/browser/os_crypt_async.h"
@@ -58,6 +60,7 @@
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 #include "services/network/public/cpp/simple_url_loader.h"
 #include "services/network/public/mojom/url_response_head.mojom.h"
+#include "ui/base/l10n/l10n_util.h"
 #include "url/gurl.h"
 #include "url/origin.h"
 
@@ -80,16 +83,16 @@ constexpr char kMozillaServer[] = "https://accounts.firefox.com";
 // adapter and a library engine; the rest are shown, switched off.
 struct DataType {
   const char* name;
-  const char* label;
+  int label_id;
   bool supported;
 };
 constexpr DataType kTypes[] = {
-    {"passwords", "Passwords", true},
-    {"bookmarks", "Bookmarks", true},
-    {"history", "History", true},
-    {"tabs", "Open tabs", true},
-    {"addresses", "Addresses", true},
-    {"creditcards", "Payment methods", true},
+    {"passwords", IDS_FIREFOX_SYNC_TYPE_PASSWORDS, true},
+    {"bookmarks", IDS_FIREFOX_SYNC_TYPE_BOOKMARKS, true},
+    {"history", IDS_FIREFOX_SYNC_TYPE_HISTORY, true},
+    {"tabs", IDS_FIREFOX_SYNC_TYPE_TABS, true},
+    {"addresses", IDS_FIREFOX_SYNC_TYPE_ADDRESSES, true},
+    {"creditcards", IDS_FIREFOX_SYNC_TYPE_PAYMENT_METHODS, true},
 };
 
 constexpr base::TimeDelta kSyncInterval = base::Minutes(30);
@@ -454,7 +457,8 @@ void FirefoxSyncService::SetServer(std::string_view input, bool sync_storage) {
   if (!text.empty()) {
     GURL url(text.find("://") == std::string::npos ? "https://" + text : text);
     if (!url.is_valid() || !url.SchemeIsHTTPOrHTTPS() || !url.has_host()) {
-      error_ = "Not a server URL: " + text;
+      error_ = l10n_util::GetStringFUTF8(IDS_FIREFOX_SYNC_BAD_SERVER,
+                                         base::UTF8ToUTF16(text));
       NotifyStatus();
       return;
     }
@@ -478,7 +482,7 @@ void FirefoxSyncService::SetServer(std::string_view input, bool sync_storage) {
 
 void FirefoxSyncService::SignIn() {
   if (!HasServer()) {
-    error_ = "Set an account server to sign in.";
+    error_ = l10n_util::GetStringUTF8(IDS_FIREFOX_SYNC_NO_SERVER);
     NotifyStatus();
     return;
   }
@@ -732,7 +736,9 @@ void FirefoxSyncService::OnSynced(base::DictValue result) {
         const std::string* error =
             engine ? engine->FindString("error") : nullptr;
         if (!engine || error) {
-          status.error = error ? *error : "Unknown error";
+          status.error = error ? *error
+                               : l10n_util::GetStringUTF8(
+                                     IDS_FIREFOX_SYNC_UNKNOWN_ERROR);
           LOG(WARNING) << "Firefox Sync: " << name << ": " << status.error;
           continue;
         }
@@ -780,7 +786,8 @@ void FirefoxSyncService::SaveSecrets() {
 
 void FirefoxSyncService::SetError(const base::DictValue& result) {
   const std::string* error = result.FindString("error");
-  error_ = error ? *error : "Unknown error";
+  error_ = error ? *error
+                 : l10n_util::GetStringUTF8(IDS_FIREFOX_SYNC_UNKNOWN_ERROR);
   needs_sign_in_ = result.FindBool("auth").value_or(false);
   LOG(WARNING) << "Firefox Sync: " << error_;
   NotifyStatus();
@@ -822,7 +829,7 @@ base::DictValue FirefoxSyncService::GetStatus() const {
   for (const DataType& type : kTypes) {
     base::DictValue entry;
     entry.Set("name", type.name);
-    entry.Set("label", type.label);
+    entry.Set("label", l10n_util::GetStringUTF8(type.label_id));
     entry.Set("supported", type.supported);
     entry.Set("enabled", type.supported && IsTypeEnabled(type.name));
     auto status_it = type_status_.find(type.name);

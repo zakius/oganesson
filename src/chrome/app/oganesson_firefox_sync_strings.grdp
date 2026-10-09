@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright 2026 The oganesson Authors. GPL-3.0, see the LICENSE file. -->
+<grit-part>
+  <message name="IDS_FIREFOX_SYNC_SECTION_TITLE" desc="Title of the Settings section for syncing with Firefox through a Mozilla account.">
+    Sync
+  </message>
+  <message name="IDS_FIREFOX_SYNC_TITLE" desc="Settings: the Firefox Sync row's title while signed out.">
+    Sync with Firefox
+  </message>
+  <message name="IDS_FIREFOX_SYNC_SIGNED_IN_AS" desc="Settings: the Firefox Sync row's title while signed in.">
+    Signed in as <ph name="EMAIL">$1<ex>user@example.com</ex></ph>
+  </message>
+  <message name="IDS_FIREFOX_SYNC_SIGN_IN_DESCRIPTION" desc="Settings: the Firefox Sync row's description while signed out and an account server is set.">
+    Sign in with your Mozilla account to sync with Firefox.
+  </message>
+  <message name="IDS_FIREFOX_SYNC_NEEDS_SERVER" desc="Settings: the Firefox Sync row's description while signed out and no account server is set.">
+    Enter your account server, or use Mozilla's, to sign in.
+  </message>
+  <message name="IDS_FIREFOX_SYNC_SYNCING" desc="Settings: the Firefox Sync row's description while a sync runs.">
+    Syncing…
+  </message>
+  <message name="IDS_FIREFOX_SYNC_NOT_SYNCED" desc="Settings: the Firefox Sync row's description after sign-in, before the first sync.">
+    Not synced yet
+  </message>
+  <message name="IDS_FIREFOX_SYNC_LAST_SYNCED" desc="Settings: the Firefox Sync row's description, with the date and time of the last sync.">
+    Last synced <ph name="TIME">$1<ex>10/9/2026, 6:40:00 PM</ex></ph>
+  </message>
+  <message name="IDS_FIREFOX_SYNC_SIGN_IN" desc="Settings: button that signs in to a Mozilla account for Firefox Sync.">
+    Sign in
+  </message>
+  <message name="IDS_FIREFOX_SYNC_SYNC_NOW" desc="Settings: button that runs Firefox Sync now.">
+    Sync now
+  </message>
+  <message name="IDS_FIREFOX_SYNC_SIGN_OUT" desc="Settings: button that signs out of Firefox Sync.">
+    Sign out
+  </message>
+  <message name="IDS_FIREFOX_SYNC_ACCOUNT_SERVER" desc="Settings: label of the field for the Mozilla account server's address.">
+    Account server
+  </message>
+  <message name="IDS_FIREFOX_SYNC_USE_MOZILLA" desc="Settings: button that sets the account and sync servers to Mozilla's.">
+    Use Mozilla's servers
+  </message>
+  <message name="IDS_FIREFOX_SYNC_STORAGE_SERVER" desc="Settings: label of the field for the sync storage server's address.">
+    Sync server
+  </message>
+  <message name="IDS_FIREFOX_SYNC_STORAGE_SERVER_DEFAULT" desc="Settings: placeholder of the empty sync server field: an empty field uses the sync server the account server names.">
+    The account server's
+  </message>
+  <message name="IDS_FIREFOX_SYNC_NOT_SUPPORTED" desc="Settings: description of a Firefox Sync data type this browser can't sync yet.">
+    Not supported yet
+  </message>
+  <message name="IDS_FIREFOX_SYNC_COUNT" desc="Settings: description of a Firefox Sync data type, with the number of its synced items.">
+    Synced: <ph name="COUNT">$1<ex>120</ex></ph>
+  </message>
+  <message name="IDS_FIREFOX_SYNC_REMOTE_TABS" desc="Settings: heading above the tabs open on the user's other Firefox devices.">
+    Tabs from Firefox devices
+  </message>
+  <message name="IDS_FIREFOX_SYNC_REMOTE_TABS_EMPTY" desc="Settings: shown under the Tabs from Firefox devices heading when no other device has sent tabs.">
+    No tabs from other devices yet.
+  </message>
+  <message name="IDS_FIREFOX_SYNC_TYPE_PASSWORDS" desc="Settings: Firefox Sync data type toggle.">
+    Passwords
+  </message>
+  <message name="IDS_FIREFOX_SYNC_TYPE_BOOKMARKS" desc="Settings: Firefox Sync data type toggle.">
+    Bookmarks
+  </message>
+  <message name="IDS_FIREFOX_SYNC_TYPE_HISTORY" desc="Settings: Firefox Sync data type toggle.">
+    History
+  </message>
+  <message name="IDS_FIREFOX_SYNC_TYPE_TABS" desc="Settings: Firefox Sync data type toggle for the tabs open on each device.">
+    Open tabs
+  </message>
+  <message name="IDS_FIREFOX_SYNC_TYPE_ADDRESSES" desc="Settings: Firefox Sync data type toggle.">
+    Addresses
+  </message>
+  <message name="IDS_FIREFOX_SYNC_TYPE_PAYMENT_METHODS" desc="Settings: Firefox Sync data type toggle for saved credit cards.">
+    Payment methods
+  </message>
+  <message name="IDS_FIREFOX_SYNC_ADDRESSES_OFF" desc="Settings: why Firefox Sync skips addresses: the Autofill setting for addresses is off. Use the names the Autofill settings show.">
+    Turn on "Save and fill addresses" under Contact info to sync them.
+  </message>
+  <message name="IDS_FIREFOX_SYNC_PAYMENT_METHODS_OFF" desc="Settings: why Firefox Sync skips payment methods: the Autofill setting for payment methods is off. Use the names the Autofill settings show.">
+    Turn on "Save and fill payment methods" under Payments to sync them.
+  </message>
+  <message name="IDS_FIREFOX_SYNC_BAD_SERVER" desc="Settings: error shown when the text in a Firefox Sync server field isn't a server address.">
+    Not a server URL: <ph name="TEXT">$1<ex>example com</ex></ph>
+  </message>
+  <message name="IDS_FIREFOX_SYNC_NO_SERVER" desc="Settings: error shown when the user signs in to Firefox Sync with no account server set.">
+    Set an account server to sign in.
+  </message>
+  <message name="IDS_FIREFOX_SYNC_UNKNOWN_ERROR" desc="Settings: Firefox Sync error with no details.">
+    Unknown error
+  </message>
+</grit-part>

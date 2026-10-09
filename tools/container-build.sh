@@ -126,6 +126,7 @@ if [ ! -f "$stamp" ]; then
     apply_domsub
     helium_substitution
     helium_apply_translations
+    python3 /oganesson/tools/translate.py "$_src_dir"
     # Helium -> oganesson in UI strings, after both steps above write them.
     python3 /oganesson/tools/branding.py "$_src_dir"
     helium_version

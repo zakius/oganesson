@@ -8,6 +8,7 @@ import '../settings_shared.css.js';
 
 import {PrefService} from '/shared/settings/prefs2/pref_service.js';
 import {PrefServiceObserverMixin} from '/shared/settings/prefs2/pref_service_observer_mixin.js';
+import {I18nMixin} from 'chrome://resources/cr_elements/i18n_mixin.js';
 import {html, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {loadTimeData} from '../i18n_setup.js';
@@ -15,7 +16,7 @@ import {loadTimeData} from '../i18n_setup.js';
 import type {GestureValue} from './mouse_gestures.js';
 import {CHIP_STYLE, getGestureLabel, GESTURES_PREF, gesturesFor, mouseGesturesEnabled} from './mouse_gestures.js';
 
-const GestureChipsElementBase = PrefServiceObserverMixin(PolymerElement);
+const GestureChipsElementBase = I18nMixin(PrefServiceObserverMixin(PolymerElement));
 
 // The gesture chips of one command, each with a remove button.
 export class SettingsGestureChipsElement extends GestureChipsElementBase {
@@ -27,9 +28,9 @@ export class SettingsGestureChipsElement extends GestureChipsElementBase {
     return html`${CHIP_STYLE}
       <template is="dom-repeat" items="[[getChains_(value, gestures_)]]"
           as="chain">
-        <span class="shortcut-chip" title="$i18n{shortcutsGestureLabel}">
+        <span class="shortcut-chip" title$="[[i18n('shortcutsGestureLabel')]]">
           <span class="shortcut-label">[[getLabel_(chain)]]</span>
-          <cr-icon-button class="icon-clear" title="$i18n{remove}"
+          <cr-icon-button class="icon-clear" title$="[[i18n('remove')]]"
               data-chain$="[[chain]]"
               aria-label$="[[getRemoveLabel_(name, chain)]]"
               on-click="onRemoveClick_">

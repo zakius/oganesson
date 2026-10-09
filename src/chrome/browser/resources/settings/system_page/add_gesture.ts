@@ -9,6 +9,7 @@ import 'chrome://resources/cr_elements/md_select.css.js';
 import '../settings_shared.css.js';
 
 import {PrefService} from '/shared/settings/prefs2/pref_service.js';
+import {I18nMixin} from 'chrome://resources/cr_elements/i18n_mixin.js';
 import {html, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import type {BrowserShortcutsHandlerRemote} from '../browser_shortcuts.mojom-webui.js';
@@ -18,7 +19,9 @@ import type {GestureValue} from './mouse_gestures.js';
 import {CHIP_STYLE, getCurrentGestures, getGestureLabel, GESTURE_LABELS, GESTURES_PREF, isSameGestureValue, mouseGesturesEnabled, newHandler, normalizeGesture, STROKE, toGestureValue} from './mouse_gestures.js';
 
 // The "Add gesture" button of one command, and its dialog.
-export class SettingsAddGestureElement extends PolymerElement {
+const SettingsAddGestureElementBase = I18nMixin(PolymerElement);
+
+export class SettingsAddGestureElement extends SettingsAddGestureElementBase {
   static get is() {
     return 'settings-add-gesture';
   }
@@ -26,13 +29,13 @@ export class SettingsAddGestureElement extends PolymerElement {
   static get template() {
     return html`${CHIP_STYLE}
       <template is="dom-if" if="[[enabled_]]">
-        <cr-button on-click="onAddClick_">$i18n{shortcutsAddGesture}</cr-button>
+        <cr-button on-click="onAddClick_">[[i18n('shortcutsAddGesture')]]</cr-button>
       </template>
       <template is="dom-if" if="[[showDialog_]]" restamp>
         <cr-dialog id="gestureDialog" show-on-attach on-close="onClose_">
-          <div slot="title">$i18n{shortcutsAddGestureDialogTitle}</div>
+          <div slot="title">[[i18n('shortcutsAddGestureDialogTitle')]]</div>
           <div slot="body">
-            <select class="md-select" aria-label="$i18n{shortcutsGestureLabel}"
+            <select class="md-select" aria-label$="[[i18n('shortcutsGestureLabel')]]"
                 on-change="onTypeChange_">
               <template is="dom-repeat" items="[[types_]]" as="type">
                 <option value="[[type]]">[[getLabel_(type)]]</option>
@@ -40,9 +43,9 @@ export class SettingsAddGestureElement extends PolymerElement {
             </select>
             <template is="dom-if" if="[[isStroke_(type_)]]">
               <div id="gestureDescription" class="secondary">
-                $i18n{shortcutsGestureDescription}
+                [[i18n('shortcutsGestureDescription')]]
               </div>
-              <cr-input id="gestureInput" label="$i18n{shortcutsGestureLabel}"
+              <cr-input id="gestureInput" label="[[i18n('shortcutsGestureLabel')]]"
                   value="{{chain_}}" invalid="[[isInvalid_(chain_)]]"
                   spellcheck="false" autofocus>
               </cr-input>
@@ -53,12 +56,12 @@ export class SettingsAddGestureElement extends PolymerElement {
           </div>
           <div slot="button-container">
             <cr-button class="cancel-button" on-click="onCancelClick_">
-              $i18n{cancel}
+              [[i18n('cancel')]]
             </cr-button>
             <cr-button class="action-button"
                 disabled="[[!canSave_(type_, chain_)]]"
                 on-click="onSaveClick_">
-              $i18n{save}
+              [[i18n('save')]]
             </cr-button>
           </div>
         </cr-dialog>

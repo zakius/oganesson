@@ -14,6 +14,7 @@ import '../settings_shared.css.js';
 
 import type {CrInputElement} from 'chrome://resources/cr_elements/cr_input/cr_input.js';
 import type {CrToggleElement} from 'chrome://resources/cr_elements/cr_toggle/cr_toggle.js';
+import {I18nMixin} from 'chrome://resources/cr_elements/i18n_mixin.js';
 import {WebUiListenerMixin} from 'chrome://resources/cr_elements/web_ui_listener_mixin.js';
 import {sendWithPromise} from 'chrome://resources/js/cr.js';
 import type {DomRepeatEvent} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
@@ -50,7 +51,7 @@ interface FirefoxSyncStatus {
   remoteTabs?: FirefoxRemoteTabs[];
 }
 
-const SettingsFirefoxSyncElementBase = WebUiListenerMixin(PolymerElement);
+const SettingsFirefoxSyncElementBase = I18nMixin(WebUiListenerMixin(PolymerElement));
 
 export class SettingsFirefoxSyncElement extends SettingsFirefoxSyncElementBase {
   static get is() {
@@ -65,7 +66,7 @@ export class SettingsFirefoxSyncElement extends SettingsFirefoxSyncElementBase {
           margin-inline-start: 8px;
         }
       </style>
-      <settings-section page-title="Sync"
+      <settings-section page-title="[[i18n('firefoxSyncSectionTitle')]]"
           hidden="[[!firefoxSync_.available]]">
         <div id="firefoxSync" class="cr-row first">
           <div class="flex cr-padded-text">
@@ -75,30 +76,30 @@ export class SettingsFirefoxSyncElement extends SettingsFirefoxSyncElementBase {
           <cr-button class="action-button" on-click="onFirefoxSyncSignIn_"
               hidden="[[!showFirefoxSyncSignIn_(firefoxSync_)]]"
               disabled="[[!firefoxSync_.canSignIn]]">
-            Sign in
+            [[i18n('firefoxSyncSignIn')]]
           </cr-button>
           <cr-button on-click="onFirefoxSyncNow_"
               hidden="[[!firefoxSync_.signedIn]]"
               disabled="[[firefoxSync_.syncing]]">
-            Sync now
+            [[i18n('firefoxSyncSyncNow')]]
           </cr-button>
           <cr-button on-click="onFirefoxSyncSignOut_"
               hidden="[[!firefoxSync_.signedIn]]">
-            Sign out
+            [[i18n('firefoxSyncSignOut')]]
           </cr-button>
         </div>
         <div id="firefoxSyncServerRow" class="cr-row">
-          <cr-input id="firefoxSyncServer" class="flex" label="Account server"
+          <cr-input id="firefoxSyncServer" class="flex" label="[[i18n('firefoxSyncAccountServer')]]"
               placeholder="accounts.example.com" value="[[firefoxSyncServer_]]"
               on-change="onFirefoxSyncServerChange_">
           </cr-input>
           <cr-button on-click="onFirefoxSyncMozilla_">
-            Use Mozilla's servers
+            [[i18n('firefoxSyncUseMozilla')]]
           </cr-button>
         </div>
         <div class="cr-row">
-          <cr-input id="firefoxSyncStorageServer" class="flex" label="Sync server"
-              placeholder="The account server's"
+          <cr-input id="firefoxSyncStorageServer" class="flex" label="[[i18n('firefoxSyncStorageServer')]]"
+              placeholder="[[i18n('firefoxSyncStorageServerDefault')]]"
               value="[[firefoxSyncStorageServer_]]"
               on-change="onFirefoxSyncStorageServerChange_">
           </cr-input>
@@ -116,7 +117,7 @@ export class SettingsFirefoxSyncElement extends SettingsFirefoxSyncElementBase {
           </div>
         </template>
         <div hidden="[[!showFirefoxRemoteTabs_(firefoxSync_)]]">
-          <h2>Tabs from Firefox devices</h2>
+          <h2>[[i18n('firefoxSyncRemoteTabs')]]</h2>
           <template is="dom-repeat" items="[[firefoxSync_.remoteTabs]]">
             <div class="cr-row">
               <div class="flex cr-padded-text">
@@ -129,7 +130,7 @@ export class SettingsFirefoxSyncElement extends SettingsFirefoxSyncElementBase {
             </div>
           </template>
           <div class="cr-row" hidden="[[!showFirefoxRemoteTabsEmpty_(firefoxSync_)]]">
-            <div class="cr-padded-text secondary">No tabs from other devices yet.</div>
+            <div class="cr-padded-text secondary">[[i18n('firefoxSyncRemoteTabsEmpty')]]</div>
           </div>
         </div>
       </settings-section>`;
@@ -170,27 +171,29 @@ export class SettingsFirefoxSyncElement extends SettingsFirefoxSyncElementBase {
   }
 
   private firefoxSyncTitle_(status: FirefoxSyncStatus): string {
-    return status.signedIn ? `Signed in as ${status.email}` :
-                             'Sync with Firefox';
+    return status.signedIn ?
+        this.i18n('firefoxSyncSignedInAs', status.email || '') :
+        this.i18n('firefoxSyncTitle');
   }
 
   private firefoxSyncDetail_(status: FirefoxSyncStatus): string {
     if (status.syncing) {
-      return 'Syncing…';
+      return this.i18n('firefoxSyncSyncing');
     }
     if (status.error) {
       return status.error;
     }
     if (!status.signedIn && !status.canSignIn) {
-      return 'Enter your account server, or use Mozilla\'s, to sign in.';
+      return this.i18n('firefoxSyncNeedsServer');
     }
     if (!status.signedIn) {
-      return 'Sign in with your Mozilla account to sync with Firefox.';
+      return this.i18n('firefoxSyncSignInDescription');
     }
     if (!status.lastSync) {
-      return 'Not synced yet';
+      return this.i18n('firefoxSyncNotSynced');
     }
-    return `Last synced ${new Date(status.lastSync).toLocaleString()}`;
+    return this.i18n(
+        'firefoxSyncLastSynced', new Date(status.lastSync).toLocaleString());
   }
 
   private showFirefoxRemoteTabs_(status: FirefoxSyncStatus): boolean {
@@ -205,12 +208,14 @@ export class SettingsFirefoxSyncElement extends SettingsFirefoxSyncElementBase {
 
   private firefoxSyncTypeDetail_(type: FirefoxSyncType): string {
     if (!type.supported) {
-      return 'Not supported yet';
+      return this.i18n('firefoxSyncNotSupported');
     }
     if (type.error) {
       return type.error;
     }
-    return type.count === undefined ? '' : `${type.count} synced`;
+    return type.count === undefined ?
+        '' :
+        this.i18n('firefoxSyncCount', type.count.toLocaleString());
   }
 
   private firefoxSyncTypeToggleable_(

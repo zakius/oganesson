@@ -40,7 +40,8 @@ SERIES = (ROOT / 'patches', ROOT / 'linux/patches', ROOT / 'late')
 # that apply them.
 PREP_INPUTS = ('chromium_version.txt', 'version.txt', 'revision.txt', 'linux/revision.txt',
                'deps.ini', 'pruning.list', 'domain_regex.list', 'domain_substitution.list',
-               'i18n', 'resources', 'utils', 'tools/branding.py', 'linux/scripts/shared.sh')
+               'i18n', 'l10n', 'resources', 'utils', 'tools/branding.py', 'tools/translate.py',
+               'linux/scripts/shared.sh')
 # Caches, tests and resources/generated, which preparation itself writes.
 PREP_SKIP = {'__pycache__', 'tests', 'generated'}
 IMAGE = 'oganesson-builder'
