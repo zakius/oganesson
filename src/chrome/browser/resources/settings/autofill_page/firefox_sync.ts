@@ -32,11 +32,6 @@ interface FirefoxSyncType {
   error?: string;
 }
 
-interface FirefoxRemoteTabs {
-  name: string;
-  tabs: {url: string, title: string}[];
-}
-
 interface FirefoxSyncStatus {
   available: boolean;
   signedIn?: boolean;
@@ -50,7 +45,6 @@ interface FirefoxSyncStatus {
   syncServer?: string;
   canSignIn?: boolean;
   types?: FirefoxSyncType[];
-  remoteTabs?: FirefoxRemoteTabs[];
 }
 
 const SettingsFirefoxSyncElementBase = I18nMixin(WebUiListenerMixin(PolymerElement));
@@ -118,23 +112,6 @@ export class SettingsFirefoxSyncElement extends SettingsFirefoxSyncElementBase {
             </cr-toggle>
           </div>
         </template>
-        <div hidden="[[!showFirefoxRemoteTabs_(firefoxSync_)]]">
-          <h2>[[i18n('firefoxSyncRemoteTabs')]]</h2>
-          <template is="dom-repeat" items="[[firefoxSync_.remoteTabs]]">
-            <div class="cr-row">
-              <div class="flex cr-padded-text">
-                <div>[[item.name]]</div>
-                <template is="dom-repeat" items="[[item.tabs]]">
-                  <div><a href$="[[item.url]]" target="_blank"
-                      rel="noopener noreferrer">[[item.title]]</a></div>
-                </template>
-              </div>
-            </div>
-          </template>
-          <div class="cr-row" hidden="[[!showFirefoxRemoteTabsEmpty_(firefoxSync_)]]">
-            <div class="cr-padded-text secondary">[[i18n('firefoxSyncRemoteTabsEmpty')]]</div>
-          </div>
-        </div>
       </settings-section>`;
   }
 
@@ -196,16 +173,6 @@ export class SettingsFirefoxSyncElement extends SettingsFirefoxSyncElementBase {
     }
     return this.i18n(
         'firefoxSyncLastSynced', new Date(status.lastSync).toLocaleString());
-  }
-
-  private showFirefoxRemoteTabs_(status: FirefoxSyncStatus): boolean {
-    return !!status.signedIn &&
-        !!status.types?.find(type => type.name === 'tabs' && type.enabled);
-  }
-
-  private showFirefoxRemoteTabsEmpty_(status: FirefoxSyncStatus): boolean {
-    return this.showFirefoxRemoteTabs_(status) &&
-        !!status.lastSync && !status.remoteTabs?.length;
   }
 
   private firefoxSyncTypeDetail_(type: FirefoxSyncType): string {

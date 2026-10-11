@@ -317,6 +317,25 @@ class FirefoxSyncTest(BrowserTest):
         self.browser.start()
         self.assertEqual(deletions, [{'all': True}])
 
+    def test_5h_remote_tabs_in_history(self):
+        # Another Firefox: its client record and its open tabs.
+        device = 'remotefirefox01'
+        client = {'id': device, 'name': 'Remote Firefox', 'type': 'desktop',
+                  'fxaDeviceId': device, 'commands': [], 'version': '150.0',
+                  'protocols': ['1.5']}
+        tabs = {'id': device, 'clientName': 'Remote Firefox',
+                'tabs': [{'title': 'Remote page', 'icon': None, 'lastUsed': 1700000000,
+                          'urlHistory': ['https://remote.example/page']}]}
+        for coll, record in (('clients', client), ('tabs', tabs)):
+            self.fake.put(coll, {'id': device, 'payload': encrypt(
+                self.fake.bundle(coll), json.dumps(record))}, self.fake.now())
+        self.sync_now(self.settings('/autofill', 'settings-autofill-page'))
+        history = self.browser.new_tab('chrome://history/syncedTabs')
+        devices = (f"({FIND})('history-synced-device-manager')?.syncedDevices_"
+                   "?.map(d => [d.device, d.tabs.map(t => t.title)])")
+        wait_for(lambda: history.eval(devices) == [['Remote Firefox', ['Remote page']]],
+                 timeout=30, what='the remote tab in History')
+
     def test_6_sign_out_during_sync(self):
         page = self.settings('/autofill', 'settings-autofill-page')
         # Held at its first request, so syncs run one at a time and earlier

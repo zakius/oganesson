@@ -27,7 +27,7 @@ Two review passes produced these lists. Patches are listed by their path in Heli
 - Fingerprint noise (`helium/core/noise/*`, its settings page and page-info UI) is stripped for now, and can return later.
 - Group defaults: degoogling and privacy patches (Inox, Iridium, Bromite, Debian, ungoogled-chromium, Brave) and build fixes are wanted. Remaining `helium/core/*` patches are not wanted unless listed as an exception.
 
-## Want (130)
+## Want (131)
 
 - `helium/core/ridiculous-google-compat-exceptions` (Helium 0.19.2): keeps Google sign-in, session cookies and security-key enrollment working under domain substitution. Maintainer's decision, 2026-10-09.
 - `upstream-fixes/missing-dependencies`
@@ -159,6 +159,7 @@ Two review passes produced these lists. Patches are listed by their path in Heli
 - `helium/core/network/quic-v2-flag`: adds a flag only. Maintainer's decision, 2026-10-11.
 - `helium/core/network/split-clienthello`: adds a flag only. Maintainer's decision, 2026-10-11.
 - `helium/core/network/ignore-system-proxy-server-flag`: adds a flag only. Maintainer's decision, 2026-10-11.
+- `helium/ui/show-tabs-from-non-account-backends`: History's "Tabs from other devices" shows Firefox Sync's open tabs without a Google sign-in (`oganesson/core/firefox-sync-remote-tabs`). Maintainer's decision, 2026-10-11.
 
 ## Want while cheap (2)
 
@@ -173,7 +174,7 @@ Two review passes produced these lists. Patches are listed by their path in Heli
 - `helium/core/add-native-bangs`: its bang list comes from Helium's services; out of the series until we have our own bang source.
 - `helium/ui/bangs-ui`: needs `add-native-bangs`.
 
-## Indifferent (omitted) (124)
+## Indifferent (omitted) (123)
 
 - `ungoogled-chromium/add-flag-to-scroll-tabs`
 - `helium/settings/setup-behavior-settings-page`
@@ -293,7 +294,6 @@ Two review passes produced these lists. Patches are listed by their path in Heli
 - `helium/ui/dont-antialias-rects`
 - `helium/ui/fix-windows-ui-position`
 - `helium/ui/native-frame-materials`
-- `helium/ui/show-tabs-from-non-account-backends`
 - `helium/ui/compact-debugger-warning`
 - `helium/ui/progress-bar`
 - `helium/ui/exclusive-access-bubble`

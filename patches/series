@@ -161,6 +161,7 @@ helium/ui/custom-keyboard-shortcuts-wiring.patch
 helium/ui/generate-standard-qr-codes.patch
 helium/ui/page-zoom-indicator.patch
 helium/ui/add-more-zoom-presets.patch
+helium/ui/show-tabs-from-non-account-backends.patch
 
 
 oganesson/core/shortcut-command-fixes.patch
@@ -191,3 +192,4 @@ oganesson/core/prefs-editor.patch
 oganesson/ui/menu-item-title-devtools.patch
 oganesson/core/no-saved-history.patch
 oganesson/settings/no-saved-history-settings.patch
+oganesson/core/firefox-sync-remote-tabs.patch

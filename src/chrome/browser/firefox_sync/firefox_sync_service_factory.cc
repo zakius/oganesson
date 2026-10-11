@@ -10,6 +10,7 @@
 #include "chrome/browser/history/history_service_factory.h"
 #include "chrome/browser/password_manager/factories/profile_password_store_factory.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/sync/session_sync_service_factory.h"
 
 namespace firefox_sync {
 
@@ -32,6 +33,8 @@ FirefoxSyncServiceFactory::FirefoxSyncServiceFactory()
   DependsOn(BookmarkModelFactory::GetInstance());
   DependsOn(HistoryServiceFactory::GetInstance());
   DependsOn(ProfilePasswordStoreFactory::GetInstance());
+  // RemoteTabs hands its delegate back to it in Shutdown().
+  DependsOn(SessionSyncServiceFactory::GetInstance());
 }
 
 FirefoxSyncServiceFactory::~FirefoxSyncServiceFactory() = default;

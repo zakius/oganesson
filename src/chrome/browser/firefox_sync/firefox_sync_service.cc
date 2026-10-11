@@ -71,6 +71,7 @@
 #include "chrome/browser/ui/android/tab_model/tab_model_list.h"
 #else
 #include "base/path_service.h"
+#include "chrome/browser/firefox_sync/remote_tabs.h"
 #include "chrome/browser/firefox_sync/tabs_adapter.h"
 #include "chrome/browser/ui/navigator/browser_navigator.h"
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
@@ -411,6 +412,9 @@ FirefoxSyncService::FirefoxSyncService(Profile* profile)
       prefs::kSavingBrowserHistoryDisabled,
       base::BindRepeating(&FirefoxSyncService::OnHistorySavingChanged,
                           base::Unretained(this)));
+#if !BUILDFLAG(IS_ANDROID)
+  remote_tabs_ui_ = std::make_unique<RemoteTabs>(profile_);
+#endif
 }
 
 FirefoxSyncService::~FirefoxSyncService() = default;
@@ -429,6 +433,10 @@ void FirefoxSyncService::RegisterProfilePrefs(
 }
 
 void FirefoxSyncService::Shutdown() {
+#if !BUILDFLAG(IS_ANDROID)
+  remote_tabs_ui_->Clear();
+  remote_tabs_ui_.reset();
+#endif
   history_saving_.RemoveAll();
   adapters_.clear();
   signin_watcher_.reset();
@@ -629,8 +637,15 @@ void FirefoxSyncService::SignOut() {
   error_.clear();
   needs_sign_in_ = false;
   type_status_.clear();
-  remote_tabs_.clear();
+  ClearRemoteTabs();
   NotifyStatus();
+}
+
+void FirefoxSyncService::ClearRemoteTabs() {
+  remote_tabs_.clear();
+#if !BUILDFLAG(IS_ANDROID)
+  remote_tabs_ui_->Clear();
+#endif
 }
 
 bool FirefoxSyncService::HistoryBlocked() const {
@@ -675,7 +690,7 @@ void FirefoxSyncService::SetTypeEnabled(const std::string& name,
   }
   CreateAdapters();
   if (name == "tabs" && !enabled) {
-    remote_tabs_.clear();
+    ClearRemoteTabs();
   }
   if (enabled) {
     SyncNow();
@@ -826,6 +841,9 @@ void FirefoxSyncService::OnSynced(base::DictValue result) {
         const base::ListValue* ops = engine->FindList("ops");
         if (name == "tabs" && ops) {
           remote_tabs_ = ops->Clone();
+#if !BUILDFLAG(IS_ANDROID)
+          remote_tabs_ui_->Update(remote_tabs_);
+#endif
         }
         if (adapter != adapters_.end() && ops && IsTypeEnabled(name)) {
           adapter->second->Apply(*ops);

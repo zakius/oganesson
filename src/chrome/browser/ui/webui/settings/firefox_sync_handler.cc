@@ -49,8 +49,6 @@ void FirefoxSyncHandler::AddStrings(content::WebUIDataSource* html_source) {
       {"firefoxSyncNotSupported", IDS_FIREFOX_SYNC_NOT_SUPPORTED},
       {"firefoxSyncHistoryNotSaved", IDS_FIREFOX_SYNC_HISTORY_NOT_SAVED},
       {"firefoxSyncCount", IDS_FIREFOX_SYNC_COUNT},
-      {"firefoxSyncRemoteTabs", IDS_FIREFOX_SYNC_REMOTE_TABS},
-      {"firefoxSyncRemoteTabsEmpty", IDS_FIREFOX_SYNC_REMOTE_TABS_EMPTY},
   };
   html_source->AddLocalizedStrings(kStrings);
 }

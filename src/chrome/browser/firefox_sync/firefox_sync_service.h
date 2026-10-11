@@ -16,6 +16,7 @@
 #include "base/memory/weak_ptr.h"
 #include "base/timer/timer.h"
 #include "base/values.h"
+#include "build/build_config.h"
 #include "components/keyed_service/core/keyed_service.h"
 #include "components/prefs/pref_change_registrar.h"
 
@@ -36,6 +37,7 @@ class PrefRegistrySyncable;
 namespace firefox_sync {
 
 class HttpBridge;
+class RemoteTabs;
 class SigninWatcher;
 class SyncAdapter;
 
@@ -102,6 +104,7 @@ class FirefoxSyncService : public KeyedService {
   void OnLocalChange();
   void SaveSecrets();
   void OnHistorySavingChanged();
+  void ClearRemoteTabs();
   // History syncs only while the browser saves it (history.saving_disabled).
   bool HistoryBlocked() const;
   void SetError(const base::DictValue& result);
@@ -125,6 +128,10 @@ class FirefoxSyncService : public KeyedService {
   // The running sync's {name: {state, local}}, as snapshots come in.
   base::DictValue pending_engines_;
   base::ListValue remote_tabs_;
+#if !BUILDFLAG(IS_ANDROID)
+  // remote_tabs_ for History, Recent tabs and the sessions API.
+  std::unique_ptr<RemoteTabs> remote_tabs_ui_;
+#endif
 
   bool syncing_ = false;
   bool sync_again_ = false;

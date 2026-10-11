@@ -55,12 +55,6 @@
   <message name="IDS_FIREFOX_SYNC_COUNT" desc="Settings: description of a Firefox Sync data type, with the number of its synced items.">
     Synced: <ph name="COUNT">$1<ex>120</ex></ph>
   </message>
-  <message name="IDS_FIREFOX_SYNC_REMOTE_TABS" desc="Settings: heading above the tabs open on the user's other Firefox devices.">
-    Tabs from Firefox devices
-  </message>
-  <message name="IDS_FIREFOX_SYNC_REMOTE_TABS_EMPTY" desc="Settings: shown under the Tabs from Firefox devices heading when no other device has sent tabs.">
-    No tabs from other devices yet.
-  </message>
   <message name="IDS_FIREFOX_SYNC_TYPE_PASSWORDS" desc="Settings: Firefox Sync data type toggle.">
     Passwords
   </message>

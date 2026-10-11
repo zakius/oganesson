@@ -85,16 +85,6 @@
     "message": "Zsynchronizowano: <ph name=\"COUNT\">$1<ex>120</ex></ph>"
   },
   {
-    "name": "IDS_FIREFOX_SYNC_REMOTE_TABS",
-    "source": "Tabs from Firefox devices",
-    "message": "Karty z urządzeń z Firefoksem"
-  },
-  {
-    "name": "IDS_FIREFOX_SYNC_REMOTE_TABS_EMPTY",
-    "source": "No tabs from other devices yet.",
-    "message": "Brak jeszcze kart z innych urządzeń."
-  },
-  {
     "name": "IDS_FIREFOX_SYNC_TYPE_PASSWORDS",
     "source": "Passwords",
     "message": "Hasła"

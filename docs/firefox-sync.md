@@ -6,6 +6,8 @@ The retained implementation uses OAuth with PKCE, encrypts saved account secrets
 
 Supported implementation scope: passwords, bookmarks, history, open tabs, addresses, and payment methods. Bookmark keywords and separators stay in the Sync store (places) only: the browser never sees them, and Sync keeps them in place for Firefox. Container synchronization is excluded. While Settings → Privacy → "Don't save browsing history" (`history.saving_disabled`) is on, history doesn't sync: its switch is off and greyed out, and a sync under way when it is turned on applies no history.
 
+Other devices' open tabs show where Chromium shows synced tabs: History → Tabs from other devices, the app menu's History → Recent tabs, and the `chrome.sessions` API. `src/chrome/browser/firefox_sync/remote_tabs.cc` turns them into Chromium's synced sessions, one window per device, and `oganesson/core/firefox-sync-remote-tabs.patch` lets the `SessionSyncService` return them while Chromium's own tab sync is off. Tab search doesn't list other devices' tabs.
+
 `python3 tools/check_firefox_sync.py` exercises the built library against the local fake server. `./oganesson.py test firefox_sync` exercises the browser path. These checks must pass on the extracted build. They are not evidence of a real Mozilla-account test.
 
 Before using this build with personal data, verify sign-in and two-way additions, edits, deletions, restart, and sign-out with a dedicated Mozilla test account and Firefox/Fenix. The original source documented no completed real-account verification and used an example application's OAuth client ID. Review that client identity before distribution. Use a fresh browser profile for validation.
