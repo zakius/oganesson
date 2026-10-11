@@ -27,7 +27,7 @@ Two review passes produced these lists. Patches are listed by their path in Heli
 - Fingerprint noise (`helium/core/noise/*`, its settings page and page-info UI) is stripped for now, and can return later.
 - Group defaults: degoogling and privacy patches (Inox, Iridium, Bromite, Debian, ungoogled-chromium, Brave) and build fixes are wanted. Remaining `helium/core/*` patches are not wanted unless listed as an exception.
 
-## Want (122)
+## Want (130)
 
 - `helium/core/ridiculous-google-compat-exceptions` (Helium 0.19.2): keeps Google sign-in, session cookies and security-key enrollment working under domain substitution. Maintainer's decision, 2026-10-09.
 - `upstream-fixes/missing-dependencies`
@@ -151,6 +151,14 @@ Two review passes produced these lists. Patches are listed by their path in Heli
 - `helium/settings/disable-safety-hub-page`: Safety Hub reports on services this build doesn't have (Safe Browsing, password leak check, updates). Maintainer reported it, 2026-10-06 (#286).
 - `helium/settings/remove-safety-hub-entry-points`: same reason; removes the settings entry points to Safety Hub. Maintainer reported it, 2026-10-06 (#286). The app menu's Safety Hub notification lives in the omitted `helium/ui/app-menu-model`, so `oganesson/ui/no-safety-hub-menu` drops it alone.
 - `helium/core/open-new-tabs-next-to-active-tab-option`: kept for its pref and switch, one of Tab behavior's knobs (#315, #338): Firefox's `browser.tabs.insertAfterCurrent`. Turned on, it leaves the Chromium preset, so Firefox's rules place the tab and the patch's own placement in `AddTab` no longer runs; the patch stays whole to stay comparable with upstream.
+- `ungoogled-chromium/add-flag-to-close-window-with-last-tab`: Firefox's `browser.tabs.closeWindowWithLastTab`. Maintainer's decision, 2026-10-11.
+- `helium/core/close-tabs-to-left`: "Close tabs to the left", as in Firefox's tab menu. Maintainer's decision, 2026-10-11.
+- `helium/core/hibernate-tab-context-menu`: unloads a tab from the tab menu, as Firefox's "Unload Tab"; Memory Saver stays off by default. Maintainer's decision, 2026-10-11.
+- `helium/core/network/global-privacy-control-pref`: a Global Privacy Control setting, as in Firefox. Maintainer's decision, 2026-10-11.
+- `helium/core/network/disable-ech-flag`: adds a flag only. Maintainer's decision, 2026-10-11.
+- `helium/core/network/quic-v2-flag`: adds a flag only. Maintainer's decision, 2026-10-11.
+- `helium/core/network/split-clienthello`: adds a flag only. Maintainer's decision, 2026-10-11.
+- `helium/core/network/ignore-system-proxy-server-flag`: adds a flag only. Maintainer's decision, 2026-10-11.
 
 ## Want while cheap (2)
 
@@ -165,26 +173,18 @@ Two review passes produced these lists. Patches are listed by their path in Heli
 - `helium/core/add-native-bangs`: its bang list comes from Helium's services; out of the series until we have our own bang source.
 - `helium/ui/bangs-ui`: needs `add-native-bangs`.
 
-## Indifferent (omitted) (132)
+## Indifferent (omitted) (124)
 
 - `ungoogled-chromium/add-flag-to-scroll-tabs`
-- `ungoogled-chromium/add-flag-to-close-window-with-last-tab`
 - `helium/settings/setup-behavior-settings-page`
-- `helium/core/network/disable-ech-flag`
-- `helium/core/network/global-privacy-control-pref`
-- `helium/core/network/quic-v2-flag`
-- `helium/core/network/split-clienthello`
 - `helium/core/network/dns-providers`
-- `helium/core/network/ignore-system-proxy-server-flag`
 - `helium/core/reduce-accept-language-headers`
 - `helium/core/disable-touch-ui`
 - `helium/core/disable-update-toast`
 - `helium/core/browser-window-context-menu`
 - `helium/core/disable-ntp-footer`
-- `helium/core/hibernate-tab-context-menu`
 - `helium/core/disable-side-panel-flyover`
 - `helium/core/custom-profile-avatar`
-- `helium/core/close-tabs-to-left`
 - `helium/core/simplify-context-menu`
 - `helium/core/enable-glow-up-features`
 - `helium/core/enable-bookmark-bar-settings`
@@ -299,6 +299,12 @@ Two review passes produced these lists. Patches are listed by their path in Heli
 - `helium/ui/exclusive-access-bubble`
 - `helium/ui/layout/toolbar-overflow` (Helium 0.18.2): builds on the omitted layout patches. Maintainer's decision, 2026-10-02.
 - `helium/ui/layout/min-window-width` (Helium 0.18.2): builds on the omitted layout patches. Maintainer's decision, 2026-10-02.
+
+## Taken from ungoogled-chromium, not in Helium (1)
+
+`tools/update_helium.py` does not track these; refresh them from ungoogled-chromium by hand.
+
+- `ungoogled-chromium/keep-expired-flags` (ungoogled-chromium `ffeb45a`): expired `chrome://flags` entries stay usable. Helium replaced it with `exclude-irrelevant-flags`, which we omit. Maintainer's decision, 2026-10-11.
 
 ## Do not want as-is, may serve as basis (1)
 

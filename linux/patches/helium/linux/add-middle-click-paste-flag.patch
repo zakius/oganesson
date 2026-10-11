@@ -1,8 +1,8 @@
 --- a/chrome/browser/helium_flag_choices.h
 +++ b/chrome/browser/helium_flag_choices.h
-@@ -14,6 +14,9 @@ using namespace ::helium;
- constexpr const char kMiddleClickAutoscrollCommandLine[] =
-     "middle-click-autoscroll";
+@@ -16,6 +16,9 @@ constexpr const char kDisableEchCommandLine[] = "disable-ech";
+ constexpr const char kHeliumSplitClientHelloCommandLine[] =
+     "helium-split-clienthello";
  
 +
 +constexpr const char kMiddleClickPasteEnabledCommandLine[] =
@@ -12,8 +12,8 @@
  #endif /* CHROME_BROWSER_HELIUM_FLAG_CHOICES_H_ */
 --- a/chrome/browser/helium_flag_entries.h
 +++ b/chrome/browser/helium_flag_entries.h
-@@ -14,4 +14,7 @@
-     // core/network
+@@ -39,4 +39,7 @@
+      kOsAll, SINGLE_VALUE_TYPE(switches::kNoProxyServer)},
      // ui
      // platform
 +    {helium::kMiddleClickPasteEnabledCommandLine, "Middle Click Paste",
@@ -70,7 +70,7 @@
    }
 --- a/ui/base/ui_base_features.cc
 +++ b/ui/base/ui_base_features.cc
-@@ -544,4 +544,6 @@ bool IsColorIdCssStyleSheetOptimizationE
+@@ -544,4 +544,6 @@ bool IsColorIdCssStyleSheetOptimizationEnabled() {
    return base::FeatureList::IsEnabled(kColorIdCssStyleSheetOptimization);
  }
  

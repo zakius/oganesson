@@ -63,6 +63,8 @@ ungoogled-chromium/enable-menu-on-reload-button.patch
 ungoogled-chromium/add-flag-for-omnibox-autocomplete-filtering.patch
 ungoogled-chromium/disable-dial-repeating-discovery.patch
 ungoogled-chromium/remove-uneeded-ui.patch
+ungoogled-chromium/add-flag-to-close-window-with-last-tab.patch
+ungoogled-chromium/keep-expired-flags.patch
 ungoogled-chromium/add-flag-to-convert-popups-to-tabs.patch
 ungoogled-chromium/add-flag-to-disable-local-history-expiration.patch
 ungoogled-chromium/add-flag-to-clear-data-on-exit.patch
@@ -111,6 +113,11 @@ helium/core/ublock-install-as-component.patch
 helium/core/ublock-reconfigure-defaults.patch
 # TODO own replacement: helium/core/ublock-helium-services.patch
 helium/core/ublock-dns-uncloaking.patch
+helium/core/network/disable-ech-flag.patch
+helium/core/network/global-privacy-control-pref.patch
+helium/core/network/quic-v2-flag.patch
+helium/core/network/split-clienthello.patch
+helium/core/network/ignore-system-proxy-server-flag.patch
 
 helium/core/disable-ad-topics-and-etc.patch
 helium/core/open-new-tabs-next-to-active-tab-option.patch
@@ -119,6 +126,8 @@ helium/core/webrtc-default-handling-policy.patch
 helium/core/tab-cycling-mru.patch
 helium/core/fixups-component-setup.patch
 helium/core/fixups-chrome-webstore-script.patch
+helium/core/hibernate-tab-context-menu.patch
+helium/core/close-tabs-to-left.patch
 helium/core/custom-keyboard-shortcuts.patch
 helium/core/copy-url-tab-context-menu.patch
 helium/core/mute-tab-context-menu.patch
