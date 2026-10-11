@@ -72,7 +72,7 @@ class FirefoxSyncTest(BrowserTest):
                  not self.status(page).get('syncing'), timeout=30, what='a sync')
 
     def test_1_sign_in(self):
-        page = self.settings('/autofill', 'settings-autofill-page')
+        page = self.settings('/people', 'settings-people-page')
         page.eval("chrome.send('firefoxSyncSignIn')")
         wait_for(lambda: self.status(page).get('signedIn'), timeout=30, what='the sign-in')
         wait_for(lambda: 'global' in self.fake.collections.get('meta', {}), timeout=60,
@@ -90,7 +90,7 @@ class FirefoxSyncTest(BrowserTest):
         wait_for(lambda: marks.eval('!!chrome.bookmarks'), what='chrome://bookmarks')
         bookmark = marks.eval("chrome.bookmarks.create({parentId: '1', title: 'Before', "
                               f"url: '{url}'}}).then(b => b.id)")
-        page = self.settings('/autofill', 'settings-autofill-page')
+        page = self.settings('/people', 'settings-people-page')
         self.sync_now(page)
         self.assertEqual(self.firefox_bookmarks()[url]['title'], 'Before')
         # The held sync has the snapshot with Before; the edit comes after it.
@@ -122,7 +122,7 @@ class FirefoxSyncTest(BrowserTest):
                           'parentName': unfiled.get('title', ''),
                           'pos': len(unfiled['children']) - 1})
         self.firefox_put(unfiled)
-        page = self.settings('/autofill', 'settings-autofill-page')
+        page = self.settings('/people', 'settings-people-page')
         self.sync_now(page)
         # The browser doesn't show it, and a second sync keeps it in Firefox.
         marks = self.browser.new_tab('chrome://bookmarks')
@@ -171,7 +171,7 @@ class FirefoxSyncTest(BrowserTest):
         passwords.eval("chrome.passwordsPrivate.addPassword({url: "
                        f"'{self.PASSWORD_SITE}/', username: 'me', password: 'first', "
                        "note: '', useAccountStore: false})")
-        page = self.settings('/autofill', 'settings-autofill-page')
+        page = self.settings('/people', 'settings-people-page')
         self.sync_now(page)
         record = self.firefox_login('me')
         self.assertEqual([record['password'], record['usernameField']], ['first', ''])
@@ -185,7 +185,7 @@ class FirefoxSyncTest(BrowserTest):
 
     def test_5d_password_edited_during_sync(self):
         passwords = self.passwords_page()
-        page = self.settings('/autofill', 'settings-autofill-page')
+        page = self.settings('/people', 'settings-people-page')
         self.firefox_change_password(self.firefox_login('me'), 'from-firefox')
         # The held sync has the snapshot with `second` and downloads Firefox's
         # change; the edit here comes after the snapshot (#259).
@@ -204,7 +204,7 @@ class FirefoxSyncTest(BrowserTest):
 
     def test_5d2_note_edited_during_sync(self):
         passwords = self.passwords_page()
-        page = self.settings('/autofill', 'settings-autofill-page')
+        page = self.settings('/people', 'settings-people-page')
         self.firefox_change_password(self.firefox_login('me'), 'firefox-again')
         self.fake.hold('/storage/')
         page.eval("chrome.send('firefoxSyncNow')")
@@ -260,7 +260,7 @@ class FirefoxSyncTest(BrowserTest):
 
     def test_5e_history_deletion_before_quitting(self):
         url = self.visit('/gone')
-        self.sync_now(self.settings('/autofill', 'settings-autofill-page'))
+        self.sync_now(self.settings('/people', 'settings-people-page'))
         guid = next(i for i, r in self.firefox_history().items() if r.get('histUri') == url)
         self.delete_from_history(url)
         # Quit well within the 30 s until the deletion's sync (#260).
@@ -279,7 +279,7 @@ class FirefoxSyncTest(BrowserTest):
         passwords.eval("chrome.passwordsPrivate.addPassword({url: "
                        f"'{self.PASSWORD_SITE}/', username: 'leaked', password: 'same', "
                        "note: '', useAccountStore: false})")
-        page = self.settings('/autofill', 'settings-autofill-page')
+        page = self.settings('/people', 'settings-people-page')
         self.sync_now(page)
         self.browser.quit()
         # Marked leaked (InsecureType::kLeaked), as a leak check would.
@@ -292,7 +292,7 @@ class FirefoxSyncTest(BrowserTest):
         # Firefox fills the field names and keeps the password.
         self.firefox_change_password(self.firefox_login('leaked'), 'same',
                                      usernameField='user', passwordField='pass')
-        self.sync_now(self.settings('/autofill', 'settings-autofill-page'))
+        self.sync_now(self.settings('/people', 'settings-people-page'))
         self.browser.quit()
         rows = self.login_data(
             "SELECT username_element, password_element, insecurity_type FROM logins "
@@ -329,21 +329,46 @@ class FirefoxSyncTest(BrowserTest):
         for coll, record in (('clients', client), ('tabs', tabs)):
             self.fake.put(coll, {'id': device, 'payload': encrypt(
                 self.fake.bundle(coll), json.dumps(record))}, self.fake.now())
-        self.sync_now(self.settings('/autofill', 'settings-autofill-page'))
+        self.sync_now(self.settings('/people', 'settings-people-page'))
         history = self.browser.new_tab('chrome://history/syncedTabs')
         devices = (f"({FIND})('history-synced-device-manager')?.syncedDevices_"
                    "?.map(d => [d.device, d.tabs.map(t => t.title)])")
         wait_for(lambda: history.eval(devices) == [['Remote Firefox', ['Remote page']]],
                  timeout=30, what='the remote tab in History')
+        # History's menu links to them.
+        self.assertTrue(history.eval(
+            f"!!({FIND})('history-side-bar').shadowRoot.querySelector('#syncedTabs')"))
+
+    def test_5i_account_card(self):
+        page = self.settings('/people', 'settings-people-page')
+        self.sync_now(page)
+        status = self.status(page)
+        self.assertEqual((status['name'], status['email']), ('Fake User', 'fake@example.com'))
+        root = f"({FIND})('settings-firefox-sync').shadowRoot"
+        self.assertEqual(
+            page.eval(f"{root}.querySelector('#firefoxSync .name').textContent.trim()"),
+            'Fake User')
+        self.assertFalse(page.eval(f"{root}.querySelector('#firefoxSyncTabs').hidden"))
+        # The account's picture (the fake server's red pixel) is the profile's.
+        red = (f"new Promise(done => {{ const img = new Image();"
+               f" img.onload = () => {{ const c = document.createElement('canvas');"
+               f" c.width = img.width; c.height = img.height;"
+               f" const g = c.getContext('2d'); g.drawImage(img, 0, 0);"
+               f" const [r, gr, b] = g.getImageData(img.width / 2, img.height / 2, 1, 1).data;"
+               f" done(r > 200 && gr < 60 && b < 60); }};"
+               f" img.onerror = () => done(false);"
+               f" img.src = {root}.querySelector('#avatar').src; }})")
+        wait_for(lambda: page.eval(red), timeout=30, what="the account's picture")
 
     def test_6_sign_out_during_sync(self):
-        page = self.settings('/autofill', 'settings-autofill-page')
+        page = self.settings('/people', 'settings-people-page')
         # Held at its first request, so syncs run one at a time and earlier
         # ones (the tab just opened starts one) are done.
         self.fake.hold('/storage/1.5/1/info/collections')
         page.eval("chrome.send('firefoxSyncNow')")
         wait_for(self.fake.held.is_set, timeout=30, what='the held sync')
-        page.eval("chrome.send('firefoxSyncSignOut')")
+        page.eval(f"({FIND})('settings-firefox-sync').shadowRoot"
+                  ".querySelector('#firefoxSyncSignOut').click()")
         wait_for(lambda: not self.status(page).get('signedIn'), what='the sign-out')
         self.fake.let_go()
         # The library signs out after the held sync, whose reply is then
@@ -354,9 +379,10 @@ class FirefoxSyncTest(BrowserTest):
         self.assertFalse(status.get('signedIn'))
         self.assertFalse(status.get('lastSync'))
         self.assertFalse(status.get('syncing'))
+        self.assertEqual(status.get('name'), '')
 
     def test_7_sign_out_during_sign_in(self):
-        page = self.settings('/autofill', 'settings-autofill-page')
+        page = self.settings('/people', 'settings-people-page')
         # The sign-in waits for its token.
         self.fake.hold('/auth/v1/oauth/token')
         page.eval("chrome.send('firefoxSyncSignIn')")
@@ -416,7 +442,7 @@ class FirefoxSyncFailuresTest(BrowserTest):
         return found == 1
 
     def test_1_signed_in_and_synced(self):
-        page = self.settings('/autofill', 'settings-autofill-page')
+        page = self.settings('/people', 'settings-people-page')
         page.eval("chrome.send('firefoxSyncSignIn')")
         wait_for(lambda: self.status(page).get('signedIn'), timeout=30, what='the sign-in')
         marks = self.browser.new_tab('chrome://bookmarks')
@@ -429,20 +455,20 @@ class FirefoxSyncFailuresTest(BrowserTest):
         type(self).server.shutdown()
         type(self).server.server_close()
         type(self).server = None
-        page = self.settings('/autofill', 'settings-autofill-page')
+        page = self.settings('/people', 'settings-people-page')
         self.failed_sync(page)
         self.assertTrue(self.status(page).get('signedIn'))
         self.assertTrue(self.bookmarked())
         # Starting offline keeps the account.
         self.browser.quit()
         self.browser.start()
-        page = self.settings('/autofill', 'settings-autofill-page')
+        page = self.settings('/people', 'settings-people-page')
         self.assertTrue(self.status(page).get('signedIn'))
         self.failed_sync(page)
         self.assertTrue(self.bookmarked())
 
     def test_3_sign_in_with_servers_gone(self):
-        page = self.settings('/autofill', 'settings-autofill-page')
+        page = self.settings('/people', 'settings-people-page')
         page.eval("chrome.send('firefoxSyncSignOut')")
         wait_for(lambda: not self.status(page).get('signedIn'), what='the sign-out')
         page.eval("chrome.send('firefoxSyncSignIn')")
@@ -466,7 +492,7 @@ class FirefoxSyncFailuresTest(BrowserTest):
             self.browser.quit()
             self.browser.binary = folder / BINARY.name
             self.browser.start()
-            page = self.settings('/autofill', 'settings-autofill-page')
+            page = self.settings('/people', 'settings-people-page')
             page.eval("chrome.send('firefoxSyncSignIn')")
             error = wait_for(lambda: self.status(page).get('error'), timeout=30,
                              what='Firefox Sync unavailable')
@@ -522,7 +548,7 @@ class FirefoxSyncServerTest(BrowserTest):
         return self.element(page, '#firefoxSync cr-button.action-button')
 
     def test_1_no_server_no_sign_in(self):
-        page = self.settings('/autofill', 'settings-autofill-page')
+        page = self.settings('/people', 'settings-people-page')
         wait_for(lambda: self.status(page).get('available'), what='the status')
         self.assertEqual(self.status(page)['server'], '')
         self.assertFalse(self.status(page)['canSignIn'])
@@ -535,7 +561,7 @@ class FirefoxSyncServerTest(BrowserTest):
     def test_1a_section_title(self):
         # The section's title doesn't use Mozilla's product name; its row says
         # what it syncs with.
-        page = self.settings('/autofill', 'settings-autofill-page')
+        page = self.settings('/people', 'settings-people-page')
         wait_for(lambda: self.status(page).get('available'), what='the status')
         row = self.element(page, '#firefoxSync')
         self.assertEqual(page.eval(f"{row}.closest('settings-section').pageTitle"), 'Sync')
@@ -544,7 +570,7 @@ class FirefoxSyncServerTest(BrowserTest):
             'Sync with Firefox')
 
     def test_2_bare_domain(self):
-        page = self.settings('/autofill', 'settings-autofill-page')
+        page = self.settings('/people', 'settings-people-page')
         self.enter_server(page, ' sync.example.com ')
         wait_for(lambda: self.status(page).get('server'), what='the server')
         self.assertEqual(self.status(page)['server'], 'https://sync.example.com')
@@ -553,14 +579,14 @@ class FirefoxSyncServerTest(BrowserTest):
                          'https://sync.example.com')
 
     def test_2b_sync_server_keeps_path(self):
-        page = self.settings('/autofill', 'settings-autofill-page')
+        page = self.settings('/people', 'settings-people-page')
         self.enter_server(page, 'storage.example.com/sync/', '#firefoxSyncStorageServer')
         wait_for(lambda: self.status(page).get('syncServer'), what='the sync server')
         self.assertEqual(self.status(page)['syncServer'], 'https://storage.example.com/sync')
         self.assertEqual(self.status(page)['server'], 'https://sync.example.com')
 
     def test_3_mozilla(self):
-        page = self.settings('/autofill', 'settings-autofill-page')
+        page = self.settings('/people', 'settings-people-page')
         page.eval(f"{self.element(page, '#firefoxSyncServerRow cr-button')}.click()")
         wait_for(lambda: self.status(page).get('server') == self.MOZILLA, what='the server')
         # Mozilla's servers are its accounts and the token server they name.
@@ -572,7 +598,7 @@ class FirefoxSyncServerTest(BrowserTest):
         self.assertEqual(saved.get('sync_server', ''), '')
 
     def test_4_sign_in(self):
-        page = self.settings('/autofill', 'settings-autofill-page')
+        page = self.settings('/people', 'settings-people-page')
         self.enter_server(page, self.base)
         wait_for(lambda: self.status(page).get('server') == self.base, what='the server')
         page.eval(f"{self.sign_in_button(page)}.click()")
@@ -582,7 +608,7 @@ class FirefoxSyncServerTest(BrowserTest):
         self.assertIn('GET /.well-known/fxa-client-configuration', self.fake.log)
 
     def test_4b_invalid_url_keeps_account(self):
-        page = self.settings('/autofill', 'settings-autofill-page')
+        page = self.settings('/people', 'settings-people-page')
         self.assertTrue(self.status(page)['signedIn'])
         self.enter_server(page, 'https://sync.example.com:99999')
         wait_for(lambda: self.status(page).get('error'), what='the refusal')
@@ -595,7 +621,7 @@ class FirefoxSyncServerTest(BrowserTest):
                          'https://sync.example.com:99999')
 
     def test_5_new_server_signs_out(self):
-        page = self.settings('/autofill', 'settings-autofill-page')
+        page = self.settings('/people', 'settings-people-page')
         self.assertTrue(self.status(page)['signedIn'])
         self.enter_server(page, 'https://sync.example.com/path')
         wait_for(lambda: not self.status(page).get('signedIn'), what='the sign-out')
@@ -614,7 +640,7 @@ class FirefoxSyncServerTest(BrowserTest):
         prefs['oganesson']['firefox_sync']['secrets'] = 'djEw'
         path.write_text(json.dumps(prefs))
         self.browser.start()
-        page = self.settings('/autofill', 'settings-autofill-page')
+        page = self.settings('/people', 'settings-people-page')
         wait_for(lambda: self.status(page).get('available'), what='the status')
         self.assertEqual(self.status(page)['server'], self.MOZILLA)
 
@@ -624,7 +650,7 @@ class FirefoxSyncServerTest(BrowserTest):
         storage_server, storage_base, storage = fake_firefox_sync.serve()
         self.addClassCleanup(storage_server.server_close)
         self.addClassCleanup(storage_server.shutdown)
-        page = self.settings('/autofill', 'settings-autofill-page')
+        page = self.settings('/people', 'settings-people-page')
         self.enter_server(page, self.base)
         wait_for(lambda: self.status(page).get('server') == self.base, what='the server')
         self.enter_server(page, storage_base + '/token/1.0/sync/1.5',
@@ -642,7 +668,7 @@ class FirefoxSyncServerTest(BrowserTest):
         self.assertNotIn('GET /.well-known/fxa-client-configuration', storage.log)
 
     def test_8_new_sync_server_signs_out(self):
-        page = self.settings('/autofill', 'settings-autofill-page')
+        page = self.settings('/people', 'settings-people-page')
         self.assertTrue(self.status(page)['signedIn'])
         self.enter_server(page, '', '#firefoxSyncStorageServer')
         wait_for(lambda: not self.status(page).get('signedIn'), what='the sign-out')
@@ -656,7 +682,7 @@ class FirefoxSyncServerTest(BrowserTest):
         # A sync storage server in the account field: no fxa-client-configuration.
         storage = Server({})
         try:
-            page = self.settings('/autofill', 'settings-autofill-page')
+            page = self.settings('/people', 'settings-people-page')
             self.enter_server(page, storage.url('/'))
             origin = storage.url('/').rstrip('/')
             wait_for(lambda: self.status(page).get('server') == origin, what='the server')

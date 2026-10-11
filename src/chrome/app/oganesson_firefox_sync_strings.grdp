@@ -7,9 +7,6 @@
   <message name="IDS_FIREFOX_SYNC_TITLE" desc="Settings: the Firefox Sync row's title while signed out.">
     Sync with Firefox
   </message>
-  <message name="IDS_FIREFOX_SYNC_SIGNED_IN_AS" desc="Settings: the Firefox Sync row's title while signed in.">
-    Signed in as <ph name="EMAIL">$1<ex>user@example.com</ex></ph>
-  </message>
   <message name="IDS_FIREFOX_SYNC_SIGN_IN_DESCRIPTION" desc="Settings: the Firefox Sync row's description while signed out and an account server is set.">
     Sign in with your Mozilla account to sync with Firefox.
   </message>
@@ -90,5 +87,26 @@
   </message>
   <message name="IDS_FIREFOX_SYNC_UNKNOWN_ERROR" desc="Settings: Firefox Sync error with no details.">
     Unknown error
+  </message>
+  <message name="IDS_FIREFOX_SYNC_SIGNING_IN" desc="Settings: the Firefox Sync account row's description while the Mozilla account sign-in page is open in another tab.">
+    Finish signing in on the Mozilla account page.
+  </message>
+  <message name="IDS_FIREFOX_SYNC_PAUSED" desc="Settings: the Firefox Sync account row's description when the Mozilla account must sign in again before syncing continues.">
+    Sync is paused. Sign in again to keep syncing.
+  </message>
+  <message name="IDS_FIREFOX_SYNC_SIGN_IN_AGAIN" desc="Settings: button that signs in to the Mozilla account again after Firefox Sync was paused.">
+    Sign in again
+  </message>
+  <message name="IDS_FIREFOX_SYNC_MANAGE" desc="Settings: expandable row that shows the switches for each type of data Firefox Sync syncs.">
+    Manage what you sync
+  </message>
+  <message name="IDS_FIREFOX_SYNC_SERVERS" desc="Settings: expandable row that shows the Firefox Sync account server and sync server fields.">
+    Servers
+  </message>
+  <message name="IDS_FIREFOX_SYNC_NO_SERVER_SET" desc="Settings: description of the collapsed Firefox Sync servers row when no account server is set.">
+    No account server set
+  </message>
+  <message name="IDS_FIREFOX_SYNC_OTHER_DEVICES_TABS" desc="Settings: link to the History page that lists the tabs open on the user's other devices.">
+    Tabs from other devices
   </message>
 </grit-part>

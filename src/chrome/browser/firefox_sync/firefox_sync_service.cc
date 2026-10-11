@@ -60,6 +60,7 @@
 #include "services/network/public/mojom/url_response_head.mojom.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "url/gurl.h"
+#include "third_party/skia/include/core/SkBitmap.h"
 #include "url/origin.h"
 
 // The Android parts are tennessine's: github.com/zakius/tennessine-focused,
@@ -72,6 +73,11 @@
 #else
 #include "base/path_service.h"
 #include "chrome/browser/firefox_sync/remote_tabs.h"
+#include "chrome/browser/profiles/profile_attributes_entry.h"
+#include "chrome/browser/profiles/profile_attributes_storage.h"
+#include "chrome/browser/profiles/profile_manager.h"
+#include "services/data_decoder/public/cpp/decode_image.h"
+#include "ui/gfx/image/image.h"
 #include "chrome/browser/firefox_sync/tabs_adapter.h"
 #include "chrome/browser/ui/navigator/browser_navigator.h"
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
@@ -83,6 +89,10 @@ namespace firefox_sync {
 namespace {
 
 constexpr char kEmailPref[] = "oganesson.firefox_sync.email";
+// The account's display name and its picture's URL (empty for Mozilla's
+// default picture), from the profile server.
+constexpr char kNamePref[] = "oganesson.firefox_sync.name";
+constexpr char kAvatarUrlPref[] = "oganesson.firefox_sync.avatar_url";
 constexpr char kSecretsPref[] = "oganesson.firefox_sync.secrets";
 constexpr char kLastSyncPref[] = "oganesson.firefox_sync.last_sync";
 constexpr char kDisabledTypesPref[] = "oganesson.firefox_sync.disabled_types";
@@ -110,6 +120,7 @@ constexpr DataType kTypes[] = {
 };
 
 constexpr base::TimeDelta kSyncInterval = base::Minutes(30);
+constexpr size_t kMaxAvatarSize = 4 * 1024 * 1024;
 constexpr base::TimeDelta kStartupDelay = base::Seconds(20);
 constexpr base::TimeDelta kLocalChangeDelay = base::Seconds(30);
 
@@ -128,7 +139,7 @@ constexpr net::NetworkTrafficAnnotationTag kTrafficAnnotation =
       }
       policy {
         cookies_allowed: NO
-        setting: "Sign out of Firefox Sync in Autofill and passwords settings."
+        setting: "Sign out of Firefox Sync in Settings, You and Google."
         policy_exception_justification: "Not implemented."
       })");
 
@@ -423,6 +434,8 @@ FirefoxSyncService::~FirefoxSyncService() = default;
 void FirefoxSyncService::RegisterProfilePrefs(
     user_prefs::PrefRegistrySyncable* registry) {
   registry->RegisterStringPref(kEmailPref, std::string());
+  registry->RegisterStringPref(kNamePref, std::string());
+  registry->RegisterStringPref(kAvatarUrlPref, std::string());
   registry->RegisterStringPref(kSecretsPref, std::string());
   registry->RegisterStringPref(kServerPref, std::string());
   registry->RegisterStringPref(kSyncServerPref, std::string());
@@ -602,8 +615,7 @@ void FirefoxSyncService::OnCompleteSignIn(base::DictValue result) {
   // A new sign-in starts a new sync state: the engine merges both sides.
   secrets_ = base::DictValue();
   secrets_.Set("account", *account);
-  const std::string* email = ok->FindString("email");
-  profile_->GetPrefs()->SetString(kEmailPref, email ? *email : "");
+  ApplyProfile(ok->FindDict("profile"));
   error_.clear();
   needs_sign_in_ = false;
   SaveSecrets();
@@ -628,6 +640,10 @@ void FirefoxSyncService::SignOut() {
   secrets_ = base::DictValue();
   profile_->GetPrefs()->ClearPref(kSecretsPref);
   profile_->GetPrefs()->ClearPref(kEmailPref);
+  profile_->GetPrefs()->ClearPref(kNamePref);
+  profile_->GetPrefs()->ClearPref(kAvatarUrlPref);
+  avatar_loader_.reset();
+  SetBrowserProfileAvatar(std::string(), std::string(), SkBitmap());
   profile_->GetPrefs()->ClearPref(kLastSyncPref);
   profile_->GetPrefs()->ClearPref(kHistorySincePref);
   profile_->GetPrefs()->ClearPref(kHistoryDeletionsPref);
@@ -645,6 +661,100 @@ void FirefoxSyncService::ClearRemoteTabs() {
   remote_tabs_.clear();
 #if !BUILDFLAG(IS_ANDROID)
   remote_tabs_ui_->Clear();
+#endif
+}
+
+void FirefoxSyncService::ApplyProfile(const base::DictValue* account) {
+  if (!account) {
+    return;
+  }
+  PrefService* prefs = profile_->GetPrefs();
+  const std::string* email = account->FindString("email");
+  const std::string* name = account->FindString("name");
+  const std::string* avatar = account->FindString("avatar");
+  prefs->SetString(kEmailPref, email ? *email : "");
+  prefs->SetString(kNamePref, name ? *name : "");
+  std::string url = avatar ? *avatar : "";
+  if (url == prefs->GetString(kAvatarUrlPref)) {
+    // Only the name may have changed.
+    SetBrowserProfileAvatar(DisplayName(), std::string(), SkBitmap(),
+                            /*keep_picture=*/true);
+    return;
+  }
+  prefs->SetString(kAvatarUrlPref, url);
+  GURL avatar_url(url);
+  if (!avatar_url.SchemeIsHTTPOrHTTPS()) {
+    SetBrowserProfileAvatar(DisplayName(), std::string(), SkBitmap());
+    return;
+  }
+  auto request = std::make_unique<network::ResourceRequest>();
+  request->url = avatar_url;
+  request->credentials_mode = network::mojom::CredentialsMode::kOmit;
+  avatar_loader_ = network::SimpleURLLoader::Create(std::move(request),
+                                                    kTrafficAnnotation);
+  avatar_loader_->DownloadToString(
+      profile_->GetDefaultStoragePartition()
+          ->GetURLLoaderFactoryForBrowserProcess()
+          .get(),
+      base::BindOnce(&FirefoxSyncService::OnAvatarDownloaded,
+                     account_weak_factory_.GetWeakPtr(), url),
+      kMaxAvatarSize);
+}
+
+std::string FirefoxSyncService::DisplayName() const {
+  std::string name = profile_->GetPrefs()->GetString(kNamePref);
+  return name.empty() ? profile_->GetPrefs()->GetString(kEmailPref) : name;
+}
+
+void FirefoxSyncService::OnAvatarDownloaded(
+    const std::string& url,
+    std::optional<std::string> body) {
+  avatar_loader_.reset();
+  if (!body) {
+    // Tried again on the next sync.
+    profile_->GetPrefs()->ClearPref(kAvatarUrlPref);
+    return;
+  }
+#if !BUILDFLAG(IS_ANDROID)
+  data_decoder::DecodeImageIsolated(
+      base::as_byte_span(*body), data_decoder::mojom::ImageCodec::kDefault,
+      /*shrink_to_fit=*/true, kMaxAvatarSize, gfx::Size(),
+      base::BindOnce(
+          [](base::WeakPtr<FirefoxSyncService> service, std::string url,
+             const SkBitmap& bitmap) {
+            if (service) {
+              service->SetBrowserProfileAvatar(service->DisplayName(), url,
+                                               bitmap);
+            }
+          },
+          account_weak_factory_.GetWeakPtr(), url));
+#endif
+}
+
+// The browser profile shows the account like a Google one: the avatar
+// button, the profile menu and Settings show its picture, and its name where
+// the profile has none of its own. An empty bitmap removes the picture.
+void FirefoxSyncService::SetBrowserProfileAvatar(const std::string& name,
+                                                 const std::string& url,
+                                                 const SkBitmap& picture,
+                                                 bool keep_picture) {
+#if !BUILDFLAG(IS_ANDROID)
+  ProfileAttributesEntry* entry =
+      g_browser_process->profile_manager()
+          ->GetProfileAttributesStorage()
+          .GetProfileAttributesWithPath(profile_->GetPath());
+  if (!entry) {
+    return;
+  }
+  entry->SetGAIAName(base::UTF8ToUTF16(name));
+  if (keep_picture) {
+    return;
+  }
+  gfx::Image image = picture.drawsNothing()
+                         ? gfx::Image()
+                         : gfx::Image::CreateFrom1xBitmap(picture);
+  entry->SetGAIAPicture(url, image);
+  entry->SetIsUsingGAIAPicture(!image.IsEmpty());
 #endif
 }
 
@@ -853,6 +963,7 @@ void FirefoxSyncService::OnSynced(base::DictValue result) {
         }
       }
     }
+    ApplyProfile(ok->FindDict("profile"));
     SaveSecrets();
     profile_->GetPrefs()->SetTime(kLastSyncPref, base::Time::Now());
     error_.clear();
@@ -913,6 +1024,7 @@ base::DictValue FirefoxSyncService::GetStatus() const {
   base::DictValue status;
   status.Set("signedIn", signed_in());
   status.Set("email", profile_->GetPrefs()->GetString(kEmailPref));
+  status.Set("name", profile_->GetPrefs()->GetString(kNamePref));
   status.Set("syncing", syncing_);
   base::Time last = profile_->GetPrefs()->GetTime(kLastSyncPref);
   status.Set("lastSync", last.is_null() ? 0.0

@@ -193,3 +193,4 @@ oganesson/ui/menu-item-title-devtools.patch
 oganesson/core/no-saved-history.patch
 oganesson/settings/no-saved-history-settings.patch
 oganesson/core/firefox-sync-remote-tabs.patch
+oganesson/ui/firefox-sync-avatar.patch

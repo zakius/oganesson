@@ -144,7 +144,9 @@ def main():
     assert location.startswith(begin['redirect']), location
     query = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(location).query))
     signed_in = call('complete_signin', profile=p, code=query['code'], state=query['state'])
-    assert signed_in['email'] == 'fake@example.com'
+    assert signed_in['profile']['email'] == 'fake@example.com'
+    assert signed_in['profile']['name'] == 'Fake User'
+    assert signed_in['profile']['avatar'].endswith('/profile/avatar.png')
     saved = {'account': signed_in['account']}
     local = [login('https://a.example', 'ann', 'pa', 1000)]
 

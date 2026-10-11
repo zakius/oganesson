@@ -10,11 +10,6 @@
     "message": "Synchronizacja z Firefoksem"
   },
   {
-    "name": "IDS_FIREFOX_SYNC_SIGNED_IN_AS",
-    "source": "Signed in as <ph name=\"EMAIL\">$1<ex>user@example.com</ex></ph>",
-    "message": "Zalogowano jako <ph name=\"EMAIL\">$1<ex>user@example.com</ex></ph>"
-  },
-  {
     "name": "IDS_FIREFOX_SYNC_SIGN_IN_DESCRIPTION",
     "source": "Sign in with your Mozilla account to sync with Firefox.",
     "message": "Zaloguj się na konto Mozilla, aby synchronizować dane z Firefoksem."
@@ -328,6 +323,41 @@
     "name": "IDS_FIREFOX_SYNC_HISTORY_NOT_SAVED",
     "source": "Off while browsing history isn't saved",
     "message": "Wyłączone, gdy historia przeglądania nie jest zapisywana"
+  },
+  {
+    "name": "IDS_FIREFOX_SYNC_SIGNING_IN",
+    "source": "Finish signing in on the Mozilla account page.",
+    "message": "Dokończ logowanie na stronie konta Mozilla."
+  },
+  {
+    "name": "IDS_FIREFOX_SYNC_PAUSED",
+    "source": "Sync is paused. Sign in again to keep syncing.",
+    "message": "Synchronizacja wstrzymana. Zaloguj się ponownie, aby ją wznowić."
+  },
+  {
+    "name": "IDS_FIREFOX_SYNC_SIGN_IN_AGAIN",
+    "source": "Sign in again",
+    "message": "Zaloguj się ponownie"
+  },
+  {
+    "name": "IDS_FIREFOX_SYNC_MANAGE",
+    "source": "Manage what you sync",
+    "message": "Zarządzaj synchronizowanymi danymi"
+  },
+  {
+    "name": "IDS_FIREFOX_SYNC_SERVERS",
+    "source": "Servers",
+    "message": "Serwery"
+  },
+  {
+    "name": "IDS_FIREFOX_SYNC_NO_SERVER_SET",
+    "source": "No account server set",
+    "message": "Nie ustawiono serwera kont"
+  },
+  {
+    "name": "IDS_FIREFOX_SYNC_OTHER_DEVICES_TABS",
+    "source": "Tabs from other devices",
+    "message": "Karty z innych urządzeń"
   },
   {
     "name": "IDS_SETTINGS_HISTORY_SAVING_DISABLED",

@@ -48,7 +48,9 @@ source_set("firefox_sync") {
     "//crypto",
     "//net",
     "//services/network/public/cpp",
+    "//skia",
     "//ui/base",
+    "//ui/gfx",
   ]
   if (is_android) {
     sources += [
@@ -67,5 +69,6 @@ source_set("firefox_sync") {
       "tabs_adapter.cc",
       "tabs_adapter.h",
     ]
+    deps += [ "//services/data_decoder/public/cpp" ]
   }
 }

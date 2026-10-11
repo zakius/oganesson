@@ -18,7 +18,7 @@ class WebUIDataSource;
 
 namespace settings {
 
-// The Firefox Sync section in Autofill and passwords: status, sign in and
+// The Firefox Sync section at the top of You and Google: status, sign in and
 // out, the sync server, sync now, and a switch per data type. Pushes "firefox-sync-status-changed" with the new status.
 class FirefoxSyncHandler : public SettingsPageUIHandler {
  public:

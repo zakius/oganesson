@@ -7,6 +7,7 @@
 
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -21,9 +22,14 @@
 #include "components/prefs/pref_change_registrar.h"
 
 class Profile;
+class SkBitmap;
 
 namespace base {
 class SequencedTaskRunner;
+}
+
+namespace network {
+class SimpleURLLoader;
 }
 
 namespace os_crypt_async {
@@ -67,7 +73,10 @@ class FirefoxSyncService : public KeyedService {
   void SyncNow();
   void SetTypeEnabled(const std::string& name, bool enabled);
 
-  // {signedIn, email, syncing, lastSync (ms), error, needsSignIn, server,
+  // The account must sign in again: the avatar button shows "Sync paused".
+  bool needs_sign_in() const { return needs_sign_in_; }
+
+  // {signedIn, email, name, syncing, lastSync (ms), error, needsSignIn, server,
   // syncServer, canSignIn, signingIn, types:
   // [{name, label, supported, enabled, count?, error?}]} for settings.
   base::DictValue GetStatus() const;
@@ -105,6 +114,17 @@ class FirefoxSyncService : public KeyedService {
   void SaveSecrets();
   void OnHistorySavingChanged();
   void ClearRemoteTabs();
+  // The library's {email, name, avatar} for the account; null keeps the
+  // saved one.
+  void ApplyProfile(const base::DictValue* account);
+  void OnAvatarDownloaded(const std::string& url,
+                          std::optional<std::string> body);
+  void SetBrowserProfileAvatar(const std::string& name,
+                               const std::string& url,
+                               const SkBitmap& picture,
+                               bool keep_picture = false);
+  // The account's name, or its email if it has none.
+  std::string DisplayName() const;
   // History syncs only while the browser saves it (history.saving_disabled).
   bool HistoryBlocked() const;
   void SetError(const base::DictValue& result);
@@ -142,6 +162,7 @@ class FirefoxSyncService : public KeyedService {
   bool needs_sign_in_ = false;
 
   std::unique_ptr<SigninWatcher> signin_watcher_;
+  std::unique_ptr<network::SimpleURLLoader> avatar_loader_;
   base::RepeatingTimer periodic_;
   base::OneShotTimer soon_;
   base::RepeatingClosureList status_observers_;
