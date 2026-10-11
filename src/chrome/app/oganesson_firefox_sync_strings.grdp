@@ -109,4 +109,10 @@
   <message name="IDS_FIREFOX_SYNC_OTHER_DEVICES_TABS" desc="Settings: link to the History page that lists the tabs open on the user's other devices.">
     Tabs from other devices
   </message>
+  <message name="IDS_FIREFOX_SYNC_TABS_PROMO" desc="History page, Tabs from other devices: shown while not signed in to Firefox Sync, or while it does not sync open tabs.">
+    Sign in to Firefox Sync and turn on Open tabs to see the tabs open on your other devices.
+  </message>
+  <message name="IDS_FIREFOX_SYNC_TABS_PROMO_BUTTON" desc="History page, Tabs from other devices: button that opens the Sync settings.">
+    Open Sync settings
+  </message>
 </grit-part>

@@ -93,6 +93,9 @@ constexpr char kEmailPref[] = "oganesson.firefox_sync.email";
 // default picture), from the profile server.
 constexpr char kNamePref[] = "oganesson.firefox_sync.name";
 constexpr char kAvatarUrlPref[] = "oganesson.firefox_sync.avatar_url";
+// The other devices' tabs from the last sync, shown from startup on: until
+// a sync sets them, History would offer Chromium's Google sign-in instead.
+constexpr char kRemoteTabsPref[] = "oganesson.firefox_sync.remote_tabs";
 constexpr char kSecretsPref[] = "oganesson.firefox_sync.secrets";
 constexpr char kLastSyncPref[] = "oganesson.firefox_sync.last_sync";
 constexpr char kDisabledTypesPref[] = "oganesson.firefox_sync.disabled_types";
@@ -410,6 +413,10 @@ FirefoxSyncService::FirefoxSyncService(Profile* profile)
       !prefs->HasPrefPath(kServerPref)) {
     prefs->SetString(kServerPref, kMozillaServer);
   }
+#if !BUILDFLAG(IS_ANDROID)
+  // Before OnEncryptor, which may run right away.
+  remote_tabs_ui_ = std::make_unique<RemoteTabs>(profile_);
+#endif
   // Loads the library and proves it works.
   Call("version", {}, base::BindOnce([](base::DictValue result) {
          if (const std::string* version = result.FindString("ok")) {
@@ -423,9 +430,6 @@ FirefoxSyncService::FirefoxSyncService(Profile* profile)
       prefs::kSavingBrowserHistoryDisabled,
       base::BindRepeating(&FirefoxSyncService::OnHistorySavingChanged,
                           base::Unretained(this)));
-#if !BUILDFLAG(IS_ANDROID)
-  remote_tabs_ui_ = std::make_unique<RemoteTabs>(profile_);
-#endif
 }
 
 FirefoxSyncService::~FirefoxSyncService() = default;
@@ -436,6 +440,7 @@ void FirefoxSyncService::RegisterProfilePrefs(
   registry->RegisterStringPref(kEmailPref, std::string());
   registry->RegisterStringPref(kNamePref, std::string());
   registry->RegisterStringPref(kAvatarUrlPref, std::string());
+  registry->RegisterListPref(kRemoteTabsPref);
   registry->RegisterStringPref(kSecretsPref, std::string());
   registry->RegisterStringPref(kServerPref, std::string());
   registry->RegisterStringPref(kSyncServerPref, std::string());
@@ -480,6 +485,22 @@ void FirefoxSyncService::OnEncryptor(
     }
   }
   CreateAdapters();
+  if (signed_in() && IsTypeEnabled("tabs")) {
+    remote_tabs_ = profile_->GetPrefs()->GetList(kRemoteTabsPref).Clone();
+#if !BUILDFLAG(IS_ANDROID)
+    // Posted: this can run while the profile is created, before the browser
+    // sets up the session serialization the tabs need.
+    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE, base::BindOnce(
+                       [](base::WeakPtr<FirefoxSyncService> service) {
+                         if (service && service->remote_tabs_ui_) {
+                           service->remote_tabs_ui_->Update(
+                               service->remote_tabs_);
+                         }
+                       },
+                       account_weak_factory_.GetWeakPtr()));
+#endif
+  }
   periodic_.Start(FROM_HERE, kSyncInterval,
                   base::BindRepeating(&FirefoxSyncService::SyncNow,
                                       base::Unretained(this)));
@@ -659,6 +680,7 @@ void FirefoxSyncService::SignOut() {
 
 void FirefoxSyncService::ClearRemoteTabs() {
   remote_tabs_.clear();
+  profile_->GetPrefs()->ClearPref(kRemoteTabsPref);
 #if !BUILDFLAG(IS_ANDROID)
   remote_tabs_ui_->Clear();
 #endif
@@ -951,6 +973,7 @@ void FirefoxSyncService::OnSynced(base::DictValue result) {
         const base::ListValue* ops = engine->FindList("ops");
         if (name == "tabs" && ops) {
           remote_tabs_ = ops->Clone();
+          profile_->GetPrefs()->SetList(kRemoteTabsPref, remote_tabs_.Clone());
 #if !BUILDFLAG(IS_ANDROID)
           remote_tabs_ui_->Update(remote_tabs_);
 #endif

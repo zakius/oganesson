@@ -339,6 +339,16 @@ class FirefoxSyncTest(BrowserTest):
         self.assertTrue(history.eval(
             f"!!({FIND})('history-side-bar').shadowRoot.querySelector('#syncedTabs')"))
 
+    def test_5hb_remote_tabs_after_restart(self):
+        # Shown from startup on, before the first sync (20 s in).
+        self.browser.quit()
+        self.browser.start()
+        history = self.browser.new_tab('chrome://history/syncedTabs')
+        devices = (f"({FIND})('history-synced-device-manager')?.syncedDevices_"
+                   "?.map(d => [d.device, d.tabs.map(t => t.title)])")
+        wait_for(lambda: history.eval(devices) == [['Remote Firefox', ['Remote page']]],
+                 timeout=10, what='the remote tab before the first sync')
+
     def test_5i_account_card(self):
         page = self.settings('/people', 'settings-people-page')
         self.sync_now(page)
@@ -392,6 +402,13 @@ class FirefoxSyncTest(BrowserTest):
         time.sleep(5)  # for the sign-in's reply
         self.assertFalse(self.status(page).get('signedIn'))
         self.assertEqual(self.status(page).get('email'), '')
+
+    def test_7b_signed_out_tabs_promo(self):
+        # Points to Firefox Sync, not Google's sign-in.
+        history = self.browser.new_tab('chrome://history/syncedTabs')
+        wait_for(lambda: history.eval(
+            f"!!({FIND})('history-synced-device-manager')?.shadowRoot"
+            ".querySelector('#firefox-sync-promo-desc')"), what='the Firefox Sync promo')
 
     def test_8_signed_out_deletion_not_saved(self):
         self.delete_from_history(self.visit('/signed-out'))

@@ -360,6 +360,16 @@
     "message": "Karty z innych urządzeń"
   },
   {
+    "name": "IDS_FIREFOX_SYNC_TABS_PROMO",
+    "source": "Sign in to Firefox Sync and turn on Open tabs to see the tabs open on your other devices.",
+    "message": "Zaloguj się do synchronizacji z Firefoksem i włącz Otwarte karty, aby widzieć karty otwarte na innych urządzeniach."
+  },
+  {
+    "name": "IDS_FIREFOX_SYNC_TABS_PROMO_BUTTON",
+    "source": "Open Sync settings",
+    "message": "Otwórz ustawienia synchronizacji"
+  },
+  {
     "name": "IDS_SETTINGS_HISTORY_SAVING_DISABLED",
     "source": "Don't save browsing history",
     "message": "Nie zapisuj historii przeglądania"
