@@ -2,8 +2,8 @@
 // You can use, redistribute, and/or modify this source code under
 // the terms of the GPL-3.0 license that can be found in the LICENSE file.
 
-// The Firefox Sync section, at the top of the "You and Google" page: the
-// Mozilla account card, what syncs, and the servers. Talks to
+// The Firefox Sync section, the people page's ("Sync") only one: the
+// Mozilla account card, what syncs, the servers, and Import. Talks to
 // FirefoxSyncHandler; the account's picture is the browser profile's, which
 // FirefoxSyncService sets from the account.
 
@@ -25,6 +25,9 @@ import {OpenWindowProxyImpl} from 'chrome://resources/js/open_window_proxy.js';
 import type {DomRepeatEvent} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 import {html, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 import type {ProfileInfo} from '/shared/settings/people_page/profile_info_browser_proxy.js';
+
+import {routes} from '../route.js';
+import {Router} from '../router.js';
 import {ProfileInfoBrowserProxyImpl} from '/shared/settings/people_page/profile_info_browser_proxy.js';
 
 /** From FirefoxSyncHandler (oganesson). */
@@ -163,6 +166,9 @@ export class SettingsFirefoxSyncElement extends SettingsFirefoxSyncElementBase {
             </cr-input>
           </div>
         </cr-collapse>
+        <cr-link-row id="firefoxSyncImport" class="hr"
+            label="[[i18n('importTitle')]]" on-click="onImport_">
+        </cr-link-row>
       </settings-section>`;
   }
 
@@ -314,6 +320,11 @@ export class SettingsFirefoxSyncElement extends SettingsFirefoxSyncElementBase {
   private showTabsLink_(status: FirefoxSyncStatus): boolean {
     return !!status.signedIn &&
         !!status.types?.some(type => type.name === 'tabs' && type.enabled);
+  }
+
+  // The people page's import dialog; its section is hidden.
+  private onImport_() {
+    Router.getInstance().navigateTo(routes.IMPORT_DATA);
   }
 
   private onFirefoxSyncTabs_() {

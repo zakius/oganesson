@@ -171,6 +171,7 @@ oganesson/settings/mouse-gestures-page.patch
 oganesson/settings/restore-autofill-page.patch
 oganesson/ui/mouse-gestures-wiring.patch
 oganesson/ui/middle-click-new-tab.patch
+oganesson/ui/vertical-tab-strip-clicks.patch
 oganesson/core/firefox-sync.patch
 oganesson/settings/firefox-sync-settings.patch
 oganesson/core/no-helium-services.patch

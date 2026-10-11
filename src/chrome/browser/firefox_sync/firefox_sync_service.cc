@@ -142,7 +142,7 @@ constexpr net::NetworkTrafficAnnotationTag kTrafficAnnotation =
       }
       policy {
         cookies_allowed: NO
-        setting: "Sign out of Firefox Sync in Settings, You and Google."
+        setting: "Sign out of Firefox Sync in Settings, Sync."
         policy_exception_justification: "Not implemented."
       })");
 

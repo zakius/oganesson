@@ -67,6 +67,29 @@
      "font_handler.cc",
      "glic_handler.cc",
      "hats_handler.cc",
+--- a/chrome/browser/resources/settings/people_page/people_page.ts
++++ b/chrome/browser/resources/settings/people_page/people_page.ts
+@@ -14,6 +14,7 @@
+ import 'chrome://resources/cr_elements/icons.html.js';
+ import 'chrome://resources/cr_elements/policy/cr_policy_indicator.js';
+ import '../controls/settings_toggle_button.js';
++import '../autofill_page/firefox_sync.js';
+ // <if expr="not is_chromeos">
+ import './sync_account_control.js';
+ // </if>
+--- a/chrome/browser/resources/settings/people_page/people_page.html.ts
++++ b/chrome/browser/resources/settings/people_page/people_page.html.ts
+@@ -10,7 +10,9 @@
+ 
+ export function getHtml(this: SettingsPeoplePageElement) {
+   return html`<!--_html_template_start_-->
+-<settings-section page-title="$i18n{peoplePageTitle}">
++<settings-firefox-sync></settings-firefox-sync>
++<!-- Google's account and services; Import is on the Sync card. -->
++<settings-section page-title="$i18n{peoplePageTitle}" hidden>
+       <div>
+ 
+ <if expr="not is_chromeos">
 --- a/chrome/browser/ui/webui/settings/settings_ui.cc
 +++ b/chrome/browser/ui/webui/settings/settings_ui.cc
 @@ -77,6 +77,9 @@
@@ -79,7 +102,7 @@
  #include "chrome/browser/ui/webui/settings/password_manager_handler.h"
  #include "chrome/browser/ui/webui/settings/people_handler.h"
  #include "chrome/browser/ui/webui/settings/performance_handler.h"
-@@ -262,6 +265,10 @@ SettingsUI::SettingsUI(content::WebUI* web_ui)
+@@ -262,6 +265,10 @@
    AddSettingsPageUIHandler(std::make_unique<SafetyHubHandler>(profile));
    AddSettingsPageUIHandler(std::make_unique<DictationHandler>());
    AddSettingsPageUIHandler(std::make_unique<DownloadsHandler>(profile));
@@ -90,23 +113,15 @@
    AddSettingsPageUIHandler(std::make_unique<ExtensionControlHandler>());
    AddSettingsPageUIHandler(std::make_unique<FontHandler>(profile));
    AddSettingsPageUIHandler(std::make_unique<BraveImportDataHandler>());
---- a/chrome/browser/resources/settings/people_page/people_page.html.ts
-+++ b/chrome/browser/resources/settings/people_page/people_page.html.ts
-@@ -10,6 +10,7 @@
+@@ -486,6 +493,11 @@
+ #endif
  
- export function getHtml(this: SettingsPeoplePageElement) {
-   return html`<!--_html_template_start_-->
-+<settings-firefox-sync></settings-firefox-sync>
- <settings-section page-title="$i18n{peoplePageTitle}">
-       <div>
+   AddLocalizedStrings(html_source, profile, web_ui->GetWebContents());
++#if BUILDFLAG(IS_LINUX)
++  // The people page holds Firefox Sync, not a Google account.
++  html_source->AddLocalizedString("peoplePageTitle",
++                                  IDS_FIREFOX_SYNC_SECTION_TITLE);
++#endif
+   AddSecurityData(html_source);
  
---- a/chrome/browser/resources/settings/people_page/people_page.ts
-+++ b/chrome/browser/resources/settings/people_page/people_page.ts
-@@ -14,6 +14,7 @@
- import 'chrome://resources/cr_elements/icons.html.js';
- import 'chrome://resources/cr_elements/policy/cr_policy_indicator.js';
- import '../controls/settings_toggle_button.js';
-+import '../autofill_page/firefox_sync.js';
- // <if expr="not is_chromeos">
- import './sync_account_control.js';
- // </if>
+   ManagedUIHandler::Initialize(web_ui, html_source);
