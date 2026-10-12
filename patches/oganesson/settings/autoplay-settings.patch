@@ -38,14 +38,6 @@
  import './site_settings/storage_access_page.js';
  import './site_settings/usb_devices_page.js';
  import './site_settings/v8_page.js';
-@@ -335,6 +336,7 @@
- export {SettingsSmartCardReadersPageElement} from './site_settings/smart_card_readers_page.js';
- // </if>
- export {SoundPageElement} from './site_settings/sound_page.js';
-+export {AutoplayPageElement} from './site_settings/autoplay_page.js';
- export {StorageAccessSiteListElement} from './site_settings/storage_access_site_list.js';
- export {StorageAccessSiteListEntryElement} from './site_settings/storage_access_site_list_entry.js';
- export {StorageAccessStaticSiteListEntryElement} from './site_settings/storage_access_static_site_list_entry.js';
 --- a/chrome/browser/resources/settings/privacy_page/privacy_page_index.html
 +++ b/chrome/browser/resources/settings/privacy_page/privacy_page_index.html
 @@ -475,6 +475,15 @@

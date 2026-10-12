@@ -30,13 +30,12 @@
    ContentSetting setting = host_content_settings_map_->GetContentSetting(
 --- a/components/content_settings/core/browser/content_settings_registry.cc
 +++ b/components/content_settings/core/browser/content_settings_registry.cc
-@@ -253,9 +253,12 @@
+@@ -253,9 +253,11 @@
             ContentSettingsInfo::INHERIT_IN_INCOGNITO,
             PermissionSettingsInfo::EXCEPTIONS_ON_SECURE_ORIGINS_ONLY);
  
 -  Register(ContentSettingsType::AUTOPLAY, "autoplay", CONTENT_SETTING_ALLOW,
-+  // oganesson: Firefox's three choices; see
-+  // chrome/browser/content_settings/autoplay_setting.h.
++  // oganesson: Firefox's three choices, see autoplay_setting.h.
 +  Register(ContentSettingsType::AUTOPLAY, "autoplay", CONTENT_SETTING_BLOCK,
             WebsiteSettingsInfo::UNSYNCABLE, /*allowlisted_primary_schemes=*/{},
 -           /*valid_settings=*/{CONTENT_SETTING_ALLOW, CONTENT_SETTING_BLOCK},
@@ -47,14 +46,11 @@
                 WebsiteSettingsRegistry::PLATFORM_ANDROID,
 --- a/third_party/blink/public/mojom/autoplay/autoplay.mojom
 +++ b/third_party/blink/public/mojom/autoplay/autoplay.mojom
-@@ -18,6 +18,12 @@
+@@ -18,6 +18,9 @@
  // user has added an exception for it.
  const int32 kAutoplayFlagUserException       = 0x00004;
  
-+// oganesson: media may start only after user input in the document, or in an
-+// ancestor that delegates autoplay to it. Activation carried over from another
-+// document (navigation, opener), media engagement and the user exception above
-+// don't count, and muted media isn't exempt.
++// oganesson: "Block audio and video", see oganesson_autoplay.h.
 +const int32 kAutoplayFlagDocumentInputRequired = 0x00008;
 +
  interface AutoplayConfigurationClient {
@@ -62,169 +58,68 @@
    AddAutoplayFlags(url.mojom.Origin origin, int32 flags);
 --- a/third_party/blink/renderer/core/frame/frame.cc
 +++ b/third_party/blink/renderer/core/frame/frame.cc
-@@ -53,6 +53,7 @@
- #include "third_party/blink/renderer/core/frame/remote_frame_owner.h"
- #include "third_party/blink/renderer/core/frame/settings.h"
+@@ -55,6 +55,7 @@
  #include "third_party/blink/renderer/core/frame/web_remote_frame_impl.h"
-+#include "third_party/blink/renderer/core/html/media/autoplay_policy.h"
  #include "third_party/blink/renderer/core/html/html_frame_element_base.h"
  #include "third_party/blink/renderer/core/html/html_object_element.h"
++#include "third_party/blink/renderer/core/html/media/oganesson_autoplay.h"
  #include "third_party/blink/renderer/core/input/event_handler.h"
-@@ -1063,6 +1064,10 @@
+ #include "third_party/blink/renderer/core/layout/layout_embedded_content.h"
+ #include "third_party/blink/renderer/core/loader/empty_clients.h"
+@@ -1059,6 +1060,7 @@
+     node->user_activation_state_.SetHasBeenActive();
+   } else {
+     node->user_activation_state_.Activate(notification_type);
++    oganesson_autoplay::DidReceiveUserActivation(*node);
+   }
    auto* local_node = DynamicTo<LocalFrame>(node);
    if (local_node) {
-     local_node->SetHadUserInteraction(true);
-+    // Not the sticky-only state a document inherits through navigation.
-+    if (!sticky_only) {
-+      AutoplayPolicy::DidReceiveUserActivation(*local_node);
-+    }
-   }
- }
- 
+--- a/third_party/blink/renderer/core/html/build.gni
++++ b/third_party/blink/renderer/core/html/build.gni
+@@ -532,6 +532,7 @@
+   "media/media_source_tracer.h",
+   "media/media_video_visibility_tracker.cc",
+   "media/media_video_visibility_tracker.h",
++  "media/oganesson_autoplay.cc",
+   "media/picture_in_picture_interstitial.cc",
+   "media/picture_in_picture_interstitial.h",
+   "media/remote_playback_controller.cc",
 --- a/third_party/blink/renderer/core/html/media/autoplay_policy.cc
 +++ b/third_party/blink/renderer/core/html/media/autoplay_policy.cc
-@@ -15,6 +15,7 @@
- #include "third_party/blink/public/web/web_settings.h"
- #include "third_party/blink/renderer/core/dom/document.h"
- #include "third_party/blink/renderer/core/execution_context/execution_context.h"
-+#include "third_party/blink/renderer/core/frame/local_dom_window.h"
- #include "third_party/blink/renderer/core/frame/local_frame.h"
- #include "third_party/blink/renderer/core/frame/settings.h"
+@@ -20,6 +20,7 @@
  #include "third_party/blink/renderer/core/html/media/autoplay_uma_helper.h"
-@@ -27,6 +28,7 @@
- #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
- #include "third_party/blink/renderer/platform/network/network_state_notifier.h"
- #include "third_party/blink/renderer/platform/runtime_enabled_features.h"
-+#include "third_party/blink/renderer/platform/supplementable.h"
- #include "third_party/blink/renderer/platform/wtf/assertions.h"
- 
- namespace blink {
-@@ -60,9 +62,50 @@
-   NOTREACHED();
- }
- 
-+// oganesson: the page's Autoplay setting is "Block audio and video".
-+bool RequiresDocumentInput(const Document& document) {
-+  return document.GetPage() &&
-+         (document.GetPage()->AutoplayFlags() &
-+          mojom::blink::kAutoplayFlagDocumentInputRequired);
-+}
-+
-+// Present on a window once its document received user input. Unlike the
-+// frame's sticky activation, a new document doesn't inherit it: Chromium keeps
-+// the activation (sticky, and transient on a reused frame) across same-origin
-+// navigations.
-+class DocumentInput final : public GarbageCollected<DocumentInput>,
-+                            public Supplement<LocalDOMWindow> {
-+ public:
-+  static constexpr char kSupplementName[] = "OganessonDocumentInput";
-+  explicit DocumentInput(LocalDOMWindow& window) : Supplement(window) {}
-+  void Trace(Visitor* visitor) const override { Supplement::Trace(visitor); }
-+};
-+
-+bool HadDocumentInput(const Frame& frame) {
-+  const auto* local_frame = DynamicTo<LocalFrame>(frame);
-+  // ponytail: a frame in another process (the parent of an out-of-process
-+  // iframe) counts with its replicated sticky activation, which a same-origin
-+  // navigation keeps. Replicate the input mark too if that matters.
-+  if (!local_frame) {
-+    return frame.HasStickyUserActivation();
-+  }
-+  return local_frame->DomWindow() &&
-+         Supplement<LocalDOMWindow>::From<DocumentInput>(
-+             local_frame->DomWindow());
-+}
-+
- }  // anonymous namespace
- 
- // static
-+void AutoplayPolicy::DidReceiveUserActivation(LocalFrame& frame) {
-+  LocalDOMWindow* window = frame.DomWindow();
-+  if (window && !Supplement<LocalDOMWindow>::From<DocumentInput>(window)) {
-+    Supplement<LocalDOMWindow>::ProvideTo(
-+        *window, MakeGarbageCollected<DocumentInput>(*window));
-+  }
-+}
-+
-+// static
- AutoplayPolicy::Type AutoplayPolicy::GetAutoplayPolicyForDocument(
-     const Document& document) {
-   if (!document.GetSettings())
-@@ -85,7 +128,10 @@
+ #include "third_party/blink/renderer/core/html/media/html_media_element.h"
+ #include "third_party/blink/renderer/core/html/media/html_video_element.h"
++#include "third_party/blink/renderer/core/html/media/oganesson_autoplay.h"
+ #include "third_party/blink/renderer/core/inspector/console_message.h"
+ #include "third_party/blink/renderer/core/intersection_observer/intersection_observer.h"
+ #include "third_party/blink/renderer/core/intersection_observer/intersection_observer_entry.h"
+@@ -85,6 +86,9 @@
    if (DocumentIsCapturingUserMedia(document))
      return true;
  
--  if (DocumentHasUserExceptionFlag(document)) {
-+  // Only input in this document or in an ancestor delegating autoplay counts.
-+  const bool document_input_only = RequiresDocumentInput(document);
++  if (oganesson_autoplay::RequiresDocumentInput(document))
++    return oganesson_autoplay::IsDocumentAllowedToPlay(document);
 +
-+  if (!document_input_only && DocumentHasUserExceptionFlag(document)) {
+   if (DocumentHasUserExceptionFlag(document)) {
      return true;
    }
- 
-@@ -98,12 +144,17 @@
- 
-   for (Frame* frame = document.GetFrame(); frame;
-        frame = frame->Tree().Parent()) {
--    if (frame->HasStickyUserActivation() ||
--        frame->HadStickyUserActivationBeforeNavigation()) {
-+    const bool activated =
-+        document_input_only
-+            ? HadDocumentInput(*frame)
-+            : frame->HasStickyUserActivation() ||
-+                  frame->HadStickyUserActivationBeforeNavigation();
-+    if (activated) {
-       return true;
-     }
- 
--    if (RuntimeEnabledFeatures::
-+    if (!document_input_only &&
-+        RuntimeEnabledFeatures::
-             MediaEngagementBypassAutoplayPoliciesEnabled() &&
-         frame->IsOutermostMainFrame() &&
-         DocumentHasHighMediaEngagement(document)) {
-@@ -145,7 +196,8 @@
+@@ -144,6 +148,8 @@
+ // static
  bool AutoplayPolicy::DocumentShouldAutoplayMutedVideos(
      const Document& document) {
++  if (oganesson_autoplay::RequiresDocumentInput(document))
++    return false;
    return GetAutoplayPolicyForDocument(document) !=
--         AutoplayPolicy::Type::kNoUserGestureRequired;
-+             AutoplayPolicy::Type::kNoUserGestureRequired &&
-+         !RequiresDocumentInput(document);
+          AutoplayPolicy::Type::kNoUserGestureRequired;
  }
- 
- // static
-@@ -273,6 +325,12 @@
+@@ -273,6 +279,9 @@
      return false;
    }
  
-+  // Not the opener's, nor what a reused frame keeps from the previous document.
-+  if (RequiresDocumentInput(element_->GetDocument())) {
-+    return LocalFrame::HasTransientUserActivation(frame) &&
-+           HadDocumentInput(*frame);
-+  }
++  if (oganesson_autoplay::RequiresDocumentInput(element_->GetDocument()))
++    return oganesson_autoplay::HasTransientUserActivation(*frame);
 +
    if (LocalFrame::HasTransientUserActivation(frame)) {
      return true;
    }
---- a/third_party/blink/renderer/core/html/media/autoplay_policy.h
-+++ b/third_party/blink/renderer/core/html/media/autoplay_policy.h
-@@ -20,6 +20,7 @@
- class HTMLMediaElement;
- class IntersectionObserver;
- class IntersectionObserverEntry;
-+class LocalFrame;
- 
- // AutoplayPolicy is the class for handles autoplay logics.
- class CORE_EXPORT AutoplayPolicy final
-@@ -59,6 +60,11 @@
-   // Returns true if the given |document| is capturing user media.
-   static bool DocumentIsCapturingUserMedia(const Document&);
- 
-+  // oganesson: a user activation reached `frame`'s document: input in it or
-+  // in a child frame, or play from the browser's media controls. See
-+  // kAutoplayFlagDocumentInputRequired.
-+  static void DidReceiveUserActivation(LocalFrame& frame);
-+
-   explicit AutoplayPolicy(HTMLMediaElement*);
-   AutoplayPolicy(const AutoplayPolicy&) = delete;
-   AutoplayPolicy& operator=(const AutoplayPolicy&) = delete;

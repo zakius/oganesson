@@ -30,7 +30,7 @@ Chromium's other exceptions still allow autoplay: an installed web app's own pag
 
 `src/chrome/browser/content_settings/autoplay_setting.cc` reads the setting for the top-level URL when a frame is about to commit a new document (`SoundContentSettingObserver::ReadyToCommitNavigation`) and sends blink an autoplay flag for that document, through the existing `AutoplayConfigurationClient`: `kAutoplayFlagForceAllow` for Allow, the new `kAutoplayFlagDocumentInputRequired` for Block, none for Block audio. The flag arrives before the document runs script. Block audio leaves the WebPreferences autoplay policy (`kDocumentUserActivationRequired`) as Chromium sets it.
 
-`patches/oganesson/core/autoplay-setting.patch` changes blink's `AutoplayPolicy` when the page has `kAutoplayFlagDocumentInputRequired`:
+When the page has `kAutoplayFlagDocumentInputRequired`, blink's `AutoplayPolicy` hands three decisions to `src/third_party/blink/renderer/core/html/media/oganesson_autoplay.cc` (hooks in `patches/oganesson/core/autoplay-setting.patch`):
 
 - `IsDocumentAllowedToPlay()` counts only input in the document, walking up to ancestors as before, and skips `HadStickyUserActivationBeforeNavigation()`, media engagement and the Sound exception flag. Web Audio and speech synthesis call this function, so they follow the same rule.
 - Transient activation counts only when it is the document's own, and not the opener's.
