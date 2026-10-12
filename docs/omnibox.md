@@ -17,6 +17,8 @@ When Past searches is off and you type exactly the words of a past search, the a
 
 With Browsing history off, a URL you type still opens that URL, visited or not.
 
+While Settings → Privacy and security has "Don't save browsing history" on, Browsing history and Past searches are off, whatever their switches say: past searches come from the history too, and history saved before stays in the profile. The two switches show off and greyed out, with a note naming that setting. Their prefs keep their values, so the switches come back as they were when history is saved again.
+
 ## Order
 
 The first row is the one Enter opens. It is chosen as in Chromium: the best match that may be the default, which for a page means it completes what you typed inline (a site you often type), and otherwise the search for what you typed. The switches don't change it, except that a source that is off can't provide it. So Enter on a URL still opens it, and Enter on words that match no site still searches.

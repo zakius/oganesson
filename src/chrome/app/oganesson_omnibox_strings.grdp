@@ -25,6 +25,9 @@
   <message name="IDS_SETTINGS_OMNIBOX_SUGGEST_PAST_SEARCHES_DESCRIPTION" desc="Settings, Manage search engines: what the past searches switch does. The address bar shows past searches as the user types, and when the user clicks into it.">
     Searches you made before, as you type and when you click the address bar
   </message>
+  <message name="IDS_SETTINGS_OMNIBOX_HISTORY_NOT_SAVED" desc="Settings, Manage search engines: description of the Browsing history and Past searches switches, switched off and greyed out while the switch 'Don't save browsing history' is on, on the Privacy and security settings page.">
+    Off while "Don't save browsing history" is on in Privacy and security
+  </message>
   <message name="IDS_SETTINGS_OMNIBOX_SEARCH_SUGGESTIONS_FIRST" desc="Settings, Manage search engines: switch that ranks search suggestions above pages from history and bookmarks in the address bar.">
     Search suggestions ahead of history and bookmarks
   </message>

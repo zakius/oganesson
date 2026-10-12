@@ -440,6 +440,11 @@
     "message": "Twoje wcześniejsze wyszukiwania, podczas pisania i po kliknięciu paska adresu"
   },
   {
+    "name": "IDS_SETTINGS_OMNIBOX_HISTORY_NOT_SAVED",
+    "source": "Off while \"Don't save browsing history\" is on in Privacy and security",
+    "message": "Wyłączone, gdy w sekcji Prywatność i bezpieczeństwo jest włączone „Nie zapisuj historii przeglądania”"
+  },
+  {
     "name": "IDS_SETTINGS_OMNIBOX_SEARCH_SUGGESTIONS_FIRST",
     "source": "Search suggestions ahead of history and bookmarks",
     "message": "Sugestie wyszukiwania przed historią i zakładkami"

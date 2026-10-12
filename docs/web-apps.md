@@ -30,11 +30,11 @@ An installed app's settings page (`chrome://app-settings/<id>`) has a "Pages tha
   - *oganesson as the default browser.* The URL opens in a tab of a regular oganesson window, not captured into an app window, and the app window still leaves it.
   - *Turning it off.* With `oganesson.web_apps.open_out_of_scope_links_in_default_browser` off, exclusions only show the out-of-app bar, like other pages out of the scope.
 - **What follows them.** Everything that uses the app's scope: links out of the app (above) and the bar that shows the origin of a page out of the app. Open app windows update that bar when the rules are saved.
+- **Normal tabs.** Everything that matches a page of a normal tab to an installed app follows the rules too: the address bar's "Open in app" icon and its bubble, the app menu's "Open in <app>", the link context menu's "Open link in <app>", links that an app captures from normal tabs ("supported links"), and which app a tab's page belongs to (its notifications and badges, for example). So with the rule `https://www.facebook.com/messages/*`, "Open in app" shows on `/messages/` pages only, and never on a page an exclusion matches. A tab shows the change with its next navigation. A URL only an include rule has ranks below every app whose manifest scope has it.
+- **What doesn't.** Installing and updating apps use the manifest's scope only, as does the install icon's check whether a page's app is already installed.
 - **Saving.** Save checks every pattern. An invalid one is rejected with a message naming it, and the rules saved before stay. An empty card removes the rules.
 - **Storage.** Per app, in the profile pref `oganesson.web_apps.user_scope_rules`. App updates and restarts keep them; they are not synced, and stay if the app is uninstalled, for a reinstall.
-- **Not covered.** Opening links from normal tabs in the app ("supported links") still uses the manifest's scope only.
-
-Code: `src/chrome/browser/web_applications/user_app_scope.cc` and `src/chrome/browser/resources/app_settings/scope_rules_item.ts`, hooked in by `patches/oganesson/core/pwa-user-scope.patch`. Verified by `./oganesson.py test web_app_links`.
+Code: `src/chrome/browser/web_applications/user_app_scope.cc` and `src/chrome/browser/resources/app_settings/scope_rules_item.ts`, hooked in by `patches/oganesson/core/pwa-user-scope.patch`. In normal tabs, the rules apply through `WebAppRegistrar`, whose URL-to-app matching (`FindBestAppWithUrlInScope`, `IsUrlInAppScope`, `IsUrlInAppExtendedScope`, `FindAppThatCapturesLinksInScope`, `GetAllAppsControllingUrl`) goes through `GetUserAppScopeScore()`; `WebappsClientDesktop::IsAppFullyInstalledForSiteUrl` asks it with `manifest_scope_only`. Verified by `./oganesson.py test web_app_links`.
 
 ## Start address
 

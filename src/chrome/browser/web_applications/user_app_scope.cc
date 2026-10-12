@@ -108,6 +108,16 @@ bool IsUrlInUserAppScope(const PrefService& prefs,
   return matched || (in_manifest_scope && !host_named);
 }
 
+int GetUserAppScopeScore(const PrefService& prefs,
+                         const webapps::AppId& app_id,
+                         const GURL& url,
+                         int manifest_score) {
+  if (!IsUrlInUserAppScope(prefs, app_id, url, manifest_score > 0)) {
+    return 0;
+  }
+  return manifest_score > 0 ? manifest_score : 1;
+}
+
 bool IsUrlExcludedFromUserAppScope(const PrefService& prefs,
                                    const webapps::AppId& app_id,
                                    const GURL& url) {

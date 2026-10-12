@@ -23,6 +23,7 @@ void AddOmniboxSuggestionsStrings(content::WebUIDataSource* html_source) {
       {"omniboxSuggestPastSearches", IDS_SETTINGS_OMNIBOX_SUGGEST_PAST_SEARCHES},
       {"omniboxSuggestPastSearchesDescription",
        IDS_SETTINGS_OMNIBOX_SUGGEST_PAST_SEARCHES_DESCRIPTION},
+      {"omniboxHistoryNotSaved", IDS_SETTINGS_OMNIBOX_HISTORY_NOT_SAVED},
       {"omniboxSearchSuggestionsFirst",
        IDS_SETTINGS_OMNIBOX_SEARCH_SUGGESTIONS_FIRST},
       {"omniboxSearchSuggestionsFirstDescription",

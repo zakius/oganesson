@@ -2,7 +2,8 @@
 (#270), with the scope rules the user adds on chrome://app-settings (#271,
 #346) and the start address set there (#346), and from a link's context menu
 in an app window (#345); also for DIY apps, and not for isolated web apps
-(#351). A stub `xdg-open` on PATH stands in for the desktop's default
+(#351). In normal tabs, "Open in app" and link capturing follow the scope
+rules too. A stub `xdg-open` on PATH stands in for the desktop's default
 handler and records the URLs it gets, and the activation token variables it
 sees, which decide whether the browser it starts may take focus; a stub `xdg-settings` and a desktop
 file make oganesson the default browser when a test needs it.
@@ -58,6 +59,14 @@ APP_PAGE = b'''<!doctype html><link rel="manifest" href="/app/manifest.json">
 RULES = 'http://localhost:*/other/*\n!http://127.0.0.1:*/app/excluded.html'
 # A rule on the app's own site, which narrows its scope there to /app/mail/.
 NARROW = 'http://127.0.0.1:*/app/mail/*'
+# A page out of the app, for a normal tab: links an app can capture.
+LINKS_PAGE = b'''<!doctype html>
+<a id="mail" href="/app/mail/x.html" target="_blank">in a narrowing rule</a>
+<a id="inside" href="/app/inside.html" target="_blank">in the manifest scope</a>
+<a id="excluded" href="/app/excluded.html" target="_blank">excluded</a>'''
+# The address bar's "Open in app" icon: its tooltip with and without the
+# link capturing UX.
+OPEN_IN_APP = {'Open in app', 'To open this link, choose an app'}
 
 
 
@@ -119,6 +128,7 @@ class WebAppTest(BrowserTest):
             '/app/excluded.html': (200, {'Content-Type': 'text/html'}, b'excluded'),
             '/app/mail/x.html': (200, {'Content-Type': 'text/html'}, b'mail'),
             '/app/start.html': (200, {'Content-Type': 'text/html'}, b'start'),
+            '/links.html': (200, {'Content-Type': 'text/html'}, LINKS_PAGE),
             '/post.html': (200, {'Content-Type': 'text/html'}, b'posted'),
             '/post-opener.html': (200, {'Content-Type': 'text/html'}, b'posted'),
             '/app/icon.png': (200, {'Content-Type': 'image/png'}, png(192)),
@@ -763,6 +773,77 @@ class WebAppLinksTest(WebAppTest):
         self.addCleanup(self.browser.close_target, tab)
         wait_for(lambda: tab.eval('document.body?.textContent') == 'out', what='the page')
         self.assertEqual(tab.eval('opener.location.href'), self.server.url('/app/index.html'))
+        self.assertEqual(self.opened(), [])
+
+
+class BrowserTabTest(WebAppTest):
+    """In a normal tab, what matches a page to the app follows its scope
+    rules: the address bar's "Open in app" icon, and link capturing."""
+
+    def open_in_app_shown(self):
+        return any(v.visible and v['TooltipText'] in OPEN_IN_APP
+                   for v in self.browser.views('PageActionView'))
+
+    def tab_at(self, path):
+        tab = self.browser.new_tab(self.server.url(path))
+        self.addCleanup(self.browser.close_target, tab)
+        wait_for(lambda: tab.eval('location.pathname') == path
+                 and tab.eval('document.readyState') == 'complete', what=path)
+        return tab
+
+    def go(self, tab, path):
+        tab.eval(f'location.href = {json.dumps(self.server.url(path))}')
+        wait_for(lambda: tab.eval('location.pathname') == path
+                 and tab.eval('document.readyState') == 'complete', what=path)
+
+    def test_open_in_app_icon_follows_narrowing(self):
+        self.set_rules(NARROW)
+        tab = self.tab_at('/app/mail/x.html')
+        wait_for(self.open_in_app_shown, what='"Open in app" on a page of the rule')
+        # In the manifest's scope, but not in the rule on its host.
+        self.go(tab, '/app/inside.html')
+        wait_for(lambda: not self.open_in_app_shown(), what='"Open in app" gone')
+
+    def test_open_in_app_icon_hidden_on_excluded_page(self):
+        self.set_rules(RULES)
+        tab = self.tab_at('/app/inside.html')
+        wait_for(self.open_in_app_shown, what='"Open in app" in the scope')
+        self.go(tab, '/app/excluded.html')
+        wait_for(lambda: not self.open_in_app_shown(), what='"Open in app" gone')
+
+    def captured(self, link):
+        """Clicks `link` on a normal tab's page; returns whether it opened in
+        the app's window rather than a tab."""
+        tab = self.tab_at('/links.html')
+        path = tab.eval(f'new URL(document.getElementById({json.dumps(link)}).href).pathname')
+        before = {t['id'] for t in self.browser.targets()}
+        tab.click(f'#{link}')
+        target = wait_for(lambda: next((t for t in self.browser.targets() if t['id'] not in before
+                                        and t['url'].endswith(path)), None),
+                          what=f'{path} opened')
+        page = Page(target)
+        self.addCleanup(self.browser.close_target, page)
+        wait_for(lambda: page.eval('document.readyState') == 'complete', what=path)
+        return page.eval('matchMedia("(display-mode: standalone)").matches')
+
+    def capture_links(self):
+        self.browser.pipe_call('PWA.changeAppUserSettings', manifestId=self.manifest_id,
+                               linkCapturing=True)
+        self.addCleanup(self.browser.pipe_call, 'PWA.changeAppUserSettings',
+                        manifestId=self.manifest_id, linkCapturing=False)
+
+    def test_captured_links_follow_narrowing(self):
+        self.capture_links()
+        self.set_rules(NARROW)
+        self.assertTrue(self.captured('mail'))
+        self.assertFalse(self.captured('inside'))
+        self.assertEqual(self.opened(), [])
+
+    def test_captured_links_skip_excluded_page(self):
+        self.capture_links()
+        self.set_rules(RULES)
+        self.assertTrue(self.captured('inside'))
+        self.assertFalse(self.captured('excluded'))
         self.assertEqual(self.opened(), [])
 
 

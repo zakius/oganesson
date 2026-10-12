@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <iterator>
+#include <string_view>
 
 #include "base/i18n/case_conversion.h"
 #include "base/strings/string_util.h"
@@ -97,6 +98,15 @@ void RegisterSuggestionSourcePrefs(PrefRegistrySimple* registry) {
 bool SuggestsFrom(const PrefService* prefs, const char* pref) {
   if (!prefs || !prefs->FindPreference(pref)) {
     return true;
+  }
+  // prefs::kSavingBrowserHistoryDisabled, which this target can't include.
+  static constexpr char kSavingBrowserHistoryDisabled[] =
+      "history.saving_disabled";
+  if ((std::string_view(pref) == kSuggestHistory ||
+       std::string_view(pref) == kSuggestPastSearches) &&
+      prefs->FindPreference(kSavingBrowserHistoryDisabled) &&
+      prefs->GetBoolean(kSavingBrowserHistoryDisabled)) {
+    return false;
   }
   return prefs->GetBoolean(pref);
 }

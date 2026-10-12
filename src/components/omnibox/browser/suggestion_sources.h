@@ -37,6 +37,8 @@ inline constexpr char kSearchSuggestionsFirst[] =
 void RegisterSuggestionSourcePrefs(PrefRegistrySimple* registry);
 
 // Whether a source's switch is on; true where the pref isn't registered.
+// Browsing history and past searches, which come from history, are off while
+// history isn't saved, whatever their switches say.
 bool SuggestsFrom(const PrefService* prefs, const char* pref);
 
 // `matches` without those from sources that are off. A past search for just

@@ -16,10 +16,16 @@ export function getHtml(this: SettingsOmniboxSuggestionsElement) {
     </div>
   </div>
 </div>
+${this.historyNotSaved_ ? html`
+<settings-toggle-button id="history" class="hr" disabled
+    .pref="${this.offPref_}"
+    label="${this.i18n('omniboxSuggestHistory')}"
+    sub-label="${this.i18n('omniboxHistoryNotSaved')}">
+</settings-toggle-button>` : html`
 <settings-toggle-button id="history" class="hr"
     pref-key="oganesson.omnibox.suggest_history"
     label="${this.i18n('omniboxSuggestHistory')}">
-</settings-toggle-button>
+</settings-toggle-button>`}
 <settings-toggle-button id="bookmarks" class="hr"
     pref-key="oganesson.omnibox.suggest_bookmarks"
     label="${this.i18n('omniboxSuggestBookmarks')}">
@@ -29,11 +35,17 @@ export function getHtml(this: SettingsOmniboxSuggestionsElement) {
     label="${this.i18n('omniboxSuggestOpenTabs')}"
     sub-label="${this.i18n('omniboxSuggestOpenTabsDescription')}">
 </settings-toggle-button>
+${this.historyNotSaved_ ? html`
+<settings-toggle-button id="pastSearches" class="hr" disabled
+    .pref="${this.offPref_}"
+    label="${this.i18n('omniboxSuggestPastSearches')}"
+    sub-label="${this.i18n('omniboxHistoryNotSaved')}">
+</settings-toggle-button>` : html`
 <settings-toggle-button id="pastSearches" class="hr"
     pref-key="oganesson.omnibox.suggest_past_searches"
     label="${this.i18n('omniboxSuggestPastSearches')}"
     sub-label="${this.i18n('omniboxSuggestPastSearchesDescription')}">
-</settings-toggle-button>
+</settings-toggle-button>`}
 <settings-toggle-button id="searchSuggestToggle" class="hr"
     pref-key="search.suggest_enabled"
     label="${this.i18n('searchSuggestPref')}"

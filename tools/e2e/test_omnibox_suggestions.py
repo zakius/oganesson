@@ -7,7 +7,9 @@ omnibox, reports the real address bar's matches with their types while
 typing into it. Defaults: no past search, and below the first match, pages
 come before searches. Each source's switch removes its matches; "ahead"
 brings Chromium's order back. Enter on a URL still navigates and Enter on
-a word still searches, also with history off.
+a word still searches, also with history off. While history isn't saved,
+history and past searches are off and their switches greyed out, and come
+back as they were when it is saved again.
 """
 
 import json
@@ -257,6 +259,50 @@ class OmniboxSuggestionsTest(BrowserTest):
         self.assertFalse(search.eval(f"!!({FIND})('settings-search-page').shadowRoot"
                                      ".querySelector('#searchSuggestToggle')"))
         self.browser.close_target(search)
+
+    def switch_state(self, switch):
+        return self.settings.eval(
+            f"(() => {{ const t = ({FIND})('settings-omnibox-suggestions').shadowRoot"
+            f".querySelector('#{switch}'); return t && [t.checked, t.controlDisabled(),"
+            " t.subLabel]; })()")
+
+    def test_9_history_not_saved(self):
+        # While history isn't saved, history and past searches are off and
+        # greyed out; their prefs keep the user's choice for when it is again.
+        self.set_prefs(suggest_past_searches=True)
+        self.addCleanup(self.set_prefs)
+        saving = 'history.saving_disabled'
+        self.settings.eval(f'chrome.settingsPrivate.setPref({json.dumps(saving)}, true)')
+        self.addCleanup(lambda: self.settings.eval(
+            f'chrome.settingsPrivate.setPref({json.dumps(saving)}, false)'))
+        wait_for(lambda: self.pref(saving), what=saving)
+        note = 'Off while "Don\'t save browsing history" is on in Privacy and security'
+        for switch in ('history', 'pastSearches'):
+            wait_for(lambda: self.switch_state(switch) == [False, True, note],
+                     what=f'{switch} off and greyed out')
+        section = f"({FIND})('settings-omnibox-suggestions').shadowRoot"
+        self.settings.eval(f"{section}.querySelector('#history').click()")
+        self.assertEqual(self.switch_state('bookmarks')[:2], [True, False])
+        self.assertTrue(self.pref('oganesson.omnibox.suggest_history'))
+        self.assertTrue(self.pref('oganesson.omnibox.suggest_past_searches'))
+        rows = self.suggest('zebr')
+        self.assertFalse([r for r in rows if r['type'].startswith('history-')
+                          or r['type'] == 'search-history'], rows)
+        self.assertEqual(self.urls(rows) & {'/', '/zebra-one.html', '/zebra-tab.html'}, set(),
+                         rows)
+        self.assertFalse([r for r in rows if 'zebrafish' in r['contents']], rows)
+        self.assertIn('/zebra-bookmark.html', self.urls(rows), rows)
+
+        self.settings.eval(f'chrome.settingsPrivate.setPref({json.dumps(saving)}, false)')
+        self.assertEqual(wait_for(lambda: self.switch_state('history')[1] is False
+                                  and self.switch_state('history'), what='history back'),
+                         [True, False, ''])
+        wait_for(lambda: self.switch_state('pastSearches')[:2] == [True, False],
+                 what='past searches back')
+        rows = self.suggest('zebr')
+        self.assertIn('/zebra-one.html', self.urls(rows), rows)
+        self.assertTrue([r for r in rows if r['type'] == 'search-history'
+                         and r['contents'] == 'zebrafish facts'], rows)
 
 
 if __name__ == '__main__':
