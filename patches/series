@@ -200,3 +200,5 @@ oganesson/core/omnibox-suggestion-sources.patch
 oganesson/settings/omnibox-suggestions-settings.patch
 oganesson/core/autoplay-setting.patch
 oganesson/settings/autoplay-settings.patch
+oganesson/core/tab-audio-indicator.patch
+oganesson/settings/tab-audio-indicator-settings.patch

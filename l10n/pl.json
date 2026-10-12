@@ -255,6 +255,11 @@
     "message": "Menu"
   },
   {
+    "name": "IDS_OGANESSON_SHOW_TAB_AUDIO_INDICATOR",
+    "source": "Show sound icon on tabs",
+    "message": "Pokazuj ikonę dźwięku na kartach"
+  },
+  {
     "name": "IDS_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER",
     "source": "Open link in default browser",
     "message": "Otwórz link w domyślnej przeglądarce"
