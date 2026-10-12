@@ -202,3 +202,4 @@ oganesson/core/autoplay-setting.patch
 oganesson/settings/autoplay-settings.patch
 oganesson/core/tab-audio-indicator.patch
 oganesson/settings/tab-audio-indicator-settings.patch
+oganesson/ui/wayland-drag-resting-pointer.patch
