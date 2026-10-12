@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright 2026 The oganesson Authors. GPL-3.0, see the LICENSE file. -->
+<grit-part>
+  <message name="IDS_SETTINGS_OMNIBOX_SUGGESTIONS" desc="Settings, Manage search engines: heading of the switches that choose what the address bar suggests as the user types.">
+    Address bar suggestions
+  </message>
+  <message name="IDS_SETTINGS_OMNIBOX_SUGGESTIONS_DESCRIPTION" desc="Settings, Manage search engines: explanation under the Address bar suggestions heading.">
+    Choose what the address bar suggests as you type
+  </message>
+  <message name="IDS_SETTINGS_OMNIBOX_SUGGEST_HISTORY" desc="Settings, Manage search engines: switch that lets the address bar suggest pages from the browsing history.">
+    Browsing history
+  </message>
+  <message name="IDS_SETTINGS_OMNIBOX_SUGGEST_BOOKMARKS" desc="Settings, Manage search engines: switch that lets the address bar suggest bookmarks.">
+    Bookmarks
+  </message>
+  <message name="IDS_SETTINGS_OMNIBOX_SUGGEST_OPEN_TABS" desc="Settings, Manage search engines: switch that lets the address bar suggest switching to an open tab.">
+    Open tabs
+  </message>
+  <message name="IDS_SETTINGS_OMNIBOX_SUGGEST_OPEN_TABS_DESCRIPTION" desc="Settings, Manage search engines: what the open tabs switch does. 'Switch to this tab' is the button the address bar shows on a suggestion that is open in a tab.">
+    Offers "Switch to this tab" for a page that is already open
+  </message>
+  <message name="IDS_SETTINGS_OMNIBOX_SUGGEST_PAST_SEARCHES" desc="Settings, Manage search engines: switch that lets the address bar suggest searches the user made before.">
+    Past searches
+  </message>
+  <message name="IDS_SETTINGS_OMNIBOX_SUGGEST_PAST_SEARCHES_DESCRIPTION" desc="Settings, Manage search engines: what the past searches switch does. The address bar shows past searches as the user types, and when the user clicks into it.">
+    Searches you made before, as you type and when you click the address bar
+  </message>
+  <message name="IDS_SETTINGS_OMNIBOX_SEARCH_SUGGESTIONS_FIRST" desc="Settings, Manage search engines: switch that ranks search suggestions above pages from history and bookmarks in the address bar.">
+    Search suggestions ahead of history and bookmarks
+  </message>
+  <message name="IDS_SETTINGS_OMNIBOX_SEARCH_SUGGESTIONS_FIRST_DESCRIPTION" desc="Settings, Manage search engines: what the switch that ranks search suggestions first does. When it is off, pages from history and bookmarks come before searches; the first suggestion, which Enter opens, is the same either way.">
+    When off, pages from history and bookmarks come before searches. The first suggestion stays the same.
+  </message>
+</grit-part>

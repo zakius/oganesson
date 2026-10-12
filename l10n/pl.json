@@ -398,5 +398,55 @@
     "name": "IDS_SETTINGS_KEEP_CLOSED_TABS_DESCRIPTION",
     "source": "Closed tabs and windows are kept in memory only, never on disk, so Ctrl+Shift+T and Recently closed work. Turn off to keep nothing.",
     "message": "Zamknięte karty i okna są przechowywane tylko w pamięci, nigdy na dysku, więc Ctrl+Shift+T i lista ostatnio zamkniętych działają. Wyłącz, aby nic nie przechowywać."
+  },
+  {
+    "name": "IDS_SETTINGS_OMNIBOX_SUGGESTIONS",
+    "source": "Address bar suggestions",
+    "message": "Sugestie paska adresu"
+  },
+  {
+    "name": "IDS_SETTINGS_OMNIBOX_SUGGESTIONS_DESCRIPTION",
+    "source": "Choose what the address bar suggests as you type",
+    "message": "Wybierz, co pasek adresu podpowiada podczas pisania"
+  },
+  {
+    "name": "IDS_SETTINGS_OMNIBOX_SUGGEST_HISTORY",
+    "source": "Browsing history",
+    "message": "Historia przeglądania"
+  },
+  {
+    "name": "IDS_SETTINGS_OMNIBOX_SUGGEST_BOOKMARKS",
+    "source": "Bookmarks",
+    "message": "Zakładki"
+  },
+  {
+    "name": "IDS_SETTINGS_OMNIBOX_SUGGEST_OPEN_TABS",
+    "source": "Open tabs",
+    "message": "Otwarte karty"
+  },
+  {
+    "name": "IDS_SETTINGS_OMNIBOX_SUGGEST_OPEN_TABS_DESCRIPTION",
+    "source": "Offers \"Switch to this tab\" for a page that is already open",
+    "message": "Proponuje „Przełącz na tę kartę” dla strony, która jest już otwarta"
+  },
+  {
+    "name": "IDS_SETTINGS_OMNIBOX_SUGGEST_PAST_SEARCHES",
+    "source": "Past searches",
+    "message": "Wcześniejsze wyszukiwania"
+  },
+  {
+    "name": "IDS_SETTINGS_OMNIBOX_SUGGEST_PAST_SEARCHES_DESCRIPTION",
+    "source": "Searches you made before, as you type and when you click the address bar",
+    "message": "Twoje wcześniejsze wyszukiwania, podczas pisania i po kliknięciu paska adresu"
+  },
+  {
+    "name": "IDS_SETTINGS_OMNIBOX_SEARCH_SUGGESTIONS_FIRST",
+    "source": "Search suggestions ahead of history and bookmarks",
+    "message": "Sugestie wyszukiwania przed historią i zakładkami"
+  },
+  {
+    "name": "IDS_SETTINGS_OMNIBOX_SEARCH_SUGGESTIONS_FIRST_DESCRIPTION",
+    "source": "When off, pages from history and bookmarks come before searches. The first suggestion stays the same.",
+    "message": "Gdy wyłączone, strony z historii i zakładek są przed wyszukiwaniami. Pierwsza sugestia się nie zmienia."
   }
 ]

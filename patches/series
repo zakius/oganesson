@@ -196,3 +196,5 @@ oganesson/settings/no-saved-history-settings.patch
 oganesson/core/firefox-sync-remote-tabs.patch
 oganesson/ui/firefox-sync-avatar.patch
 oganesson/ui/no-media-toolbar-button.patch
+oganesson/core/omnibox-suggestion-sources.patch
+oganesson/settings/omnibox-suggestions-settings.patch

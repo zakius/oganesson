@@ -1,0 +1,120 @@
+--- a/chrome/app/generated_resources.grd
++++ b/chrome/app/generated_resources.grd
+@@ -326,6 +326,7 @@
+       <part file="oganesson_toolbar_strings.grdp" />
+       <part file="oganesson_web_app_strings.grdp" />
+       <part file="oganesson_history_strings.grdp" />
++      <part file="oganesson_omnibox_strings.grdp" />
+       <if expr="not is_android">
+         <part file="shared_settings_strings.grdp"/>
+       </if>
+--- a/chrome/app/generated_resources.grd.gritdeps
++++ b/chrome/app/generated_resources.grd.gritdeps
+@@ -17,6 +17,7 @@
+ chrome/app/oganesson_firefox_sync_strings.grdp
+ chrome/app/oganesson_history_strings.grdp
+ chrome/app/oganesson_mouse_gestures_strings.grdp
++chrome/app/oganesson_omnibox_strings.grdp
+ chrome/app/oganesson_toolbar_strings.grdp
+ chrome/app/oganesson_web_app_strings.grdp
+ chrome/app/os_settings_search_tag_strings.grdp
+--- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
++++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
+@@ -57,6 +57,7 @@
+ #include "components/live_caption/pref_names.h"
+ #include "components/media_router/common/pref_names.h"
+ #include "components/omnibox/browser/omnibox_prefs.h"
++#include "components/omnibox/browser/suggestion_sources.h"
+ #include "components/optimization_guide/core/feature_registry/feature_registration.h"
+ #include "components/optimization_guide/core/optimization_guide_prefs.h"
+ #include "components/password_manager/core/common/password_manager_pref_names.h"
+@@ -508,6 +509,12 @@
+   // Sync and personalization page.
+   (*s_allowlist)[::prefs::kSearchSuggestEnabled] =
+       settings_api::PrefType::kBoolean;
++  for (const char* pref :
++       {::omnibox::kSuggestHistory, ::omnibox::kSuggestBookmarks,
++        ::omnibox::kSuggestOpenTabs, ::omnibox::kSuggestPastSearches,
++        ::omnibox::kSearchSuggestionsFirst}) {
++    (*s_allowlist)[pref] = settings_api::PrefType::kBoolean;
++  }
+   (*s_allowlist)
+       [::unified_consent::prefs::kUrlKeyedAnonymizedDataCollectionEnabled] =
+           settings_api::PrefType::kBoolean;
+--- a/chrome/browser/resources/settings/BUILD.gn
++++ b/chrome/browser/resources/settings/BUILD.gn
+@@ -506,6 +506,10 @@
+   ]
+   ts_files += [ "autofill_page/firefox_sync.ts" ]
+   ts_files += [ "privacy_page/history_saving.ts" ]
++  ts_files += [
++    "search_page/omnibox_suggestions.html.ts",
++    "search_page/omnibox_suggestions.ts",
++  ]
+ 
+   # -----------------ts_files end -------------------------------
+ 
+--- a/chrome/browser/resources/settings/search_page/search_engines_page.html.ts
++++ b/chrome/browser/resources/settings/search_page/search_engines_page.html.ts
+@@ -45,6 +45,7 @@
+       </controlled-radio-button>
+     </settings-radio-group>
+   </div>
++  <settings-omnibox-suggestions></settings-omnibox-suggestions>
+ 
+   <div class="cr-row first">
+     <div class="flex cr-padded-text">
+--- a/chrome/browser/resources/settings/search_page/search_engines_page.ts
++++ b/chrome/browser/resources/settings/search_page/search_engines_page.ts
+@@ -12,6 +12,7 @@
+ import '../simple_confirmation_dialog.js';
+ import './search_engine_edit_dialog.js';
+ import './search_engines_list.js';
++import './omnibox_suggestions.js';
+ import './omnibox_extension_entry.js';
+ import '../settings_page/settings_subpage.js';
+ 
+--- a/chrome/browser/resources/settings/search_page/search_page.html.ts
++++ b/chrome/browser/resources/settings/search_page/search_page.html.ts
+@@ -44,12 +44,6 @@
+         <div>${this.confirmationToastLabel_}</div>
+       </cr-toast>
+     </div>
+-    <settings-toggle-button id="searchSuggestToggle"
+-        class="hr"
+-        pref-key="search.suggest_enabled"
+-        label="$i18n{searchSuggestPref}"
+-        sub-label="$i18n{searchSuggestPrefDesc}">
+-    </settings-toggle-button>
+ 
+     ${this.defaultSearchProviderDataPref_?.extensionId ? html`
+       ${this.searchSettingsUpdateEnabled_ ? html`
+--- a/chrome/browser/ui/webui/settings/BUILD.gn
++++ b/chrome/browser/ui/webui/settings/BUILD.gn
+@@ -159,6 +159,8 @@
+     "history_saving_settings.cc",
+     "history_saving_settings.h",
+     "mouse_gestures_settings.cc",
++    "omnibox_suggestions_settings.cc",
++    "omnibox_suggestions_settings.h",
+     "shortcut_capture_suspender.cc",
+     "captions_handler.cc",
+     "custom_home_pages_table_model.cc",
+--- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
++++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
+@@ -4,6 +4,7 @@
+ 
+ #include "chrome/browser/ui/webui/settings/history_saving_settings.h"
+ #include "chrome/browser/ui/webui/settings/mouse_gestures_settings.h"
++#include "chrome/browser/ui/webui/settings/omnibox_suggestions_settings.h"
+ #include "chrome/browser/ui/webui/settings/settings_localized_strings_provider.h"
+ 
+ #include <string>
+@@ -4452,6 +4453,7 @@
+       base::FeatureList::IsEnabled(features::kCustomizableBrowserShortcuts));
+   AddMouseGestureStrings(html_source);
+   AddHistorySavingStrings(html_source);
++  AddOmniboxSuggestionsStrings(html_source);
+ 
+ #if BUILDFLAG(IS_WIN)
+   html_source->AddString("isolationStateLearnMoreUrl",
