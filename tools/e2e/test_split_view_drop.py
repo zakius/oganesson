@@ -29,7 +29,9 @@ class SplitViewDropTest(BrowserTest):
         cls.server.stop()
 
     def contents(self):
-        return [v for v in self.browser.views('ContentsWebView') if v.visible]
+        # Containers: after a split, the second ContentsWebView stays visible
+        # in a hidden container while a tab outside the split is shown.
+        return [v for v in self.browser.views('ContentsContainerView') if v.visible]
 
     def drop_target(self):
         return next((v for v in self.browser.views('MultiContentsDropTargetView')
