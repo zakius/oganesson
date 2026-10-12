@@ -163,6 +163,11 @@ class TabSearchButtonTest(BrowserTest):
         self.assertFalse(any(v.visible for v in self.browser.views(
             'TabStripFlatEdgeButton', TooltipText='Tab search')))
 
+    def test_1b_no_media_button(self):
+        # It would appear only while media plays; Cast is in the app menu.
+        self.tab_search()
+        self.assertEqual(self.browser.views('MediaToolbarButtonView'), [])
+
     def bubbles(self):
         return [v.bounds for v in self.browser.views('WebUIBubbleDialogView') if v.visible]
 

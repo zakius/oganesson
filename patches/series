@@ -195,3 +195,4 @@ oganesson/core/no-saved-history.patch
 oganesson/settings/no-saved-history-settings.patch
 oganesson/core/firefox-sync-remote-tabs.patch
 oganesson/ui/firefox-sync-avatar.patch
+oganesson/ui/no-media-toolbar-button.patch
