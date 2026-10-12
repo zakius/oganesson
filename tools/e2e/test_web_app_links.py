@@ -38,6 +38,18 @@ APP_PAGE = b'''<!doctype html><link rel="manifest" href="/app/manifest.json">
 <a id="cross-out" href="/elsewhere.html">another origin, in no rule</a>
 <a id="excluded" href="/app/excluded.html">excluded by a user rule</a>
 <a id="mail" href="/app/mail/x.html">in a rule on the app's own site</a>
+<a id="push" href="/app/excluded.html" onclick="event.preventDefault();
+  history.pushState(null, '', this.href)">excluded, pushed</a>
+<a id="replace" href="/app/excluded.html" onclick="event.preventDefault();
+  history.replaceState(null, '', this.href)">excluded, replaced</a>
+<a id="push-inside" href="/app/inside.html" onclick="event.preventDefault();
+  history.pushState(null, '', this.href)">in scope, pushed</a>
+<a id="assign" href="/app/excluded.html" onclick="event.preventDefault();
+  location.href = this.href">excluded, by script</a>
+<a id="rewrite" href="/app/inside.html"
+  onmousedown="this.href = '/app/to-excluded'">excluded, through a redirect</a>
+<a id="rewrite-out" href="/app/inside.html"
+  onmousedown="this.href = '/app/to-out'">out of scope, through a redirect</a>
 <script>for (const id of ['cross-in', 'cross-out'])
   document.getElementById(id).host = `localhost:${location.port}`;</script>'''
 
@@ -117,6 +129,10 @@ class WebAppTest(BrowserTest):
                 **cls.manifest_extra}).encode()),
         })
         # Out of the app's scope, and redirects into it.
+        # In the app's scope, and redirect out of it: to an excluded page, and
+        # to a page in no rule.
+        cls.server.routes['/app/to-excluded'] = (302, {'Location': '/app/excluded.html'}, b'')
+        cls.server.routes['/app/to-out'] = (302, {'Location': '/out.html?redirect'}, b'')
         cls.server.routes['/bounce'] = (302, {'Location': cls.server.url('/app/start.html', cls.app_host)}, b'')
         cls.manifest_id = cls.server.url(cls.manifest_path, cls.app_host)
         cls.install()
@@ -369,6 +385,98 @@ class WebAppLinksTest(WebAppTest):
         wait_for(self.opened, what='xdg-open')
         self.assertEqual(self.opened(), [self.server.url('/app/excluded.html')])
         self.assertEqual(app.eval('location.href'), self.server.url('/app/index.html'))
+
+    def assert_excluded_opened(self, app, url='/app/index.html'):
+        """The excluded page went to the default browser, and the app window
+        is back at `url`."""
+        wait_for(self.opened, what='xdg-open')
+        self.assertEqual(self.opened(), [self.server.url('/app/excluded.html')])
+        wait_for(lambda: app.eval('location.href') == self.server.url(url),
+                 what='the app window back')
+
+    def test_exclusion_takes_pushed_page_out(self):
+        # A click handler that keeps the link in the page, as Facebook's does.
+        self.set_rules(RULES)
+        app = self.launch_app()
+        length = app.eval('history.length')
+        app.click('#push')
+        self.assert_excluded_opened(app)
+        self.assertEqual(app.eval('history.length'), length + 1)
+
+    def test_exclusion_takes_replaced_page_out(self):
+        self.set_rules(RULES)
+        app = self.launch_app()
+        app.click('#replace')
+        self.assert_excluded_opened(app)
+        # The page before loads again in the replaced entry.
+        wait_for(lambda: app.eval('document.readyState === "complete"'), what='the page')
+        self.assertEqual(app.eval('history.length'), 1)
+
+    def test_exclusion_takes_script_navigation_out(self):
+        self.set_rules(RULES)
+        app = self.launch_app()
+        app.click('#assign')
+        self.assert_excluded_opened(app)
+
+    def test_exclusion_takes_script_navigation_without_gesture_out(self):
+        self.set_rules(RULES)
+        app = self.launch_app()
+        app.eval('location.href = "/app/excluded.html"')
+        self.assert_excluded_opened(app)
+
+    def test_exclusion_takes_redirect_out(self):
+        # A link whose href changes on mousedown to a redirector in scope.
+        self.set_rules(RULES)
+        app = self.launch_app()
+        app.click('#rewrite')
+        self.assert_excluded_opened(app)
+        self.assertIn('/app/to-excluded', self.server.requests)
+
+    def test_exclusion_off_with_pref(self):
+        self.set_rules(RULES)
+        self.set_pref(False)
+        self.addCleanup(self.set_pref, True)
+        app = self.launch_app()
+        app.click('#push')
+        wait_for(lambda: app.eval('location.href') == self.server.url('/app/excluded.html'),
+                 what='the pushed page in the app window')
+        app.click('#assign')
+        wait_for(lambda: app.eval('document.body?.textContent') == 'excluded',
+                 what='the excluded page in the app window')
+        self.assertEqual(self.opened(), [])
+
+    def test_default_browser_opens_excluded_page_in_tab(self):
+        self.set_rules(RULES)
+        self.make_default_browser()
+        app = self.launch_app()
+        app.click('#push')
+        # The app window shows the excluded URL until it goes back.
+        wait_for(lambda: app.eval('location.href') == self.server.url('/app/index.html'),
+                 what='the app window back')
+        tab = Page(wait_for(lambda: next((t for t in self.browser.targets() if t['id'] != app.id
+                                          and '/app/excluded.html' in t['url']), None),
+                            what='the excluded page in a tab'))
+        self.addCleanup(self.browser.close_target, tab)
+        wait_for(lambda: tab.eval('document.body?.textContent') == 'excluded', what='the page')
+        self.assertTrue(tab.eval('matchMedia("(display-mode: browser)").matches'))
+        self.assertEqual(self.opened(), [])
+
+    def test_in_scope_push_stays_in_app(self):
+        self.set_rules(RULES)
+        app = self.launch_app()
+        app.click('#push-inside')
+        wait_for(lambda: app.eval('location.href') == self.server.url('/app/inside.html'),
+                 what='the pushed page in the app window')
+        self.assertEqual(self.opened(), [])
+
+    def test_redirect_out_of_scope_stays_in_app(self):
+        # Only exclusions follow redirects: sign-in flows go through them.
+        self.set_rules(RULES)
+        app = self.launch_app()
+        app.click('#rewrite-out')
+        wait_for(lambda: app.eval('location.href') == self.server.url('/out.html?redirect'),
+                 what='the redirect target in the app window')
+        self.assertEqual(self.opened(), [])
 
     def test_user_rule_on_app_site_narrows_scope(self):
         # #346: the manifest's /app/ on 127.0.0.1 gives way to the rule there.

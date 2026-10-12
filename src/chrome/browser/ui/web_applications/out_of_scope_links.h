@@ -80,7 +80,10 @@ void AppendDefaultBrowserLinkItems(const GURL& url,
 bool OpenInDefaultBrowser(const GURL& url, bool background);
 
 // A link clicked in a web app's window that leaves the app's scope, which
-// would load in the window, goes to the system default browser instead.
+// would load in the window, goes to the system default browser instead. So
+// does any URL the page reaches that one of the user's exclusions matches:
+// also by script, redirect, or a same-document navigation, which the window
+// then undoes.
 void MaybeAddOutOfScopeLinkThrottle(
     content::NavigationThrottleRegistry& registry);
 

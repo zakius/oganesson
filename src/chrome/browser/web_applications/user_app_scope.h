@@ -30,6 +30,13 @@ bool IsUrlInUserAppScope(const PrefService& prefs,
                          const GURL& url,
                          bool in_manifest_scope);
 
+// Whether one of app `app_id`'s exclusions ("!" rules) matches `url`. A page
+// in the app's window that reaches such a URL, by any route, is taken out of
+// the window (out_of_scope_links.h).
+bool IsUrlExcludedFromUserAppScope(const PrefService& prefs,
+                                   const webapps::AppId& app_id,
+                                   const GURL& url);
+
 // The app's rules, one per line.
 std::string GetUserAppScopeRules(const PrefService& prefs,
                                  const webapps::AppId& app_id);
