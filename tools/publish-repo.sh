@@ -66,4 +66,5 @@ gpg --batch --yes -u "$key" -abs -o "$sign/Release.gpg" "$sign/Release"
 gpg --batch --yes -u "$key" --detach-sign --armor -o "$sign/repomd.xml.asc" "$sign/repomd.xml"
 scp -q "$sign/InRelease" "$sign/Release.gpg" "$target/next/deb/"
 scp -q "$sign/repomd.xml.asc" "$target/next/rpm/repodata/"
-ssh "$host" "cd $dir && rsync -a --delete --delay-updates next/ www/ && ls www/deb/*.deb"
+# www/extensions holds other projects' files (extension mirrors), not this repository's.
+ssh "$host" "cd $dir && rsync -a --delete --delay-updates --exclude /extensions/ next/ www/ && ls www/deb/*.deb"
