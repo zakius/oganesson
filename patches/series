@@ -198,3 +198,5 @@ oganesson/ui/firefox-sync-avatar.patch
 oganesson/ui/no-media-toolbar-button.patch
 oganesson/core/omnibox-suggestion-sources.patch
 oganesson/settings/omnibox-suggestions-settings.patch
+oganesson/core/autoplay-setting.patch
+oganesson/settings/autoplay-settings.patch

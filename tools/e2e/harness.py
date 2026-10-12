@@ -33,7 +33,8 @@ What's here:
   `wait_view(cls, **props)`, `menus()`, `ubo_background()`, `wait_ubo_menu()`; real input with `click_view(view)`,
   `click_element(page, selector, button, repeat)`, `key(*keys)`, `xdotool(...)`;
   `root`, `profile`, `home` and `log_path` for files.
-- Page: `eval(js)` (awaits promises), `click(selector, button)`, `call(method)`.
+- Page: `eval(js)` (awaits promises; a user gesture unless `gesture=False`),
+  `click(selector, button)`, `call(method)`.
 - Server: local HTTP(S) `routes`, with `requests`, `headers` and `bodies` seen.
 - wait_for(check): polls until `check()` is truthy.
 - installed_env(folder): `browser_env` for a browser installed as a package.
@@ -260,10 +261,11 @@ class Page(Session):
         self.id = target['id']
         self.url = target['url']
 
-    def eval(self, expression):
-        """Evaluates `expression` (awaiting a promise) and returns its value."""
+    def eval(self, expression, gesture=True):
+        """Evaluates `expression` (awaiting a promise) and returns its value.
+        With `gesture`, it runs as if the user had just clicked the page."""
         result = self.call('Runtime.evaluate', expression=expression, awaitPromise=True,
-                           returnByValue=True, userGesture=True)
+                           returnByValue=True, userGesture=gesture)
         if 'exceptionDetails' in result:
             details = result['exceptionDetails']
             raise AssertionError(f'{expression!r} threw: '

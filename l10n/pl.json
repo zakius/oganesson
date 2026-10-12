@@ -448,5 +448,70 @@
     "name": "IDS_SETTINGS_OMNIBOX_SEARCH_SUGGESTIONS_FIRST_DESCRIPTION",
     "source": "When off, pages from history and bookmarks come before searches. The first suggestion stays the same.",
     "message": "Gdy wyłączone, strony z historii i zakładek są przed wyszukiwaniami. Pierwsza sugestia się nie zmienia."
+  },
+  {
+    "name": "IDS_SETTINGS_SITE_SETTINGS_AUTOPLAY",
+    "source": "Autoplay",
+    "message": "Autoodtwarzanie"
+  },
+  {
+    "name": "IDS_SETTINGS_SITE_SETTINGS_AUTOPLAY_MID_SENTENCE",
+    "source": "autoplay",
+    "message": "autoodtwarzanie"
+  },
+  {
+    "name": "IDS_SETTINGS_SITE_SETTINGS_AUTOPLAY_DESCRIPTION",
+    "source": "Sites can start playing audio and video when you open them",
+    "message": "Witryny mogą zacząć odtwarzać dźwięk i wideo, gdy je otworzysz"
+  },
+  {
+    "name": "IDS_SETTINGS_SITE_SETTINGS_AUTOPLAY_ALLOW",
+    "source": "Allow audio and video",
+    "message": "Zezwalaj na dźwięk i wideo"
+  },
+  {
+    "name": "IDS_SETTINGS_SITE_SETTINGS_AUTOPLAY_BLOCK_AUDIO",
+    "source": "Block audio",
+    "message": "Blokuj dźwięk"
+  },
+  {
+    "name": "IDS_SETTINGS_SITE_SETTINGS_AUTOPLAY_BLOCK_AUDIO_SUB_LABEL",
+    "source": "Muted media can play. Media with sound waits until you interact with the site.",
+    "message": "Wyciszone multimedia mogą być odtwarzane. Multimedia z dźwiękiem czekają, aż wejdziesz w interakcję z witryną."
+  },
+  {
+    "name": "IDS_SETTINGS_SITE_SETTINGS_AUTOPLAY_BLOCK",
+    "source": "Block audio and video",
+    "message": "Blokuj dźwięk i wideo"
+  },
+  {
+    "name": "IDS_SETTINGS_SITE_SETTINGS_AUTOPLAY_BLOCK_SUB_LABEL",
+    "source": "Media waits until you click or press a key on the page, also when it's muted",
+    "message": "Multimedia czekają, aż klikniesz stronę lub naciśniesz na niej klawisz, także gdy są wyciszone"
+  },
+  {
+    "name": "IDS_SETTINGS_SITE_SETTINGS_AUTOPLAY_ALLOWED_EXCEPTIONS",
+    "source": "Allowed to autoplay audio and video",
+    "message": "Mogą automatycznie odtwarzać dźwięk i wideo"
+  },
+  {
+    "name": "IDS_SETTINGS_SITE_SETTINGS_AUTOPLAY_BLOCKED_EXCEPTIONS",
+    "source": "Not allowed to autoplay audio and video",
+    "message": "Nie mogą automatycznie odtwarzać dźwięku ani wideo"
+  },
+  {
+    "name": "IDS_SETTINGS_SITE_SETTINGS_AUTOPLAY_ALLOW_DEFAULT",
+    "source": "Allow audio and video (default)",
+    "message": "Zezwalaj na dźwięk i wideo (domyślnie)"
+  },
+  {
+    "name": "IDS_SETTINGS_SITE_SETTINGS_AUTOPLAY_BLOCK_AUDIO_DEFAULT",
+    "source": "Block audio (default)",
+    "message": "Blokuj dźwięk (domyślnie)"
+  },
+  {
+    "name": "IDS_SETTINGS_SITE_SETTINGS_AUTOPLAY_BLOCK_DEFAULT",
+    "source": "Block audio and video (default)",
+    "message": "Blokuj dźwięk i wideo (domyślnie)"
   }
 ]
