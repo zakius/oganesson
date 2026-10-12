@@ -5,6 +5,10 @@
 #   package.sh <out folder> <target> <format>...
 #
 # formats: tarball appimage deb rpm. Output: $PACKAGES, default work/packages/
+# With TARBALL (a tarball this script made) and VERSION, the deb and rpm are
+# made from that tarball and <out folder> is unused: tools/publish-repo.sh
+# packages this way on the repository server, an arm64 host. There, DEPENDS
+# (the Depends of the .deb made with the build) replaces debbuild's ldd scan.
 set -euo pipefail
 
 out="$(realpath "$1")"
@@ -17,44 +21,48 @@ linux="$repo/linux"
 packages="${PACKAGES:-$repo/work/packages}"
 # The version the build itself carries (chrome/VERSION): the vendored files,
 # the same ones as the packaging files.
-version=$(python3 "$repo/utils/helium_version.py" \
-    --tree "$repo" --platform-tree "$repo/linux" --print)
+version=${VERSION:-$(python3 "$repo/utils/helium_version.py" \
+    --tree "$repo" --platform-tree "$repo/linux" --print)}
 name="oganesson-${version}-x86_64-${target}"
 tarball="${name}_linux"
 stage="$(mktemp -d)"
 trap 'rm -rf "$stage"' EXIT
 mkdir -p "$packages"
-
-# Helium also ships xdg-mime and xdg-settings; this build doesn't make them,
-# and the browser uses the system's (xdg-utils, which the packages recommend).
-files="oganesson oganesson_crashpad_handler chrome_100_percent.pak
-chrome_200_percent.pak resources.pak icudtl.dat v8_context_snapshot.bin
-libEGL.so libGLESv2.so libqt5_shim.so libqt6_shim.so libvk_swiftshader.so
-libvulkan.so.1 vk_swiftshader_icd.json liboganesson_sync.so
-product_logo_256.png"
-
-dir="$stage/$tarball"
-mkdir -p "$dir/locales"
-for file in $files; do
-    cp -a "$out/$file" "$dir/"
-done
-cp "$out/locales/"*.pak "$dir/locales/"
-cp "$repo/resources/oganesson.desktop" "$dir/"
-sed 's/helium/oganesson/g' "$linux/package/apparmor.cfg" > "$dir/apparmor.cfg"
-sed -e 's|"\$HERE/helium"|"$HERE/oganesson"|' -e 's/Helium/oganesson/g' \
-    "$linux/package/helium-wrapper.sh" > "$dir/oganesson-wrapper"
-chmod 755 "$dir/oganesson-wrapper"
-ln -sf oganesson "$dir/chrome"
-find "$dir" -type f -exec file {} + | awk -F: '/ELF/ {print $1}' \
-    | xargs strip --strip-unneeded
-
 want() { [[ " ${formats[*]} " == *" $1 "* ]]; }
 
-if want tarball || want deb || want rpm; then
-    tar -C "$stage" -cf - "$tarball" | xz -T0 -9 > "$stage/$tarball.tar.xz"
-fi
-if want tarball; then
-    cp "$stage/$tarball.tar.xz" "$packages/"
+if [ -n "${TARBALL:-}" ]; then
+    tarball="$(basename "$TARBALL" .tar.xz)"
+    ln -s "$(realpath "$TARBALL")" "$stage/$tarball.tar.xz"
+else
+    # Helium also ships xdg-mime and xdg-settings; this build doesn't make them,
+    # and the browser uses the system's (xdg-utils, which the packages recommend).
+    files="oganesson oganesson_crashpad_handler chrome_100_percent.pak
+    chrome_200_percent.pak resources.pak icudtl.dat v8_context_snapshot.bin
+    libEGL.so libGLESv2.so libqt5_shim.so libqt6_shim.so libvk_swiftshader.so
+    libvulkan.so.1 vk_swiftshader_icd.json liboganesson_sync.so
+    product_logo_256.png"
+
+    dir="$stage/$tarball"
+    mkdir -p "$dir/locales"
+    for file in $files; do
+        cp -a "$out/$file" "$dir/"
+    done
+    cp "$out/locales/"*.pak "$dir/locales/"
+    cp "$repo/resources/oganesson.desktop" "$dir/"
+    sed 's/helium/oganesson/g' "$linux/package/apparmor.cfg" > "$dir/apparmor.cfg"
+    sed -e 's|"\$HERE/helium"|"$HERE/oganesson"|' -e 's/Helium/oganesson/g' \
+        "$linux/package/helium-wrapper.sh" > "$dir/oganesson-wrapper"
+    chmod 755 "$dir/oganesson-wrapper"
+    ln -sf oganesson "$dir/chrome"
+    find "$dir" -type f -exec file {} + | awk -F: '/ELF/ {print $1}' \
+        | xargs strip --strip-unneeded
+
+    if want tarball || want deb || want rpm; then
+        tar -C "$stage" -cf - "$tarball" | xz -T0 -9 > "$stage/$tarball.tar.xz"
+    fi
+    if want tarball; then
+        cp "$stage/$tarball.tar.xz" "$packages/"
+    fi
 fi
 
 if want appimage; then
@@ -83,8 +91,12 @@ spec() {  # <tool> <topdir> [defines...]
         --define "tarball $tarball" "$@" -bb "$repo/tools/package/oganesson.spec"
 }
 if want deb; then
+    depends=()
+    if [ -n "${DEPENDS:-}" ]; then
+        depends=(--define "deb_depends $DEPENDS" --define "__ldd true")
+    fi
     spec debbuild "$stage/deb" --define "debbuild 1" --define "_arch amd64" \
-        --define "dist %{nil}"
+        --define "dist %{nil}" "${depends[@]}"
     # The tier goes in the file name; both tiers are the same package.
     mv "$stage"/deb/DEBS/*/*.deb "$packages/oganesson_${version}-${target}_amd64.deb"
 fi

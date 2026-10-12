@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Packs a built output folder's runtime files as a stripped .tar.xz (LZMA2)
 # for download: oganesson-<commit>-linux-x64.tar.xz in DEST/<version>, and
-# the same build as .deb and .rpm packages, made in the packager image
+# the same build as .deb and .rpm packages and the tarball they are made from
+# (oganesson-<version>-x86_64-x86-64-v2_linux.tar.xz, which
+# tools/publish-repo.sh uploads), made in the packager image
 # (tools/package/Dockerfile, tagged oganesson-packager). <version> is the
 # packages' version-release; DEST/latest links to the one just packed.
 # Usage: tools/pack.sh [OUT_DIR] [DEST]   (default: the release build, work/dl)
@@ -54,7 +56,7 @@ version="$(python3 "$root/utils/helium_version.py" --tree "$root" --platform-tre
 tar -C "$stage" -cf - "$name" | xz -T0 -9 > "$stage/packages/$name.tar.xz"
 docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp \
     -e PKG_RELEASE="$release" -e PACKAGES="/oganesson/${stage#"$root"/}/packages" -v "$root:/oganesson" oganesson-packager \
-    bash /oganesson/tools/package/package.sh "/oganesson/${out#"$root"/}" x86-64-v2 deb rpm
+    bash /oganesson/tools/package/package.sh "/oganesson/${out#"$root"/}" x86-64-v2 tarball deb rpm
 
 # DEST/<version> appears only once all the files are in it: they are copied
 # to <version>.part first, so a full DEST keeps the old folders.

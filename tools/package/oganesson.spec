@@ -16,6 +16,11 @@ Source0: %{tarball}.tar.xz
 %if 0%{?debbuild}
 Packager: oganesson
 Provides: www-browser
+# Given when the .deb is made on another architecture, where debbuild can't
+# run ldd on the binaries: the Depends of the .deb made with the build.
+%if 0%{?deb_depends:1}
+Requires: %{deb_depends}
+%endif
 %endif
 
 Recommends: ca-certificates, xdg-utils
