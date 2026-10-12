@@ -1,15 +1,19 @@
-"""The address bar suggestion switches on Manage search engines.
+"""The address bar suggestion switches and order on Manage search engines.
 
 The profile has history (a typed site and a page whose title starts with
-"Zebra"), an unvisited bookmark, a past search on a local default
-engine, and an open tab. chrome://omnibox, connected to the window's
-omnibox, reports the real address bar's matches with their types while
-typing into it. Defaults: no past search, and below the first match, pages
-come before searches. Each source's switch removes its matches; "ahead"
-brings Chromium's order back. Enter on a URL still navigates and Enter on
-a word still searches, also with history off. While history isn't saved,
-history and past searches are off and their switches greyed out, and come
-back as they were when it is saved again.
+"Zebra", and a typed site twit.localhost), unvisited bookmarks (one titled
+"Twitter" on twittest.localhost), a past search on a local default engine,
+and an open tab. chrome://omnibox, connected to the window's omnibox,
+reports the real address bar's matches with their types while typing into
+it. Defaults: no past search, and below the first match, bookmarks, history,
+open tabs, then searches, and the what-you-typed URL last. Each source's
+switch removes its matches; the order setting reorders the groups. Typing
+the start of a site autofills it, from the first of bookmarks and history
+in the order. Enter on a URL still navigates and Enter on a word still
+searches, also with history off. While history isn't saved, history and
+past searches are off and their switches greyed out, and come back as they
+were when it is saved again. A profile with the old "Search suggestions
+ahead" switch on gets searches first.
 """
 
 import json
@@ -26,11 +30,12 @@ MANIFEST = {'manifest_version': 3, 'name': 'Omnibox suggestions test', 'version'
             'background': {'service_worker': 'background.js'}}
 PAGES = {'/': 'Zebra home', '/zebra-one.html': 'Zebra stripes one',
          '/zebra-tab.html': 'Zebra tab',
-         '/zebra-bookmark.html': 'Zebra bookmark', '/search': 'Results'}
+         '/zebra-bookmark.html': 'Zebra bookmark', '/search': 'Results', '/home': 'Twitter'}
 PREFS = ('oganesson.omnibox.suggest_history', 'oganesson.omnibox.suggest_bookmarks',
-         'oganesson.omnibox.suggest_open_tabs', 'oganesson.omnibox.suggest_past_searches',
-         'oganesson.omnibox.search_suggestions_first')
-DEFAULTS = dict(zip(PREFS, (True, True, True, False, False)))
+         'oganesson.omnibox.suggest_open_tabs', 'oganesson.omnibox.suggest_past_searches')
+ORDER = 'oganesson.omnibox.suggestion_order'
+GROUPS = ['bookmarks', 'history', 'open_tabs', 'searches']
+DEFAULTS = dict(zip(PREFS, (True, True, True, False))) | {ORDER: GROUPS}
 # The last done response of the window's omnibox for `text`, as seen by
 # chrome://omnibox.
 RESULTS = """((text) => {
@@ -39,12 +44,25 @@ RESULTS = """((text) => {
   const last = all[all.length - 1];
   return last && last.combinedResults.map(m => ({
       type: m.type, provider: m.providerName, url: m.destinationUrl,
-      contents: m.contents, tab: m.hasTabMatch, search: m.isSearchType}));
+      contents: m.contents, tab: m.hasTabMatch, search: m.isSearchType,
+      inline: m.inlineAutocompletion}));
 })"""
 
 
 def is_page(row):
     return row['type'].startswith('history-') or row['type'] == 'bookmark-title'
+
+
+def group(row):
+    """The order setting's group of a row, or 'guess' for the what-you-typed
+    URL, which comes after them."""
+    if row['type'] == 'url-what-you-typed':
+        return 'guess'
+    if row['search']:
+        return 'searches'
+    if row['tab']:
+        return 'open_tabs'
+    return 'bookmarks' if row['type'] == 'bookmark-title' else 'history'
 
 
 class OmniboxSuggestionsTest(BrowserTest):
@@ -74,6 +92,7 @@ class OmniboxSuggestionsTest(BrowserTest):
         local_state.write_text(json.dumps(state | {'internal_only_uis_enabled': True}))
         cls.browser.start()
         cls.zebra = f'zebra.localhost:{cls.server.port}'
+        cls.twit = f'twittest.localhost:{cls.server.port}'
         cls.seed()
 
     @classmethod
@@ -94,11 +113,20 @@ class OmniboxSuggestionsTest(BrowserTest):
         cls.enter(f'http://{cls.zebra}/')
         cls.enter(cls.server.url('/zebra-one.html'))
         cls.enter('zebrafish facts')
+        cls.enter(f'http://twit.localhost:{cls.server.port}/')
         extension = cls.browser.page('background.js')
         wait_for(lambda: extension.eval('typeof chrome.bookmarks') == 'object',
                  what='the extension APIs')
         extension.eval(f"chrome.bookmarks.create({{title: 'Zebra bookmark', url: "
                        f"{json.dumps(cls.server.url('/zebra-bookmark.html'))}}})")
+        extension.eval(f"chrome.bookmarks.create({{title: 'Twitter', url: "
+                       f"'http://{cls.twit}/home'}})")
+        # Found only by matching inside words, the way Firefox matches.
+        extension.eval(f"chrome.bookmarks.create({{title: 'Reading list', url: "
+                       f"'http://quillnews.localhost:{cls.server.port}/list'}})")
+        for n in range(1, 7):
+            extension.eval(f"chrome.bookmarks.create({{title: 'Okapi {n}', url: "
+                           f"'http://okapi{n}.localhost:{cls.server.port}/page'}})")
         cls.browser.new_tab(cls.server.url('/zebra-tab.html'))
         cls.settings = cls.browser.new_tab('chrome://settings/searchEngines')
         wait_for(lambda: cls.settings.eval(f"!!({FIND})('settings-omnibox-suggestions')"),
@@ -169,12 +197,19 @@ class OmniboxSuggestionsTest(BrowserTest):
         kinds = [is_page(r) for r in rows[1:] if is_page(r) or r['search']]
         self.assertEqual(kinds, sorted(kinds, reverse=True), rows)
 
+    def assert_order(self, rows, order):
+        """The rows below the first come in `order`'s groups, the
+        what-you-typed URL last."""
+        ranks = [(order + ['guess']).index(group(r)) for r in rows[1:]]
+        self.assertEqual(ranks, sorted(ranks), rows)
+
     def test_1_defaults(self):
         rows = self.zebr()
         self.assertNotIn('search-history', [r['type'] for r in rows], rows)
         self.assertFalse([r for r in rows if 'zebrafish' in r['contents']], rows)
-        # The typed site inline-autocompletes, as in Chromium.
-        self.assertIn(self.zebra, rows[0]['url'], rows)
+        # The site autofills, here from the bookmark on it.
+        self.assertEqual(rows[0]['url'], f'http://{self.zebra}/', rows)
+        self.assertEqual(rows[0]['inline'], f'a.localhost:{self.server.port}', rows)
         self.assertLessEqual({'/zebra-one.html', '/zebra-bookmark.html', '/zebra-tab.html'},
                              self.urls(rows), rows)
         self.assertIn('bookmark-title', [r['type'] for r in rows], rows)
@@ -183,6 +218,9 @@ class OmniboxSuggestionsTest(BrowserTest):
         # The search for what was typed is still there, under the pages.
         self.assertTrue([r for r in rows if r['type'] == 'search-what-you-typed'], rows)
         self.assert_pages_before_searches(rows)
+        self.assert_order(rows, GROUPS)
+        self.assertLessEqual({'bookmarks', 'history', 'open_tabs', 'searches'},
+                             {group(r) for r in rows[1:]}, rows)
 
     def test_2_history_off(self):
         rows = self.zebr(suggest_history=False)
@@ -217,13 +255,27 @@ class OmniboxSuggestionsTest(BrowserTest):
         self.assertTrue([r for r in rows if r['type'] == 'search-what-you-typed'
                          and r['contents'] == 'zebrafish facts'], rows)
 
-    def test_6_searches_ahead(self):
-        rows = self.zebr(search_suggestions_first=True)
-        self.assertIn(self.zebra, rows[0]['url'], rows)
-        self.assertTrue(rows[1]['search'], rows)
-        rows = self.zebr(search_suggestions_first=True, suggest_past_searches=True)
-        kinds = [r['search'] for r in rows[1:] if is_page(r) or r['search']]
-        self.assertEqual(kinds, sorted(kinds, reverse=True), rows)
+    def test_6_order(self):
+        for order in (['searches', 'history', 'bookmarks', 'open_tabs'],
+                      ['open_tabs', 'searches', 'bookmarks', 'history']):
+            with self.subTest(order=order):
+                rows = self.zebr(suggestion_order=order, suggest_past_searches=True)
+                self.assertIn(self.zebra, rows[0]['url'], rows)
+                self.assertEqual(group(rows[1]), order[0], rows)
+                self.assert_order(rows, order)
+        # Autofill takes bookmarks and history in the order, then the
+        # shortest site: twit.localhost is typed history, twittest.localhost
+        # a bookmark.
+        port = self.server.port
+        for order, url in ((GROUPS, f'http://{self.twit}/'),
+                           (['history', 'bookmarks', 'open_tabs', 'searches'],
+                            f'http://twit.localhost:{port}/')):
+            with self.subTest(order=order):
+                self.set_prefs(suggestion_order=order)
+                rows = self.suggest('twit')
+                self.assertEqual(rows[0]['url'], url, rows)
+                self.assertEqual(self.enter('twit'), url)
+        self.set_prefs()
 
     def test_7_enter(self):
         for prefs in ({}, {'suggest_history': False}):
@@ -234,13 +286,15 @@ class OmniboxSuggestionsTest(BrowserTest):
                 self.assertEqual(self.enter('quokka'), self.server.url('/search?q=quokka'))
                 self.assertEqual(self.enter('zebrafish facts'),
                                  self.server.url('/search?q=zebrafish+facts'))
+        # No autofill after a space.
+        rows = self.suggest('twit ')
+        self.assertTrue(rows[0]['search'], rows)
         self.set_prefs()
 
     def test_8_settings_switches(self):
         self.set_prefs()
         section = f"({FIND})('settings-omnibox-suggestions').shadowRoot"
-        for switch, pref in zip(('history', 'bookmarks', 'openTabs', 'pastSearches',
-                                 'searchSuggestionsFirst'), PREFS):
+        for switch, pref in zip(('history', 'bookmarks', 'openTabs', 'pastSearches'), PREFS):
             with self.subTest(switch=switch):
                 self.settings.eval(f"{section}.querySelector('#{switch}').click()")
                 wait_for(lambda: self.pref(pref) != DEFAULTS[pref], what=pref)
@@ -259,6 +313,45 @@ class OmniboxSuggestionsTest(BrowserTest):
         self.assertFalse(search.eval(f"!!({FIND})('settings-search-page').shadowRoot"
                                      ".querySelector('#searchSuggestToggle')"))
         self.browser.close_target(search)
+
+    def test_8b_settings_order(self):
+        self.set_prefs()
+        self.addCleanup(self.set_prefs)
+        section = f"({FIND})('settings-omnibox-suggestions').shadowRoot"
+
+        def shown():
+            return self.settings.eval(
+                f"[...{section}.querySelectorAll('#order .list-item')].map(r => "
+                "[r.dataset.group, r.classList.contains('off')])")
+
+        def click(button):
+            self.settings.eval(f"{section}.querySelector('#{button}').click()")
+
+        wait_for(lambda: shown() == [[g, False] for g in GROUPS], what='the default order')
+        self.assertTrue(self.settings.eval(f"{section}.querySelector('#bookmarks-up').disabled"))
+        self.assertTrue(self.settings.eval(f"{section}.querySelector('#searches-down').disabled"))
+        self.assertEqual(self.settings.eval(
+            f"{section}.querySelector('#searches-up').getAttribute('aria-label')"),
+            'Move Searches up')
+        click('searches-up')
+        order = ['bookmarks', 'history', 'searches', 'open_tabs']
+        wait_for(lambda: self.pref(ORDER) == order, what='searches moved up')
+        self.assertEqual([g for g, _ in shown()], order)
+        # Keyboard focus follows the moved group.
+        self.assertEqual(self.settings.eval(f'{section}.activeElement?.id'), 'searches-up')
+        click('bookmarks-down')
+        order = ['history', 'bookmarks', 'searches', 'open_tabs']
+        wait_for(lambda: self.pref(ORDER) == order, what='bookmarks moved down')
+        self.assertEqual([g for g, _ in shown()], order)
+        # At the top, focus goes to the group's other button.
+        click('bookmarks-up')
+        wait_for(lambda: self.pref(ORDER)[0] == 'bookmarks', what='bookmarks moved up')
+        self.assertEqual(self.settings.eval(f'{section}.activeElement?.id'), 'bookmarks-down')
+        # A group whose switch is off stays in its place, greyed out.
+        self.set_prefs(suggestion_order=order, suggest_bookmarks=False)
+        wait_for(lambda: shown() == [['history', False], ['bookmarks', True],
+                                     ['searches', False], ['open_tabs', False]],
+                 what='bookmarks greyed out')
 
     def switch_state(self, switch):
         return self.settings.eval(
@@ -303,6 +396,80 @@ class OmniboxSuggestionsTest(BrowserTest):
         self.assertIn('/zebra-one.html', self.urls(rows), rows)
         self.assertTrue([r for r in rows if r['type'] == 'search-history'
                          and r['contents'] == 'zebrafish facts'], rows)
+
+    def test_9b_user_setup(self):
+        # History not saved, history and open tabs suggestions off: the
+        # bookmark's site is the first row, completed inline, and Enter opens
+        # it. The search for "twit" is there once, below the bookmark.
+        self.set_prefs(suggest_history=False, suggest_open_tabs=False)
+        self.addCleanup(self.set_prefs)
+        saving = 'history.saving_disabled'
+        self.settings.eval(f'chrome.settingsPrivate.setPref({json.dumps(saving)}, true)')
+        self.addCleanup(lambda: self.settings.eval(
+            f'chrome.settingsPrivate.setPref({json.dumps(saving)}, false)'))
+        wait_for(lambda: self.pref(saving), what=saving)
+        rows = self.suggest('twit')
+        self.assertEqual(rows[0]['url'], f'http://{self.twit}/', rows)
+        self.assertEqual(rows[0]['inline'], f'test.localhost:{self.server.port}', rows)
+        self.assertEqual([r['type'] for r in rows[1:]],
+                         ['bookmark-title', 'search-what-you-typed', 'url-what-you-typed'], rows)
+        self.assertEqual(rows[1]['url'], f'http://{self.twit}/home', rows)
+        self.assertEqual(self.enter('twit'), f'http://{self.twit}/')
+        self.assertEqual(self.enter('quokka'), self.server.url('/search?q=quokka'))
+        self.assertEqual(self.enter(f'{self.zebra}/zebra-one.html'),
+                         f'http://{self.zebra}/zebra-one.html')
+        # A typed scheme must be the site's; "www." doesn't count.
+        rows = self.suggest('https://twit')
+        self.assertNotEqual(rows[0]['url'], f'http://{self.twit}/', rows)
+        rows = self.suggest('www.twit')
+        self.assertEqual(rows[0]['url'], f'http://{self.twit}/', rows)
+        # Typed into the path, the bookmarked page.
+        rows = self.suggest(f'{self.twit}/h')
+        self.assertEqual(rows[0]['url'], f'http://{self.twit}/home', rows)
+        self.assertEqual(rows[0]['inline'], 'ome', rows)
+        # Bookmarks off: no autofill, the search is first.
+        self.set_prefs(suggest_history=False, suggest_open_tabs=False, suggest_bookmarks=False)
+        rows = self.suggest('twit')
+        self.assertEqual(rows[0]['type'], 'search-what-you-typed', rows)
+
+    def test_9c_bookmark_matching(self):
+        # Bookmarks match as in Firefox: anywhere in the title or address,
+        # all of them up to the dropdown's size, not Chromium's 3.
+        self.set_prefs()
+        port = self.server.port
+        rows = self.suggest('news')
+        self.assertIn(f'http://quillnews.localhost:{port}/list', [r['url'] for r in rows], rows)
+        rows = self.suggest('itter')
+        self.assertIn(f'http://{self.twit}/home', [r['url'] for r in rows], rows)
+        rows = self.suggest('okapi')
+        self.assertLessEqual({f'http://okapi{n}.localhost:{port}/page' for n in range(1, 7)},
+                             {r['url'] for r in rows}, rows)
+        self.assertLessEqual(len(rows), 8, rows)
+        # A site autofills; the 6 bookmarks follow.
+        self.assertRegex(rows[0]['url'], rf'^http://okapi\d\.localhost:{port}/$')
+        self.assertEqual([group(r) for r in rows[1:7]], ['bookmarks'] * 6, rows)
+        # Only the first row autofills.
+        self.assertEqual([r for r in rows[1:] if r['url'].endswith('/')], [], rows)
+
+
+class OmniboxOrderMigrationTest(BrowserTest):
+    """A profile with the old "Search suggestions ahead of history and
+    bookmarks" switch on gets searches first in the order."""
+
+    prefs = {'oganesson': {'omnibox': {'search_suggestions_first': True}}}
+
+    def test_migration(self):
+        settings = self.browser.new_tab('chrome://settings/searchEngines')
+        wait_for(lambda: settings.eval(f"!!({FIND})('settings-omnibox-suggestions')"),
+                 what='the address bar settings')
+        # The address bar migrates the pref when it first suggests.
+        self.browser.key('ctrl+l')
+        self.browser.xdotool('type', 'a')
+        def order():
+            return settings.eval(
+                f'chrome.settingsPrivate.getPref({json.dumps(ORDER)}).then(p => p.value)')
+        wait_for(lambda: order() != GROUPS, what='the migrated order')
+        self.assertEqual(order(), ['searches', 'bookmarks', 'history', 'open_tabs'])
 
 
 if __name__ == '__main__':

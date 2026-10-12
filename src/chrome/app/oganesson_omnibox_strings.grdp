@@ -28,10 +28,22 @@
   <message name="IDS_SETTINGS_OMNIBOX_HISTORY_NOT_SAVED" desc="Settings, Manage search engines: description of the Browsing history and Past searches switches, switched off and greyed out while the switch 'Don't save browsing history' is on, on the Privacy and security settings page.">
     Off while "Don't save browsing history" is on in Privacy and security
   </message>
-  <message name="IDS_SETTINGS_OMNIBOX_SEARCH_SUGGESTIONS_FIRST" desc="Settings, Manage search engines: switch that ranks search suggestions above pages from history and bookmarks in the address bar.">
-    Search suggestions ahead of history and bookmarks
+  <message name="IDS_SETTINGS_OMNIBOX_SUGGESTION_ORDER" desc="Settings, Manage search engines: heading of the list that orders the groups of address bar suggestions (Bookmarks, Browsing history, Open tabs, Searches).">
+    Suggestion order
   </message>
-  <message name="IDS_SETTINGS_OMNIBOX_SEARCH_SUGGESTIONS_FIRST_DESCRIPTION" desc="Settings, Manage search engines: what the switch that ranks search suggestions first does. When it is off, pages from history and bookmarks come before searches; the first suggestion, which Enter opens, is the same either way.">
-    When off, pages from history and bookmarks come before searches. The first suggestion stays the same.
+  <message name="IDS_SETTINGS_OMNIBOX_SUGGESTION_ORDER_DESCRIPTION" desc="Settings, Manage search engines: explanation under the Suggestion order heading. The first suggestion is the one Enter opens; when the user types the start of a site's address, it completes that address from a bookmark or a page in the browsing history.">
+    Suggestions come in this order. When you type the start of a site's address, the first suggestion completes it from bookmarks or browsing history, whichever is higher here.
+  </message>
+  <message name="IDS_SETTINGS_OMNIBOX_SEARCHES" desc="Settings, Manage search engines: in the Suggestion order list, the group of search suggestions: the search for what the user typed, the search engine's suggestions and past searches.">
+    Searches
+  </message>
+  <message name="IDS_SETTINGS_OMNIBOX_GROUP_OFF" desc="Settings, Manage search engines: in the Suggestion order list, shown under a group whose switch above is off. The group keeps its place in the order.">
+    Off
+  </message>
+  <message name="IDS_SETTINGS_OMNIBOX_MOVE_UP" desc="Settings, Manage search engines: accessible label and tooltip of the button that moves a group up in the Suggestion order list.">
+    Move <ph name="GROUP">$1<ex>Bookmarks</ex></ph> up
+  </message>
+  <message name="IDS_SETTINGS_OMNIBOX_MOVE_DOWN" desc="Settings, Manage search engines: accessible label and tooltip of the button that moves a group down in the Suggestion order list.">
+    Move <ph name="GROUP">$1<ex>Bookmarks</ex></ph> down
   </message>
 </grit-part>

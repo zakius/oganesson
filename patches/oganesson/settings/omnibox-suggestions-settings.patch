@@ -34,10 +34,10 @@
        settings_api::PrefType::kBoolean;
 +  for (const char* pref :
 +       {::omnibox::kSuggestHistory, ::omnibox::kSuggestBookmarks,
-+        ::omnibox::kSuggestOpenTabs, ::omnibox::kSuggestPastSearches,
-+        ::omnibox::kSearchSuggestionsFirst}) {
++        ::omnibox::kSuggestOpenTabs, ::omnibox::kSuggestPastSearches}) {
 +    (*s_allowlist)[pref] = settings_api::PrefType::kBoolean;
 +  }
++  (*s_allowlist)[::omnibox::kSuggestionOrder] = settings_api::PrefType::kList;
    (*s_allowlist)
        [::unified_consent::prefs::kUrlKeyedAnonymizedDataCollectionEnabled] =
            settings_api::PrefType::kBoolean;

@@ -445,14 +445,34 @@
     "message": "Wyłączone, gdy w sekcji Prywatność i bezpieczeństwo jest włączone „Nie zapisuj historii przeglądania”"
   },
   {
-    "name": "IDS_SETTINGS_OMNIBOX_SEARCH_SUGGESTIONS_FIRST",
-    "source": "Search suggestions ahead of history and bookmarks",
-    "message": "Sugestie wyszukiwania przed historią i zakładkami"
+    "name": "IDS_SETTINGS_OMNIBOX_SUGGESTION_ORDER",
+    "source": "Suggestion order",
+    "message": "Kolejność sugestii"
   },
   {
-    "name": "IDS_SETTINGS_OMNIBOX_SEARCH_SUGGESTIONS_FIRST_DESCRIPTION",
-    "source": "When off, pages from history and bookmarks come before searches. The first suggestion stays the same.",
-    "message": "Gdy wyłączone, strony z historii i zakładek są przed wyszukiwaniami. Pierwsza sugestia się nie zmienia."
+    "name": "IDS_SETTINGS_OMNIBOX_SUGGESTION_ORDER_DESCRIPTION",
+    "source": "Suggestions come in this order. When you type the start of a site's address, the first suggestion completes it from bookmarks or browsing history, whichever is higher here.",
+    "message": "Sugestie pojawiają się w tej kolejności. Gdy wpiszesz początek adresu witryny, pierwsza sugestia uzupełni go z zakładek lub historii przeglądania, zależnie od tego, które są tu wyżej."
+  },
+  {
+    "name": "IDS_SETTINGS_OMNIBOX_SEARCHES",
+    "source": "Searches",
+    "message": "Wyszukiwania"
+  },
+  {
+    "name": "IDS_SETTINGS_OMNIBOX_GROUP_OFF",
+    "source": "Off",
+    "message": "Wyłączone"
+  },
+  {
+    "name": "IDS_SETTINGS_OMNIBOX_MOVE_UP",
+    "source": "Move <ph name=\"GROUP\">$1<ex>Bookmarks</ex></ph> up",
+    "message": "Przesuń w górę: <ph name=\"GROUP\">$1<ex>Bookmarks</ex></ph>"
+  },
+  {
+    "name": "IDS_SETTINGS_OMNIBOX_MOVE_DOWN",
+    "source": "Move <ph name=\"GROUP\">$1<ex>Bookmarks</ex></ph> down",
+    "message": "Przesuń w dół: <ph name=\"GROUP\">$1<ex>Bookmarks</ex></ph>"
   },
   {
     "name": "IDS_SETTINGS_SITE_SETTINGS_AUTOPLAY",

@@ -25,6 +25,6 @@ Browser tests also require Xvfb, xdotool, and xwd. They use throwaway profiles. 
 
 ## Scope and maintenance
 
-[Architecture and provenance](docs/architecture.md) explains the upstream choice, retained dependencies, and exclusions. [Updating](docs/updating.md) describes upgrading Helium and Chromium. [Installed web apps](docs/web-apps.md) covers the PWA controls. [Address bar suggestions](docs/omnibox.md) lists the suggestion switches. [Autoplay](docs/autoplay.md) describes the Firefox-style autoplay setting. [Firefox Sync](docs/firefox-sync.md) records the protocol boundary and validation requirements.
+[Architecture and provenance](docs/architecture.md) explains the upstream choice, retained dependencies, and exclusions. [Updating](docs/updating.md) describes upgrading Helium and Chromium. [Installed web apps](docs/web-apps.md) covers the PWA controls. [Address bar suggestions](docs/omnibox.md) lists the suggestion switches and describes their order and site autofill. [Autoplay](docs/autoplay.md) describes the Firefox-style autoplay setting. [Firefox Sync](docs/firefox-sync.md) records the protocol boundary and validation requirements.
 
 The patch order is authoritative in `patches/series`, `linux/patches/series`, and `late/series`. `chromium_version.txt`, `upstream.txt`, `deps.ini`, and Rust's `Cargo.lock` pin the inputs. Preserve inherited licenses and copyright notices.

@@ -24,10 +24,13 @@ void AddOmniboxSuggestionsStrings(content::WebUIDataSource* html_source) {
       {"omniboxSuggestPastSearchesDescription",
        IDS_SETTINGS_OMNIBOX_SUGGEST_PAST_SEARCHES_DESCRIPTION},
       {"omniboxHistoryNotSaved", IDS_SETTINGS_OMNIBOX_HISTORY_NOT_SAVED},
-      {"omniboxSearchSuggestionsFirst",
-       IDS_SETTINGS_OMNIBOX_SEARCH_SUGGESTIONS_FIRST},
-      {"omniboxSearchSuggestionsFirstDescription",
-       IDS_SETTINGS_OMNIBOX_SEARCH_SUGGESTIONS_FIRST_DESCRIPTION},
+      {"omniboxSuggestionOrder", IDS_SETTINGS_OMNIBOX_SUGGESTION_ORDER},
+      {"omniboxSuggestionOrderDescription",
+       IDS_SETTINGS_OMNIBOX_SUGGESTION_ORDER_DESCRIPTION},
+      {"omniboxSearches", IDS_SETTINGS_OMNIBOX_SEARCHES},
+      {"omniboxGroupOff", IDS_SETTINGS_OMNIBOX_GROUP_OFF},
+      {"omniboxMoveUp", IDS_SETTINGS_OMNIBOX_MOVE_UP},
+      {"omniboxMoveDown", IDS_SETTINGS_OMNIBOX_MOVE_DOWN},
   };
   html_source->AddLocalizedStrings(kStrings);
 }

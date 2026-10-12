@@ -51,10 +51,35 @@ ${this.historyNotSaved_ ? html`
     label="${this.i18n('searchSuggestPref')}"
     sub-label="${this.i18n('searchSuggestPrefDesc')}">
 </settings-toggle-button>
-<settings-toggle-button id="searchSuggestionsFirst" class="hr"
-    pref-key="oganesson.omnibox.search_suggestions_first"
-    label="${this.i18n('omniboxSearchSuggestionsFirst')}"
-    sub-label="${this.i18n('omniboxSearchSuggestionsFirstDescription')}">
-</settings-toggle-button>
+<div class="cr-row">
+  <div class="flex cr-padded-text">
+    <div id="orderLabel">${this.i18n('omniboxSuggestionOrder')}</div>
+    <div class="secondary">${this.i18n('omniboxSuggestionOrderDescription')}</div>
+  </div>
+</div>
+<div id="order" class="list-frame" role="list" aria-labelledby="orderLabel">
+  ${this.order_.map((group, index) => html`
+  <div class="list-item ${this.isOff_(group) ? 'off' : ''}" role="listitem"
+      data-group="${group}">
+    <div class="start label">
+      <div>${this.label_(group)}</div>
+      ${this.isOff_(group) ? html`
+      <div class="secondary">${this.i18n('omniboxGroupOff')}</div>` : ''}
+    </div>
+    <cr-icon-button id="${group}-up" iron-icon="cr:keyboard-arrow-up"
+        data-index="${index}" data-step="-1" ?disabled="${index === 0}"
+        aria-label="${this.i18n('omniboxMoveUp', this.label_(group))}"
+        title="${this.i18n('omniboxMoveUp', this.label_(group))}"
+        @click="${this.onMoveClick_}">
+    </cr-icon-button>
+    <cr-icon-button id="${group}-down" iron-icon="cr:keyboard-arrow-down"
+        data-index="${index}" data-step="1"
+        ?disabled="${index === this.order_.length - 1}"
+        aria-label="${this.i18n('omniboxMoveDown', this.label_(group))}"
+        title="${this.i18n('omniboxMoveDown', this.label_(group))}"
+        @click="${this.onMoveClick_}">
+    </cr-icon-button>
+  </div>`)}
+</div>
 <!--_html_template_end_-->`;
 }
