@@ -452,17 +452,15 @@
  }
  
  bool WebAppRegistrar::IsSystemApp(const webapps::AppId& app_id) const {
-@@ -1071,6 +1075,9 @@ std::optional<webapps::AppId> WebAppRegistrar::FindBestAppWithUrlInScope(
+@@ -1071,6 +1075,7 @@ std::optional<webapps::AppId> WebAppRegistrar::FindBestAppWithUrlInScope(
      }
  
      int score = scope->GetScopeScore(url, options.scope_score_options);
-+    if (!options.scope_score_options.manifest_scope_only) {
-+      score = GetUserAppScopeScore(*profile_->GetPrefs(), app_id, url, score);
-+    }
++    score = GetUserAppScopeScore(*profile_->GetPrefs(), app_id, url, score);
      if (score > 0 && score > best_score) {
        best_app_id = app_id;
        best_score = score;
-@@ -1482,7 +1489,9 @@ WebAppRegistrar::GetAllAppsControllingUrl(
+@@ -1482,7 +1487,9 @@ WebAppRegistrar::GetAllAppsControllingUrl(
  
      std::optional<WebAppScope> scope = GetEffectiveScope(app_id);
      if (scope.has_value() &&
@@ -473,22 +471,9 @@
        all_controlling_apps.insert_or_assign(app_id, GetAppShortName(app_id));
      }
    }
---- a/chrome/browser/web_applications/web_app_scope.h
-+++ b/chrome/browser/web_applications/web_app_scope.h
-@@ -29,6 +29,10 @@ struct WebAppScopeScoreOptions {
-   // When set to true, completely SKIPS looking at the primary scope of the app,
-   // and only looks at the scope extensions of the app.
-   bool only_consider_scope_extensions = false;
-+
-+  // oganesson: ignore the user's scope rules (user_app_scope.h), which the
-+  // registrar applies otherwise.
-+  bool manifest_scope_only = false;
- };
- 
- // Represents the 'scope' of a web app / manifest entity. This class contains
 --- a/chrome/browser/webapps/webapps_client_desktop.cc
 +++ b/chrome/browser/webapps/webapps_client_desktop.cc
-@@ -175,9 +175,13 @@ bool WebappsClientDesktop::IsAppFullyInstalledForSiteUrl(
+@@ -175,9 +175,23 @@ bool WebappsClientDesktop::IsAppFullyInstalledForSiteUrl(
      content::BrowserContext* browser_context,
      const GURL& site_url) const {
    CHECK(browser_context);
@@ -497,11 +482,21 @@
 -      .has_value();
 +  auto* provider = web_app::WebAppProvider::GetForLocalAppsUnchecked(
 +      Profile::FromBrowserContext(browser_context));
-+  return provider && provider->registrar_unsafe()
-+                         .FindBestAppWithUrlInScope(
-+                             site_url, web_app::WebAppFilter::InstalledInChrome(),
-+                             {.manifest_scope_only = true})
-+                         .has_value();
++  if (!provider) {
++    return false;
++  }
++  // oganesson: the manifests' scopes, as FindInstalledAppWithUrlInScope()
++  // has them before the user's scope rules (user_app_scope.h) apply.
++  const web_app::WebAppRegistrar& registrar = provider->registrar_unsafe();
++  for (const webapps::AppId& app_id :
++       registrar.GetAppIds(web_app::WebAppFilter::InstalledInChrome())) {
++    std::optional<web_app::WebAppScope> scope =
++        registrar.GetEffectiveScope(app_id);
++    if (scope && scope->GetScopeScore(site_url) > 0) {
++      return true;
++    }
++  }
++  return false;
  }
  
  bool WebappsClientDesktop::IsUrlControlledBySeenManifest(
