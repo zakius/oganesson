@@ -12,10 +12,6 @@ import {html, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/poly
 import type {ExtensionCommand, GestureValue} from './mouse_gestures.js';
 import {getCurrentGestures, getExtensionCommands, getGestureLabel, gesturesFor, mouseGesturesEnabled, toGestureValue} from './mouse_gestures.js';
 
-// Helium's shortcuts page imports this module only, which brings the gesture
-// elements in with it.
-export {gestureSearchFields} from './mouse_gestures.js';
-
 // The extension commands, each with its gestures, filtered by the page's
 // search.
 const SettingsExtensionGesturesElementBase = I18nMixin(PolymerElement);
