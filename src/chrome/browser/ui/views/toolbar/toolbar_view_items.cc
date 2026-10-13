@@ -46,6 +46,7 @@
 #include "chrome/browser/ui/views/toolbar/toolbar_action_view.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_bubble_arrow.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_button.h"
+#include "chrome/browser/ui/views/toolbar/toolbar_divider.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
 #include "chrome/common/pref_names.h"
 #include "components/prefs/pref_change_registrar.h"
@@ -327,6 +328,13 @@ void ToolbarView::InitToolbarItems() {
               : nullptr));
   if (extensions_container_) {
     AddPreTargetHandler(state);
+  }
+  // Items move to either side of the extensions button, so the divider after
+  // it would stand between any two of them. Upstream only toggles it through
+  // the layout, which ignores it now.
+  if (toolbar_divider_) {
+    toolbar_divider_->SetProperty(views::kViewIgnoredByLayoutKey, true);
+    toolbar_divider_->SetVisible(false);
   }
   // Built-in items drag like pinned ones, and act on release so a press can
   // start a drag. Incognito windows don't change the layout.
