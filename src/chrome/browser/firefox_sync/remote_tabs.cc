@@ -13,7 +13,7 @@
 #include "components/sessions/core/session_types.h"
 #include "components/sync/protocol/session_specifics.pb.h"
 #include "components/sync_device_info/device_info.h"
-#include "components/sync_sessions/session_sync_service.h"
+#include "components/sync_sessions/session_sync_service_impl.h"
 #include "components/sync_sessions/synced_session.h"
 
 namespace firefox_sync {
@@ -123,8 +123,9 @@ void RemoteTabs::Clear() {
 }
 
 void RemoteTabs::Publish(bool active) {
-  sync_sessions::SessionSyncService* service =
-      SessionSyncServiceFactory::GetForProfile(profile_);
+  // SessionSyncServiceFactory builds no other implementation.
+  auto* service = static_cast<sync_sessions::SessionSyncServiceImpl*>(
+      SessionSyncServiceFactory::GetForProfile(profile_));
   if (service) {
     service->SetExternalOpenTabsUIDelegate(active ? this : nullptr);
   }
