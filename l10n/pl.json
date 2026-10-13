@@ -165,36 +165,6 @@
     "message": "Przytrzymaj prawy przycisk myszy, narysuj gest i puść przycisk. Wpisz gest jako ciąg liter L, R, U i D (w lewo, w prawo, w górę, w dół), np. DR."
   },
   {
-    "name": "IDS_SETTINGS_SHORTCUTS_FALLBACK",
-    "source": "when free",
-    "message": "gdy wolny"
-  },
-  {
-    "name": "IDS_SETTINGS_SHORTCUTS_FALLBACK_TOOLTIP",
-    "source": "Runs this command while no other command has the shortcut. Add it to another command to change what it does.",
-    "message": "Uruchamia to polecenie, dopóki żadne inne polecenie nie ma tego skrótu. Aby zmienić jego działanie, dodaj go do innego polecenia."
-  },
-  {
-    "name": "IDS_SETTINGS_SHORTCUTS_OVERRIDDEN",
-    "source": "overridden by <ph name=\"COMMAND\">$1<ex>Copy URL</ex></ph>",
-    "message": "zastąpiony przez: <ph name=\"COMMAND\">$1<ex>Copy URL</ex></ph>"
-  },
-  {
-    "name": "IDS_SETTINGS_SHORTCUTS_OVERRIDDEN_TOOLTIP",
-    "source": "<ph name=\"COMMAND\">$1<ex>Copy URL</ex></ph> has this shortcut. It runs this command again once no command has it.",
-    "message": "Ten skrót ma polecenie <ph name=\"COMMAND\">$1<ex>Copy URL</ex></ph>. Gdy żadne polecenie nie będzie go miało, znów uruchomi to polecenie."
-  },
-  {
-    "name": "IDS_SETTINGS_SHORTCUTS_SHARED",
-    "source": "shared with <ph name=\"COMMANDS\">$1<ex>Media control: Next track</ex></ph>",
-    "message": "współdzielony z: <ph name=\"COMMANDS\">$1<ex>Media control: Next track</ex></ph>"
-  },
-  {
-    "name": "IDS_SETTINGS_SHORTCUTS_WILL_SHARE",
-    "source": "<ph name=\"COMMANDS\">$1<ex>Media control: Next track</ex></ph> also has this key. Both keep it, and it runs both.",
-    "message": "Ten klawisz ma też: <ph name=\"COMMANDS\">$1<ex>Media control: Next track</ex></ph>. Oba polecenia go zachowają i uruchomi on oba."
-  },
-  {
     "name": "IDS_SETTINGS_SHORTCUTS_GESTURE_LABEL",
     "source": "Gesture",
     "message": "Gest"

@@ -16,24 +16,6 @@
       <message name="IDS_SETTINGS_SHORTCUTS_GESTURE_DESCRIPTION" desc="Explains how to draw a mouse gesture and how to type one in the add mouse gesture dialog.">
         Hold the right mouse button, draw, then release. Type the gesture as a sequence of L, R, U, and D (left, right, up, down), for example DR.
       </message>
-      <message name="IDS_SETTINGS_SHORTCUTS_FALLBACK" desc="Note on a keyboard shortcut on the Settings shortcuts page that runs its command only while no other command has the shortcut.">
-        when free
-      </message>
-      <message name="IDS_SETTINGS_SHORTCUTS_FALLBACK_TOOLTIP" desc="Tooltip of a keyboard shortcut on the Settings shortcuts page that runs its command only while no other command has the shortcut.">
-        Runs this command while no other command has the shortcut. Add it to another command to change what it does.
-      </message>
-      <message name="IDS_SETTINGS_SHORTCUTS_OVERRIDDEN" desc="Note on a keyboard shortcut on the Settings shortcuts page that runs its command only while no other command has the shortcut, while another command has it.">
-        overridden by <ph name="COMMAND">$1<ex>Copy URL</ex></ph>
-      </message>
-      <message name="IDS_SETTINGS_SHORTCUTS_OVERRIDDEN_TOOLTIP" desc="Tooltip of a keyboard shortcut on the Settings shortcuts page that runs its command only while no other command has the shortcut, while another command has it.">
-        <ph name="COMMAND">$1<ex>Copy URL</ex></ph> has this shortcut. It runs this command again once no command has it.
-      </message>
-      <message name="IDS_SETTINGS_SHORTCUTS_SHARED" desc="Note on an extension command's media key on the Settings shortcuts page, while other extension commands have the same media key and it runs each of them.">
-        shared with <ph name="COMMANDS">$1<ex>Media control: Next track</ex></ph>
-      </message>
-      <message name="IDS_SETTINGS_SHORTCUTS_WILL_SHARE" desc="Note shown while recording a media key for an extension command on the Settings shortcuts page, when other extension commands have it. Several extension commands can have a media key.">
-        <ph name="COMMANDS">$1<ex>Media control: Next track</ex></ph> also has this key. Both keep it, and it runs both.
-      </message>
       <message name="IDS_SETTINGS_SHORTCUTS_GESTURE_LABEL" desc="Label of the text field where the user types a mouse gesture, such as DR.">
         Gesture
       </message>
