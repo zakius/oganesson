@@ -324,63 +324,16 @@
    std::unique_ptr<content::WebContents> contents_move =
        source_tabstrip->DetachWebContentsAtForInsertion(found_tab_index.value());
  
---- a/chrome/browser/ui/webui/app_management/app_management_page_handler_base.cc
-+++ b/chrome/browser/ui/webui/app_management/app_management_page_handler_base.cc
-@@ -28,6 +28,8 @@
- #include "chrome/browser/web_applications/link_capturing_features.h"
- #include "chrome/browser/web_applications/locks/all_apps_lock.h"
- #include "chrome/browser/web_applications/os_integration/os_integration_manager.h"
-+#include "chrome/browser/web_applications/user_app_scope.h"
-+#include "chrome/browser/web_applications/user_app_start_url.h"
- #include "chrome/browser/web_applications/web_app.h"
- #include "chrome/browser/web_applications/web_app_provider.h"
- #include "chrome/browser/web_applications/web_app_registrar.h"
-@@ -184,6 +186,45 @@ void AppManagementPageHandlerBase::UpdateAppSize(const std::string& app_id) {
-   apps::AppServiceProxyFactory::GetForProfile(profile_)->UpdateAppSize(app_id);
- }
- 
-+void AppManagementPageHandlerBase::GetScopeRules(
-+    const std::string& app_id,
-+    GetScopeRulesCallback callback) {
-+  std::move(callback).Run(
-+      web_app::GetUserAppScopeRules(*profile_->GetPrefs(), app_id));
-+}
-+
-+void AppManagementPageHandlerBase::SetScopeRules(
-+    const std::string& app_id,
-+    const std::string& rules,
-+    SetScopeRulesCallback callback) {
-+  std::move(callback).Run(
-+      web_app::SetUserAppScopeRules(*profile_->GetPrefs(), app_id, rules));
-+}
-+
-+void AppManagementPageHandlerBase::GetStartUrl(const std::string& app_id,
-+                                               GetStartUrlCallback callback) {
-+  web_app::WebAppProvider* provider =
-+      web_app::WebAppProvider::GetForWebApps(profile_);
-+  std::move(callback).Run(
-+      web_app::GetUserAppStartUrlSetting(*profile_->GetPrefs(), app_id),
-+      provider ? provider->registrar_unsafe().GetAppStartUrl(app_id).spec()
-+               : std::string());
-+}
-+
-+void AppManagementPageHandlerBase::SetStartUrl(const std::string& app_id,
-+                                               const std::string& url,
-+                                               SetStartUrlCallback callback) {
-+  web_app::WebAppProvider* provider =
-+      web_app::WebAppProvider::GetForWebApps(profile_);
-+  if (!provider || !web_app::CanHaveUserAppStartUrl(
-+                       provider->registrar_unsafe().GetAppStartUrl(app_id))) {
-+    std::move(callback).Run("This app opens at its own start address.");
-+    return;
-+  }
-+  std::move(callback).Run(
-+      web_app::SetUserAppStartUrl(*profile_->GetPrefs(), app_id, url));
-+}
-+
- AppManagementPageHandlerBase::AppManagementPageHandlerBase(
-     mojo::PendingReceiver<app_management::mojom::PageHandler> receiver,
-     mojo::PendingRemote<app_management::mojom::Page> page,
+--- a/chrome/browser/ui/webui/app_management/BUILD.gn
++++ b/chrome/browser/ui/webui/app_management/BUILD.gn
+@@ -8,6 +8,7 @@ source_set("app_management") {
+   sources = [
+     "app_management_page_handler_base.cc",
+     "app_management_page_handler_base.h",
++    "app_management_page_handler_oganesson.cc",
+     "app_management_page_handler_factory.cc",
+     "app_management_page_handler_factory.h",
+   ]
 --- a/chrome/browser/ui/webui/app_management/app_management_page_handler_base.h
 +++ b/chrome/browser/ui/webui/app_management/app_management_page_handler_base.h
 @@ -53,6 +53,16 @@ class AppManagementPageHandlerBase : public app_management::mojom::PageHandler,
