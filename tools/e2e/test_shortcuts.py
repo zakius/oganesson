@@ -106,7 +106,7 @@ class ShortcutsTest(BrowserTest):
         wait_for(lambda: other.eval(f'!!{PAGE}?.commandsLoaded_'), what='the other shortcuts')
         # As its recording area's focus does; the tab then goes to the
         # background, which doesn't stop it.
-        other.eval(f'{PAGE}.handler_.setShortcutHandlingSuspended(true)')
+        other.eval("chrome.send('setShortcutHandlingSuspended', [true])")
         settings = self.browser.new_tab('chrome://settings/system/shortcuts')
         wait_for(lambda: settings.eval(f'!!{PAGE}?.commandsLoaded_'), what='the shortcuts')
         self.browser.key('shift')  # gives the window the input focus

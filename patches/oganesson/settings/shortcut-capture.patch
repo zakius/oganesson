@@ -18,17 +18,17 @@
  
 +  override disconnectedCallback() {
 +    super.disconnectedCallback();
-+    this.handler_.setShortcutHandlingSuspended(false);
++    chrome.send('setShortcutHandlingSuspended', [false]);
 +  }
 +
 +  // While the recording area has the focus, browser shortcuts such as Ctrl+T
 +  // reach it instead of running (#24).
 +  private onCaptureFocus_() {
-+    this.handler_.setShortcutHandlingSuspended(true);
++    chrome.send('setShortcutHandlingSuspended', [true]);
 +  }
 +
 +  private onCaptureBlur_() {
-+    this.handler_.setShortcutHandlingSuspended(false);
++    chrome.send('setShortcutHandlingSuspended', [false]);
 +  }
 +
    private upsertCommand_(command: Command) {
@@ -56,108 +56,7 @@
    }
  
    private closeDialogs_() {
-+    this.handler_.setShortcutHandlingSuspended(false);
++    chrome.send('setShortcutHandlingSuspended', [false]);
      this.showCaptureDialog_ = false;
      this.showResetDialog_ = false;
      this.dialogState_ = null;
---- a/chrome/browser/ui/webui/settings/browser_shortcuts.mojom
-+++ b/chrome/browser/ui/webui/settings/browser_shortcuts.mojom
-@@ -57,6 +57,9 @@ interface BrowserShortcutsHandler {
-   GetAcceleratorDisplayText(string serialized_accelerator) =>
-       (string display_text);
-   GetExtensionCommands() => (array<ExtensionCommand> commands);
-+  // While the page records a shortcut, its window passes every key to the
-+  // page instead of running the browser's shortcuts.
-+  SetShortcutHandlingSuspended(bool suspended);
- };
- 
- interface BrowserShortcutsHandlerFactory {
---- a/chrome/browser/ui/webui/settings/browser_shortcuts_handler.cc
-+++ b/chrome/browser/ui/webui/settings/browser_shortcuts_handler.cc
-@@ -9,6 +9,7 @@
- #include <string>
- #include <utility>
- 
-+#include "base/functional/bind.h"
- #include "base/strings/utf_string_conversions.h"
- #include "build/build_config.h"
- #include "chrome/browser/ui/browser_shortcuts/browser_shortcut_serialization.h"
-@@ -46,12 +47,18 @@ BrowserShortcutsHandler::BrowserShortcutsHandler(
-     mojo::PendingRemote<mojom::BrowserShortcutsPage> page,
-     mojo::PendingReceiver<mojom::BrowserShortcutsHandler> receiver,
-     browser_shortcuts::BrowserShortcutService* service,
--    Profile* profile)
-+    Profile* profile,
-+    content::WebContents* web_contents)
-     : page_(std::move(page)),
-       receiver_(this, std::move(receiver)),
-       service_(service),
--      profile_(profile) {
-+      profile_(profile),
-+      capture_suspender_(web_contents) {
-   service_->AddObserver(this);
-+  // A page that goes away while recording leaves the shortcuts working.
-+  receiver_.set_disconnect_handler(
-+      base::BindOnce(&ShortcutCaptureSuspender::SetSuspended,
-+                     base::Unretained(&capture_suspender_), false));
- }
- 
- BrowserShortcutsHandler::~BrowserShortcutsHandler() {
-@@ -129,6 +136,10 @@ void BrowserShortcutsHandler::GetAcceleratorDisplayText(
-           : std::string());
- }
- 
-+void BrowserShortcutsHandler::SetShortcutHandlingSuspended(bool suspended) {
-+  capture_suspender_.SetSuspended(suspended);
-+}
-+
- void BrowserShortcutsHandler::GetExtensionCommands(
-     GetExtensionCommandsCallback callback) {
-   std::move(callback).Run(GetGestureExtensionCommands(profile_));
---- a/chrome/browser/ui/webui/settings/browser_shortcuts_handler.h
-+++ b/chrome/browser/ui/webui/settings/browser_shortcuts_handler.h
-@@ -7,6 +7,7 @@
- 
- #include "chrome/browser/ui/browser_shortcuts/browser_shortcut_service.h"
- #include "chrome/browser/ui/webui/settings/browser_shortcuts.mojom.h"
-+#include "chrome/browser/ui/webui/settings/shortcut_capture_suspender.h"
- #include "mojo/public/cpp/bindings/receiver.h"
- #include "mojo/public/cpp/bindings/remote.h"
- 
-@@ -22,7 +23,8 @@ class BrowserShortcutsHandler
-       mojo::PendingRemote<mojom::BrowserShortcutsPage> page,
-       mojo::PendingReceiver<mojom::BrowserShortcutsHandler> receiver,
-       browser_shortcuts::BrowserShortcutService* service,
--      Profile* profile);
-+      Profile* profile,
-+      content::WebContents* web_contents);
-   BrowserShortcutsHandler(const BrowserShortcutsHandler&) = delete;
-   BrowserShortcutsHandler& operator=(const BrowserShortcutsHandler&) = delete;
-   ~BrowserShortcutsHandler() override;
-@@ -45,6 +47,7 @@ class BrowserShortcutsHandler
-       const std::string& serialized_accelerator,
-       GetAcceleratorDisplayTextCallback callback) override;
-   void GetExtensionCommands(GetExtensionCommandsCallback callback) override;
-+  void SetShortcutHandlingSuspended(bool suspended) override;
- 
-   // browser_shortcuts::BrowserShortcutService::Observer:
-   void OnBrowserShortcutsChanged() override;
-@@ -58,6 +61,7 @@ class BrowserShortcutsHandler
-   mojo::Receiver<mojom::BrowserShortcutsHandler> receiver_;
-   raw_ptr<browser_shortcuts::BrowserShortcutService> service_;
-   raw_ptr<Profile> profile_;
-+  ShortcutCaptureSuspender capture_suspender_;
- };
- 
- }  // namespace settings
---- a/chrome/browser/ui/webui/settings/settings_ui.cc
-+++ b/chrome/browser/ui/webui/settings/settings_ui.cc
-@@ -891,7 +891,7 @@ void SettingsUI::CreateBrowserShortcutsHandler(
-   browser_shortcuts_handler_ = std::make_unique<BrowserShortcutsHandler>(
-       std::move(page), std::move(handler),
-       browser_shortcuts::BrowserShortcutServiceFactory::GetForProfile(profile),
--      profile);
-+      profile, web_ui()->GetWebContents());
- }
- 
- void SettingsUI::CreateCustomizeColorSchemeModeHandler(

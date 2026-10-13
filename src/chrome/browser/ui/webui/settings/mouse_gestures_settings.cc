@@ -5,7 +5,6 @@
 #include "chrome/browser/ui/webui/settings/mouse_gestures_settings.h"
 
 #include <string>
-#include <utility>
 
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/extensions/commands/command_service.h"
@@ -20,21 +19,21 @@
 
 namespace settings {
 
-std::vector<mojom::ExtensionCommandPtr> GetGestureExtensionCommands(
-    Profile* profile) {
-  std::vector<mojom::ExtensionCommandPtr> result;
+base::ListValue GetGestureExtensionCommands(Profile* profile) {
+  base::ListValue result;
   const auto* command_service = extensions::CommandService::Get(profile);
   const auto add = [&](const extensions::Extension& extension,
                        const ui::Command& command) {
-    auto item = mojom::ExtensionCommand::New();
-    item->extension_id = extension.id();
-    item->command_name = command.command_name();
     const std::u16string description =
         command.description().empty()
             ? l10n_util::GetStringUTF16(IDS_EXTENSION_COMMANDS_GENERIC_ACTIVATE)
             : command.description();
-    item->name = extension.name() + ": " + base::UTF16ToUTF8(description);
-    result.push_back(std::move(item));
+    result.Append(
+        base::DictValue()
+            .Set("extensionId", extension.id())
+            .Set("commandName", command.command_name())
+            .Set("name", extension.name() + ": " +
+                             base::UTF16ToUTF8(description)));
   };
   for (const auto& extension :
        extensions::ExtensionRegistry::Get(profile)->enabled_extensions()) {

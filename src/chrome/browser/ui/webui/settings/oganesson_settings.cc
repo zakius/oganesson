@@ -11,6 +11,7 @@
 #include "chrome/browser/ui/webui/settings/history_saving_settings.h"
 #include "chrome/browser/ui/webui/settings/mouse_gestures_settings.h"
 #include "chrome/browser/ui/webui/settings/omnibox_suggestions_settings.h"
+#include "chrome/browser/ui/webui/settings/shortcuts_page_handler.h"
 #include "chrome/grit/generated_resources.h"
 #include "content/public/browser/web_ui.h"
 #include "content/public/browser/web_ui_data_source.h"
@@ -29,6 +30,8 @@ void AddOganessonSettings(content::WebUI* web_ui,
   // Renames the shortcuts page.
   AddMouseGestureStrings(html_source);
   AddOmniboxSuggestionsStrings(html_source);
+  web_ui->AddMessageHandler(std::make_unique<ShortcutsPageHandler>(
+      profile, web_ui->GetWebContents()));
   html_source->AddLocalizedString("showTabAudioIndicator",
                                   IDS_OGANESSON_SHOW_TAB_AUDIO_INDICATOR);
 #if BUILDFLAG(IS_LINUX)

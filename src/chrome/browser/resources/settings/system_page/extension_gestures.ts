@@ -9,10 +9,8 @@ import '../settings_shared.css.js';
 import {I18nMixin} from 'chrome://resources/cr_elements/i18n_mixin.js';
 import {html, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
-import type {ExtensionCommand} from '../browser_shortcuts.mojom-webui.js';
-
-import type {GestureValue} from './mouse_gestures.js';
-import {getCurrentGestures, getGestureLabel, gesturesFor, mouseGesturesEnabled, newHandler, toGestureValue} from './mouse_gestures.js';
+import type {ExtensionCommand, GestureValue} from './mouse_gestures.js';
+import {getCurrentGestures, getExtensionCommands, getGestureLabel, gesturesFor, mouseGesturesEnabled, toGestureValue} from './mouse_gestures.js';
 
 // The extension commands, each with its gestures, filtered by the page's
 // search.
@@ -105,7 +103,7 @@ export class SettingsExtensionGesturesElement extends SettingsExtensionGesturesE
   override connectedCallback() {
     super.connectedCallback();
     if (mouseGesturesEnabled()) {
-      newHandler().getExtensionCommands().then(({commands}) => {
+      getExtensionCommands().then(commands => {
         this.commands_ = commands.sort((a, b) => a.name.localeCompare(b.name));
       });
     }

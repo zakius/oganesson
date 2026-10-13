@@ -67,7 +67,7 @@
    icons_html_files = [ "privacy_page/security/fingerprint_icons.html" ]
 --- a/chrome/browser/ui/webui/settings/BUILD.gn
 +++ b/chrome/browser/ui/webui/settings/BUILD.gn
-@@ -155,6 +155,20 @@ source_set("impl") {
+@@ -155,6 +155,22 @@ source_set("impl") {
      "brave_importer_observer.cc",
      "browser_lifetime_handler.cc",
      "browser_shortcuts_handler.cc",
@@ -85,6 +85,8 @@
 +    "omnibox_suggestions_settings.h",
 +    "shortcut_capture_suspender.cc",
 +    "shortcut_capture_suspender.h",
++    "shortcuts_page_handler.cc",
++    "shortcuts_page_handler.h",
      "captions_handler.cc",
      "custom_home_pages_table_model.cc",
      "dictation_handler.cc",

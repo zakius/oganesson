@@ -8,10 +8,9 @@
 // own state, so Helium's page only hosts them.
 
 import {PrefService} from '/shared/settings/prefs2/pref_service.js';
+import {sendWithPromise} from 'chrome://resources/js/cr.js';
 import {html} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
-import {BrowserShortcutsHandlerFactory, BrowserShortcutsHandlerRemote, BrowserShortcutsPageCallbackRouter} from '../browser_shortcuts.mojom-webui.js';
-import type {ExtensionCommand} from '../browser_shortcuts.mojom-webui.js';
 import {loadTimeData} from '../i18n_setup.js';
 
 // Maps mouse gestures to a GestureValue. Keys are stroke chains, such as "DR",
@@ -21,6 +20,13 @@ export const STROKE = 'stroke';
 
 // A browser command id, or an extension command.
 export type GestureValue = number|{extension: string, command: string};
+
+// An extension command that a gesture can run.
+export interface ExtensionCommand {
+  extensionId: string;
+  commandName: string;
+  name: string;
+}
 
 export const GESTURE_LABELS: Record<string, string> = {
   'rocker-rl': 'shortcutsGestureRockerRightLeft',
@@ -65,12 +71,15 @@ export function gesturesFor(
           .sort();
 }
 
-export function newHandler(): BrowserShortcutsHandlerRemote {
-  const handler = new BrowserShortcutsHandlerRemote();
-  BrowserShortcutsHandlerFactory.getRemote().createBrowserShortcutsHandler(
-      new BrowserShortcutsPageCallbackRouter().$.bindNewPipeAndPassRemote(),
-      handler.$.bindNewPipeAndPassReceiver());
-  return handler;
+// These ask ShortcutsPageHandler. Helium's BrowserShortcutsHandler factory
+// would replace the page's own handler each time it's asked for one.
+export function getExtensionCommands(): Promise<ExtensionCommand[]> {
+  return sendWithPromise('getGestureExtensionCommands');
+}
+
+// The browser command's name, or '' if there is no such command.
+export function getCommandName(commandId: number): Promise<string> {
+  return sendWithPromise('getShortcutCommandName', commandId);
 }
 
 export function mouseGesturesEnabled(): boolean {

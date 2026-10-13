@@ -12,11 +12,10 @@ import {PrefService} from '/shared/settings/prefs2/pref_service.js';
 import {I18nMixin} from 'chrome://resources/cr_elements/i18n_mixin.js';
 import {html, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
-import type {BrowserShortcutsHandlerRemote} from '../browser_shortcuts.mojom-webui.js';
 import {loadTimeData} from '../i18n_setup.js';
 
 import type {GestureValue} from './mouse_gestures.js';
-import {CHIP_STYLE, getCurrentGestures, getGestureLabel, GESTURE_LABELS, GESTURES_PREF, isSameGestureValue, mouseGesturesEnabled, newHandler, normalizeGesture, STROKE, toGestureValue} from './mouse_gestures.js';
+import {CHIP_STYLE, getCommandName, getCurrentGestures, getExtensionCommands, getGestureLabel, GESTURE_LABELS, GESTURES_PREF, isSameGestureValue, mouseGesturesEnabled, normalizeGesture, STROKE, toGestureValue} from './mouse_gestures.js';
 
 // The "Add gesture" button of one command, and its dialog.
 const SettingsAddGestureElementBase = I18nMixin(PolymerElement);
@@ -109,7 +108,6 @@ export class SettingsAddGestureElement extends SettingsAddGestureElementBase {
   declare private type_: string;
   declare private types_: string[];
   declare private message_: string;
-  private handler_: BrowserShortcutsHandlerRemote|null = null;
   private messageRequestId_ = 0;
 
   private onAddClick_() {
@@ -151,13 +149,10 @@ export class SettingsAddGestureElement extends SettingsAddGestureElementBase {
       this.message_ = '';
       return;
     }
-    this.handler_ ??= newHandler();
     const name = typeof existing === 'number' ?
-        (await this.handler_.getCommands())
-            .commands.find(c => c.commandId === existing)
-            ?.name :
-        (await this.handler_.getExtensionCommands())
-            .commands.find(c => isSameGestureValue(toGestureValue(c), existing))
+        await getCommandName(existing) :
+        (await getExtensionCommands())
+            .find(c => isSameGestureValue(toGestureValue(c), existing))
             ?.name;
     if (requestId === this.messageRequestId_) {
       this.message_ =

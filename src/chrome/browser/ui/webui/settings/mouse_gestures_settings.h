@@ -5,9 +5,7 @@
 #ifndef CHROME_BROWSER_UI_WEBUI_SETTINGS_MOUSE_GESTURES_SETTINGS_H_
 #define CHROME_BROWSER_UI_WEBUI_SETTINGS_MOUSE_GESTURES_SETTINGS_H_
 
-#include <vector>
-
-#include "chrome/browser/ui/webui/settings/browser_shortcuts.mojom.h"
+#include "base/values.h"
 
 class Profile;
 
@@ -18,9 +16,9 @@ class WebUIDataSource;
 namespace settings {
 
 // The commands of the profile's enabled extensions that a mouse gesture can
-// run: their named commands and their action's command.
-std::vector<mojom::ExtensionCommandPtr> GetGestureExtensionCommands(
-    Profile* profile);
+// run: their named commands and their action's command, each as
+// {extensionId, commandName, name}.
+base::ListValue GetGestureExtensionCommands(Profile* profile);
 
 // The strings and flags of the gestures on the "Shortcuts and gestures"
 // page; its title too, which they rename.
