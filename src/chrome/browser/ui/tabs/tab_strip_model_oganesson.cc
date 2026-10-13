@@ -47,6 +47,7 @@ tabs::TabModel* Find(
 OganessonTabRules& OganessonTabRules::Get(TabStripModel& model) {
   if (!model.oganesson_tab_rules_) {
     model.oganesson_tab_rules_ = std::make_unique<OganessonTabRules>();
+    model.AddObserver(model.oganesson_tab_rules_.get());
   }
   return *model.oganesson_tab_rules_;
 }
@@ -138,11 +139,11 @@ bool OganessonTabRules::PlaceNewTab(
   return true;
 }
 
-// static
-void OganessonTabRules::OnChange(TabStripModel& model,
-                                 const TabStripModelChange& change,
-                                 const TabStripSelectionChange& selection) {
-  OganessonTabRules& rules = Get(model);
+void OganessonTabRules::OnTabStripModelChanged(
+    TabStripModel* tab_strip_model,
+    const TabStripModelChange& change,
+    const TabStripSelectionChange& selection) {
+  const TabStripModel& model = *tab_strip_model;
   if (selection.active_tab_changed()) {
     // Leaving a tab ends its owner, and that of the last tab it opened unless
     // that one is selected.
@@ -151,10 +152,10 @@ void OganessonTabRules::OnChange(TabStripModel& model,
                               : TabStripModel::kNoTab;
     if (old_index != TabStripModel::kNoTab) {
       tabs::TabModel* const old_tab = model.GetTabModelAtIndex(old_index);
-      rules.SetOwner(old_tab, nullptr);
-      tabs::TabModel* const last_related = Find(rules.last_related_, old_tab);
+      SetOwner(old_tab, nullptr);
+      tabs::TabModel* const last_related = Find(last_related_, old_tab);
       if (last_related && last_related != selection.new_tab) {
-        rules.SetOwner(last_related, nullptr);
+        SetOwner(last_related, nullptr);
       }
     }
   }
@@ -162,11 +163,11 @@ void OganessonTabRules::OnChange(TabStripModel& model,
   if (selection.active_tab_changed() ||
       change.type() == TabStripModelChange::kRemoved ||
       change.type() == TabStripModelChange::kMoved) {
-    rules.last_related_.clear();
+    last_related_.clear();
   }
   // Forget the owners of tabs that closed or left for another window.
   if (change.type() == TabStripModelChange::kRemoved) {
-    std::erase_if(rules.owners_, [&](const auto& entry) {
+    std::erase_if(owners_, [&](const auto& entry) {
       tabs::TabInterface* const tab = entry.first.Get();
       return !tab || model.GetIndexOfTab(tab) == TabStripModel::kNoTab;
     });

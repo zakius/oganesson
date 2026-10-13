@@ -42,14 +42,6 @@
  #include "chrome/browser/ui/tabs/tab_change_type.h"
  #include "chrome/browser/ui/tabs/tab_close_types_data.h"
  #include "chrome/browser/ui/tabs/tab_enums.h"
-@@ -778,6 +779,7 @@ tabs::TabModel* TabStripModel::GetActiveTabModel() const {
- void TabStripModel::OnChange(const TabStripModelChange& change,
-                              const TabStripSelectionChange& selection) {
-   CompleteModelUpdateTransaction();
-+  OganessonTabRules::OnChange(*this, change, selection);
-   OnActiveTabChanged(selection);
- 
-   for (auto& observer : observers_) {
 @@ -1824,7 +1826,10 @@ void TabStripModel::AddTab(std::unique_ptr<tabs::TabModel> tab,
    // closed we'll jump back to the parent tab.
    bool inherit_opener = (add_types & ADD_INHERIT_OPENER) == ADD_INHERIT_OPENER;

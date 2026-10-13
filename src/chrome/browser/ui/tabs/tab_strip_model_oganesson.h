@@ -9,6 +9,7 @@
 #include <optional>
 
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "components/tab_groups/tab_group_id.h"
 #include "components/tabs/public/tab_interface.h"
 #include "ui/base/page_transition_types.h"
@@ -19,10 +20,11 @@ class Range;
 
 // Firefox's rules for where a new tab opens and which tab is selected when
 // the active one closes, always on (docs/tab-behavior.md). TabStripModel
-// calls the static functions from AddTab, OnChange and
-// DetermineNewSelectedIndex. All other state lives here rather than in
-// TabStripModel or TabModel, which keeps the Chromium patch to a few lines.
-class OganessonTabRules {
+// calls the static functions from AddTab and DetermineNewSelectedIndex; the
+// rules observe the model from its first added tab on, which is when they
+// get state to drop. All other state lives here rather than in TabStripModel
+// or TabModel, which keeps the Chromium patch to a few lines.
+class OganessonTabRules : public TabStripModelObserver {
  public:
   // An extension's tabs.create({openerTabId}) names the opener of the tab
   // that it adds next. Pass nullptr after the tab is added.
@@ -41,9 +43,11 @@ class OganessonTabRules {
                           std::optional<tab_groups::TabGroupId>* group,
                           bool* inherit_opener);
 
-  static void OnChange(TabStripModel& model,
-                       const TabStripModelChange& change,
-                       const TabStripSelectionChange& selection);
+  // TabStripModelObserver:
+  void OnTabStripModelChanged(
+      TabStripModel* tab_strip_model,
+      const TabStripModelChange& change,
+      const TabStripSelectionChange& selection) override;
 
   // The index to select after `block_tabs` close, or nullopt to let Chromium
   // choose.
