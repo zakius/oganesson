@@ -48,6 +48,7 @@
 #include "chrome/browser/ui/views/toolbar/toolbar_button.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
 #include "chrome/common/pref_names.h"
+#include "components/prefs/pref_change_registrar.h"
 #include "components/prefs/pref_service.h"
 #include "components/prefs/scoped_user_pref_update.h"
 #include "extensions/browser/extension_prefs.h"
@@ -64,6 +65,7 @@
 #include "ui/gfx/geometry/rect.h"
 #include "ui/views/context_menu_controller.h"
 #include "ui/views/controls/button/button_controller.h"
+#include "ui/views/drag_controller.h"
 #include "ui/views/widget/widget.h"
 
 namespace {
@@ -117,16 +119,26 @@ class AppMenuFallback : public views::ContextMenuController {
   std::unique_ptr<AppMenu> menu_;
 };
 
-// Runs `apply` once the extensions container or Chrome's pinned buttons
-// container has updated its views for a change in the pinned items. It starts
-// observing after the containers, so it runs after them.
-class ContainersObserver : public ExtensionsToolbarViewModel::Observer,
-                           public PinnedToolbarActionsModel::Observer {
+// The toolbar items' state, owned by the toolbar. It applies the item prefs
+// when they change, and once the extensions container or Chrome's pinned
+// buttons container has updated its views for a change in the pinned items: it
+// starts observing after the containers, so it runs after them. It also drags
+// the built-in items.
+class ToolbarItemsState : public ExtensionsToolbarViewModel::Observer,
+                          public PinnedToolbarActionsModel::Observer,
+                          public views::DragController {
  public:
-  ContainersObserver(base::RepeatingClosure apply,
-                     ExtensionsToolbarViewModel* extensions,
-                     PinnedToolbarActionsModel* pinned)
-      : apply_(std::move(apply)) {
+  ToolbarItemsState(ToolbarView* toolbar,
+                    ExtensionsToolbarViewModel* extensions,
+                    PinnedToolbarActionsModel* pinned)
+      : toolbar_(toolbar) {
+    registrar_.Init(toolbar->browser()->GetProfile()->GetPrefs());
+    registrar_.Add(prefs::kToolbarItems,
+                   base::BindRepeating(&ToolbarView::ApplyToolbarItems,
+                                       base::Unretained(toolbar)));
+    registrar_.Add(prefs::kToolbarHiddenItems,
+                   base::BindRepeating(&ToolbarView::ApplyHiddenItems,
+                                       base::Unretained(toolbar)));
     if (extensions) {
       extensions_observation_.Observe(extensions);
     }
@@ -135,25 +147,47 @@ class ContainersObserver : public ExtensionsToolbarViewModel::Observer,
     }
   }
 
+  // Where the drop indicator is painted while dragging, if at all.
+  std::optional<int> drop_x;
+
  private:
   // ExtensionsToolbarViewModel::Observer:
-  void OnActionsInitialized() override { apply_.Run(); }
+  void OnActionsInitialized() override { toolbar_->ApplyToolbarItems(); }
   void OnActionAdded(const ToolbarActionsModel::ActionId& action_id) override {
-    apply_.Run();
+    toolbar_->ApplyToolbarItems();
   }
   void OnActionRemoved(
       const ToolbarActionsModel::ActionId& action_id) override {}
   void OnActionUpdated(
       const ToolbarActionsModel::ActionId& action_id) override {}
-  void OnPinnedActionsChanged() override { apply_.Run(); }
+  void OnPinnedActionsChanged() override { toolbar_->ApplyToolbarItems(); }
   void OnActiveWebContentsChanged(bool is_same_document,
                                   content::WebContents* web_contents) override {
   }
 
   // PinnedToolbarActionsModel::Observer:
-  void OnActionsChanged() override { apply_.Run(); }
+  void OnActionsChanged() override { toolbar_->ApplyToolbarItems(); }
 
-  base::RepeatingClosure apply_;
+  // views::DragController, for the built-in items:
+  void WriteDragDataForView(views::View* sender,
+                            const gfx::Point& press_pt,
+                            ui::OSExchangeData* data) override;
+  int GetDragOperationsForView(views::View* sender,
+                               const gfx::Point& p) override {
+    return ui::DragDropTypes::DRAG_MOVE;
+  }
+  bool CanStartDragForView(views::View* sender,
+                           const gfx::Point& press_pt,
+                           const gfx::Point& p) override {
+    return true;
+  }
+  void OnWillStartDragForView(views::View* dragged_view) override {
+    // Holding back or forward opens their history menu after a delay.
+    static_cast<ToolbarButton*>(dragged_view)->ClearPendingMenu();
+  }
+
+  raw_ptr<ToolbarView> toolbar_;
+  PrefChangeRegistrar registrar_;
   base::ScopedObservation<ExtensionsToolbarViewModel,
                           ExtensionsToolbarViewModel::Observer>
       extensions_observation_{this};
@@ -165,14 +199,14 @@ class ContainersObserver : public ExtensionsToolbarViewModel::Observer,
 }  // namespace
 
 DEFINE_UI_CLASS_PROPERTY_TYPE(AppMenuFallback*)
-DEFINE_UI_CLASS_PROPERTY_TYPE(ContainersObserver*)
+DEFINE_UI_CLASS_PROPERTY_TYPE(ToolbarItemsState*)
 
 namespace {
 
 // Owns the toolbar's AppMenuFallback.
 DEFINE_OWNED_UI_CLASS_PROPERTY_KEY(AppMenuFallback, kAppMenuFallbackKey)
-// Owns the toolbar's ContainersObserver.
-DEFINE_OWNED_UI_CLASS_PROPERTY_KEY(ContainersObserver, kContainersObserverKey)
+// Owns the toolbar's ToolbarItemsState.
+DEFINE_OWNED_UI_CLASS_PROPERTY_KEY(ToolbarItemsState, kToolbarItemsStateKey)
 
 // Drag data of a built-in toolbar item: its pickled token.
 const ui::ClipboardFormatType& GetToolbarItemFormatType() {
@@ -182,30 +216,50 @@ const ui::ClipboardFormatType& GetToolbarItemFormatType() {
   return *format;
 }
 
+void ToolbarItemsState::WriteDragDataForView(views::View* sender,
+                                             const gfx::Point& press_pt,
+                                             ui::OSExchangeData* data) {
+  auto* const button = static_cast<ToolbarButton*>(sender);
+  data->provider().SetDragImage(button->GetImage(button->GetState()),
+                                press_pt.OffsetFromOrigin());
+  // A handle inside an item (the extensions button) drags the item.
+  views::View* item = sender;
+  while (item->parent() != toolbar_) {
+    item = item->parent();
+  }
+  base::Pickle pickle;
+  pickle.WriteString(toolbar_->GetItemToken(item));
+  data->SetPickledData(GetToolbarItemFormatType(), pickle);
+}
+
+// The view that drags the built-in `item`, if it moves at all. The extensions
+// button drags its container. The location bar stays put; the others move
+// around it.
+views::View* GetDragHandle(ToolbarView* toolbar,
+                           std::string_view token,
+                           views::View* item) {
+  if (item && item == toolbar->extensions_container()) {
+    return toolbar->GetExtensionsButton();
+  }
+  return token == "location_bar" ? nullptr : item;
+}
+
 }  // namespace
 
 void ToolbarView::InitToolbarItems() {
-  const auto apply = base::BindRepeating(&ToolbarView::ApplyToolbarItems,
-                                         base::Unretained(this));
   const auto move_by =
       base::BindRepeating(&ToolbarView::MoveItemBy, base::Unretained(this));
-  toolbar_items_registrar_.Init(browser_->GetProfile()->GetPrefs());
-  toolbar_items_registrar_.Add(prefs::kToolbarItems, apply);
-  toolbar_items_registrar_.Add(
-      prefs::kToolbarHiddenItems,
-      base::BindRepeating(&ToolbarView::ApplyHiddenItems,
-                          base::Unretained(this)));
   set_context_menu_controller(SetProperty(
       kAppMenuFallbackKey, std::make_unique<AppMenuFallback>(this)));
-  SetProperty(kContainersObserverKey,
-              std::make_unique<ContainersObserver>(
-                  apply,
-                  extensions_container_
-                      ? extensions_container_->GetToolbarViewModel()
-                      : nullptr,
-                  pinned_toolbar_actions_container_
-                      ? PinnedToolbarActionsModel::Get(browser_->GetProfile())
-                      : nullptr));
+  ToolbarItemsState* const state = SetProperty(
+      kToolbarItemsStateKey,
+      std::make_unique<ToolbarItemsState>(
+          this,
+          extensions_container_ ? extensions_container_->GetToolbarViewModel()
+                                : nullptr,
+          pinned_toolbar_actions_container_
+              ? PinnedToolbarActionsModel::Get(browser_->GetProfile())
+              : nullptr));
   if (extensions_container_) {
     extensions_container_->SetMoveDetachedCallback(move_by);
   }
@@ -213,16 +267,11 @@ void ToolbarView::InitToolbarItems() {
     pinned_toolbar_actions_container_->SetMoveDetachedCallback(move_by);
   }
   // Built-in items drag like pinned ones, and act on release so a press can
-  // start a drag. The extensions button drags its container. The location bar stays put; the others move around it.
-  // Incognito windows don't change the layout.
+  // start a drag. Incognito windows don't change the layout.
   if (!browser_->GetProfile()->IsOffTheRecord()) {
     for (const auto& [token, item] : GetBuiltInItems()) {
-      views::View* handle = item;
-      if (item && item == extensions_container_.get()) {
-        handle = extensions_container_->GetExtensionsButton();
-      }
-      if (handle && token != "location_bar") {
-        handle->set_drag_controller(this);
+      if (views::View* handle = GetDragHandle(this, token, item)) {
+        handle->set_drag_controller(state);
         static_cast<ToolbarButton*>(handle)
             ->button_controller()
             ->set_notify_action(
@@ -235,9 +284,14 @@ void ToolbarView::InitToolbarItems() {
 
 void ToolbarView::ShutdownToolbarItems() {
   set_context_menu_controller(nullptr);
+  for (const auto& [token, item] : GetBuiltInItems()) {
+    if (views::View* handle = GetDragHandle(this, token, item)) {
+      handle->set_drag_controller(nullptr);
+    }
+  }
+  ClearProperty(kToolbarItemsStateKey);
   // Hand the pinned items back to their containers, which own their state, so
   // they are destroyed with them.
-  ClearProperty(kContainersObserverKey);
   if (extensions_container_) {
     extensions_container_->SetMoveDetachedCallback({});
   }
@@ -579,15 +633,18 @@ int ToolbarView::OnDragUpdated(const ui::DropTargetEvent& event) {
   if (index > 0) {
     x -= GetLayoutConstant(LayoutConstant::kToolbarIconDefaultMargin);
   }
-  if (drop_x_ != x) {
-    drop_x_ = x;
+  if (ToolbarItemsState* const state = GetProperty(kToolbarItemsStateKey);
+      state && state->drop_x != x) {
+    state->drop_x = x;
     SchedulePaint();
   }
   return ui::DragDropTypes::DRAG_MOVE;
 }
 
 void ToolbarView::OnDragExited() {
-  drop_x_.reset();
+  if (ToolbarItemsState* const state = GetProperty(kToolbarItemsStateKey)) {
+    state->drop_x.reset();
+  }
   SchedulePaint();
 }
 
@@ -626,48 +683,17 @@ views::View::DropCallback ToolbarView::GetDropCallback(
       WithAbsentItems(std::move(tokens)));
 }
 
-void ToolbarView::WriteDragDataForView(views::View* sender,
-                                       const gfx::Point& press_pt,
-                                       ui::OSExchangeData* data) {
-  auto* const button = static_cast<ToolbarButton*>(sender);
-  data->provider().SetDragImage(button->GetImage(button->GetState()),
-                                press_pt.OffsetFromOrigin());
-  // A handle inside an item (the extensions button) drags the item.
-  views::View* item = sender;
-  while (item->parent() != this) {
-    item = item->parent();
-  }
-  base::Pickle pickle;
-  pickle.WriteString(GetItemToken(item));
-  data->SetPickledData(GetToolbarItemFormatType(), pickle);
-}
-
-int ToolbarView::GetDragOperationsForView(views::View* sender,
-                                          const gfx::Point& p) {
-  return ui::DragDropTypes::DRAG_MOVE;
-}
-
-bool ToolbarView::CanStartDragForView(views::View* sender,
-                                      const gfx::Point& press_pt,
-                                      const gfx::Point& p) {
-  return true;
-}
-
-void ToolbarView::OnWillStartDragForView(views::View* dragged_view) {
-  // Holding back or forward opens their history menu after a delay.
-  static_cast<ToolbarButton*>(dragged_view)->ClearPendingMenu();
-}
-
 void ToolbarView::OnPaint(gfx::Canvas* canvas) {
   AccessiblePaneView::OnPaint(canvas);
-  if (!drop_x_) {
+  const ToolbarItemsState* const state = GetProperty(kToolbarItemsStateKey);
+  if (!state || !state->drop_x) {
     return;
   }
   constexpr int kIndicatorWidth = 2;
   const int height = GetLayoutConstant(LayoutConstant::kToolbarButtonHeight);
+  const int x = *state->drop_x - kIndicatorWidth / 2;
   canvas->FillRect(
-      gfx::Rect(GetMirroredXWithWidthInView(*drop_x_ - kIndicatorWidth / 2,
-                                            kIndicatorWidth),
+      gfx::Rect(GetMirroredXWithWidthInView(x, kIndicatorWidth),
                 (this->height() - height) / 2, kIndicatorWidth, height),
       GetColorProvider()->GetColor(kColorToolbarButtonIcon));
 }

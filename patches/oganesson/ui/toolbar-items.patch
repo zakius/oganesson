@@ -385,47 +385,7 @@
        base::UmaHistogramBoolean("Toolbar.Overflow.HomeButton", true);
 --- a/chrome/browser/ui/views/toolbar/toolbar_view.h
 +++ b/chrome/browser/ui/views/toolbar/toolbar_view.h
-@@ -7,10 +7,13 @@
- 
- #include <memory>
- #include <optional>
-+#include <string>
-+#include <string_view>
- #include <vector>
- 
- #include "base/gtest_prod_util.h"
- #include "base/memory/raw_ptr.h"
-+#include "base/values.h"
- #include "base/memory/weak_ptr.h"
- #include "base/scoped_observation.h"
- #include "chrome/browser/command_observer.h"
-@@ -28,6 +31,7 @@
- #include "chrome/browser/ui/views/toolbar/pinned_action_toolbar_button.h"
- #include "chrome/browser/ui/views/toolbar/pinned_toolbar_actions.h"
- #include "chrome/browser/ui/views/toolbar/split_tabs_button.h"
-+#include "components/prefs/pref_change_registrar.h"
- #include "components/apps/link_capturing/intent_picker_info.h"
- #include "components/prefs/pref_member.h"
- #include "ui/base/accelerators/accelerator.h"
-@@ -38,6 +42,7 @@
- #include "ui/views/animation/animation_delegate_views.h"
- #include "ui/views/controls/button/menu_button.h"
- #include "ui/views/mouse_watcher.h"
-+#include "ui/views/drag_controller.h"
- #include "ui/views/view.h"
- #include "url/origin.h"
- 
-@@ -97,7 +102,8 @@ class ToolbarView : public views::AccessiblePaneView,
-                     public AppMenuIconController::Delegate,
-                     public ToolbarButtonProvider,
-                     public BrowserRootView::DropTarget,
--                    public glic::GlicSplitButtonDelegate {
-+                    public glic::GlicSplitButtonDelegate,
-+                    public views::DragController {
-   METADATA_HEADER(ToolbarView, views::AccessiblePaneView)
- 
-  public:
-@@ -250,6 +256,28 @@ class ToolbarView : public views::AccessiblePaneView,
+@@ -250,6 +250,44 @@ class ToolbarView : public views::AccessiblePaneView,
    bool AcceleratorPressed(const ui::Accelerator& acc) override;
    void ChildPreferredSizeChanged(views::View* child) override;
    void ChildVisibilityChanged(View* child) override;
@@ -441,23 +401,6 @@
 +  void OnDragExited() override;
 +  DropCallback GetDropCallback(const ui::DropTargetEvent& event) override;
 +
-+  // views::DragController, for the built-in buttons:
-+  void WriteDragDataForView(views::View* sender,
-+                            const gfx::Point& press_pt,
-+                            ui::OSExchangeData* data) override;
-+  int GetDragOperationsForView(views::View* sender,
-+                               const gfx::Point& p) override;
-+  bool CanStartDragForView(views::View* sender,
-+                           const gfx::Point& press_pt,
-+                           const gfx::Point& p) override;
-+  void OnWillStartDragForView(views::View* dragged_view) override;
- 
-   friend class AvatarToolbarButtonBaseBrowserTest;
- 
-@@ -359,6 +387,33 @@ class ToolbarView : public views::AccessiblePaneView,
-   // Changes the visibility of the Chrome Labs entry point based on prefs.
-   void OnChromeLabsPrefChanged();
- 
 +  // Set up and tear down the toolbar items, see toolbar_view_items.cc.
 +  void InitToolbarItems();
 +  void ShutdownToolbarItems();
@@ -484,20 +427,8 @@
 +  // shows it.
 +  void ApplyHiddenItems();
 +  void ReapplyHiddenItem(views::View* child);
-+
-   // Loads the images for all the child views.
-   void LoadImages();
  
-@@ -478,6 +533,10 @@ class ToolbarView : public views::AccessiblePaneView,
- 
-   BooleanPrefMember show_chrome_labs_button_;
- 
-+  PrefChangeRegistrar toolbar_items_registrar_;
-+  // Where the drop indicator is painted while dragging, if at all.
-+  std::optional<int> drop_x_;
-+
-   // The display mode used when laying out the toolbar.
-   const DisplayMode display_mode_;
+   friend class AvatarToolbarButtonBaseBrowserTest;
  
 --- a/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/BUILD.gn
 +++ b/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/BUILD.gn
