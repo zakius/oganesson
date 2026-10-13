@@ -76,15 +76,15 @@
    if (new_selected_index != TabStripModel::kNoTab &&
 --- a/chrome/browser/ui/tabs/tab_strip_model.h
 +++ b/chrome/browser/ui/tabs/tab_strip_model.h
-@@ -1510,6 +1510,11 @@ class TabStripModel {
-   // List of tabs for MRU cycling
-   std::vector<tabs::TabHandle> mru_cycle_list_;
+@@ -899,6 +899,11 @@ class TabStripModel {
+       const content::WebContents* contents) const;
  
+  private:
 +  // Firefox's tab rules (tab_strip_model_oganesson.cc).
 +  friend class OganessonTabRules;
 +  std::unique_ptr<class OganessonTabRules> oganesson_tab_rules_;
 +  tabs::TabHandle oganesson_next_opener_;
 +
-   base::WeakPtrFactory<TabStripModel> weak_factory_{this};
- };
- 
+   FRIEND_TEST_ALL_PREFIXES(TabStripModelTest, GetIndicesClosedByCommand);
+   // Temporary private API.
+   FRIEND_TEST_ALL_PREFIXES(TabStripModelTest, FindGroupIdFor);
