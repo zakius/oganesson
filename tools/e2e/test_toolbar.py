@@ -112,6 +112,9 @@ class ToolbarTest(BrowserTest):
         wait_for(lambda: not any(
             v.visible for v in self.browser.views('BackForwardButton')
             if (v['TooltipText'] or '').startswith('Click to go back')), what='Back hidden')
+        # The page lists its actions again after each change; a click before
+        # that list is in can be lost.
+        wait_for(lambda: page.eval(f'{toggle}?.checked') is False, what='Back off in Customize toolbar')
         page.eval(f'{toggle}.click()')
         wait_for(lambda: self.back().visible, what='Back shown again')
         self.browser.close_target(page)

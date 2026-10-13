@@ -632,7 +632,24 @@ class Browser:
         groups (split at separators), each group a list of MenuItemViews, top
         to bottom. An item's `Title` is its label as in the menu model, with
         `&&` for an ampersand and `&` before a mnemonic.
+
+        A menu being rebuilt, as a context menu is when an asynchronous check
+        changes its items, reads as part of its items: the menus come back
+        once two reads 0.1 s apart agree, or after 2 s.
         """
+        def shape(menus):
+            return [[[(v.widget, v['Title']) for v in group] for group in menu]
+                    for menu in menus]
+        last = self._menus()
+        for _ in range(20):
+            time.sleep(0.1)
+            menus = self._menus()
+            if shape(menus) == shape(last):
+                return menus
+            last = menus
+        return last
+
+    def _menus(self):
         widgets = {}
         for view in self.views('MenuItemView'):
             if view.visible:
