@@ -30,6 +30,7 @@
 #include "chrome/browser/ui/layout_constants.h"
 #include "chrome/browser/ui/toolbar/app_menu_model.h"
 #include "chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model.h"
+#include "chrome/browser/ui/toolbar/toolbar_action_hover_card_types.h"
 #include "chrome/browser/ui/toolbar/toolbar_actions_model.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/extensions/browser_action_drag_data.h"
@@ -62,6 +63,8 @@
 #include "ui/base/dragdrop/os_exchange_data.h"
 #include "ui/color/color_provider.h"
 #include "ui/compositor/layer_tree_owner.h"
+#include "ui/events/event.h"
+#include "ui/events/event_handler.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/views/context_menu_controller.h"
@@ -125,11 +128,13 @@ class AppMenuFallback : public views::ContextMenuController {
 // when they change, and once the extensions container or Chrome's pinned
 // buttons container has updated its views for a change in the pinned items: it
 // starts observing after the containers, so it runs after them. It also drags
-// the built-in items, and keeps the hidden ones hidden.
+// the built-in items, keeps the hidden ones hidden and, as a pre-target
+// handler of the toolbar, sees the mouse leave its extension icons.
 class ToolbarItemsState : public ExtensionsToolbarViewModel::Observer,
                           public PinnedToolbarActionsModel::Observer,
                           public views::DragController,
-                          public views::ViewObserver {
+                          public views::ViewObserver,
+                          public ui::EventHandler {
  public:
   ToolbarItemsState(ToolbarView* toolbar,
                     ExtensionsToolbarViewModel* extensions,
@@ -206,6 +211,21 @@ class ToolbarItemsState : public ExtensionsToolbarViewModel::Observer,
   }
   void OnViewIsDeleting(views::View* observed_view) override {
     hideable_observations_.RemoveObservation(observed_view);
+  }
+
+  // ui::EventHandler:
+  void OnMouseEvent(ui::MouseEvent* event) override {
+    // The extensions container hides the hover card when the mouse leaves it,
+    // but an icon on the toolbar has no such container.
+    if (event->type() != ui::EventType::kMouseExited) {
+      return;
+    }
+    auto* const icon = views::AsViewClass<ToolbarActionView>(
+        static_cast<views::View*>(event->target()));
+    if (icon && icon->parent() == toolbar_) {
+      toolbar_->extensions_container()->UpdateHoverCard(
+          nullptr, ToolbarActionHoverCardUpdateType::kHover);
+    }
   }
 
   raw_ptr<ToolbarView> toolbar_;
@@ -285,6 +305,7 @@ void ToolbarView::InitToolbarItems() {
               ? PinnedToolbarActionsModel::Get(browser_->GetProfile())
               : nullptr));
   if (extensions_container_) {
+    AddPreTargetHandler(state);
     extensions_container_->SetMoveDetachedCallback(move_by);
   }
   if (pinned_toolbar_actions_container_) {
@@ -312,6 +333,9 @@ void ToolbarView::ShutdownToolbarItems() {
     if (views::View* handle = GetDragHandle(this, token, item)) {
       handle->set_drag_controller(nullptr);
     }
+  }
+  if (extensions_container_) {
+    RemovePreTargetHandler(GetProperty(kToolbarItemsStateKey));
   }
   ClearProperty(kToolbarItemsStateKey);
   // Hand the pinned items back to their containers, which own their state, so

@@ -317,35 +317,6 @@
    raw_ptr<ToolbarDivider> toolbar_divider_;
    raw_ptr<PinnedToolbarActionsModel> model_;
  
---- a/chrome/browser/ui/views/toolbar/toolbar_action_view.cc
-+++ b/chrome/browser/ui/views/toolbar/toolbar_action_view.cc
-@@ -171,6 +171,16 @@ void ToolbarActionView::OnMouseEntered(const ui::MouseEvent& event) {
-   MaybeUpdateHoverCardStatus(event);
- }
- 
-+void ToolbarActionView::OnMouseExited(const ui::MouseEvent& event) {
-+  MenuButton::OnMouseExited(event);
-+  // The extensions container hides the hover card when the mouse leaves it,
-+  // but an icon placed elsewhere on the toolbar has no such container.
-+  if (!parent()->GetNotifyEnterExitOnChild()) {
-+    delegate_->UpdateHoverCard(nullptr,
-+                               ToolbarActionHoverCardUpdateType::kHover);
-+  }
-+}
-+
- void ToolbarActionView::OnFocus() {
-   MenuButton::OnFocus();
-   delegate_->UpdateHoverCard(this, ToolbarActionHoverCardUpdateType::kFocus);
---- a/chrome/browser/ui/views/toolbar/toolbar_action_view.h
-+++ b/chrome/browser/ui/views/toolbar/toolbar_action_view.h
-@@ -104,6 +104,7 @@ class ToolbarActionView : public views::MenuButton {
-   bool IsTriggerableEvent(const ui::Event& event) override;
-   bool OnKeyPressed(const ui::KeyEvent& event) override;
-   void OnMouseMoved(const ui::MouseEvent& event) override;
-+  void OnMouseExited(const ui::MouseEvent& event) override;
-   void OnMouseEntered(const ui::MouseEvent& event) override;
-   void OnFocus() override;
-   void OnBlur() override;
 --- a/chrome/browser/ui/views/toolbar/toolbar_view.cc
 +++ b/chrome/browser/ui/views/toolbar/toolbar_view.cc
 @@ -306,6 +306,8 @@ ToolbarView::~ToolbarView() {
