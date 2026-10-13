@@ -201,10 +201,12 @@ class ToolbarItemsState : public ExtensionsToolbarViewModel::Observer,
 
   // views::ViewObserver, for the built-in items Customize toolbar can hide:
   void OnViewVisibilityChanged(views::View* observed_view,
-                               views::View* starting_view) override {
+                               views::View* starting_view,
+                               bool visible) override {
     // Chromium shows some items on its own; one the prefs hide goes right
     // back.
-    if (observed_view == starting_view && observed_view->GetVisible() &&
+    if (observed_view == starting_view && visible &&
+        observed_view->GetVisible() &&
         observed_view->GetProperty(kHiddenByPrefKey)) {
       observed_view->SetVisible(false);
     }
