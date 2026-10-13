@@ -18,7 +18,7 @@ A media element, Web Audio (`AudioContext`) and speech synthesis start only afte
 - switching to the tab or focusing it;
 - media engagement (sites where you often play media), and a Sound "Allow" exception.
 
-Media started from browser UI counts as user input: the global media controls, Picture-in-Picture controls and media keys reach the page as a user activation. So does a message from an extension to its content script in the page, sent while the extension has a user activation (Chromium passes it on).
+Media started from browser UI counts as user input: the global media controls, Picture-in-Picture controls and media keys reach the page as a user activation. An extension's script or message doesn't, even when it carries the activation of a click elsewhere: Chromium lets an extension keep a click's activation for 5 seconds and pass it to the pages it messages or injects script into. uBlock Origin injects its scriptlets into a YouTube tab opened by middle-click while it holds that click's activation, which would otherwise start the video as soon as the tab shows.
 
 A same-document navigation, as YouTube makes when you click a video in a YouTube tab you already used, keeps the document and so its activation: the next video plays even when it starts after the click's 5-second transient activation has ended.
 

@@ -5,6 +5,8 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_HTML_MEDIA_OGANESSON_AUTOPLAY_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_HTML_MEDIA_OGANESSON_AUTOPLAY_H_
 
+#include "third_party/blink/public/mojom/frame/user_activation_notification_type.mojom-blink-forward.h"
+
 namespace blink {
 
 class Document;
@@ -33,8 +35,12 @@ bool IsDocumentAllowedToPlay(const Document& document);
 bool HasTransientUserActivation(const LocalFrame& frame);
 
 // A user activation reached `frame`'s document: input in it or in a child
-// frame, or play from the browser's media controls.
-void DidReceiveUserActivation(Frame& frame);
+// frame, or play from the browser's media controls. Script an extension runs
+// or messages it sends don't count, even when they carry the activation of a
+// click elsewhere (see the .cc).
+void DidReceiveUserActivation(
+    Frame& frame,
+    mojom::blink::UserActivationNotificationType type);
 
 }  // namespace oganesson_autoplay
 

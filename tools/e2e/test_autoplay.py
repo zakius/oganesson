@@ -8,7 +8,9 @@ gesture (`gesture=False`), so only the input the test sends counts.
 
 Block audio and video (the default): nothing plays on load, in a tab opened
 by middle-clicking a same-origin link once that tab is activated, after a
-same-tab link click, or muted. A click or a key press in the page lets
+same-tab link click, or muted, also when an extension relays the click that
+opened the tab and injects script into it, as uBlock Origin does on YouTube.
+A click or a key press in the page lets
 play() start, also after a same-document (SPA) navigation once the click's
 transient activation has expired. Block audio is Chromium's policy: muted
 plays, sound doesn't. Allow audio and video plays. An allow exception for
@@ -18,11 +20,14 @@ default.
 
 import io
 import json
+import shutil
+import tempfile
 import time
 import unittest
 import wave
+from pathlib import Path
 
-from harness import UBO, BrowserTest, Page, Server, wait_for
+from harness import BrowserTest, Page, Server, wait_for
 from test_firefox_sync import FIND
 
 ALLOW, BLOCK, ASK = 1, 2, 3  # ContentSetting values in Preferences
@@ -100,11 +105,10 @@ class AutoplayTest(BrowserTest):
         if cls.exceptions:
             content['content_settings'] = {'exceptions': {'autoplay': {
                 f'{pattern},*': {'setting': value} for pattern, value in cls.exceptions.items()}}}
-        # The harness's wait for uBlock Origin evaluates script in its
-        # background page with a user gesture, and the messages it then sends
-        # to new pages' content scripts pass that activation on for 5 s.
-        cls.prefs = {'profile': content,
-                     'extensions': {'settings': {UBO: {'disable_reasons': [1]}}}}
+        # uBlock Origin stays on: the harness's wait for it evaluates script in
+        # its background page with a user gesture, which its messages then
+        # pass on to new pages, and that mustn't count as input there.
+        cls.prefs = {'profile': content}
         super().setUpClass()
 
     @classmethod
@@ -219,6 +223,68 @@ class BlockAudioAndVideoTest(AutoplayTest):
         time.sleep(6)
         self.assertFalse(page.eval('navigator.userActivation.isActive', gesture=False))
         self.assertEqual(page.eval('playNew()', gesture=False), 'played')
+
+
+class ExtensionScriptTest(AutoplayTest):
+    """An extension that passes the middle-click opening a tab on to the tab:
+    its content script tells its background page, which holds the click's
+    activation for 5 s and injects script into the new tab as it loads, as
+    uBlock Origin does with its scriptlets. That script runs with the
+    activation, which isn't input in the page."""
+
+    MANIFEST = {
+        'manifest_version': 2,
+        'name': 'Autoplay test relay',
+        'version': '1',
+        'permissions': ['tabs', 'http://127.0.0.1/*'],
+        'background': {'scripts': ['background.js']},
+        'content_scripts': [{'matches': ['http://127.0.0.1/link.html'], 'js': ['content.js']}],
+    }
+    BACKGROUND = """
+    let injected = 0;
+    chrome.runtime.onMessage.addListener(() => {});
+    chrome.tabs.onUpdated.addListener((id, change, tab) => {
+      if (change.status === 'loading' && (tab.url || '').endsWith('/autoplay.html')) {
+        chrome.tabs.executeScript(id, {code: '0', runAt: 'document_start'}, () => {
+          injected += !chrome.runtime.lastError;
+        });
+      }
+    });
+    """
+    CONTENT = "addEventListener('mousedown', () => chrome.runtime.sendMessage('click'), true);"
+
+    @classmethod
+    def setUpClass(cls):
+        cls.folder = Path(tempfile.mkdtemp(prefix='oganesson-autoplay-'))
+        (cls.folder / 'manifest.json').write_text(json.dumps(cls.MANIFEST))
+        (cls.folder / 'background.js').write_text(cls.BACKGROUND)
+        (cls.folder / 'content.js').write_text(cls.CONTENT)
+        cls.browser_args = (*AutoplayTest.browser_args, f'--load-extension={cls.folder}')
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(cls.folder)
+
+    def test_injected_script_doesnt_unblock(self):
+        opener = self.open('/link.html')
+        before = {t['id'] for t in self.browser.targets()}
+        self.browser.click_element(opener, '#link', button=2)
+        target = wait_for(lambda: next((t for t in self.browser.targets()
+                                        if t['id'] not in before
+                                        and t['url'].endswith('/autoplay.html')), None),
+                          what='the background tab')
+        page = Page(target)
+        self.wait_loaded(page, self.server.url('/autoplay.html'))
+        # The scenario: the script went in, and the click's activation with it.
+        background = self.browser.page('_generated_background_page.html')
+        wait_for(lambda: background.eval('injected', gesture=False), what='the injected script')
+        self.assertTrue(page.eval('navigator.userActivation.hasBeenActive', gesture=False))
+        self.browser._get(f'/json/activate/{target["id"]}')
+        wait_for(lambda: page.eval('document.visibilityState', gesture=False) == 'visible',
+                 what='the tab to show')
+        self.assert_blocked(page)
 
 
 class BlockAudioTest(AutoplayTest):

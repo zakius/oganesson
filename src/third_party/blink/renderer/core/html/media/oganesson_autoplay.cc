@@ -6,6 +6,7 @@
 
 #include "services/network/public/mojom/permissions_policy/permissions_policy_feature.mojom-blink.h"
 #include "third_party/blink/public/mojom/autoplay/autoplay.mojom-blink.h"
+#include "third_party/blink/public/mojom/frame/user_activation_notification_type.mojom-blink.h"
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context.h"
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
@@ -77,7 +78,28 @@ bool HasTransientUserActivation(const LocalFrame& frame) {
          HadDocumentInput(frame);
 }
 
-void DidReceiveUserActivation(Frame& frame) {
+void DidReceiveUserActivation(
+    Frame& frame,
+    mojom::blink::UserActivationNotificationType type) {
+  // An extension holds the activation of a click in a page for 5 s and passes
+  // it on with the script it injects and the messages it sends. uBlock Origin
+  // injects its scriptlets into the tab a middle-click opens on YouTube with
+  // the click's activation, which isn't input in that page.
+  using Type = mojom::blink::UserActivationNotificationType;
+  switch (type) {
+    case Type::kExtensionEvent:
+    case Type::kExtensionGuestView:
+    case Type::kExtensionMessaging:
+    case Type::kExtensionMessagingBothPrivileged:
+    case Type::kExtensionMessagingSenderPrivileged:
+    case Type::kExtensionMessagingReceiverPrivileged:
+    case Type::kExtensionMessagingNeitherPrivileged:
+    case Type::kWebScriptExec:
+    case Type::kActorWebMCP:
+      return;
+    default:
+      break;
+  }
   auto* local_frame = DynamicTo<LocalFrame>(frame);
   LocalDOMWindow* window = local_frame ? local_frame->DomWindow() : nullptr;
   if (window && !Supplement<LocalDOMWindow>::From<DocumentInput>(window)) {
