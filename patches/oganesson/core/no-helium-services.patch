@@ -1,3 +1,20 @@
+--- a/chrome/browser/extensions/updater/extension_updater.cc
++++ b/chrome/browser/extensions/updater/extension_updater.cc
+@@ -793,6 +793,14 @@ bool ExtensionUpdater::CanUseUpdateService(
+     return true;
+   }
+ 
++  // oganesson: update_client's checks are blocked (ungoogled-chromium's
++  // block-requests.patch), so store extensions update through
++  // ExtensionDownloader, the XML protocol the store still serves. The
++  // parentheses mark the rest as deliberately unreachable.
++  if ((true)) {
++    return false;
++  }
++
+   // UpdateService can only update extensions that have been installed on the
+   // system.
+   // TODO(crbug.com/482088398): Eliminate this constraint.
 --- a/chrome/browser/spellchecker/spellcheck_hunspell_dictionary.cc
 +++ b/chrome/browser/spellchecker/spellcheck_hunspell_dictionary.cc
 @@ -285,7 +285,6 @@ GURL SpellcheckHunspellDictionary::GetDictionaryURL() {
@@ -32,28 +49,3 @@
  			"assets/assets.json"
  		]
  	},
---- a/chrome/browser/extensions/updater/extension_updater.cc
-+++ b/chrome/browser/extensions/updater/extension_updater.cc
-@@ -808,18 +808,10 @@
-     return true;
-   }
- 
--  // UpdateService can only update extensions that have been installed on the
--  // system.
--  // TODO(crbug.com/482088398): Eliminate this constraint.
--  if (!extension) {
--    return false;
--  }
--
--  // UpdateService can only update extensions from the store. If `update_url`
--  // is empty, we default to checking from the store.
--  GURL update_url = GetEffectiveUpdateURL(*extension);
--  return update_url.is_empty() ||
--         extension_urls::IsWebstoreUpdateUrl(update_url);
-+  // oganesson: update_client's checks are blocked (ungoogled-chromium's
-+  // block-requests.patch), so store extensions update through
-+  // ExtensionDownloader, the XML protocol the store still serves.
-+  return false;
- }
- 
- void ExtensionUpdater::InstallCRXFile(FetchedCRXFile crx_file) {
