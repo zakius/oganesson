@@ -66,17 +66,17 @@ bool NamesHost(std::string_view pattern, std::string_view host) {
 
 }  // namespace
 
-bool IsUrlInUserAppScope(const PrefService& prefs,
-                         const webapps::AppId& app_id,
-                         const GURL& url,
-                         bool in_manifest_scope) {
+std::optional<bool> UserAppScopeOverride(const PrefService& prefs,
+                                         const webapps::AppId& app_id,
+                                         const GURL& url) {
   const base::ListValue* rules =
       prefs.GetDict(kUserAppScopeRules).FindList(app_id);
   if (!rules) {
-    return in_manifest_scope;
+    return std::nullopt;
   }
-  // A URL is in scope if an include rule matches it, or if the manifest's
-  // scope has it and no include rule names its host; an exclusion wins.
+  // A URL is in scope if an include rule matches it, and out of it if an
+  // exclusion does, which wins, or if an include rule names its host; the
+  // manifest's scope decides otherwise.
   bool matched = false;
   bool host_named = false;
   // ponytail: compiles the rules on every check, which runs per navigation;
@@ -105,14 +105,17 @@ bool IsUrlInUserAppScope(const PrefService& prefs,
     matched |= match;
     host_named |= NamesHost(pattern, url.host());
   }
-  return matched || (in_manifest_scope && !host_named);
+  if (matched) {
+    return true;
+  }
+  return host_named ? std::optional<bool>(false) : std::nullopt;
 }
 
 int GetUserAppScopeScore(const PrefService& prefs,
                          const webapps::AppId& app_id,
                          const GURL& url,
                          int manifest_score) {
-  if (!IsUrlInUserAppScope(prefs, app_id, url, manifest_score > 0)) {
+  if (!UserAppScopeOverride(prefs, app_id, url).value_or(manifest_score > 0)) {
     return 0;
   }
   return manifest_score > 0 ? manifest_score : 1;

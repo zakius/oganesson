@@ -231,21 +231,17 @@
  #include "chrome/browser/web_applications/web_app_command_scheduler.h"
  #include "chrome/browser/web_applications/web_app_constants.h"
  #include "chrome/browser/web_applications/web_app_filter.h"
-@@ -647,10 +648,10 @@ bool WebAppBrowserController::IsUrlInAppScope(const GURL& url) const {
+@@ -647,6 +648,10 @@ bool WebAppBrowserController::IsUrlInAppScope(const GURL& url) const {
  #endif  // BUILDFLAG(IS_CHROMEOS)
  
    std::optional<WebAppScope> scope = registrar().GetEffectiveScope(app_id());
--  if (!scope.has_value()) {
--    return false;
--  }
--  return scope->IsInScope(url, {.allow_http_to_https_upgrade = true});
-+  return IsUrlInUserAppScope(
-+      *browser()->GetProfile()->GetPrefs(), app_id(), url,
-+      scope.has_value() &&
-+          scope->IsInScope(url, {.allow_http_to_https_upgrade = true}));
- }
- 
- WebAppBrowserController* WebAppBrowserController::AsWebAppBrowserController() {
++  if (std::optional<bool> in_scope = UserAppScopeOverride(
++          *browser()->GetProfile()->GetPrefs(), app_id(), url)) {
++    return *in_scope;
++  }
+   if (!scope.has_value()) {
+     return false;
+   }
 --- a/chrome/browser/ui/web_applications/web_app_launch_navigation_handle_user_data.cc
 +++ b/chrome/browser/ui/web_applications/web_app_launch_navigation_handle_user_data.cc
 @@ -125,8 +125,11 @@ void WebAppLaunchNavigationHandleUserData::
