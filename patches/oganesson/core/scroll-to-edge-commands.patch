@@ -56,17 +56,17 @@
    UpdateCommandsForBookmarkEditing();
 --- a/chrome/browser/ui/browser_shortcuts/browser_shortcut_metadata.cc
 +++ b/chrome/browser/ui/browser_shortcuts/browser_shortcut_metadata.cc
-@@ -140,6 +140,10 @@ std::optional<BrowserShortcutCommandLabe
-       return Label(IDS_SHORTCUT_COMMAND_CYCLE_NEXT_MRU_TAB);
-     case IDC_CYCLE_TO_PREV_TAB:
-       return Label(IDS_SHORTCUT_COMMAND_CYCLE_PREVIOUS_MRU_TAB);
+@@ -218,6 +218,10 @@ std::optional<BrowserShortcutCommandLabel> GetBrowserShortcutCommandLabel(
+       return Label(IDS_SHORTCUT_COMMAND_FIND_PREVIOUS);
+     case IDC_CLOSE_FIND_OR_STOP:
+       return Label(IDS_SHORTCUT_COMMAND_CLOSE_FIND_OR_STOP);
 +    case IDC_SCROLL_TO_TOP:
 +      return Label(IDS_SHORTCUT_COMMAND_SCROLL_TO_TOP);
 +    case IDC_SCROLL_TO_BOTTOM:
 +      return Label(IDS_SHORTCUT_COMMAND_SCROLL_TO_BOTTOM);
-     case IDC_SELECT_LAST_TAB:
-       return Label(IDS_SHORTCUT_COMMAND_SELECT_LAST_TAB);
-     case IDC_SELECT_TAB_0:
+     case IDC_FOCUS_LOCATION:
+       return Label(IDS_SHORTCUT_COMMAND_FOCUS_LOCATION);
+     case IDC_FOCUS_SEARCH:
 @@ -299,6 +303,8 @@ std::vector<int> GetBrowserShortcutCommandsWithoutDefault(
      commands.push_back(IDC_SAVE_PAGE);
    }
