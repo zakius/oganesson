@@ -5,6 +5,9 @@
 #ifndef CHROME_BROWSER_DOWNLOAD_DOWNLOAD_HISTORY_SAVING_H_
 #define CHROME_BROWSER_DOWNLOAD_DOWNLOAD_HISTORY_SAVING_H_
 
+// For DownloadHistory, which reads the pref.
+#include "components/prefs/pref_service.h"  // IWYU pragma: export
+
 namespace prefs {
 
 // While true, DownloadHistory saves no new downloads: they're listed only
