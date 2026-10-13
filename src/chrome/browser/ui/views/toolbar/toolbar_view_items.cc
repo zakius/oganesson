@@ -19,6 +19,7 @@
 #include "base/i18n/rtl.h"
 #include "base/no_destructor.h"
 #include "base/pickle.h"
+#include "base/scoped_multi_source_observation.h"
 #include "base/scoped_observation.h"
 #include "base/strings/strcat.h"
 #include "base/values.h"
@@ -66,6 +67,7 @@
 #include "ui/views/context_menu_controller.h"
 #include "ui/views/controls/button/button_controller.h"
 #include "ui/views/drag_controller.h"
+#include "ui/views/view_observer.h"
 #include "ui/views/widget/widget.h"
 
 namespace {
@@ -123,10 +125,11 @@ class AppMenuFallback : public views::ContextMenuController {
 // when they change, and once the extensions container or Chrome's pinned
 // buttons container has updated its views for a change in the pinned items: it
 // starts observing after the containers, so it runs after them. It also drags
-// the built-in items.
+// the built-in items, and keeps the hidden ones hidden.
 class ToolbarItemsState : public ExtensionsToolbarViewModel::Observer,
                           public PinnedToolbarActionsModel::Observer,
-                          public views::DragController {
+                          public views::DragController,
+                          public views::ViewObserver {
  public:
   ToolbarItemsState(ToolbarView* toolbar,
                     ExtensionsToolbarViewModel* extensions,
@@ -144,6 +147,11 @@ class ToolbarItemsState : public ExtensionsToolbarViewModel::Observer,
     }
     if (pinned) {
       pinned_observation_.Observe(pinned);
+    }
+    for (const auto& [token, item] : toolbar->GetBuiltInItems()) {
+      if (item && std::ranges::contains(kHideableItems, token)) {
+        hideable_observations_.AddObservation(item);
+      }
     }
   }
 
@@ -186,8 +194,24 @@ class ToolbarItemsState : public ExtensionsToolbarViewModel::Observer,
     static_cast<ToolbarButton*>(dragged_view)->ClearPendingMenu();
   }
 
+  // views::ViewObserver, for the built-in items Customize toolbar can hide:
+  void OnViewVisibilityChanged(views::View* observed_view,
+                               views::View* starting_view) override {
+    // Chromium shows some items on its own; one the prefs hide goes right
+    // back.
+    if (observed_view == starting_view && observed_view->GetVisible() &&
+        observed_view->GetProperty(kHiddenByPrefKey)) {
+      observed_view->SetVisible(false);
+    }
+  }
+  void OnViewIsDeleting(views::View* observed_view) override {
+    hideable_observations_.RemoveObservation(observed_view);
+  }
+
   raw_ptr<ToolbarView> toolbar_;
   PrefChangeRegistrar registrar_;
+  base::ScopedMultiSourceObservation<views::View, views::ViewObserver>
+      hideable_observations_{this};
   base::ScopedObservation<ExtensionsToolbarViewModel,
                           ExtensionsToolbarViewModel::Observer>
       extensions_observation_{this};
@@ -502,12 +526,6 @@ void ToolbarView::ApplyHiddenItems() {
       item->ClearProperty(kHiddenByPrefKey);
       item->SetVisible(true);
     }
-  }
-}
-
-void ToolbarView::ReapplyHiddenItem(views::View* child) {
-  if (child->GetVisible() && child->GetProperty(kHiddenByPrefKey)) {
-    child->SetVisible(false);
   }
 }
 

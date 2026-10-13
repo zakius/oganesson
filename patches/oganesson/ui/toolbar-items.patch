@@ -375,17 +375,9 @@
    initialized_ = true;
  }
  
-@@ -1523,6 +1525,7 @@ void ToolbarView::ChildPreferredSizeChanged(views::View* child) {
- }
- 
- void ToolbarView::ChildVisibilityChanged(views::View* child) {
-+  ReapplyHiddenItem(child);
-   if (child == home_) {
-     if (!home_->GetVisible() && show_home_button_.GetValue()) {
-       base::UmaHistogramBoolean("Toolbar.Overflow.HomeButton", true);
 --- a/chrome/browser/ui/views/toolbar/toolbar_view.h
 +++ b/chrome/browser/ui/views/toolbar/toolbar_view.h
-@@ -250,6 +250,44 @@ class ToolbarView : public views::AccessiblePaneView,
+@@ -250,6 +250,42 @@ class ToolbarView : public views::AccessiblePaneView,
    bool AcceleratorPressed(const ui::Accelerator& acc) override;
    void ChildPreferredSizeChanged(views::View* child) override;
    void ChildVisibilityChanged(View* child) override;
@@ -423,10 +415,8 @@
 +  // Moves `item` past its next visible neighbour, for keyboard reordering.
 +  void MoveItemBy(views::View* item, int delta);
 +  // Hides the built-in items listed in prefs::kToolbarHiddenItems and shows
-+  // the others it hid; ReapplyHiddenItem() hides `child` again when Chromium
-+  // shows it.
++  // the others it hid.
 +  void ApplyHiddenItems();
-+  void ReapplyHiddenItem(views::View* child);
  
    friend class AvatarToolbarButtonBaseBrowserTest;
  
