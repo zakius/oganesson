@@ -44,15 +44,7 @@
      const requestAccelerator = this.capturedAccelerator_;
      const requestId = ++this.keyDisplayRequestId_;
      this.handler_.getAcceleratorDisplayText(requestAccelerator)
-@@ -266,7 +284,6 @@ export class SettingsBrowserShortcutsPageElement extends PolymerElement {
-             return;
-           }
-           this.capturedDisplayText_ = displayText || this.capturedAccelerator_;
--          this.updateCaptureValidation_();
-         });
-   }
- 
-@@ -322,6 +339,7 @@ export class SettingsBrowserShortcutsPageElement extends PolymerElement {
+@@ -322,6 +340,7 @@ export class SettingsBrowserShortcutsPageElement extends PolymerElement {
    }
  
    private closeDialogs_() {
