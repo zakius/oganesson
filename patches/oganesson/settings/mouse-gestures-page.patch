@@ -1,29 +1,3 @@
---- a/chrome/app/generated_resources.grd
-+++ b/chrome/app/generated_resources.grd
-@@ -321,6 +321,7 @@ are declared in tools/grit/grit_args.gni.
- 
-       <!-- Settings specific strings -->
-       <part file="settings_strings.grdp" />
-+      <part file="oganesson_mouse_gestures_strings.grdp" />
-       <if expr="not is_android">
-         <part file="shared_settings_strings.grdp"/>
-       </if>
---- a/chrome/browser/resources/settings/BUILD.gn
-+++ b/chrome/browser/resources/settings/BUILD.gn
-@@ -498,6 +498,13 @@ build_webui("build") {
-     ts_files += [ "autofill_page/passwords/passkeys_browser_proxy.ts" ]
-   }
- 
-+  ts_files += [
-+    "system_page/add_gesture.ts",
-+    "system_page/extension_gestures.ts",
-+    "system_page/gesture_chips.ts",
-+    "system_page/mouse_gestures.ts",
-+  ]
-+
-   # -----------------ts_files end -------------------------------
- 
-   icons_html_files = [ "privacy_page/security/fingerprint_icons.html" ]
 --- a/chrome/browser/resources/settings/system_page/browser_shortcuts_page.html
 +++ b/chrome/browser/resources/settings/system_page/browser_shortcuts_page.html
 @@ -216,6 +216,8 @@
@@ -82,16 +56,6 @@
            ...command.accelerators.flatMap(
                accelerator =>
                    [accelerator.displayText, accelerator.serializedAccelerator]),
---- a/chrome/browser/ui/webui/settings/BUILD.gn
-+++ b/chrome/browser/ui/webui/settings/BUILD.gn
-@@ -155,6 +155,7 @@ source_set("impl") {
-     "brave_importer_observer.cc",
-     "browser_lifetime_handler.cc",
-     "browser_shortcuts_handler.cc",
-+    "mouse_gestures_settings.cc",
-     "captions_handler.cc",
-     "custom_home_pages_table_model.cc",
-     "dictation_handler.cc",
 --- a/chrome/browser/ui/webui/settings/browser_shortcuts.mojom
 +++ b/chrome/browser/ui/webui/settings/browser_shortcuts.mojom
 @@ -17,6 +17,13 @@ struct BrowserShortcutCommand {
@@ -190,24 +154,6 @@
  };
  
  }  // namespace settings
---- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
-+++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
-@@ -2,6 +2,7 @@
- // Use of this source code is governed by a BSD-style license that can be
- // found in the LICENSE file.
- 
-+#include "chrome/browser/ui/webui/settings/mouse_gestures_settings.h"
- #include "chrome/browser/ui/webui/settings/settings_localized_strings_provider.h"
- 
- #include <string>
-@@ -4432,6 +4433,7 @@ void AddSystemStrings(content::WebUIDataSource* html_source) {
-   html_source->AddBoolean(
-       "showCustomizableBrowserShortcuts",
-       base::FeatureList::IsEnabled(features::kCustomizableBrowserShortcuts));
-+  AddMouseGestureStrings(html_source);
- 
- #if BUILDFLAG(IS_WIN)
-   html_source->AddString("isolationStateLearnMoreUrl",
 --- a/chrome/browser/ui/webui/settings/settings_ui.cc
 +++ b/chrome/browser/ui/webui/settings/settings_ui.cc
 @@ -884,7 +884,8 @@ void SettingsUI::CreateBrowserShortcutsHandler(

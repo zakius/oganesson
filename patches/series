@@ -164,6 +164,7 @@ helium/ui/add-more-zoom-presets.patch
 helium/ui/show-tabs-from-non-account-backends.patch
 
 
+oganesson/core/hooks.patch
 oganesson/core/shortcut-command-fixes.patch
 oganesson/core/scroll-to-edge-commands.patch
 oganesson/core/mouse-gestures.patch

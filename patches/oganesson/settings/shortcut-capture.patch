@@ -60,24 +60,6 @@
      this.showCaptureDialog_ = false;
      this.showResetDialog_ = false;
      this.dialogState_ = null;
---- a/chrome/browser/ui/webui/settings/BUILD.gn
-+++ b/chrome/browser/ui/webui/settings/BUILD.gn
-@@ -157,6 +157,7 @@ source_set("impl") {
-     "browser_lifetime_handler.cc",
-     "browser_shortcuts_handler.cc",
-     "mouse_gestures_settings.cc",
-+    "shortcut_capture_suspender.cc",
-     "captions_handler.cc",
-     "custom_home_pages_table_model.cc",
-     "dictation_handler.cc",
-@@ -341,6 +342,7 @@ source_set("impl") {
-     "//extensions/browser",
-     "//services/device/public/cpp:device_features",
-     "//ui/base",
-+    "//ui/views",
-     "//ui/webui/tracked_element",
-     "//v8:v8_version",
-   ]
 --- a/chrome/browser/ui/webui/settings/browser_shortcuts.mojom
 +++ b/chrome/browser/ui/webui/settings/browser_shortcuts.mojom
 @@ -57,6 +57,9 @@ interface BrowserShortcutsHandler {

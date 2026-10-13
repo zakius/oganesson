@@ -1,18 +1,3 @@
---- a/chrome/app/generated_resources.grd
-+++ b/chrome/app/generated_resources.grd
-@@ -1910,6 +1910,12 @@ are declared in tools/grit/grit_args.gni.
-       <message name="IDS_SHORTCUT_COMMAND_SELECT_PREVIOUS_TAB" desc="Command name shown on the Settings shortcuts page for selecting the previous tab.">
-         Previous tab
-       </message>
-+      <message name="IDS_SHORTCUT_COMMAND_CYCLE_NEXT_MRU_TAB" desc="Command name shown on the Settings shortcuts page for the Ctrl+Tab command when it switches tabs in order of most recent use.">
-+        Cycle to recently used tab
-+      </message>
-+      <message name="IDS_SHORTCUT_COMMAND_CYCLE_PREVIOUS_MRU_TAB" desc="Command name shown on the Settings shortcuts page for the Ctrl+Shift+Tab command when it switches tabs in reverse order of most recent use.">
-+        Cycle to recently used tab in reverse
-+      </message>
-       <message name="IDS_SHORTCUT_COMMAND_FOCUS_LOCATION" desc="Command name shown on the Settings shortcuts page for focusing the address bar.">
-         Focus address bar
-       </message>
 --- a/chrome/browser/ui/browser_shortcuts/browser_shortcut_metadata.cc
 +++ b/chrome/browser/ui/browser_shortcuts/browser_shortcut_metadata.cc
 @@ -129,11 +129,15 @@ std::optional<BrowserShortcutCommandLabel> GetBrowserShortcutCommandLabel(

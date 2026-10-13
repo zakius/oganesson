@@ -1,21 +1,3 @@
---- a/chrome/browser/prefs/browser_prefs.cc
-+++ b/chrome/browser/prefs/browser_prefs.cc
-@@ -337,6 +337,7 @@
- #include "chrome/browser/upgrade_detector/upgrade_detector.h"
- #include "chrome/browser/user_education/browser_user_education_storage_service.h"
- #include "chrome/browser/web_applications/user_app_scope.h"
-+#include "chrome/browser/web_applications/user_app_start_url.h"
- #include "chrome/browser/webauthn/chrome_authenticator_request_delegate.h"
- #include "components/headless/policy/headless_mode_prefs.h"  // nogncheck crbug.com/40147906
- #include "components/live_caption/live_caption_controller.h"
-@@ -1856,6 +1857,7 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
-   registry->RegisterBooleanPref(web_app::kOpenOutOfScopeLinksInDefaultBrowser,
-                                 true);
-   registry->RegisterDictionaryPref(web_app::kUserAppScopeRules);
-+  registry->RegisterDictionaryPref(web_app::kUserAppStartUrls);
- #endif
-   RegisterPrefersDefaultScrollbarStylesPrefs(registry);
-   RegisterSafetyHubProfilePrefs(registry);
 --- a/chrome/browser/resources/app_settings/BUILD.gn
 +++ b/chrome/browser/resources/app_settings/BUILD.gn
 @@ -30,6 +30,8 @@ build_webui("build") {

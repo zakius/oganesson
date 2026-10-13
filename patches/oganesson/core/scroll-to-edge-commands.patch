@@ -11,21 +11,6 @@
  // Profile sub menu
  #define IDC_CUSTOMIZE_CHROME            37350
  #define IDC_CLOSE_PROFILE               35351
---- a/chrome/app/generated_resources.grd
-+++ b/chrome/app/generated_resources.grd
-@@ -1916,6 +1916,12 @@
-       <message name="IDS_SHORTCUT_COMMAND_CYCLE_PREVIOUS_MRU_TAB" desc="Command name shown on the Settings shortcuts page for the Ctrl+Shift+Tab command when it switches tabs in reverse order of most recent use.">
-         Cycle to recently used tab in reverse
-       </message>
-+      <message name="IDS_SHORTCUT_COMMAND_SCROLL_TO_TOP" desc="Command name shown on the Settings shortcuts page for scrolling to the top of the page.">
-+        Scroll to top of page
-+      </message>
-+      <message name="IDS_SHORTCUT_COMMAND_SCROLL_TO_BOTTOM" desc="Command name shown on the Settings shortcuts page for scrolling to the bottom of the page.">
-+        Scroll to bottom of page
-+      </message>
-       <message name="IDS_SHORTCUT_COMMAND_FOCUS_LOCATION" desc="Command name shown on the Settings shortcuts page for focusing the address bar.">
-         Focus address bar
-       </message>
 --- a/chrome/browser/ui/browser_command_controller.cc
 +++ b/chrome/browser/ui/browser_command_controller.cc
 @@ -1081,6 +1081,16 @@ void BrowserCommandController::HandleCom

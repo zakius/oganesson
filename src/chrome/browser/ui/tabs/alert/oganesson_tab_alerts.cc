@@ -10,7 +10,7 @@
 #include "base/supports_user_data.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/recently_audible_helper.h"
-#include "chrome/common/pref_names.h"
+#include "chrome/common/oganesson_pref_names.h"
 #include "components/prefs/pref_change_registrar.h"
 #include "components/prefs/pref_service.h"
 #include "components/tabs/public/tab_interface.h"

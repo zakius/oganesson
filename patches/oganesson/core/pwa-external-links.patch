@@ -9,16 +9,6 @@
  // Image items.
  #define IDC_CONTENT_CONTEXT_SAVEIMAGEAS 50120
  #define IDC_CONTENT_CONTEXT_COPYIMAGELOCATION 50121
---- a/chrome/app/generated_resources.grd
-+++ b/chrome/app/generated_resources.grd
-@@ -324,6 +324,7 @@ are declared in tools/grit/grit_args.gni.
-       <part file="oganesson_mouse_gestures_strings.grdp" />
-       <part file="oganesson_firefox_sync_strings.grdp" />
-       <part file="oganesson_toolbar_strings.grdp" />
-+      <part file="oganesson_web_app_strings.grdp" />
-       <if expr="not is_android">
-         <part file="shared_settings_strings.grdp"/>
-       </if>
 --- a/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
 +++ b/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
 @@ -102,6 +102,7 @@
@@ -37,25 +27,6 @@
  
    web_app::WebUIWebAppNavigationThrottle::MaybeCreateAndAdd(registry);
  
---- a/chrome/browser/prefs/browser_prefs.cc
-+++ b/chrome/browser/prefs/browser_prefs.cc
-@@ -328,6 +328,7 @@
- #include "chrome/browser/ui/tabs/pinned_tab_codec.h"
- #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_pref_names.h"
- #include "chrome/browser/ui/tabs/tab_strip_prefs.h"
-+#include "chrome/browser/ui/web_applications/out_of_scope_links.h"
- #include "chrome/browser/ui/webui/certificate_manager/certificate_manager_handler.h"
- #include "chrome/browser/ui/webui/cr_components/theme_color_picker/theme_color_picker_handler.h"
- #include "chrome/browser/ui/webui/history/foreign_session_handler.h"
-@@ -1851,6 +1852,8 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
- 
- #if !BUILDFLAG(IS_ANDROID)
-   indigo::prefs::RegisterProfilePrefs(registry);
-+  registry->RegisterBooleanPref(web_app::kOpenOutOfScopeLinksInDefaultBrowser,
-+                                true);
- #endif
-   RegisterPrefersDefaultScrollbarStylesPrefs(registry);
-   RegisterSafetyHubProfilePrefs(registry);
 --- a/chrome/browser/renderer_context_menu/render_view_context_menu.cc
 +++ b/chrome/browser/renderer_context_menu/render_view_context_menu.cc
 @@ -143,6 +143,7 @@

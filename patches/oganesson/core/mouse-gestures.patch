@@ -1,14 +1,3 @@
---- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
-+++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
-@@ -321,6 +321,8 @@ const PrefsUtil::TypedPrefMap& PrefsUtil
-       settings_api::PrefType::kBoolean;
-   (*s_allowlist)[::prefs::kTabCyclingMRU] =
-       settings_api::PrefType::kBoolean;
-+  (*s_allowlist)[::prefs::kMouseGestures] =
-+      settings_api::PrefType::kDictionary;
-   (*s_allowlist)[::prefs::kShiftRightClickContextMenu] =
-       settings_api::PrefType::kBoolean;
-   (*s_allowlist)[::prefs::kShowZoomIndicator] =
 --- a/chrome/browser/extensions/extension_keybinding_registry.h
 +++ b/chrome/browser/extensions/extension_keybinding_registry.h
 @@ -73,6 +73,12 @@ class ExtensionKeybindingRegistry : publ
@@ -24,36 +13,3 @@
   protected:
    // Add extension keybindings for the events defined by the `extension`.
    // `command_name` is optional, but if not blank then only the command
---- a/chrome/browser/ui/browser_ui_prefs.cc
-+++ b/chrome/browser/ui/browser_ui_prefs.cc
-@@ -10,6 +10,7 @@
- #include "base/numerics/safe_conversions.h"
- #include "build/branding_buildflags.h"
- #include "build/build_config.h"
-+#include "chrome/app/chrome_command_ids.h"
- #include "chrome/browser/profiles/profile.h"
- #include "chrome/browser/ui/ui_features.h"
- #include "chrome/browser/upgrade_detector/upgrade_detector.h"
-@@ -128,6 +129,8 @@ void RegisterBrowserUserPrefs(user_prefs
-   registry->RegisterBooleanPref(prefs::kNewTabNextToActive, false);
- 
-   registry->RegisterBooleanPref(prefs::kTabCyclingMRU, false);
-+  registry->RegisterDictionaryPref(prefs::kMouseGestures,
-+                                   base::DictValue().Set("L", IDC_BACK));
- 
-   registry->RegisterBooleanPref(prefs::kShiftRightClickContextMenu, true);
- 
---- a/chrome/common/pref_names.h
-+++ b/chrome/common/pref_names.h
-@@ -608,6 +608,11 @@ inline constexpr char kNewTabNextToActiv
- // when cycling through tabs with Ctrl+Tab.
- inline constexpr char kTabCyclingMRU[] = "helium.browser.mru_tab_cycling";
- 
-+// Dictionary mapping mouse gestures, such as the stroke chain "LU" or
-+// "wheel-up", to a browser command id or to an extension command stored as
-+// {"extension": id, "command": name}.
-+inline constexpr char kMouseGestures[] = "oganesson.mouse_gestures";
-+
- // A boolean pref set to true if Shift+right-click should bypass page context
- // menu handlers and show the browser context menu.
- inline constexpr char kShiftRightClickContextMenu[] =

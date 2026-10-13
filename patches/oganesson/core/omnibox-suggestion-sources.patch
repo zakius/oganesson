@@ -58,21 +58,3 @@
  
    // We'll need the history service to run both passes, so try to obtain it.
    history::HistoryService* const history_service =
---- a/components/omnibox/browser/omnibox_prefs.cc
-+++ b/components/omnibox/browser/omnibox_prefs.cc
-@@ -11,6 +11,7 @@
- #include "base/strings/string_number_conversions.h"
- #include "base/values.h"
- #include "components/omnibox/browser/suggestion_group_util.h"
-+#include "components/omnibox/browser/suggestion_sources.h"
- #include "components/pref_registry/pref_registry_syncable.h"
- #include "components/prefs/pref_registry_simple.h"
- #include "components/prefs/pref_service.h"
-@@ -20,6 +21,7 @@
- namespace omnibox {
- 
- void RegisterProfilePrefs(PrefRegistrySimple* registry) {
-+  RegisterSuggestionSourcePrefs(registry);
-   registry->RegisterBooleanPref(
-       kKeywordSpaceTriggeringEnabled, true,
-       user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
