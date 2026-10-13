@@ -67,10 +67,10 @@
      case IDC_SELECT_LAST_TAB:
        return Label(IDS_SHORTCUT_COMMAND_SELECT_LAST_TAB);
      case IDC_SELECT_TAB_0:
-@@ -313,6 +317,8 @@ std::vector<int> GetBrowserShortcutComma
-   commands.push_back(ShouldUseVerticalCollapseLabel(prefs)
-                          ? IDC_SAVE_PAGE
-                          : IDC_TOGGLE_VERTICAL_TABS_COLLAPSE);
+@@ -299,6 +303,8 @@ std::vector<int> GetBrowserShortcutCommandsWithoutDefault(
+     commands.push_back(IDC_SAVE_PAGE);
+   }
+   commands.push_back(IDC_TOGGLE_VERTICAL_TABS_COLLAPSE);
 +  commands.push_back(IDC_SCROLL_TO_TOP);
 +  commands.push_back(IDC_SCROLL_TO_BOTTOM);
  
