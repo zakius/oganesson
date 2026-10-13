@@ -231,19 +231,7 @@
  #include "chrome/browser/web_applications/web_app_command_scheduler.h"
  #include "chrome/browser/web_applications/web_app_constants.h"
  #include "chrome/browser/web_applications/web_app_filter.h"
-@@ -127,6 +128,11 @@ WebAppBrowserController::WebAppBrowserController(
-       registrar().GetAppEffectiveDisplayMode(this->app_id());
-   install_manager_observation_.Observe(&provider.install_manager());
-   registrar_observation_.Observe(&provider.registrar_unsafe());
-+  user_scope_rules_registrar_.Init(browser->GetProfile()->GetPrefs());
-+  user_scope_rules_registrar_.Add(
-+      kUserAppScopeRules,
-+      base::BindRepeating(&AppBrowserController::UpdateCustomTabBarVisibility,
-+                          base::Unretained(this), /*animate=*/false));
-   PerformDigitalAssetLinkVerification(browser);
- 
-   if (AppUsesWindowControlsOverlay()) {
-@@ -647,10 +653,10 @@ bool WebAppBrowserController::IsUrlInAppScope(const GURL& url) const {
+@@ -647,10 +648,10 @@ bool WebAppBrowserController::IsUrlInAppScope(const GURL& url) const {
  #endif  // BUILDFLAG(IS_CHROMEOS)
  
    std::optional<WebAppScope> scope = registrar().GetEffectiveScope(app_id());
@@ -258,26 +246,6 @@
  }
  
  WebAppBrowserController* WebAppBrowserController::AsWebAppBrowserController() {
---- a/chrome/browser/ui/web_applications/web_app_browser_controller.h
-+++ b/chrome/browser/ui/web_applications/web_app_browser_controller.h
-@@ -23,6 +23,7 @@
- #include "chrome/browser/web_applications/web_app_install_manager_observer.h"
- #include "chrome/browser/web_applications/web_app_registrar.h"
- #include "chrome/browser/web_applications/web_app_registrar_observer.h"
-+#include "components/prefs/pref_change_registrar.h"
- #include "components/services/app_service/public/cpp/icon_types.h"
- #include "components/webapps/common/web_app_id.h"
- #include "third_party/re2/src/re2/set.h"
-@@ -238,6 +239,9 @@ class WebAppBrowserController : public AppBrowserController,
-       asset_link_handler_;
- #endif  // BUILDFLAG(IS_CHROMEOS)
- 
-+  // Updates the custom tab bar when the user's scope rules change.
-+  PrefChangeRegistrar user_scope_rules_registrar_;
-+
-   base::ScopedObservation<WebAppInstallManager, WebAppInstallManagerObserver>
-       install_manager_observation_{this};
-   base::ScopedObservation<WebAppRegistrar, WebAppRegistrarObserver>
 --- a/chrome/browser/ui/web_applications/web_app_launch_navigation_handle_user_data.cc
 +++ b/chrome/browser/ui/web_applications/web_app_launch_navigation_handle_user_data.cc
 @@ -125,8 +125,11 @@ void WebAppLaunchNavigationHandleUserData::

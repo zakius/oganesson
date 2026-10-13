@@ -25,6 +25,7 @@
 #include "chrome/browser/web_applications/web_app_provider.h"
 #include "chrome/browser/web_applications/web_app_registrar.h"
 #include "chrome/grit/generated_resources.h"
+#include "components/prefs/pref_change_registrar.h"
 #include "components/prefs/pref_service.h"
 #include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/navigation_controller.h"
@@ -212,7 +213,8 @@ class OutOfScopeLinkThrottle : public content::NavigationThrottle {
 // app after the fact and takes the window back. A pushed entry goes back, as
 // the Back button would, so the page's router shows the page before again;
 // for a replaced entry, the page before loads again in its place. The window
-// can show the excluded page's content until then.
+// can show the excluded page's content until then. The observer also updates
+// an app window's custom tab bar when the user's scope rules change.
 class ExclusionObserver
     : public content::WebContentsObserver,
       public content::WebContentsUserData<ExclusionObserver> {
@@ -244,9 +246,30 @@ class ExclusionObserver
  private:
   explicit ExclusionObserver(content::WebContents* contents)
       : content::WebContentsObserver(contents),
-        content::WebContentsUserData<ExclusionObserver>(*contents) {}
+        content::WebContentsUserData<ExclusionObserver>(*contents) {
+    scope_rules_registrar_.Init(
+        Profile::FromBrowserContext(contents->GetBrowserContext())
+            ->GetPrefs());
+    scope_rules_registrar_.Add(
+        kUserAppScopeRules,
+        base::BindRepeating(&ExclusionObserver::OnScopeRulesChanged,
+                            base::Unretained(this)));
+  }
   friend class content::WebContentsUserData<ExclusionObserver>;
   WEB_CONTENTS_USER_DATA_KEY_DECL();
+
+  // The scope rules decide where an app window shows its custom tab bar, the
+  // one with the page's origin that out-of-scope pages get.
+  void OnScopeRulesChanged() {
+    tabs::TabInterface* tab =
+        tabs::TabInterface::MaybeGetFromContents(web_contents());
+    BrowserWindowInterface* window =
+        tab ? tab->GetBrowserWindowInterface() : nullptr;
+    if (AppBrowserController* controller =
+            window ? AppBrowserController::From(window) : nullptr) {
+      controller->UpdateCustomTabBarVisibility(/*animate=*/false);
+    }
+  }
 
   // Back from `excluded` unless the page moved on: to the entry before it, or
   // with a `replaced` URL, to that URL in its place. Both are browser
@@ -267,6 +290,8 @@ class ExclusionObserver
       controller.LoadURLWithParams(params);
     }
   }
+
+  PrefChangeRegistrar scope_rules_registrar_;
 };
 
 WEB_CONTENTS_USER_DATA_KEY_IMPL(ExclusionObserver);
