@@ -1,6 +1,6 @@
 --- a/chrome/browser/resources/settings/search_page/search_engines_page.html.ts
 +++ b/chrome/browser/resources/settings/search_page/search_engines_page.html.ts
-@@ -45,6 +45,7 @@
+@@ -45,6 +45,7 @@ export function getHtml(this: SettingsSearchEnginesPageElement) {
        </controlled-radio-button>
      </settings-radio-group>
    </div>
@@ -10,7 +10,7 @@
      <div class="flex cr-padded-text">
 --- a/chrome/browser/resources/settings/search_page/search_engines_page.ts
 +++ b/chrome/browser/resources/settings/search_page/search_engines_page.ts
-@@ -12,6 +12,7 @@
+@@ -12,6 +12,7 @@ import '../controls/settings_radio_group.js';
  import '../simple_confirmation_dialog.js';
  import './search_engine_edit_dialog.js';
  import './search_engines_list.js';
@@ -20,16 +20,12 @@
  
 --- a/chrome/browser/resources/settings/search_page/search_page.html.ts
 +++ b/chrome/browser/resources/settings/search_page/search_page.html.ts
-@@ -44,12 +44,6 @@
+@@ -44,7 +44,7 @@ export function getHtml(this: SettingsSearchPageElement) {
          <div>${this.confirmationToastLabel_}</div>
        </cr-toast>
      </div>
 -    <settings-toggle-button id="searchSuggestToggle"
--        class="hr"
--        pref-key="search.suggest_enabled"
--        label="$i18n{searchSuggestPref}"
--        sub-label="$i18n{searchSuggestPrefDesc}">
--    </settings-toggle-button>
- 
-     ${this.defaultSearchProviderDataPref_?.extensionId ? html`
-       ${this.searchSettingsUpdateEnabled_ ? html`
++    <settings-toggle-button id="searchSuggestToggle" hidden
+         class="hr"
+         pref-key="search.suggest_enabled"
+         label="$i18n{searchSuggestPref}"

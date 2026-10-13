@@ -310,8 +310,8 @@ class OmniboxSuggestionsTest(BrowserTest):
         wait_for(lambda: search.eval(f"!!({FIND})('settings-search-page')?.shadowRoot"
                                      "?.querySelector('#openDialogButton')"),
                  what='the Search engine page')
-        self.assertFalse(search.eval(f"!!({FIND})('settings-search-page').shadowRoot"
-                                     ".querySelector('#searchSuggestToggle')"))
+        self.assertTrue(search.eval(f"({FIND})('settings-search-page').shadowRoot"
+                                    ".querySelector('#searchSuggestToggle').hidden"))
         self.browser.close_target(search)
 
     def test_8b_settings_order(self):
