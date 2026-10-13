@@ -299,7 +299,7 @@ PrefsEditorUI::PrefsEditorUI(content::WebUI* web_ui)
     : content::WebUIController(web_ui) {
   Profile* profile = Profile::FromWebUI(web_ui);
   content::WebUIDataSource* source = content::WebUIDataSource::CreateAndAdd(
-      profile, chrome::kChromeUIPrefsEditorHost);
+      profile, kChromeUIPrefsEditorHost);
   source->SetRequestFilter(
       base::BindRepeating([](const std::string& path) {
         return path.empty() || path == "config.js" || path == "config.css";

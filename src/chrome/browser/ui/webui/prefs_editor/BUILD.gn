@@ -6,8 +6,8 @@ source_set("prefs_editor") {
   sources = [ "prefs_editor_ui.cc" ]
   public = [ "prefs_editor_ui.h" ]
   public_deps = [
-    "//chrome/common",
     "//content/public/browser",
+    "//content/public/common",
   ]
   deps = [
     "//base",
