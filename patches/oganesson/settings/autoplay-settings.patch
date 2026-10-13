@@ -1,6 +1,6 @@
 --- a/chrome/browser/resources/settings/lazy_load.ts
 +++ b/chrome/browser/resources/settings/lazy_load.ts
-@@ -86,6 +86,7 @@
+@@ -86,6 +86,7 @@ import './site_settings/smart_card_readers_page.js';
  import './site_settings/web_printing_page.js';
  // </if>
  import './site_settings/sound_page.js';
@@ -10,10 +10,11 @@
  import './site_settings/v8_page.js';
 --- a/chrome/browser/resources/settings/privacy_page/privacy_page_index.html
 +++ b/chrome/browser/resources/settings/privacy_page/privacy_page_index.html
-@@ -475,6 +475,15 @@
+@@ -474,6 +474,15 @@
+     </settings-sound-page>
    </template>
  
-   <template is="dom-if" if="[[renderView_(
++  <template is="dom-if" if="[[renderView_(
 +      routes_.SITE_SETTINGS_AUTOPLAY, currentRoute, inSearchMode)]]"
 +      update-when-false>
 +    <settings-autoplay-page slot="view"
@@ -22,23 +23,12 @@
 +    </settings-autoplay-page>
 +  </template>
 +
-+  <template is="dom-if" if="[[renderView_(
+   <template is="dom-if" if="[[renderView_(
        routes_.SITE_SETTINGS_SITE_DATA, currentRoute, inSearchMode)]]"
        update-when-false>
-     <settings-site-data slot="view" id="siteSettingsSiteData"
---- a/chrome/browser/resources/settings/router.ts
-+++ b/chrome/browser/resources/settings/router.ts
-@@ -90,6 +90,7 @@
-   SITE_SETTINGS_JAVASCRIPT_OPTIMIZER: Route;
-   SITE_SETTINGS_SENSORS: Route;
-   SITE_SETTINGS_SOUND: Route;
-+  SITE_SETTINGS_AUTOPLAY: Route;
-   SITE_SETTINGS_LOCATION: Route;
-   SITE_SETTINGS_MICROPHONE: Route;
-   SITE_SETTINGS_MIDI_DEVICES: Route;
 --- a/chrome/browser/resources/settings/route.ts
 +++ b/chrome/browser/resources/settings/route.ts
-@@ -80,6 +80,7 @@
+@@ -80,6 +80,7 @@ function addPrivacyChildRoutes(r: Partial<SettingsRoutes>) {
      r.SITE_SETTINGS_KEYBOARD_LOCK = r.SITE_SETTINGS.createChild('keyboardLock');
    }
    r.SITE_SETTINGS_SOUND = r.SITE_SETTINGS.createChild('sound');
@@ -46,9 +36,19 @@
    r.SITE_SETTINGS_SENSORS = r.SITE_SETTINGS.createChild('sensors');
    r.SITE_SETTINGS_LOCATION = r.SITE_SETTINGS.createChild('location');
    r.SITE_SETTINGS_MICROPHONE = r.SITE_SETTINGS.createChild('microphone');
+--- a/chrome/browser/resources/settings/router.ts
++++ b/chrome/browser/resources/settings/router.ts
+@@ -90,6 +90,7 @@ export interface SettingsRoutes {
+   SITE_SETTINGS_JAVASCRIPT_OPTIMIZER: Route;
+   SITE_SETTINGS_SENSORS: Route;
+   SITE_SETTINGS_SOUND: Route;
++  SITE_SETTINGS_AUTOPLAY: Route;
+   SITE_SETTINGS_LOCATION: Route;
+   SITE_SETTINGS_MICROPHONE: Route;
+   SITE_SETTINGS_MIDI_DEVICES: Route;
 --- a/chrome/browser/resources/settings/site_settings/constants.ts
 +++ b/chrome/browser/resources/settings/site_settings/constants.ts
-@@ -54,6 +54,7 @@
+@@ -54,6 +54,7 @@ export enum ContentSettingsTypes {
    SERIAL_PORTS = 'serial-ports',
    SMART_CARD_READERS = 'smart-card-readers',
    SOUND = 'sound',
@@ -70,7 +70,7 @@
            icon="cr:download" label="$i18n{siteSettingsAutomaticDownloads}">
 --- a/chrome/browser/resources/settings/site_settings/site_details_permission.ts
 +++ b/chrome/browser/resources/settings/site_settings/site_details_permission.ts
-@@ -304,6 +304,18 @@
+@@ -304,6 +304,18 @@ export class SiteDetailsPermissionElement extends
        return this.i18n('siteSettingsActionBlockOnUnfamiliarSitesDefaultMenu');
      }
  
@@ -91,10 +91,11 @@
      } else if (defaultSetting === ContentSetting.ALLOW) {
 --- a/chrome/browser/resources/settings/site_settings/site_settings_page.ts
 +++ b/chrome/browser/resources/settings/site_settings/site_settings_page.ts
-@@ -402,6 +402,15 @@
+@@ -401,6 +401,15 @@ function getCategoryItemMap(): Map<ContentSettingsTypes, CategoryListItem> {
+           loadTimeData.getBoolean('enableWebPrintingContentSetting'),
      },
      // </if>
-     {
++    {
 +      route: routes.SITE_SETTINGS_AUTOPLAY,
 +      id: Id.AUTOPLAY,
 +      label: 'siteSettingsAutoplay',
@@ -103,11 +104,10 @@
 +      askLabel: 'siteSettingsAutoplayBlockAudio',
 +      disabledLabel: 'siteSettingsAutoplayBlock',
 +    },
-+    {
+     {
        route: routes.SITE_SETTINGS_SOUND,
        id: Id.SOUND,
-       label: 'siteSettingsSound',
-@@ -560,6 +569,7 @@
+@@ -560,6 +569,7 @@ export class SettingsSiteSettingsPageElement extends
              ]),
              contentAdvanced: buildItemListFromIds([
                Id.SOUND,
@@ -117,7 +117,7 @@
                Id.PDF_DOCUMENTS,
 --- a/chrome/browser/resources/settings/site_settings/site_settings_util.ts
 +++ b/chrome/browser/resources/settings/site_settings/site_settings_util.ts
-@@ -89,6 +89,8 @@
+@@ -89,6 +89,8 @@ export function getLocalizationStringForContentType(
        return 'siteSettingsSerialPortsMidSentence';
      case ContentSettingsTypes.SOUND:
        return 'siteSettingsSoundMidSentence';
@@ -128,23 +128,16 @@
      case ContentSettingsTypes.USB_DEVICES:
 --- a/chrome/browser/ui/webui/settings/site_settings_helper.cc
 +++ b/chrome/browser/ui/webui/settings/site_settings_helper.cc
-@@ -175,6 +175,7 @@
-     {ContentSettingsType::SMART_CARD_DATA, kSmartCardChooserDataGroupType},
-     {ContentSettingsType::LOCAL_NETWORK, "local-network"},
-     {ContentSettingsType::LOOPBACK_NETWORK, "loopback-network"},
-+    {ContentSettingsType::AUTOPLAY, "autoplay"},
- 
-     // Add new content settings here if a corresponding Javascript string
-     // representation for it is not required, for example if the content setting
-@@ -186,7 +187,6 @@
+@@ -186,7 +186,7 @@ constexpr auto kContentSettingsTypeGroupNames = std::to_array<
      {ContentSettingsType::APP_BANNER, nullptr},
      {ContentSettingsType::SITE_ENGAGEMENT, nullptr},
      {ContentSettingsType::PERSISTENT_STORAGE, nullptr},
 -    {ContentSettingsType::AUTOPLAY, nullptr},
++    {ContentSettingsType::AUTOPLAY, "autoplay"},
      {ContentSettingsType::IMPORTANT_SITE_INFO, nullptr},
      {ContentSettingsType::PERMISSION_AUTOBLOCKER_DATA, nullptr},
      {ContentSettingsType::ADS_DATA, nullptr},
-@@ -606,6 +606,7 @@
+@@ -606,6 +606,7 @@ std::vector<ContentSettingsType> GetVisiblePermissionCategories(
        ContentSettingsType::SMART_CARD_GUARD,
  #endif
        ContentSettingsType::SOUND,
