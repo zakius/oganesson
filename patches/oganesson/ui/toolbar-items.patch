@@ -31,16 +31,14 @@
  }
  
  bool PinnedToolbarActionsModel::IsDefault() const {
-@@ -229,7 +232,8 @@ bool PinnedToolbarActionsModel::IsDefault() const {
+@@ -229,6 +232,7 @@ bool PinnedToolbarActionsModel::IsDefault() const {
    return std::ranges::all_of(
        std::initializer_list{prefs::kPinnedActions, prefs::kShowHomeButton,
                              prefs::kShowForwardButton,
--                            prefs::kPinSplitTabButton},
-+                            prefs::kPinSplitTabButton, prefs::kToolbarItems,
-+                            prefs::kToolbarHiddenItems},
++                            prefs::kToolbarItems, prefs::kToolbarHiddenItems,
+                             prefs::kPinSplitTabButton},
        is_default_pref_value);
  }
- 
 --- a/chrome/browser/ui/views/extensions/extension_action_delegate_desktop.cc
 +++ b/chrome/browser/ui/views/extensions/extension_action_delegate_desktop.cc
 @@ -16,6 +16,7 @@
@@ -51,28 +49,18 @@
  #include "ui/views/view.h"
  
  using extensions::ActionInfo;
-@@ -86,13 +87,14 @@ void ExtensionActionDelegateDesktop::ShowPopup(
-   // completed rendering on the screen.
-   has_opened_popup_ = true;
- 
--  views::BubbleBorder::Arrow arrow =
--      extensions_container_views_ ? extensions_container_views_->GetPopupArrow()
--                                  : views::BubbleBorder::TOP_RIGHT;
--  ExtensionPopup::ShowPopup(
--      browser_, std::move(host),
--      extensions_container_views_->GetReferenceButtonForPopup(model_->GetId()),
--      arrow, show_action, std::move(callback));
+@@ -89,6 +90,11 @@ void ExtensionActionDelegateDesktop::ShowPopup(
+   views::BubbleBorder::Arrow arrow =
+       extensions_container_views_ ? extensions_container_views_->GetPopupArrow()
+                                   : views::BubbleBorder::TOP_RIGHT;
 +  // The arrow follows the anchor's half of the window, which covers both RTL
 +  // and LTR, because the views platform performs the flipping in RTL cases.
-+  views::BubbleAnchor anchor =
-+      extensions_container_views_->GetReferenceButtonForPopup(model_->GetId());
-+  const views::BubbleBorder::Arrow arrow =
-+      GetToolbarBubbleArrow(anchor.GetIfView());
-+  ExtensionPopup::ShowPopup(browser_, std::move(host), std::move(anchor), arrow,
-+                            show_action, std::move(callback));
- 
-   extensions_container_views_->OnPopupShown(model_->GetId(), by_user);
- }
++  arrow = GetToolbarBubbleArrow(
++      extensions_container_views_->GetReferenceButtonForPopup(model_->GetId())
++          .GetIfView());
+   ExtensionPopup::ShowPopup(
+       browser_, std::move(host),
+       extensions_container_views_->GetReferenceButtonForPopup(model_->GetId()),
 --- a/chrome/browser/ui/views/extensions/extensions_toolbar_desktop.cc
 +++ b/chrome/browser/ui/views/extensions/extensions_toolbar_desktop.cc
 @@ -41,6 +41,7 @@
@@ -92,17 +80,11 @@
      return;
    }
  
-@@ -581,9 +582,11 @@ void ExtensionsToolbarDesktop::AnchorAndShowWidgetImmediately(
-   // Revisit how to handle that, likely the Widget should Close on removal which
-   // would remove the AnchoredWidget entry.
-   views::View* const anchor_view = GetViewForId(iter->extension_id);
--  widget->widget_delegate()->AsBubbleDialogDelegate()->SetAnchorView(
--      anchor_view && anchor_view->GetVisible() ? anchor_view
--                                               : GetExtensionsButton());
+@@ -584,6 +585,8 @@ void ExtensionsToolbarDesktop::AnchorAndShowWidgetImmediately(
+   widget->widget_delegate()->AsBubbleDialogDelegate()->SetAnchorView(
+       anchor_view && anchor_view->GetVisible() ? anchor_view
+                                                : GetExtensionsButton());
 +  auto* const bubble = widget->widget_delegate()->AsBubbleDialogDelegate();
-+  bubble->SetAnchorView(anchor_view && anchor_view->GetVisible()
-+                            ? anchor_view
-+                            : GetExtensionsButton());
 +  bubble->SetArrow(GetToolbarBubbleArrow(bubble->GetAnchorView()));
    widget->Show();
  }
@@ -288,15 +270,11 @@
  
 --- a/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/BUILD.gn
 +++ b/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/BUILD.gn
-@@ -7,7 +7,10 @@ import("//ui/webui/webui_features.gni")
- assert(!is_android)
+@@ -8,6 +8,7 @@ assert(!is_android)
  
  source_set("customize_toolbar") {
--  sources = [ "customize_toolbar_handler.cc" ]
-+  sources = [
-+    "customize_toolbar_handler.cc",
-+    "customize_toolbar_oganesson.cc",
-+  ]
+   sources = [ "customize_toolbar_handler.cc" ]
++  sources += [ "customize_toolbar_oganesson.cc" ]
    public = [ "customize_toolbar_handler.h" ]
    public_deps = [
      "//chrome/browser:browser_public_dependencies",

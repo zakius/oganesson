@@ -32,11 +32,9 @@
 #include "chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model.h"
 #include "chrome/browser/ui/toolbar/toolbar_action_hover_card_types.h"
 #include "chrome/browser/ui/toolbar/toolbar_actions_model.h"
-#include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/extensions/browser_action_drag_data.h"
 #include "chrome/browser/ui/views/extensions/extensions_toolbar_desktop.h"
 #include "chrome/browser/ui/views/extensions/extensions_toolbar_button.h"
-#include "chrome/browser/ui/views/global_media_controls/media_toolbar_button_view.h"
 #include "chrome/browser/ui/views/location_bar/location_bar_view.h"
 #include "chrome/browser/ui/views/profiles/avatar_toolbar_button.h"
 #include "chrome/browser/ui/views/toolbar/app_menu.h"
@@ -379,10 +377,6 @@ ToolbarView::GetBuiltInItems() {
           {"split_tabs", split_tabs_.get()},
           {"location_bar", location_bar_view_.get()},
           {"extensions", extensions_container_.get()},
-          {"media", media_button_ && !features::IsWebUIMediaButtonEnabled()
-                        ? static_cast<MediaToolbarButtonView*>(
-                              media_button_.get())
-                        : nullptr},
           {"avatar", avatar_.get()},
           {"app_menu", app_menu_button_.get()}};
 }
