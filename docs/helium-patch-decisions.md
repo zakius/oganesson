@@ -27,7 +27,7 @@ Two review passes produced these lists. Patches are listed by their path in Heli
 - Fingerprint noise (`helium/core/noise/*`, its settings page and page-info UI) is stripped for now, and can return later.
 - Group defaults: degoogling and privacy patches (Inox, Iridium, Bromite, Debian, ungoogled-chromium, Brave) and build fixes are wanted. Remaining `helium/core/*` patches are not wanted unless listed as an exception.
 
-## Want (122)
+## Want (121)
 
 - `helium/core/ridiculous-google-compat-exceptions` (Helium 0.19.2): keeps Google sign-in, session cookies and security-key enrollment working under domain substitution. Maintainer's decision, 2026-10-09.
 - `upstream-fixes/missing-dependencies`
@@ -133,7 +133,6 @@ Two review passes produced these lists. Patches are listed by their path in Heli
 - `helium/core/force-paste-action`
 - `helium/core/shift-right-click-context-menu`
 - `helium/core/crash-reporter-privacy-tweaks`
-- `helium/core/crash-reporting-prefs`
 - `helium/core/disable-omnibox-webui`
 - `helium/settings/custom-keyboard-shortcuts-page`
 - `helium/ui/tab-favicon-retention`
@@ -304,9 +303,10 @@ Two review passes produced these lists. Patches are listed by their path in Heli
 
 - `helium/core/onboarding-page`
 
-## Do not want (86)
+## Do not want (87)
 
-- `helium/settings/crash-reporting-settings`: dropped, since its UI lives on Helium's services page and `no-helium-crash-reports` removes its strings.
+- `helium/core/crash-reporting-prefs`: dropped. It adds upload consent and Helium's crash server URL. Without its settings page or crash dialog, nothing can change the consent, and Chromium builds have no upload URL, so crash reports stay on disk either way.
+- `helium/settings/crash-reporting-settings`: dropped, since its UI lives on Helium's services page and `crash-reporting-prefs` is dropped.
 - `bromite/fingerprinting-flags-client-rects-and-measuretext`
 - `bromite/flag-max-connections-per-host`
 - `ungoogled-chromium/add-flag-to-disable-beforeunload`
