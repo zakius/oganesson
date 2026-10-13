@@ -42,14 +42,6 @@
  #include "chrome/browser/ui/tabs/tab_change_type.h"
  #include "chrome/browser/ui/tabs/tab_close_types_data.h"
  #include "chrome/browser/ui/tabs/tab_enums.h"
-@@ -778,6 +779,7 @@ tabs::TabModel* TabStripModel::GetActiveTabModel() const {
- void TabStripModel::OnChange(const TabStripModelChange& change,
-                              const TabStripSelectionChange& selection) {
-   CompleteModelUpdateTransaction();
-+  OganessonTabRules::OnChange(*this, change, selection);
-   OnActiveTabChanged(selection);
- 
-   for (auto& observer : observers_) {
 @@ -1824,7 +1826,10 @@ void TabStripModel::AddTab(std::unique_ptr<tabs::TabModel> tab,
    // closed we'll jump back to the parent tab.
    bool inherit_opener = (add_types & ADD_INHERIT_OPENER) == ADD_INHERIT_OPENER;
@@ -76,15 +68,15 @@
    if (new_selected_index != TabStripModel::kNoTab &&
 --- a/chrome/browser/ui/tabs/tab_strip_model.h
 +++ b/chrome/browser/ui/tabs/tab_strip_model.h
-@@ -1510,6 +1510,11 @@ class TabStripModel {
-   // List of tabs for MRU cycling
-   std::vector<tabs::TabHandle> mru_cycle_list_;
+@@ -899,6 +899,11 @@ class TabStripModel {
+       const content::WebContents* contents) const;
  
+  private:
 +  // Firefox's tab rules (tab_strip_model_oganesson.cc).
 +  friend class OganessonTabRules;
 +  std::unique_ptr<class OganessonTabRules> oganesson_tab_rules_;
 +  tabs::TabHandle oganesson_next_opener_;
 +
-   base::WeakPtrFactory<TabStripModel> weak_factory_{this};
- };
- 
+   FRIEND_TEST_ALL_PREFIXES(TabStripModelTest, GetIndicesClosedByCommand);
+   // Temporary private API.
+   FRIEND_TEST_ALL_PREFIXES(TabStripModelTest, FindGroupIdFor);

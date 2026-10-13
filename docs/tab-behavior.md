@@ -8,7 +8,7 @@ Chromium extensions get the same rules: an extension's `tabs.create({openerTabId
 
 Chromium's tab strip model changes often, so the patch stays small. `patches/oganesson/core/firefox-tab-behavior.patch` adds only:
 
-- 3 one-line calls in `tab_strip_model.cc`: `AddTab`, `OnChange` and `DetermineNewSelectedIndex`.
+- 2 one-line calls in `tab_strip_model.cc`: `AddTab` and `DetermineNewSelectedIndex`. The rules see other changes as a `TabStripModelObserver`.
 - A friend declaration and 2 members in `tab_strip_model.h`.
 - A call before and after `OpenTab` in `tabs_api.cc`, to pass `openerTabId`.
 - The new file in `BUILD.gn`.
