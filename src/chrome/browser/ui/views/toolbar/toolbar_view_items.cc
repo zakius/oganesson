@@ -70,6 +70,7 @@
 #include "ui/views/context_menu_controller.h"
 #include "ui/views/controls/button/button_controller.h"
 #include "ui/views/drag_controller.h"
+#include "ui/views/view_class_properties.h"
 #include "ui/views/view_observer.h"
 #include "ui/views/widget/widget.h"
 
@@ -276,6 +277,30 @@ void ToolbarItemsState::WriteDragDataForView(views::View* sender,
   data->SetPickledData(GetToolbarItemFormatType(), pickle);
 }
 
+// The toolbar holds pinned extension icons as items of its own. Such an icon
+// stays in the extensions container's icons, so popups, menus and hover cards
+// keep working; the container then holds only the extensions button and
+// actions shown for the moment (popped out).
+std::unique_ptr<ToolbarActionView> TakeIcon(
+    ExtensionsToolbarDesktop* container,
+    ToolbarActionView* icon) {
+  auto taken = container->RemoveChildViewT(icon);
+  // Undo the container's fade and flex state; the toolbar lays it out as a
+  // plain button.
+  taken->ClearProperty(views::kFlexBehaviorKey);
+  taken->SetVisible(true);
+  // Reorders the icons the container still holds.
+  container->OnPinnedActionsChanged();
+  return taken;
+}
+
+void ReturnIcon(ExtensionsToolbarDesktop* container,
+                std::unique_ptr<ToolbarActionView> icon) {
+  container->AddChildView(std::move(icon));
+  // Updates the icons' visibility and order.
+  container->OnPinnedActionsChanged();
+}
+
 // The view that drags the built-in `item`, if it moves at all. The extensions
 // button drags its container. The location bar stays put; the others move
 // around it.
@@ -291,8 +316,6 @@ views::View* GetDragHandle(ToolbarView* toolbar,
 }  // namespace
 
 void ToolbarView::InitToolbarItems() {
-  const auto move_by =
-      base::BindRepeating(&ToolbarView::MoveItemBy, base::Unretained(this));
   set_context_menu_controller(SetProperty(
       kAppMenuFallbackKey, std::make_unique<AppMenuFallback>(this)));
   ToolbarItemsState* const state = SetProperty(
@@ -306,10 +329,6 @@ void ToolbarView::InitToolbarItems() {
               : nullptr));
   if (extensions_container_) {
     AddPreTargetHandler(state);
-    extensions_container_->SetMoveDetachedCallback(move_by);
-  }
-  if (pinned_toolbar_actions_container_) {
-    pinned_toolbar_actions_container_->SetMoveDetachedCallback(move_by);
   }
   // Built-in items drag like pinned ones, and act on release so a press can
   // start a drag. Incognito windows don't change the layout.
@@ -340,16 +359,10 @@ void ToolbarView::ShutdownToolbarItems() {
   ClearProperty(kToolbarItemsStateKey);
   // Hand the pinned items back to their containers, which own their state, so
   // they are destroyed with them.
-  if (extensions_container_) {
-    extensions_container_->SetMoveDetachedCallback({});
-  }
-  if (pinned_toolbar_actions_container_) {
-    pinned_toolbar_actions_container_->SetMoveDetachedCallback({});
-  }
   for (views::View* child : View::Views(children())) {
     if (auto* action = views::AsViewClass<ToolbarActionView>(child);
         action && extensions_container_) {
-      extensions_container_->ReturnIcon(RemoveChildViewT(action));
+      ReturnIcon(extensions_container_, RemoveChildViewT(action));
     } else if (auto* button = views::AsViewClass<PinnedActionToolbarButton>(child);
                button && pinned_toolbar_actions_container_) {
       pinned_toolbar_actions_container_->AddChildView(RemoveChildViewT(button));
@@ -410,13 +423,13 @@ void ToolbarView::ApplyToolbarItems() {
       if (action &&
           (!can_show ||
            !std::ranges::contains(pinned, action->view_model()->GetId()))) {
-        extensions_container_->ReturnIcon(RemoveChildViewT(action));
+        ReturnIcon(extensions_container_, RemoveChildViewT(action));
       }
     }
     for (const std::string& id : pinned) {
-      if (can_show && extensions_container_->GetViewForId(id) &&
-          !extensions_container_->IsIconDetached(id)) {
-        AddChildViewAt(extensions_container_->TakeIcon(id),
+      ToolbarActionView* const icon = extensions_container_->GetViewForId(id);
+      if (can_show && icon && icon->parent() == extensions_container_) {
+        AddChildViewAt(TakeIcon(extensions_container_, icon),
                        GetIndexOf(extensions_container_).value());
       }
     }
@@ -427,7 +440,7 @@ void ToolbarView::ApplyToolbarItems() {
     for (actions::ActionId id :
          pinned_toolbar_actions_container_->PinnedActionIds()) {
       PinnedActionToolbarButton* const button =
-          pinned_toolbar_actions_container_->GetPinnedButton(id);
+          pinned_toolbar_actions_container_->GetButtonFor(id);
       if (button && button->parent() == pinned_toolbar_actions_container_) {
         auto taken =
             pinned_toolbar_actions_container_->RemoveChildViewT(button);
@@ -523,7 +536,7 @@ void ToolbarView::ApplyToolbarItems() {
       for (actions::ActionId id :
            pinned_toolbar_actions_container_->PinnedActionIds()) {
         PinnedActionToolbarButton* const button =
-            pinned_toolbar_actions_container_->GetPinnedButton(id);
+            pinned_toolbar_actions_container_->GetButtonFor(id);
         if (button && button->parent() == this) {
           move_before(button, pinned_toolbar_actions_container_.get());
         }

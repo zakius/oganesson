@@ -83,38 +83,7 @@
  #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
  #include "chrome/browser/user_education/user_education_service.h"
  #include "chrome/browser/user_education/user_education_service_factory.h"
-@@ -446,6 +447,30 @@ ToolbarActionView* ExtensionsToolbarDesktop::GetViewForId(
-   return (it == icons_.end()) ? nullptr : it->second;
- }
- 
-+bool ExtensionsToolbarDesktop::IsIconDetached(const std::string& id) {
-+  ToolbarActionView* const view = GetViewForId(id);
-+  return view && view->parent() != this;
-+}
-+
-+std::unique_ptr<ToolbarActionView> ExtensionsToolbarDesktop::TakeIcon(
-+    const std::string& id) {
-+  auto icon = RemoveChildViewT(GetViewForId(id));
-+  // Undo the container's fade and flex state; the toolbar lays it out as a
-+  // plain button.
-+  icon->ClearProperty(views::kFlexBehaviorKey);
-+  icon->SetVisible(true);
-+  ReorderAllChildViews();
-+  return icon;
-+}
-+
-+void ExtensionsToolbarDesktop::ReturnIcon(
-+    std::unique_ptr<ToolbarActionView> icon) {
-+  const std::string id = icon->view_model()->GetId();
-+  AddChildView(std::move(icon));
-+  UpdateIconVisibility(id);
-+  ReorderAllChildViews();
-+}
-+
- void ExtensionsToolbarDesktop::ShowWidgetForExtension(
-     views::Widget* widget,
-     const std::string& extension_id) {
-@@ -512,7 +537,7 @@ void ExtensionsToolbarDesktop::UpdateIconVisibility(
+@@ -512,7 +513,7 @@ void ExtensionsToolbarDesktop::UpdateIconVisibility(
    }
  
    ToolbarActionView* const action_view = GetViewForId(extension_id);
@@ -123,7 +92,7 @@
      return;
    }
  
-@@ -581,9 +606,11 @@ void ExtensionsToolbarDesktop::AnchorAndShowWidgetImmediately(
+@@ -581,9 +582,11 @@ void ExtensionsToolbarDesktop::AnchorAndShowWidgetImmediately(
    // Revisit how to handle that, likely the Widget should Close on removal which
    // would remove the AnchoredWidget entry.
    views::View* const anchor_view = GetViewForId(iter->extension_id);
@@ -138,7 +107,7 @@
    widget->Show();
  }
  
-@@ -639,9 +666,11 @@ void ExtensionsToolbarDesktop::PopOutAction(
+@@ -639,9 +642,11 @@ void ExtensionsToolbarDesktop::PopOutAction(
  
  void ExtensionsToolbarDesktop::ReorderAllChildViews() {
    // Reorder pinned action views left-to-right.
@@ -147,24 +116,27 @@
 -    ReorderChildView(GetViewForId(pinned_action_ids[i]), i);
 +  size_t index = 0;
 +  for (const auto& id : toolbar_view_model_->GetPinnedActionIds()) {
-+    if (!IsIconDetached(id)) {
++    if (GetViewForId(id)->parent() == this) {
 +      ReorderChildView(GetViewForId(id), index++);
 +    }
    }
    if (drop_info_.get()) {
      ReorderChildView(GetViewForId(drop_info_->action_id), drop_info_->index);
-@@ -703,6 +732,10 @@ gfx::Size ExtensionsToolbarDesktop::GetToolbarActionSize() {
+@@ -703,6 +708,13 @@ gfx::Size ExtensionsToolbarDesktop::GetToolbarActionSize() {
  
  void ExtensionsToolbarDesktop::MovePinnedActionBy(const std::string& action_id,
                                                    int move_by) {
-+  if (IsIconDetached(action_id) && move_detached_callback_) {
-+    move_detached_callback_.Run(GetViewForId(action_id), move_by);
++  if (views::View* const view = GetViewForId(action_id);
++      view->parent() != this) {
++    // The toolbar holds the icon.
++    BrowserView::GetBrowserViewForBrowser(browser_)->toolbar()->MoveItemBy(
++        view, move_by);
 +    return;
 +  }
    toolbar_view_model_->MovePinnedActionBy(action_id, move_by);
  }
  
-@@ -839,7 +872,8 @@ void ExtensionsToolbarDesktop::OnActionRemoved(
+@@ -839,7 +851,8 @@ void ExtensionsToolbarDesktop::OnActionRemoved(
  
    ToolbarActionView* action_view = GetViewForId(action_id);
    if (action_view) {
@@ -174,7 +146,7 @@
      icons_.erase(action_id);
    }
  
-@@ -962,7 +996,8 @@ bool ExtensionsToolbarDesktop::AreDropTypesRequired() {
+@@ -962,7 +975,8 @@ bool ExtensionsToolbarDesktop::AreDropTypesRequired() {
  }
  
  bool ExtensionsToolbarDesktop::CanDrop(const OSExchangeData& data) {
@@ -184,46 +156,6 @@
  }
  
  void ExtensionsToolbarDesktop::OnDragEntered(const ui::DropTargetEvent& event) {
---- a/chrome/browser/ui/views/extensions/extensions_toolbar_desktop.h
-+++ b/chrome/browser/ui/views/extensions/extensions_toolbar_desktop.h
-@@ -12,7 +12,7 @@
- #include <string>
- #include <vector>
- 
--#include "base/functional/callback_forward.h"
-+#include "base/functional/callback.h"
- #include "base/memory/raw_ptr.h"
- #include "base/memory/weak_ptr.h"
- #include "base/scoped_observation.h"
-@@ -138,6 +138,19 @@ class ExtensionsToolbarDesktop : public ToolbarIconContainerView,
-   // Get the view corresponding to the extension |id|, if any.
-   ToolbarActionView* GetViewForId(const std::string& id);
- 
-+  // The toolbar holds pinned action icons as items of its own, placed and
-+  // ordered like its other buttons. Such an icon stays in `icons_`, so
-+  // popups, menus and hover cards keep working; this container then holds
-+  // only the extensions button and actions shown for the moment (popped out).
-+  bool IsIconDetached(const std::string& id);
-+  std::unique_ptr<ToolbarActionView> TakeIcon(const std::string& id);
-+  void ReturnIcon(std::unique_ptr<ToolbarActionView> icon);
-+  // Run for a keyboard move of an icon the toolbar holds, with -1 or 1.
-+  void SetMoveDetachedCallback(
-+      base::RepeatingCallback<void(views::View*, int)> callback) {
-+    move_detached_callback_ = std::move(callback);
-+  }
-+
-   // Check if the extensions menu is showing.
-   // TODO(crbug.com/40811196): This method will be removed once extensions menu
-   // under kExtensionsMenuAccessControl feature is fully rolled out and we can
-@@ -372,6 +385,8 @@ class ExtensionsToolbarDesktop : public ToolbarIconContainerView,
-   // View for every action, does not imply pinned or currently shown.
-   ToolbarIcons icons_;
- 
-+  base::RepeatingCallback<void(views::View*, int)> move_detached_callback_;
-+
-   // Popped-out extension, if any.
-   std::optional<extensions::ExtensionId> popped_out_action_;
-   // The action that triggered the current popup, if any.
 --- a/chrome/browser/ui/views/toolbar/BUILD.gn
 +++ b/chrome/browser/ui/views/toolbar/BUILD.gn
 @@ -155,6 +155,7 @@ source_set("impl") {
@@ -236,19 +168,20 @@
      "webui_back_forward_control.cc",
 --- a/chrome/browser/ui/views/toolbar/pinned_toolbar_actions_container.cc
 +++ b/chrome/browser/ui/views/toolbar/pinned_toolbar_actions_container.cc
-@@ -280,6 +280,11 @@ void PinnedToolbarActionsContainer::MovePinnedAction(
+@@ -280,6 +280,12 @@ void PinnedToolbarActionsContainer::MovePinnedAction(
  void PinnedToolbarActionsContainer::MovePinnedActionBy(actions::ActionId id,
                                                         int delta) {
    DCHECK(IsActionPinned(id));
 +  PinnedActionToolbarButton* const button = GetPinnedButtonFor(id);
-+  if (button->parent() != this && move_detached_callback_) {
-+    move_detached_callback_.Run(button, delta);
++  if (button->parent() != this) {
++    // The toolbar holds the button.
++    browser_view_->toolbar()->MoveItemBy(button, delta);
 +    return;
 +  }
    const auto& pinned_action_ids = model_->PinnedActionIds();
  
    auto iter = std::ranges::find(pinned_action_ids, id);
-@@ -318,8 +323,8 @@ bool PinnedToolbarActionsContainer::AreDropTypesRequired() {
+@@ -318,8 +324,8 @@ bool PinnedToolbarActionsContainer::AreDropTypesRequired() {
  }
  
  bool PinnedToolbarActionsContainer::CanDrop(const OSExchangeData& data) {
@@ -259,7 +192,7 @@
  }
  
  void PinnedToolbarActionsContainer::OnDragEntered(
-@@ -571,6 +576,9 @@ void PinnedToolbarActionsContainer::RemovePinnedActionButtonFor(
+@@ -571,6 +577,9 @@ void PinnedToolbarActionsContainer::RemovePinnedActionButtonFor(
    if (iter == pinned_buttons_.end()) {
      return;
    }
@@ -269,7 +202,7 @@
    if (!ShouldRemainPoppedOutInToolbar(*iter)) {
      GetAnimatingLayoutManager()->FadeOut(*iter);
      GetAnimatingLayoutManager()->PostOrQueueAction(
-@@ -704,7 +712,8 @@ void PinnedToolbarActionsContainer::ReorderViews() {
+@@ -704,7 +713,8 @@ void PinnedToolbarActionsContainer::ReorderViews() {
    // or from the user dragging to reorder.
    const auto ordered_pinned_ids = model_->PinnedActionIds();
    for (auto id : ordered_pinned_ids) {
@@ -279,44 +212,6 @@
        ReorderChildView(button, index);
        index++;
      }
---- a/chrome/browser/ui/views/toolbar/pinned_toolbar_actions_container.h
-+++ b/chrome/browser/ui/views/toolbar/pinned_toolbar_actions_container.h
-@@ -10,6 +10,7 @@
- #include <set>
- #include <vector>
- 
-+#include "base/functional/callback.h"
- #include "base/memory/raw_ptr.h"
- #include "chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model.h"
- #include "chrome/browser/ui/views/toolbar/pinned_action_toolbar_button.h"
-@@ -122,6 +123,19 @@ class PinnedToolbarActionsContainer
- 
-   const std::vector<actions::ActionId>& PinnedActionIds() const override;
- 
-+  // The toolbar holds pinned buttons as items of its own, placed and ordered
-+  // like its other buttons. Such a button stays in `pinned_buttons_`; this
-+  // container then holds only buttons shown for the moment (popped out), and
-+  // takes a button back before it removes or pops it out on unpinning.
-+  PinnedActionToolbarButton* GetPinnedButton(actions::ActionId id) {
-+    return GetPinnedButtonFor(id);
-+  }
-+  // Run for a keyboard move of a button the toolbar holds, with -1 or 1.
-+  void SetMoveDetachedCallback(
-+      base::RepeatingCallback<void(views::View*, int)> callback) {
-+    move_detached_callback_ = std::move(callback);
-+  }
-+
-   base::WeakPtr<PinnedToolbarActionsContainer> GetWeakPtrForTesting() {
-     return weak_ptr_factory_.GetWeakPtr();
-   }
-@@ -183,6 +197,7 @@ class PinnedToolbarActionsContainer
-   std::vector<raw_ptr<PinnedActionToolbarButton, VectorExperimental>>
-       popped_out_buttons_;
-   std::vector<std::unique_ptr<PinnedActionToolbarButton>> permanent_buttons_;
-+  base::RepeatingCallback<void(views::View*, int)> move_detached_callback_;
-   raw_ptr<ToolbarDivider> toolbar_divider_;
-   raw_ptr<PinnedToolbarActionsModel> model_;
- 
 --- a/chrome/browser/ui/views/toolbar/toolbar_view.cc
 +++ b/chrome/browser/ui/views/toolbar/toolbar_view.cc
 @@ -306,6 +306,8 @@ ToolbarView::~ToolbarView() {
