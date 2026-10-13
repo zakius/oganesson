@@ -4,7 +4,7 @@ use std::sync::Arc;
 use anyhow::{anyhow, Result};
 use serde_json::{json, Value};
 use sync15::engine::{CollectionRequest, EngineSyncAssociation, SyncEngine};
-use sync15::{telemetry, ClientData, CollectionName, ServerTimestamp};
+use sync15::{telemetry, ClientData, CollectionName, DeviceType, ServerTimestamp};
 use sync_guid::Guid;
 use tabs::{RemoteTabRecord, TabsStore};
 
@@ -88,13 +88,30 @@ impl Collection for TabsEngine {
                         } else {
                             &tab.title
                         };
-                        Some(json!({"url": url, "title": title}))
+                        Some(json!({
+                            "url": url,
+                            "title": title,
+                            "icon": tab.icon,
+                            "lastUsed": tab.last_used,
+                        }))
                     })
                     .collect();
                 if tabs.is_empty() {
                     return None;
                 }
-                Some(json!({"name": device.client_name, "tabs": tabs}))
+                let kind = match device.device_type {
+                    DeviceType::Mobile => "phone",
+                    DeviceType::Tablet => "tablet",
+                    DeviceType::Desktop => "desktop",
+                    _ => "other",
+                };
+                Some(json!({
+                    "id": device.client_id,
+                    "name": device.client_name,
+                    "type": kind,
+                    "modified": device.last_modified,
+                    "tabs": tabs,
+                }))
             })
             .collect();
         Ok(json!({"state": "", "ops": devices, "count": self.count}))

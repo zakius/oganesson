@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright 2026 The oganesson Authors. GPL-3.0, see the LICENSE file. -->
+<grit-part>
+  <message name="IDS_SETTINGS_SITE_SETTINGS_AUTOPLAY" desc="Settings, Site settings: name of the Autoplay setting, which controls whether sites may start playing audio and video by themselves.">
+    Autoplay
+  </message>
+  <message name="IDS_SETTINGS_SITE_SETTINGS_AUTOPLAY_MID_SENTENCE" desc="Settings, Site settings: the Autoplay setting's name in the middle of a sentence, as in 'Allowed autoplay'.">
+    autoplay
+  </message>
+  <message name="IDS_SETTINGS_SITE_SETTINGS_AUTOPLAY_DESCRIPTION" desc="Settings, Site settings, Autoplay page: explanation at the top of the page.">
+    Sites can start playing audio and video when you open them
+  </message>
+  <message name="IDS_SETTINGS_SITE_SETTINGS_AUTOPLAY_ALLOW" desc="Settings, Site settings, Autoplay: the choice that lets sites start any audio and video by themselves.">
+    Allow audio and video
+  </message>
+  <message name="IDS_SETTINGS_SITE_SETTINGS_AUTOPLAY_BLOCK_AUDIO" desc="Settings, Site settings, Autoplay: the choice that stops sites from starting media with sound by themselves.">
+    Block audio
+  </message>
+  <message name="IDS_SETTINGS_SITE_SETTINGS_AUTOPLAY_BLOCK_AUDIO_SUB_LABEL" desc="Settings, Site settings, Autoplay: what the Block audio choice does.">
+    Muted media can play. Media with sound waits until you interact with the site.
+  </message>
+  <message name="IDS_SETTINGS_SITE_SETTINGS_AUTOPLAY_BLOCK" desc="Settings, Site settings, Autoplay: the choice that stops sites from starting any audio or video by themselves.">
+    Block audio and video
+  </message>
+  <message name="IDS_SETTINGS_SITE_SETTINGS_AUTOPLAY_BLOCK_SUB_LABEL" desc="Settings, Site settings, Autoplay: what the Block audio and video choice does.">
+    Media waits until you click or press a key on the page, also when it's muted
+  </message>
+  <message name="IDS_SETTINGS_SITE_SETTINGS_AUTOPLAY_ALLOWED_EXCEPTIONS" desc="Settings, Site settings, Autoplay: heading of the list of sites that may start audio and video by themselves.">
+    Allowed to autoplay audio and video
+  </message>
+  <message name="IDS_SETTINGS_SITE_SETTINGS_AUTOPLAY_BLOCKED_EXCEPTIONS" desc="Settings, Site settings, Autoplay: heading of the list of sites that may not start audio or video by themselves.">
+    Not allowed to autoplay audio and video
+  </message>
+  <message name="IDS_SETTINGS_SITE_SETTINGS_AUTOPLAY_ALLOW_DEFAULT" desc="Settings, a site's permissions, Autoplay menu: the default choice when the default is Allow audio and video.">
+    Allow audio and video (default)
+  </message>
+  <message name="IDS_SETTINGS_SITE_SETTINGS_AUTOPLAY_BLOCK_AUDIO_DEFAULT" desc="Settings, a site's permissions, Autoplay menu: the default choice when the default is Block audio.">
+    Block audio (default)
+  </message>
+  <message name="IDS_SETTINGS_SITE_SETTINGS_AUTOPLAY_BLOCK_DEFAULT" desc="Settings, a site's permissions, Autoplay menu: the default choice when the default is Block audio and video.">
+    Block audio and video (default)
+  </message>
+</grit-part>

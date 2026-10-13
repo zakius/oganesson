@@ -1,0 +1,64 @@
+--- a/chrome/common/pref_names.h
++++ b/chrome/common/pref_names.h
+@@ -623,6 +623,10 @@
+ inline constexpr char kShowZoomIndicator[] =
+     "helium.browser.show_zoom_indicator";
+ 
++// A boolean pref set to true if tabs show the icon for audio playing.
++inline constexpr char kShowTabAudioIndicator[] =
++    "oganesson.tabs.show_audio_indicator";
++
+ // A boolean pref set to true if a Home button to open the Home pages should be
+ // visible on the toolbar.
+ inline constexpr char kShowHomeButton[] = "browser.show_home_button";
+--- a/chrome/browser/ui/tabs/tab_strip_prefs.cc
++++ b/chrome/browser/ui/tabs/tab_strip_prefs.cc
+@@ -26,6 +26,7 @@
+   registry->RegisterBooleanPref(prefs::kEverythingMenuPinnedToTabstrip, true);
+   registry->RegisterBooleanPref(prefs::kTabScrollButtonsPinnedToTabstrip, true);
+   registry->RegisterBooleanPref(prefs::kVerticalTabsEnabled, false);
++  registry->RegisterBooleanPref(prefs::kShowTabAudioIndicator, false);
+   registry->RegisterBooleanPref(
+       prefs::kVerticalTabsExpandOnHoverEnabled,
+       tabs::kVerticalTabsExpandOnHoverDefaultEnabled.Get());
+--- a/chrome/browser/ui/tabs/alert/BUILD.gn
++++ b/chrome/browser/ui/tabs/alert/BUILD.gn
+@@ -29,6 +29,8 @@
+ 
+ source_set("impl") {
+   sources = [
++    "oganesson_tab_alerts.cc",
++    "oganesson_tab_alerts.h",
+     "tab_alert_controller.cc",
+     "tab_alert_icon.cc",
+   ]
+--- a/chrome/browser/ui/tabs/alert/tab_alert_controller.cc
++++ b/chrome/browser/ui/tabs/alert/tab_alert_controller.cc
+@@ -23,6 +23,7 @@
+ #include "chrome/browser/media/webrtc/media_capture_devices_dispatcher.h"
+ #include "chrome/browser/media/webrtc/media_stream_capture_indicator.h"
+ #include "chrome/browser/ui/recently_audible_helper.h"
++#include "chrome/browser/ui/tabs/alert/oganesson_tab_alerts.h"
+ #include "chrome/browser/vr/vr_tab_helper.h"
+ #include "chrome/grit/generated_resources.h"
+ #include "components/tabs/public/tab_alert.h"
+@@ -104,6 +105,10 @@
+           ->RegisterRecentlyAudibleChangedCallback(base::BindRepeating(
+               &TabAlertController::OnRecentlyAudibleStateChanged,
+               base::Unretained(this)));
++  callback_subscriptions_.push_back(OganessonOnAudioIndicatorChanged(
++      tab, base::BindRepeating(
++               &TabAlertController::OnRecentlyAudibleStateChanged,
++               base::Unretained(this))));
+ 
+   if (auto* actor_ui_tab_controller =
+           actor::ui::ActorUiTabControllerInterface::From(&tab)) {
+@@ -469,7 +474,7 @@
+       alert == TabAlert::kVideoRecording) {
+     UpdateMediaAlert();
+   } else {
+-    if (is_active) {
++    if (is_active && OganessonShowsAlert(tab(), alert)) {
+       active_alerts_.insert(alert);
+     } else {
+       active_alerts_.erase(alert);

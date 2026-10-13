@@ -1,0 +1,38 @@
+--- a/ui/ozone/platform/wayland/host/wayland_data_drag_controller.h
++++ b/ui/ozone/platform/wayland/host/wayland_data_drag_controller.h
+@@ -21,6 +21,7 @@
+ #include "base/memory/weak_ptr.h"
+ #include "base/synchronization/atomic_flag.h"
+ #include "base/task/task_runner.h"
++#include "base/timer/timer.h"
+ #include "ui/base/dragdrop/mojom/drag_drop_types.mojom.h"
+ #include "ui/base/dragdrop/os_exchange_data_provider.h"
+ #include "ui/events/platform/platform_event_dispatcher.h"
+@@ -335,6 +336,9 @@
+   // Sequenced task runner used to post fetch tasks to.
+   scoped_refptr<base::TaskRunner> data_fetch_task_runner_;
+ 
++  // Repeats the last motion while the pointer rests.
++  base::OneShotTimer repeat_motion_timer_;
++
+   base::WeakPtrFactory<WaylandDataDragController> weak_factory_{this};
+ };
+ 
+--- a/ui/ozone/platform/wayland/host/wayland_data_drag_controller.cc
++++ b/ui/ozone/platform/wayland/host/wayland_data_drag_controller.cc
+@@ -539,6 +539,15 @@
+       location, DndActionsToDragOperations(data_offer_->source_actions()));
+ 
+   data_offer_->SetDndActions(DragOperationsToDndActions(client_operations));
++
++  // The compositor sends motion only while the pointer moves, so a drop
++  // target that appears under a resting pointer (the split view drop target)
++  // would never accept the drop. Ask again periodically, as the X11 drag
++  // source and the HTML drag-and-drop spec do.
++  repeat_motion_timer_.Start(
++      FROM_HERE, base::Milliseconds(350),
++      base::BindOnce(&WaylandDataDragController::OnDragMotion,
++                     base::Unretained(this), location, timestamp));
+ }
+ 
+ void WaylandDataDragController::OnDragLeave(base::TimeTicks timestamp) {

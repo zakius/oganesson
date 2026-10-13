@@ -81,7 +81,7 @@ class HistorySavingTest(BrowserTest):
         self.toggle(page, 'browsingHistory')
         wait_for(lambda: self.pref(page, 'history.saving_disabled'), what='the pref')
 
-        sync = self.browser.new_tab('chrome://settings/autofill')
+        sync = self.browser.new_tab('chrome://settings/people')
         wait_for(lambda: sync.eval(
             f"!!({FIND})('settings-firefox-sync')?.firefoxSync_?.types"), what='Sync types')
         history = self.sync_history(sync)

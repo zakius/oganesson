@@ -1,6 +1,6 @@
 --- a/chrome/app/generated_resources.grd
 +++ b/chrome/app/generated_resources.grd
-@@ -12346,6 +12346,12 @@ Check your passwords anytime in <ph name="GOOGLE_PASSWORD_MANAGER">$1<ex>Google
+@@ -12355,6 +12355,12 @@ Check your passwords anytime in <ph name="GOOGLE_PASSWORD_MANAGER">$1<ex>Google
          <message name="IDS_TAB_CXMENU_UNPIN_TAB" desc="The label of the tab context menu item for unpinning one or more tabs.">
            Unpin
          </message>
@@ -13,7 +13,7 @@
          <message name="IDS_TAB_CXMENU_SOUND_MUTE_SITE" desc="The label of the tab context menu item for muting one or more sites. NOTE: If having no explicit # makes the phrasing awkward, feel free to add a # as necessary. [ICU Syntax]">
            {NUM_TABS, plural, =1 {Mute site} other {Mute sites}}
          </message>
-@@ -12474,6 +12480,12 @@ Check your passwords anytime in <ph name="GOOGLE_PASSWORD_MANAGER">$1<ex>Google
+@@ -12492,6 +12498,12 @@ Check your passwords anytime in <ph name="GOOGLE_PASSWORD_MANAGER">$1<ex>Google
          <message name="IDS_TAB_CXMENU_UNPIN_TAB" desc="In Title Case: The label of the tab context menu item for unpinning one or more tabs.">
            Unpin
          </message>
@@ -44,7 +44,7 @@
            will_mute ? l10n_util::GetPluralStringFUTF16(
 --- a/chrome/browser/ui/tabs/tab_strip_model.cc
 +++ b/chrome/browser/ui/tabs/tab_strip_model.cc
-@@ -2691,6 +2691,7 @@ bool TabStripModel::IsContextMenuCommandEnabled(
+@@ -2763,6 +2763,7 @@ bool TabStripModel::IsContextMenuCommandEnabled(
      case CommandGlicUnshare:
        return true;
  
@@ -52,7 +52,7 @@
      case CommandCopyURL:
        return GetWebContentsAt(context_index) != nullptr;
  
-@@ -2899,6 +2900,19 @@ void TabStripModel::ExecuteContextMenuCommand(int context_index,
+@@ -2994,6 +2995,19 @@ void TabStripModel::ExecuteContextMenuCommand(int context_index,
        break;
      }
  
@@ -72,7 +72,7 @@
      case CommandToggleSiteMuted: {
        base::UmaHistogramCounts1000(
            "Tab.ContextMenu.ToggleSiteMuted.SelectedTabsCount",
-@@ -3386,6 +3400,16 @@ void TabStripModel::ExecuteCloseTabsCommand(
+@@ -3489,6 +3503,16 @@ void TabStripModel::ExecuteCloseTabsCommand(
    }
  }
  
@@ -104,10 +104,10 @@
    bool WillContextMenuMuteSites(int index);
 --- a/components/tabs/public/tab_context_menu_command.h
 +++ b/components/tabs/public/tab_context_menu_command.h
-@@ -39,6 +39,7 @@ enum TabContextMenuCommand {
-   CommandGlicSwitchToRecentConversation,
+@@ -41,6 +41,7 @@ enum TabContextMenuCommand {
    CommandGlicUnshare,
    CommandToggleFocusGroup,
+   CommandDiscard,
 +  CommandToggleTabMuted,
  };
  // LINT.ThenChange(//tools/metrics/histograms/metadata/tab/histograms.xml:TabContextMenuCommand)

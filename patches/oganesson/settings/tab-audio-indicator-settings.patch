@@ -1,0 +1,35 @@
+--- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
++++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
+@@ -320,6 +320,8 @@
+       settings_api::PrefType::kBoolean;
+   (*s_allowlist)[::prefs::kShowZoomIndicator] =
+       settings_api::PrefType::kBoolean;
++  (*s_allowlist)[::prefs::kShowTabAudioIndicator] =
++      settings_api::PrefType::kBoolean;
+ 
+   (*s_allowlist)[::prefs::kShowHomeButton] = settings_api::PrefType::kBoolean;
+   (*s_allowlist)[contextual_search::kDriveConsentState] =
+--- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
++++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
+@@ -625,6 +625,7 @@
+        IDS_SETTINGS_ALLOW_SPLIT_VIEW_DRAG_AND_DROP_HORIZONTAL},
+       {"showTabGroupsInBookmarksBar",
+        IDS_SETTINGS_SHOW_TAB_GROUPS_IN_BOOKMARKS_BAR},
++      {"showTabAudioIndicator", IDS_OGANESSON_SHOW_TAB_AUDIO_INDICATOR},
+       {"autoPinNewTabGroups", IDS_SETTINGS_AUTO_PIN_NEW_TAB_GROUPS},
+       {"hoverCardTitle", IDS_SETTINGS_HOVER_CARD_TITLE},
+       {"showHoverCardImages", IDS_SETTINGS_SHOW_HOVER_CARD_IMAGES},
+--- a/chrome/browser/resources/settings/appearance_page/appearance_page.html.ts
++++ b/chrome/browser/resources/settings/appearance_page/appearance_page.html.ts
+@@ -191,6 +191,11 @@
+         ?hidden="${this.showOrganizerPanelEnabled_}">
+     </settings-toggle-button>
+ 
++    <settings-toggle-button class="hr" id="showTabAudioIndicator"
++        pref-key="oganesson.tabs.show_audio_indicator"
++        label="$i18n{showTabAudioIndicator}">
++    </settings-toggle-button>
++
+     ${this.showCtrlTabMru_ ? html`
+       <settings-toggle-button class="hr" id="ctrlTabMru"
+           pref-key="browser.ctrl_tab_mru"

@@ -10,11 +10,6 @@
     "message": "Synchronizacja z Firefoksem"
   },
   {
-    "name": "IDS_FIREFOX_SYNC_SIGNED_IN_AS",
-    "source": "Signed in as <ph name=\"EMAIL\">$1<ex>user@example.com</ex></ph>",
-    "message": "Zalogowano jako <ph name=\"EMAIL\">$1<ex>user@example.com</ex></ph>"
-  },
-  {
     "name": "IDS_FIREFOX_SYNC_SIGN_IN_DESCRIPTION",
     "source": "Sign in with your Mozilla account to sync with Firefox.",
     "message": "Zaloguj się na konto Mozilla, aby synchronizować dane z Firefoksem."
@@ -83,16 +78,6 @@
     "name": "IDS_FIREFOX_SYNC_COUNT",
     "source": "Synced: <ph name=\"COUNT\">$1<ex>120</ex></ph>",
     "message": "Zsynchronizowano: <ph name=\"COUNT\">$1<ex>120</ex></ph>"
-  },
-  {
-    "name": "IDS_FIREFOX_SYNC_REMOTE_TABS",
-    "source": "Tabs from Firefox devices",
-    "message": "Karty z urządzeń z Firefoksem"
-  },
-  {
-    "name": "IDS_FIREFOX_SYNC_REMOTE_TABS_EMPTY",
-    "source": "No tabs from other devices yet.",
-    "message": "Brak jeszcze kart z innych urządzeń."
   },
   {
     "name": "IDS_FIREFOX_SYNC_TYPE_PASSWORDS",
@@ -270,6 +255,11 @@
     "message": "Menu"
   },
   {
+    "name": "IDS_OGANESSON_SHOW_TAB_AUDIO_INDICATOR",
+    "source": "Show sound icon on tabs",
+    "message": "Pokazuj ikonę dźwięku na kartach"
+  },
+  {
     "name": "IDS_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER",
     "source": "Open link in default browser",
     "message": "Otwórz link w domyślnej przeglądarce"
@@ -340,6 +330,51 @@
     "message": "Wyłączone, gdy historia przeglądania nie jest zapisywana"
   },
   {
+    "name": "IDS_FIREFOX_SYNC_SIGNING_IN",
+    "source": "Finish signing in on the Mozilla account page.",
+    "message": "Dokończ logowanie na stronie konta Mozilla."
+  },
+  {
+    "name": "IDS_FIREFOX_SYNC_PAUSED",
+    "source": "Sync is paused. Sign in again to keep syncing.",
+    "message": "Synchronizacja wstrzymana. Zaloguj się ponownie, aby ją wznowić."
+  },
+  {
+    "name": "IDS_FIREFOX_SYNC_SIGN_IN_AGAIN",
+    "source": "Sign in again",
+    "message": "Zaloguj się ponownie"
+  },
+  {
+    "name": "IDS_FIREFOX_SYNC_MANAGE",
+    "source": "Manage what you sync",
+    "message": "Zarządzaj synchronizowanymi danymi"
+  },
+  {
+    "name": "IDS_FIREFOX_SYNC_SERVERS",
+    "source": "Servers",
+    "message": "Serwery"
+  },
+  {
+    "name": "IDS_FIREFOX_SYNC_NO_SERVER_SET",
+    "source": "No account server set",
+    "message": "Nie ustawiono serwera kont"
+  },
+  {
+    "name": "IDS_FIREFOX_SYNC_OTHER_DEVICES_TABS",
+    "source": "Tabs from other devices",
+    "message": "Karty z innych urządzeń"
+  },
+  {
+    "name": "IDS_FIREFOX_SYNC_TABS_PROMO",
+    "source": "Sign in to Firefox Sync and turn on Open tabs to see the tabs open on your other devices.",
+    "message": "Zaloguj się do synchronizacji z Firefoksem i włącz Otwarte karty, aby widzieć karty otwarte na innych urządzeniach."
+  },
+  {
+    "name": "IDS_FIREFOX_SYNC_TABS_PROMO_BUTTON",
+    "source": "Open Sync settings",
+    "message": "Otwórz ustawienia synchronizacji"
+  },
+  {
     "name": "IDS_SETTINGS_HISTORY_SAVING_DISABLED",
     "source": "Don't save browsing history",
     "message": "Nie zapisuj historii przeglądania"
@@ -368,5 +403,145 @@
     "name": "IDS_SETTINGS_KEEP_CLOSED_TABS_DESCRIPTION",
     "source": "Closed tabs and windows are kept in memory only, never on disk, so Ctrl+Shift+T and Recently closed work. Turn off to keep nothing.",
     "message": "Zamknięte karty i okna są przechowywane tylko w pamięci, nigdy na dysku, więc Ctrl+Shift+T i lista ostatnio zamkniętych działają. Wyłącz, aby nic nie przechowywać."
+  },
+  {
+    "name": "IDS_SETTINGS_OMNIBOX_SUGGESTIONS",
+    "source": "Address bar suggestions",
+    "message": "Sugestie paska adresu"
+  },
+  {
+    "name": "IDS_SETTINGS_OMNIBOX_SUGGESTIONS_DESCRIPTION",
+    "source": "Choose what the address bar suggests as you type",
+    "message": "Wybierz, co pasek adresu podpowiada podczas pisania"
+  },
+  {
+    "name": "IDS_SETTINGS_OMNIBOX_SUGGEST_HISTORY",
+    "source": "Browsing history",
+    "message": "Historia przeglądania"
+  },
+  {
+    "name": "IDS_SETTINGS_OMNIBOX_SUGGEST_BOOKMARKS",
+    "source": "Bookmarks",
+    "message": "Zakładki"
+  },
+  {
+    "name": "IDS_SETTINGS_OMNIBOX_SUGGEST_OPEN_TABS",
+    "source": "Open tabs",
+    "message": "Otwarte karty"
+  },
+  {
+    "name": "IDS_SETTINGS_OMNIBOX_SUGGEST_OPEN_TABS_DESCRIPTION",
+    "source": "Offers \"Switch to this tab\" for a page that is already open",
+    "message": "Proponuje „Przełącz na tę kartę” dla strony, która jest już otwarta"
+  },
+  {
+    "name": "IDS_SETTINGS_OMNIBOX_SUGGEST_PAST_SEARCHES",
+    "source": "Past searches",
+    "message": "Wcześniejsze wyszukiwania"
+  },
+  {
+    "name": "IDS_SETTINGS_OMNIBOX_SUGGEST_PAST_SEARCHES_DESCRIPTION",
+    "source": "Searches you made before, as you type and when you click the address bar",
+    "message": "Twoje wcześniejsze wyszukiwania, podczas pisania i po kliknięciu paska adresu"
+  },
+  {
+    "name": "IDS_SETTINGS_OMNIBOX_HISTORY_NOT_SAVED",
+    "source": "Off while \"Don't save browsing history\" is on in Privacy and security",
+    "message": "Wyłączone, gdy w sekcji Prywatność i bezpieczeństwo jest włączone „Nie zapisuj historii przeglądania”"
+  },
+  {
+    "name": "IDS_SETTINGS_OMNIBOX_SUGGESTION_ORDER",
+    "source": "Suggestion order",
+    "message": "Kolejność sugestii"
+  },
+  {
+    "name": "IDS_SETTINGS_OMNIBOX_SUGGESTION_ORDER_DESCRIPTION",
+    "source": "Suggestions come in this order. When you type the start of a site's address, the first suggestion completes it from bookmarks or browsing history, whichever is higher here.",
+    "message": "Sugestie pojawiają się w tej kolejności. Gdy wpiszesz początek adresu witryny, pierwsza sugestia uzupełni go z zakładek lub historii przeglądania, zależnie od tego, które są tu wyżej."
+  },
+  {
+    "name": "IDS_SETTINGS_OMNIBOX_SEARCHES",
+    "source": "Searches",
+    "message": "Wyszukiwania"
+  },
+  {
+    "name": "IDS_SETTINGS_OMNIBOX_GROUP_OFF",
+    "source": "Off",
+    "message": "Wyłączone"
+  },
+  {
+    "name": "IDS_SETTINGS_OMNIBOX_MOVE_UP",
+    "source": "Move <ph name=\"GROUP\">$1<ex>Bookmarks</ex></ph> up",
+    "message": "Przesuń w górę: <ph name=\"GROUP\">$1<ex>Bookmarks</ex></ph>"
+  },
+  {
+    "name": "IDS_SETTINGS_OMNIBOX_MOVE_DOWN",
+    "source": "Move <ph name=\"GROUP\">$1<ex>Bookmarks</ex></ph> down",
+    "message": "Przesuń w dół: <ph name=\"GROUP\">$1<ex>Bookmarks</ex></ph>"
+  },
+  {
+    "name": "IDS_SETTINGS_SITE_SETTINGS_AUTOPLAY",
+    "source": "Autoplay",
+    "message": "Autoodtwarzanie"
+  },
+  {
+    "name": "IDS_SETTINGS_SITE_SETTINGS_AUTOPLAY_MID_SENTENCE",
+    "source": "autoplay",
+    "message": "autoodtwarzanie"
+  },
+  {
+    "name": "IDS_SETTINGS_SITE_SETTINGS_AUTOPLAY_DESCRIPTION",
+    "source": "Sites can start playing audio and video when you open them",
+    "message": "Witryny mogą zacząć odtwarzać dźwięk i wideo, gdy je otworzysz"
+  },
+  {
+    "name": "IDS_SETTINGS_SITE_SETTINGS_AUTOPLAY_ALLOW",
+    "source": "Allow audio and video",
+    "message": "Zezwalaj na dźwięk i wideo"
+  },
+  {
+    "name": "IDS_SETTINGS_SITE_SETTINGS_AUTOPLAY_BLOCK_AUDIO",
+    "source": "Block audio",
+    "message": "Blokuj dźwięk"
+  },
+  {
+    "name": "IDS_SETTINGS_SITE_SETTINGS_AUTOPLAY_BLOCK_AUDIO_SUB_LABEL",
+    "source": "Muted media can play. Media with sound waits until you interact with the site.",
+    "message": "Wyciszone multimedia mogą być odtwarzane. Multimedia z dźwiękiem czekają, aż wejdziesz w interakcję z witryną."
+  },
+  {
+    "name": "IDS_SETTINGS_SITE_SETTINGS_AUTOPLAY_BLOCK",
+    "source": "Block audio and video",
+    "message": "Blokuj dźwięk i wideo"
+  },
+  {
+    "name": "IDS_SETTINGS_SITE_SETTINGS_AUTOPLAY_BLOCK_SUB_LABEL",
+    "source": "Media waits until you click or press a key on the page, also when it's muted",
+    "message": "Multimedia czekają, aż klikniesz stronę lub naciśniesz na niej klawisz, także gdy są wyciszone"
+  },
+  {
+    "name": "IDS_SETTINGS_SITE_SETTINGS_AUTOPLAY_ALLOWED_EXCEPTIONS",
+    "source": "Allowed to autoplay audio and video",
+    "message": "Mogą automatycznie odtwarzać dźwięk i wideo"
+  },
+  {
+    "name": "IDS_SETTINGS_SITE_SETTINGS_AUTOPLAY_BLOCKED_EXCEPTIONS",
+    "source": "Not allowed to autoplay audio and video",
+    "message": "Nie mogą automatycznie odtwarzać dźwięku ani wideo"
+  },
+  {
+    "name": "IDS_SETTINGS_SITE_SETTINGS_AUTOPLAY_ALLOW_DEFAULT",
+    "source": "Allow audio and video (default)",
+    "message": "Zezwalaj na dźwięk i wideo (domyślnie)"
+  },
+  {
+    "name": "IDS_SETTINGS_SITE_SETTINGS_AUTOPLAY_BLOCK_AUDIO_DEFAULT",
+    "source": "Block audio (default)",
+    "message": "Blokuj dźwięk (domyślnie)"
+  },
+  {
+    "name": "IDS_SETTINGS_SITE_SETTINGS_AUTOPLAY_BLOCK_DEFAULT",
+    "source": "Block audio and video (default)",
+    "message": "Blokuj dźwięk i wideo (domyślnie)"
   }
 ]

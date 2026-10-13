@@ -244,7 +244,19 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(200, resp)
         if path == '/profile/v1/profile':
             return self.reply(200, {'uid': 'fakeuid', 'email': 'fake@example.com',
-                                    'avatar': '', 'avatarDefault': True})
+                                    'displayName': 'Fake User',
+                                    'avatar': b + '/profile/avatar.png',
+                                    'avatarDefault': False})
+        if path == '/profile/avatar.png':
+            # A 1x1 red PNG.
+            data = base64.b64decode(
+                'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==')
+            self.send_response(200)
+            self.send_header('Content-Type', 'image/png')
+            self.send_header('Content-Length', str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return None
         if path.startswith('/auth/v1/account/device'):
             device = {'id': 'fakedevice', 'name': 'oganesson', 'type': 'desktop',
                       'isCurrentDevice': True, 'pushEndpointExpired': False,

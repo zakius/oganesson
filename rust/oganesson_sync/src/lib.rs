@@ -162,8 +162,21 @@ fn complete_signin(args: &Value) -> Result<Value> {
     if account.get_access_token(SYNC_SCOPE, true)?.key.is_none() {
         bail!("the account gave no sync key");
     }
-    let email = account.get_profile(false).map(|p| p.email).unwrap_or_default();
-    Ok(json!({ "account": account.to_json()?, "email": email }))
+    Ok(json!({ "account": account.to_json()?, "profile": profile_json(&account) }))
+}
+
+/// `{email, name, avatar}` for the account card; `avatar` is empty for
+/// Mozilla's default picture. Null if the profile server can't be reached:
+/// the browser keeps what it has.
+fn profile_json(account: &FirefoxAccount) -> Value {
+    match account.get_profile(false) {
+        Ok(p) => json!({
+            "email": p.email,
+            "name": p.display_name.unwrap_or_default(),
+            "avatar": if p.is_default_avatar { String::new() } else { p.avatar },
+        }),
+        Err(_) => Value::Null,
+    }
 }
 
 fn signout(args: &Value) -> Result<Value> {
@@ -320,6 +333,7 @@ fn sync_with(profile: &str, args: &Value, cached: &mut MemoryCachedState) -> Res
         "account": account.to_json()?,
         "global": global_state,
         "engines": results,
+        "profile": profile_json(&account),
     }))
 }
 

@@ -108,6 +108,37 @@ bool IsUrlInUserAppScope(const PrefService& prefs,
   return matched || (in_manifest_scope && !host_named);
 }
 
+int GetUserAppScopeScore(const PrefService& prefs,
+                         const webapps::AppId& app_id,
+                         const GURL& url,
+                         int manifest_score) {
+  if (!IsUrlInUserAppScope(prefs, app_id, url, manifest_score > 0)) {
+    return 0;
+  }
+  return manifest_score > 0 ? manifest_score : 1;
+}
+
+bool IsUrlExcludedFromUserAppScope(const PrefService& prefs,
+                                   const webapps::AppId& app_id,
+                                   const GURL& url) {
+  const base::ListValue* rules =
+      prefs.GetDict(kUserAppScopeRules).FindList(app_id);
+  if (!rules) {
+    return false;
+  }
+  for (const base::Value& rule : *rules) {
+    if (!rule.is_string() || !rule.GetString().starts_with(kExclude)) {
+      continue;
+    }
+    auto matcher = url_pattern::SimpleUrlPatternMatcher::Create(
+        std::string_view(rule.GetString()).substr(1), nullptr);
+    if (matcher.has_value() && (*matcher)->Match(url)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 std::string GetUserAppScopeRules(const PrefService& prefs,
                                  const webapps::AppId& app_id) {
   std::vector<std::string_view> lines;

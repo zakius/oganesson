@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright 2026 The oganesson Authors. GPL-3.0, see the LICENSE file. -->
+<grit-part>
+  <message name="IDS_SETTINGS_OMNIBOX_SUGGESTIONS" desc="Settings, Manage search engines: heading of the switches that choose what the address bar suggests as the user types.">
+    Address bar suggestions
+  </message>
+  <message name="IDS_SETTINGS_OMNIBOX_SUGGESTIONS_DESCRIPTION" desc="Settings, Manage search engines: explanation under the Address bar suggestions heading.">
+    Choose what the address bar suggests as you type
+  </message>
+  <message name="IDS_SETTINGS_OMNIBOX_SUGGEST_HISTORY" desc="Settings, Manage search engines: switch that lets the address bar suggest pages from the browsing history.">
+    Browsing history
+  </message>
+  <message name="IDS_SETTINGS_OMNIBOX_SUGGEST_BOOKMARKS" desc="Settings, Manage search engines: switch that lets the address bar suggest bookmarks.">
+    Bookmarks
+  </message>
+  <message name="IDS_SETTINGS_OMNIBOX_SUGGEST_OPEN_TABS" desc="Settings, Manage search engines: switch that lets the address bar suggest switching to an open tab.">
+    Open tabs
+  </message>
+  <message name="IDS_SETTINGS_OMNIBOX_SUGGEST_OPEN_TABS_DESCRIPTION" desc="Settings, Manage search engines: what the open tabs switch does. 'Switch to this tab' is the button the address bar shows on a suggestion that is open in a tab.">
+    Offers "Switch to this tab" for a page that is already open
+  </message>
+  <message name="IDS_SETTINGS_OMNIBOX_SUGGEST_PAST_SEARCHES" desc="Settings, Manage search engines: switch that lets the address bar suggest searches the user made before.">
+    Past searches
+  </message>
+  <message name="IDS_SETTINGS_OMNIBOX_SUGGEST_PAST_SEARCHES_DESCRIPTION" desc="Settings, Manage search engines: what the past searches switch does. The address bar shows past searches as the user types, and when the user clicks into it.">
+    Searches you made before, as you type and when you click the address bar
+  </message>
+  <message name="IDS_SETTINGS_OMNIBOX_HISTORY_NOT_SAVED" desc="Settings, Manage search engines: description of the Browsing history and Past searches switches, switched off and greyed out while the switch 'Don't save browsing history' is on, on the Privacy and security settings page.">
+    Off while "Don't save browsing history" is on in Privacy and security
+  </message>
+  <message name="IDS_SETTINGS_OMNIBOX_SUGGESTION_ORDER" desc="Settings, Manage search engines: heading of the list that orders the groups of address bar suggestions (Bookmarks, Browsing history, Open tabs, Searches).">
+    Suggestion order
+  </message>
+  <message name="IDS_SETTINGS_OMNIBOX_SUGGESTION_ORDER_DESCRIPTION" desc="Settings, Manage search engines: explanation under the Suggestion order heading. The first suggestion is the one Enter opens; when the user types the start of a site's address, it completes that address from a bookmark or a page in the browsing history.">
+    Suggestions come in this order. When you type the start of a site's address, the first suggestion completes it from bookmarks or browsing history, whichever is higher here.
+  </message>
+  <message name="IDS_SETTINGS_OMNIBOX_SEARCHES" desc="Settings, Manage search engines: in the Suggestion order list, the group of search suggestions: the search for what the user typed, the search engine's suggestions and past searches.">
+    Searches
+  </message>
+  <message name="IDS_SETTINGS_OMNIBOX_GROUP_OFF" desc="Settings, Manage search engines: in the Suggestion order list, shown under a group whose switch above is off. The group keeps its place in the order.">
+    Off
+  </message>
+  <message name="IDS_SETTINGS_OMNIBOX_MOVE_UP" desc="Settings, Manage search engines: accessible label and tooltip of the button that moves a group up in the Suggestion order list.">
+    Move <ph name="GROUP">$1<ex>Bookmarks</ex></ph> up
+  </message>
+  <message name="IDS_SETTINGS_OMNIBOX_MOVE_DOWN" desc="Settings, Manage search engines: accessible label and tooltip of the button that moves a group down in the Suggestion order list.">
+    Move <ph name="GROUP">$1<ex>Bookmarks</ex></ph> down
+  </message>
+</grit-part>

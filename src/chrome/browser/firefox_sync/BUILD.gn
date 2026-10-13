@@ -30,6 +30,7 @@ source_set("firefox_sync") {
     "//chrome/browser/bookmarks",
     "//chrome/browser/history",
     "//chrome/browser/profiles:profile",
+    "//chrome/browser/sync",
     "//components/autofill/core/browser",
     "//components/bookmarks/browser",
     "//components/history/core/browser",
@@ -38,12 +39,18 @@ source_set("firefox_sync") {
     "//components/os_crypt/async/browser",
     "//components/password_manager/core/browser",
     "//components/pref_registry",
+    "//components/sessions",
+    "//components/sync/protocol",
+    "//components/sync_device_info",
+    "//components/sync_sessions",
     "//components/prefs",
     "//content/public/browser",
     "//crypto",
     "//net",
     "//services/network/public/cpp",
+    "//skia",
     "//ui/base",
+    "//ui/gfx",
   ]
   if (is_android) {
     sources += [
@@ -57,8 +64,11 @@ source_set("firefox_sync") {
     ]
   } else {
     sources += [
+      "remote_tabs.cc",
+      "remote_tabs.h",
       "tabs_adapter.cc",
       "tabs_adapter.h",
     ]
+    deps += [ "//services/data_decoder/public/cpp" ]
   }
 }

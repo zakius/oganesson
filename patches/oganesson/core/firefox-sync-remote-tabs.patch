@@ -1,0 +1,321 @@
+--- a/chrome/browser/ui/webui/history/history_login_handler.cc
++++ b/chrome/browser/ui/webui/history/history_login_handler.cc
+@@ -12,12 +12,14 @@
+ #include "chrome/browser/signin/account_preview_data_service_factory.h"
+ #include "chrome/browser/signin/identity_manager_factory.h"
+ #include "chrome/browser/signin/signin_ui_util.h"
++#include "chrome/browser/sync/session_sync_service_factory.h"
+ #include "chrome/browser/sync/sync_service_factory.h"
+ #include "chrome/browser/ui/webui/history/history_identity_state_watcher.h"
+ #include "components/signin/public/base/signin_metrics.h"
+ #include "components/signin/public/base/signin_switches.h"
+ #include "components/signin/public/identity_manager/account_info.h"
+ #include "components/signin/public/identity_manager/identity_manager.h"
++#include "components/sync_sessions/session_sync_service.h"
+ #include "content/public/browser/web_contents.h"
+ #include "content/public/browser/web_ui.h"
+ 
+@@ -63,10 +65,18 @@
+           identity_manager, sync_service,
+           base::BindRepeating(&HistoryLoginHandler::IdentityStateChanged,
+                               base::Unretained(this)));
++  if (sync_sessions::SessionSyncService* sessions =
++          SessionSyncServiceFactory::GetForProfile(profile)) {
++    foreign_sessions_subscription_ =
++        sessions->SubscribeToForeignSessionsChanged(
++            base::BindRepeating(&HistoryLoginHandler::IdentityStateChanged,
++                                base::Unretained(this)));
++  }
+   IdentityStateChanged();
+ }
+ 
+ void HistoryLoginHandler::OnJavascriptDisallowed() {
++  foreign_sessions_subscription_ = {};
+   history_identity_state_watcher_ = nullptr;
+ }
+ 
+@@ -122,6 +132,13 @@
+   HistoryIdentityState history_identity_state =
+       history_identity_state_watcher_->GetHistoryIdentityState();
+   dict.Set("signIn", static_cast<int>(history_identity_state.sign_in));
++  // Open tabs from Firefox Sync, or Chromium's own tab sync, are on.
++  sync_sessions::SessionSyncService* sessions =
++      SessionSyncServiceFactory::GetForProfile(Profile::FromWebUI(web_ui()));
++  if (sessions && sessions->GetOpenTabsUIDelegate()) {
++    history_identity_state.tab_sync =
++        HistoryIdentityState::SyncState::kTurnedOn;
++  }
+   dict.Set("tabsSync", static_cast<int>(history_identity_state.tab_sync));
+   dict.Set("historySync",
+            static_cast<int>(history_identity_state.history_sync));
+--- a/chrome/browser/ui/webui/history/history_login_handler.h
++++ b/chrome/browser/ui/webui/history/history_login_handler.h
+@@ -7,6 +7,7 @@
+ 
+ #include <memory>
+ 
++#include "base/callback_list.h"
+ #include "base/functional/callback_forward.h"
+ #include "content/public/browser/web_ui_message_handler.h"
+ 
+@@ -51,6 +52,10 @@
+   std::unique_ptr<HistoryIdentityStateWatcher> history_identity_state_watcher_;
+ 
+   base::RepeatingClosure identity_state_changed_callback_;
++
++  // Firefox Sync's open tabs come and go with its sign-in, outside the
++  // identity state watcher.
++  base::CallbackListSubscription foreign_sessions_subscription_;
+ };
+ 
+ #endif  // CHROME_BROWSER_UI_WEBUI_HISTORY_HISTORY_LOGIN_HANDLER_H_
+--- a/components/sync_sessions/session_sync_service.h
++++ b/components/sync_sessions/session_sync_service.h
+@@ -37,6 +37,11 @@
+   // enabled or not currently syncing, returns nullptr.
+   virtual OpenTabsUIDelegate* GetOpenTabsUIDelegate() = 0;
+ 
++  // oganesson: while set, GetOpenTabsUIDelegate() returns `delegate` (Firefox
++  // Sync's open tabs) instead. Setting it, even to the same one, notifies the
++  // foreign sessions observers.
++  virtual void SetExternalOpenTabsUIDelegate(OpenTabsUIDelegate* delegate) {}
++
+ 
+   // Allows client code to be notified when foreign sessions change.
+   [[nodiscard]] virtual base::CallbackListSubscription
+--- a/components/sync_sessions/session_sync_service_impl.cc
++++ b/components/sync_sessions/session_sync_service_impl.cc
+@@ -38,9 +38,18 @@
+ }
+ 
+ OpenTabsUIDelegate* SessionSyncServiceImpl::GetOpenTabsUIDelegate() {
++  if (external_open_tabs_ui_delegate_) {
++    return external_open_tabs_ui_delegate_;
++  }
+   return bridge_->GetOpenTabsUIDelegate();
+ }
+ 
++void SessionSyncServiceImpl::SetExternalOpenTabsUIDelegate(
++    OpenTabsUIDelegate* delegate) {
++  external_open_tabs_ui_delegate_ = delegate;
++  NotifyForeignSessionUpdated();
++}
++
+ 
+ 
+ base::CallbackListSubscription
+--- a/components/sync_sessions/session_sync_service_impl.h
++++ b/components/sync_sessions/session_sync_service_impl.h
+@@ -10,6 +10,7 @@
+ #include <string>
+ 
+ #include "base/callback_list.h"
++#include "base/memory/raw_ptr.h"
+ #include "base/memory/weak_ptr.h"
+ #include "components/sessions/core/session_id.h"
+ #include "components/sync_sessions/session_sync_service.h"
+@@ -34,6 +35,7 @@
+   // SessionSyncService overrides.
+   syncer::GlobalIdMapper* GetGlobalIdMapper() const override;
+   OpenTabsUIDelegate* GetOpenTabsUIDelegate() override;
++  void SetExternalOpenTabsUIDelegate(OpenTabsUIDelegate* delegate) override;
+ 
+   [[nodiscard]] base::CallbackListSubscription
+   SubscribeToForeignSessionsChanged(const base::RepeatingClosure& cb) override;
+@@ -48,6 +50,7 @@
+   std::unique_ptr<SessionSyncBridge> bridge_;
+ 
+   base::RepeatingClosureList foreign_sessions_changed_closure_list_;
++  raw_ptr<OpenTabsUIDelegate> external_open_tabs_ui_delegate_ = nullptr;
+ };
+ 
+ }  // namespace sync_sessions
+--- a/chrome/browser/resources/history/side_bar.html.ts
++++ b/chrome/browser/resources/history/side_bar.html.ts
+@@ -20,6 +20,13 @@
+     $i18n{historyMenuItem}
+     <cr-ripple></cr-ripple>
+   </a>
++  <a id="syncedTabs" role="menuitem" href="/syncedTabs"
++      class="page-item cr-nav-menu-item" path="syncedTabs"
++      @click="${this.onItemClick_}">
++    <cr-icon icon="cr:devices"></cr-icon>
++    $i18n{openTabsMenuItem}
++    <cr-ripple></cr-ripple>
++  </a>
+   <a role="menuitem" id="clear-browsing-data" class="cr-nav-menu-item"
+       href="chrome://settings/clearBrowserData"
+       @click="${this.onClearBrowsingDataClick_}"
+--- a/chrome/browser/resources/history/side_bar.ts
++++ b/chrome/browser/resources/history/side_bar.ts
+@@ -31,6 +31,7 @@
+   $: {
+     history: HTMLAnchorElement,
+     menu: CrMenuSelectorElement,
++    syncedTabs: HTMLElement,
+   };
+ }
+ 
+--- a/chrome/browser/ui/tabs/recent_tabs_sub_menu_model.cc
++++ b/chrome/browser/ui/tabs/recent_tabs_sub_menu_model.cc
+@@ -479,6 +479,11 @@
+ 
+   AddSeparator(ui::NORMAL_SEPARATOR);
+   BuildLocalEntries();
++  // Only another sync backend's tabs (Firefox Sync): Chromium's sign-in
++  // prompts stay out.
++  if (session_sync_service_ && GetOpenTabsUIDelegate()) {
++    BuildTabsFromOtherDevices();
++  }
+   is_dynamic_section_built_ = true;
+ }
+ 
+@@ -1163,7 +1168,9 @@
+   }
+ 
+   ClearTabsFromOtherDevices();
+-  BuildTabsFromOtherDevices();
++  if (session_sync_service_ && GetOpenTabsUIDelegate()) {
++    BuildTabsFromOtherDevices();
++  }
+ 
+   ui::MenuModelDelegate* delegate = menu_model_delegate();
+   if (delegate) {
+--- a/chrome/browser/ui/webui/history/history_ui.cc
++++ b/chrome/browser/ui/webui/history/history_ui.cc
+@@ -118,6 +118,8 @@
+       {"turnOnSyncPromo", IDS_HISTORY_TURN_ON_SYNC_PROMO},
+       {"turnOnSyncPromoDesc", IDS_HISTORY_TURN_ON_SYNC_PROMO_DESC},
+       {"turnOnSyncHistoryPromo", IDS_HISTORY_SYNC_HISTORY_PROMO},
++      {"firefoxSyncTabsPromo", IDS_FIREFOX_SYNC_TABS_PROMO},
++      {"firefoxSyncTabsPromoButton", IDS_FIREFOX_SYNC_TABS_PROMO_BUTTON},
+       {"syncHistoryPromoBodySignedOut",
+        IDS_RECENT_TABS_SYNC_HISTORY_PROMO_BODY_SIGNED_OUT},
+       {"syncHistoryPromoBodyPendingSignIn",
+--- a/chrome/browser/resources/history/synced_device_manager.html.ts
++++ b/chrome/browser/resources/history/synced_device_manager.html.ts
+@@ -4,10 +4,6 @@
+ 
+ import {html} from '//resources/lit/v3_0/lit.rollup.js';
+ 
+-// <if expr="not is_chromeos">
+-import {HistorySignInState} from './constants.js';
+-// </if>
+-
+ import type {HistorySyncedDeviceManagerElement} from './synced_device_manager.js';
+ 
+ export function getHtml(this: HistorySyncedDeviceManagerElement) {
+@@ -46,87 +42,18 @@
+ <if expr="not is_chromeos">
+ ${this.shouldShowHistorySyncOptIn_() ? html`
+   <div id="history-sync-optin" class="history-sync-optin">
+-    ${this.isSignInState_(HistorySignInState.SIGNED_OUT) ||
+-            this.isSignInState_(HistorySignInState.WEB_ONLY_SIGNED_IN) ?
+-        html`
+-      <div class="image-container">
+-        <img class="sync-history-illustration" alt="">
+-      </div>
+-      <h1 class="sync-history-promo">$i18n{turnOnSyncHistoryPromo}</h1>
+-      <div id="signed-out-sync-history-promo-desc"
+-          class="sync-history-promo-desc">
+-        $i18n{syncHistoryPromoBodySignedOut}
+-      </div>
+-    ` : ''}
+-
+-    ${this.isSignInState_(HistorySignInState.WEB_ONLY_SIGNED_IN) &&
+-            this.accountInfo_ ?
+-        html`
+-      <div class="profile-row">
+-        <img id="profile-icon" class="profile-icon"
+-            src="${this.accountInfo_.accountImageSrc}">
+-        <div class="account-info-container">
+-          <div id="account-name" class="account-name">
+-            ${this.accountInfo_.name}</div>
+-          <div id="account-email" class="account-email">
+-            ${this.accountInfo_.email}</div>
+-        </div>
+-      </div>
+-    ` : ''}
+-
+-    ${this.isSignInState_(HistorySignInState.SIGN_IN_PENDING) &&
+-            this.accountInfo_ ?
+-        html`
+-      <div class="image-container">
+-        <img class="sync-history-promo-avatar-illustration" alt="">
+-        <img id="sign-in-pending-avatar" class="avatar"
+-            src="${this.accountInfo_.accountImageSrc}" alt="">
+-      </div>
+-      <h1 class="sync-history-promo">$i18n{turnOnSyncHistoryPromo}</h1>
+-
+-      ${!this.isTabsSyncTurnedOn_() ? html`
+-        <div id="sign-in-pending-sync-history-promo-desc"
+-            class="sync-history-promo-desc">
+-          $i18n{syncHistoryPromoBodyPendingSignIn}
+-        </div>
+-      ` : ''}
+-
+-      ${this.isTabsSyncTurnedOn_() ? html`
+-        <div id="sign-in-pending-sync-history-promo-desc-sync-history-on"
+-            class="sync-history-promo-desc">
+-          $i18n{syncHistoryPromoBodyPendingSignInSyncHistoryOn}
+-        </div>
+-      ` : ''}
+-    ` : ''}
+-
+-    ${this.isSignInState_(HistorySignInState.SIGNED_IN) &&
+-            !this.isTabsSyncTurnedOn_() && this.accountInfo_ ?
+-        html`
+-      <div class="image-container">
+-        <img class="sync-history-promo-avatar-illustration" alt="">
+-        <img id="signed-in-avatar" class="avatar"
+-            src="${this.accountInfo_.accountImageSrc}" alt="">
+-      </div>
+-      <h1 class="sync-history-promo">$i18n{turnOnSyncHistoryPromo}</h1>
+-      <div id="signed-in-sync-history-promo-desc"
+-          class="sync-history-promo-desc">
+-        $i18n{turnOnSignedInSyncHistoryPromoBodySignInSyncOff}
+-      </div>
+-    ` : ''}
+-
+-    <!-- Button -->
+-    ${this.isSignInState_(HistorySignInState.SIGN_IN_PENDING) &&
+-            this.isTabsSyncTurnedOn_() ?
+-        html`
+-      <cr-button id="verify-its-you-button" class="action-button"
+-          @click="${this.onTurnOnHistorySyncClick_}">$i18n{verifyItsYou}
+-      </cr-button>
+-    ` : html`
+-      <cr-button id="sync-history-button" class="action-button"
+-          @click="${this.onTurnOnHistorySyncClick_}">
+-        $i18n{turnOnSyncHistoryButton}
+-      </cr-button>
+-    `}
++    <!-- Firefox Sync is this browser's sync: no Google sign-in. -->
++    <div class="image-container">
++      <img class="sync-history-illustration" alt="">
++    </div>
++    <h1 class="sync-history-promo">$i18n{turnOnSyncHistoryPromo}</h1>
++    <div id="firefox-sync-promo-desc" class="sync-history-promo-desc">
++      $i18n{firefoxSyncTabsPromo}
++    </div>
++    <cr-button id="sync-history-button" class="action-button"
++        @click="${this.onTurnOnHistorySyncClick_}">
++      $i18n{firefoxSyncTabsPromoButton}
++    </cr-button>
+   </div>
+ ` : ''}
+ </if>
+--- a/chrome/browser/resources/history/synced_device_manager.ts
++++ b/chrome/browser/resources/history/synced_device_manager.ts
+@@ -250,8 +250,9 @@
+   }
+ 
+   // <if expr="not is_chromeos">
+-  protected onTurnOnHistorySyncClick_() {
+-    BrowserProxyImpl.getInstance().handler.turnOnHistorySync();
++  protected onTurnOnHistorySyncClick_(e: MouseEvent) {
++    BrowserProxyImpl.getInstance().navigateToUrl(
++        'chrome://settings/people', '_blank', e);
+   }
+ 
+   private handleAccountInfoChanged_(accountInfo: AccountInfo) {

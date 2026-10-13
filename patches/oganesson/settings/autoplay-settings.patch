@@ -1,0 +1,203 @@
+--- a/chrome/app/generated_resources.grd
++++ b/chrome/app/generated_resources.grd
+@@ -318,6 +318,7 @@
+       <part file="oganesson_web_app_strings.grdp" />
+       <part file="oganesson_history_strings.grdp" />
+       <part file="oganesson_omnibox_strings.grdp" />
++      <part file="oganesson_autoplay_strings.grdp" />
+       <if expr="not is_android">
+         <part file="shared_settings_strings.grdp"/>
+       </if>
+--- a/chrome/browser/resources/settings/BUILD.gn
++++ b/chrome/browser/resources/settings/BUILD.gn
+@@ -506,6 +506,7 @@
+   ]
+   ts_files += [ "autofill_page/firefox_sync.ts" ]
+   ts_files += [ "privacy_page/history_saving.ts" ]
++  ts_files += [ "site_settings/autoplay_page.ts" ]
+   ts_files += [
+     "search_page/omnibox_suggestions.html.ts",
+     "search_page/omnibox_suggestions.ts",
+--- a/chrome/browser/resources/settings/lazy_load.ts
++++ b/chrome/browser/resources/settings/lazy_load.ts
+@@ -86,6 +86,7 @@
+ import './site_settings/web_printing_page.js';
+ // </if>
+ import './site_settings/sound_page.js';
++import './site_settings/autoplay_page.js';
+ import './site_settings/storage_access_page.js';
+ import './site_settings/usb_devices_page.js';
+ import './site_settings/v8_page.js';
+--- a/chrome/browser/resources/settings/privacy_page/privacy_page_index.html
++++ b/chrome/browser/resources/settings/privacy_page/privacy_page_index.html
+@@ -475,6 +475,15 @@
+   </template>
+ 
+   <template is="dom-if" if="[[renderView_(
++      routes_.SITE_SETTINGS_AUTOPLAY, currentRoute, inSearchMode)]]"
++      update-when-false>
++    <settings-autoplay-page slot="view"
++        id="siteSettingsAutoplay" data-parent-view-id="privacy"
++        route-path$="[[routes_.SITE_SETTINGS_AUTOPLAY.path]]">
++    </settings-autoplay-page>
++  </template>
++
++  <template is="dom-if" if="[[renderView_(
+       routes_.SITE_SETTINGS_SITE_DATA, currentRoute, inSearchMode)]]"
+       update-when-false>
+     <settings-site-data slot="view" id="siteSettingsSiteData"
+--- a/chrome/browser/resources/settings/router.ts
++++ b/chrome/browser/resources/settings/router.ts
+@@ -90,6 +90,7 @@
+   SITE_SETTINGS_JAVASCRIPT_OPTIMIZER: Route;
+   SITE_SETTINGS_SENSORS: Route;
+   SITE_SETTINGS_SOUND: Route;
++  SITE_SETTINGS_AUTOPLAY: Route;
+   SITE_SETTINGS_LOCATION: Route;
+   SITE_SETTINGS_MICROPHONE: Route;
+   SITE_SETTINGS_MIDI_DEVICES: Route;
+--- a/chrome/browser/resources/settings/route.ts
++++ b/chrome/browser/resources/settings/route.ts
+@@ -80,6 +80,7 @@
+     r.SITE_SETTINGS_KEYBOARD_LOCK = r.SITE_SETTINGS.createChild('keyboardLock');
+   }
+   r.SITE_SETTINGS_SOUND = r.SITE_SETTINGS.createChild('sound');
++  r.SITE_SETTINGS_AUTOPLAY = r.SITE_SETTINGS.createChild('autoplay');
+   r.SITE_SETTINGS_SENSORS = r.SITE_SETTINGS.createChild('sensors');
+   r.SITE_SETTINGS_LOCATION = r.SITE_SETTINGS.createChild('location');
+   r.SITE_SETTINGS_MICROPHONE = r.SITE_SETTINGS.createChild('microphone');
+--- a/chrome/browser/resources/settings/site_settings/constants.ts
++++ b/chrome/browser/resources/settings/site_settings/constants.ts
+@@ -54,6 +54,7 @@
+   SERIAL_PORTS = 'serial-ports',
+   SMART_CARD_READERS = 'smart-card-readers',
+   SOUND = 'sound',
++  AUTOPLAY = 'autoplay',
+   STORAGE_ACCESS = 'storage-access',
+   TOP_LEVEL_STORAGE_ACCESS = 'top-level-storage-access',
+   USB_DEVICES = 'usb-devices',
+--- a/chrome/browser/resources/settings/site_settings/site_details.html
++++ b/chrome/browser/resources/settings/site_settings/site_details.html
+@@ -189,6 +189,9 @@
+           icon="privacy:volume-up" label="$i18n{siteSettingsSound}"
+           use-automatic-label="[[blockAutoplayEnabled_]]">
+       </site-details-permission>
++      <site-details-permission category="[[contentSettingsTypesEnum_.AUTOPLAY]]"
++          icon="cr:videocam" label="$i18n{siteSettingsAutoplay}">
++      </site-details-permission>
+       <site-details-permission
+           category="[[contentSettingsTypesEnum_.AUTOMATIC_DOWNLOADS]]"
+           icon="cr:download" label="$i18n{siteSettingsAutomaticDownloads}">
+--- a/chrome/browser/resources/settings/site_settings/site_details_permission.ts
++++ b/chrome/browser/resources/settings/site_settings/site_details_permission.ts
+@@ -304,6 +304,18 @@
+       return this.i18n('siteSettingsActionBlockOnUnfamiliarSitesDefaultMenu');
+     }
+ 
++    // oganesson: Firefox's names for the three defaults.
++    if (category === ContentSettingsTypes.AUTOPLAY) {
++      switch (defaultSetting) {
++        case ContentSetting.ALLOW:
++          return this.i18n('siteSettingsAutoplayAllowDefault');
++        case ContentSetting.ASK:
++          return this.i18n('siteSettingsAutoplayBlockAudioDefault');
++        default:
++          return this.i18n('siteSettingsAutoplayBlockDefault');
++      }
++    }
++
+     if (defaultSetting === ContentSetting.ASK) {
+       return this.i18n('siteSettingsActionAskDefault');
+     } else if (defaultSetting === ContentSetting.ALLOW) {
+--- a/chrome/browser/resources/settings/site_settings/site_settings_page.ts
++++ b/chrome/browser/resources/settings/site_settings/site_settings_page.ts
+@@ -402,6 +402,15 @@
+     },
+     // </if>
+     {
++      route: routes.SITE_SETTINGS_AUTOPLAY,
++      id: Id.AUTOPLAY,
++      label: 'siteSettingsAutoplay',
++      icon: 'cr:videocam',
++      enabledLabel: 'siteSettingsAutoplayAllow',
++      askLabel: 'siteSettingsAutoplayBlockAudio',
++      disabledLabel: 'siteSettingsAutoplayBlock',
++    },
++    {
+       route: routes.SITE_SETTINGS_SOUND,
+       id: Id.SOUND,
+       label: 'siteSettingsSound',
+@@ -560,6 +569,7 @@
+             ]),
+             contentAdvanced: buildItemListFromIds([
+               Id.SOUND,
++              Id.AUTOPLAY,
+               Id.ADS,
+               Id.ZOOM_LEVELS,
+               Id.PDF_DOCUMENTS,
+--- a/chrome/browser/resources/settings/site_settings/site_settings_util.ts
++++ b/chrome/browser/resources/settings/site_settings/site_settings_util.ts
+@@ -89,6 +89,8 @@
+       return 'siteSettingsSerialPortsMidSentence';
+     case ContentSettingsTypes.SOUND:
+       return 'siteSettingsSoundMidSentence';
++    case ContentSettingsTypes.AUTOPLAY:
++      return 'siteSettingsAutoplayMidSentence';
+     case ContentSettingsTypes.STORAGE_ACCESS:
+       return 'siteSettingsStorageAccessMidSentence';
+     case ContentSettingsTypes.USB_DEVICES:
+--- a/chrome/browser/ui/webui/settings/BUILD.gn
++++ b/chrome/browser/ui/webui/settings/BUILD.gn
+@@ -156,6 +156,8 @@
+     "brave_importer_observer.cc",
+     "browser_lifetime_handler.cc",
+     "browser_shortcuts_handler.cc",
++    "autoplay_settings.cc",
++    "autoplay_settings.h",
+     "history_saving_settings.cc",
+     "history_saving_settings.h",
+     "mouse_gestures_settings.cc",
+--- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
++++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
+@@ -2,6 +2,7 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
++#include "chrome/browser/ui/webui/settings/autoplay_settings.h"
+ #include "chrome/browser/ui/webui/settings/history_saving_settings.h"
+ #include "chrome/browser/ui/webui/settings/mouse_gestures_settings.h"
+ #include "chrome/browser/ui/webui/settings/omnibox_suggestions_settings.h"
+@@ -4454,6 +4455,7 @@
+   AddMouseGestureStrings(html_source);
+   AddHistorySavingStrings(html_source);
+   AddOmniboxSuggestionsStrings(html_source);
++  AddAutoplayStrings(html_source);
+ 
+ #if BUILDFLAG(IS_WIN)
+   html_source->AddString("isolationStateLearnMoreUrl",
+--- a/chrome/browser/ui/webui/settings/site_settings_helper.cc
++++ b/chrome/browser/ui/webui/settings/site_settings_helper.cc
+@@ -175,6 +175,7 @@
+     {ContentSettingsType::SMART_CARD_DATA, kSmartCardChooserDataGroupType},
+     {ContentSettingsType::LOCAL_NETWORK, "local-network"},
+     {ContentSettingsType::LOOPBACK_NETWORK, "loopback-network"},
++    {ContentSettingsType::AUTOPLAY, "autoplay"},
+ 
+     // Add new content settings here if a corresponding Javascript string
+     // representation for it is not required, for example if the content setting
+@@ -186,7 +187,6 @@
+     {ContentSettingsType::APP_BANNER, nullptr},
+     {ContentSettingsType::SITE_ENGAGEMENT, nullptr},
+     {ContentSettingsType::PERSISTENT_STORAGE, nullptr},
+-    {ContentSettingsType::AUTOPLAY, nullptr},
+     {ContentSettingsType::IMPORTANT_SITE_INFO, nullptr},
+     {ContentSettingsType::PERMISSION_AUTOBLOCKER_DATA, nullptr},
+     {ContentSettingsType::ADS_DATA, nullptr},
+@@ -606,6 +606,7 @@
+       ContentSettingsType::SMART_CARD_GUARD,
+ #endif
+       ContentSettingsType::SOUND,
++      ContentSettingsType::AUTOPLAY,
+       ContentSettingsType::STORAGE_ACCESS,
+       ContentSettingsType::TOP_LEVEL_STORAGE_ACCESS,
+       ContentSettingsType::USB_GUARD,

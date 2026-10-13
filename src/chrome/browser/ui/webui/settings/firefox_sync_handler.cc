@@ -32,7 +32,6 @@ void FirefoxSyncHandler::AddStrings(content::WebUIDataSource* html_source) {
   static constexpr webui::LocalizedString kStrings[] = {
       {"firefoxSyncSectionTitle", IDS_FIREFOX_SYNC_SECTION_TITLE},
       {"firefoxSyncTitle", IDS_FIREFOX_SYNC_TITLE},
-      {"firefoxSyncSignedInAs", IDS_FIREFOX_SYNC_SIGNED_IN_AS},
       {"firefoxSyncSignInDescription", IDS_FIREFOX_SYNC_SIGN_IN_DESCRIPTION},
       {"firefoxSyncNeedsServer", IDS_FIREFOX_SYNC_NEEDS_SERVER},
       {"firefoxSyncSyncing", IDS_FIREFOX_SYNC_SYNCING},
@@ -49,8 +48,13 @@ void FirefoxSyncHandler::AddStrings(content::WebUIDataSource* html_source) {
       {"firefoxSyncNotSupported", IDS_FIREFOX_SYNC_NOT_SUPPORTED},
       {"firefoxSyncHistoryNotSaved", IDS_FIREFOX_SYNC_HISTORY_NOT_SAVED},
       {"firefoxSyncCount", IDS_FIREFOX_SYNC_COUNT},
-      {"firefoxSyncRemoteTabs", IDS_FIREFOX_SYNC_REMOTE_TABS},
-      {"firefoxSyncRemoteTabsEmpty", IDS_FIREFOX_SYNC_REMOTE_TABS_EMPTY},
+      {"firefoxSyncSigningIn", IDS_FIREFOX_SYNC_SIGNING_IN},
+      {"firefoxSyncPaused", IDS_FIREFOX_SYNC_PAUSED},
+      {"firefoxSyncSignInAgain", IDS_FIREFOX_SYNC_SIGN_IN_AGAIN},
+      {"firefoxSyncManage", IDS_FIREFOX_SYNC_MANAGE},
+      {"firefoxSyncServers", IDS_FIREFOX_SYNC_SERVERS},
+      {"firefoxSyncNoServer", IDS_FIREFOX_SYNC_NO_SERVER_SET},
+      {"firefoxSyncOtherDevicesTabs", IDS_FIREFOX_SYNC_OTHER_DEVICES_TABS},
   };
   html_source->AddLocalizedStrings(kStrings);
 }

@@ -35,3 +35,15 @@ Each tab may have an owner, the tab to select when it closes (`browser.tabs.sele
 - Opening any tab ends the current tab's owner, and so does leaving it for another tab. Leaving a tab also ends the owner of the last tab it opened, unless that is the tab selected.
 
 Closing the active tab selects its owner if it has one. Otherwise, it selects the next tab, or the one on its left when it was the last tab. Tabs in collapsed groups are passed over, and so are discarded tabs while a loaded one is left. When a whole group or split closes or moves to another window, only the active tab's owner counts, not those of the other tabs in it.
+
+## Sound icon
+
+Tabs don't show the sound icon for a page playing audio unless Settings → Appearance → "Show sound icon on tabs" (`oganesson.tabs.show_audio_indicator`) is on. The muted icon, and the camera, microphone, screen sharing, device, picture-in-picture and VR icons, show either way. The tab's context menu mutes and unmutes the site. Clicking the icon does nothing, as in Chromium, where that needs the EnableTabMuting feature.
+
+`TabAlertController::UpdateAlertState` asks `src/chrome/browser/ui/tabs/alert/oganesson_tab_alerts.cc` before it activates an alert, so the horizontal and vertical tab strips, hover cards, the tab's accessible name and tab search all follow the setting. A per-profile pref observer re-evaluates open tabs when the setting changes. `patches/oganesson/core/tab-audio-indicator.patch` holds the hook; `patches/oganesson/settings/tab-audio-indicator-settings.patch` adds the switch.
+
+## Split view drop target
+
+Dragging a link to the left or right side of the page shows Chromium's split view drop target, a panel with a "+". Dropping the link anywhere on the panel opens it in a new split on that side.
+
+On Wayland, the compositor sends drag motion only while the pointer moves, and drops only on a target that accepted the drag at the last motion. The panel slides in under a resting pointer, so a drop made without moving the pointer again was cancelled: only a drop after moving, for example onto the "+", worked. `patches/oganesson/ui/wayland-drag-resting-pointer.patch` repeats the last drag motion every 350 ms while the pointer rests, as Chromium's X11 drag source does, so the panel takes the drop. Web pages also get `dragover` events while the pointer rests, as the HTML spec requires. `tools/e2e/test_split_view_drop.py` covers the drop on the "+", the drop with a resting pointer and a drop in the middle of the page.
