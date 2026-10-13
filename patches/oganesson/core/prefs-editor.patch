@@ -32,18 +32,7 @@
        kChromeUIPredictorsHost,
        kChromeUIPrefsInternalsHost,
        kChromeUIProfileInternalsHost,
-+      kChromeUIPrefsEditorHost,
++      "config",  // oganesson's about:config, see prefs_editor_ui.h.
        content::kChromeUIQuotaInternalsHost,
  #if !BUILDFLAG(IS_ANDROID)
        kChromeUIWebUIToolbarHost,
---- a/chrome/common/webui_url_constants.h
-+++ b/chrome/common/webui_url_constants.h
-@@ -507,6 +507,8 @@ inline constexpr char kChromeUIProfileCustomizationHost[] =
-     "profile-customization";
- inline constexpr char kChromeUIProfileCustomizationURL[] =
-     "chrome://profile-customization";
-+// oganesson's about:config.
-+inline constexpr char kChromeUIPrefsEditorHost[] = "config";
- inline constexpr char kChromeUIProfilePickerHost[] = "profile-picker";
- inline constexpr char kChromeUIProfilePickerStartupQuery[] = "startup";
- inline constexpr char kChromeUIProfilePickerGlicQuery[] = "glic";

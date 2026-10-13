@@ -5,11 +5,14 @@
 #ifndef CHROME_BROWSER_UI_WEBUI_PREFS_EDITOR_PREFS_EDITOR_UI_H_
 #define CHROME_BROWSER_UI_WEBUI_PREFS_EDITOR_PREFS_EDITOR_UI_H_
 
-#include "chrome/common/webui_url_constants.h"
 #include "content/public/browser/web_ui_controller.h"
 #include "content/public/browser/webui_config.h"
+#include "content/public/common/url_constants.h"
 
 class PrefsEditorUI;
+
+// Also listed in chrome::ChromeURLHosts(), by value.
+inline constexpr char kChromeUIPrefsEditorHost[] = "config";
 
 // chrome://config (about:config): every pref, editable, like Firefox's
 // about:config.
@@ -17,7 +20,7 @@ class PrefsEditorUIConfig : public content::DefaultWebUIConfig<PrefsEditorUI> {
  public:
   PrefsEditorUIConfig()
       : DefaultWebUIConfig(content::kChromeUIScheme,
-                           chrome::kChromeUIPrefsEditorHost) {}
+                           kChromeUIPrefsEditorHost) {}
 };
 
 class PrefsEditorUI : public content::WebUIController {

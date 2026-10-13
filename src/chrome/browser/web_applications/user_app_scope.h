@@ -5,6 +5,7 @@
 #ifndef CHROME_BROWSER_WEB_APPLICATIONS_USER_APP_SCOPE_H_
 #define CHROME_BROWSER_WEB_APPLICATIONS_USER_APP_SCOPE_H_
 
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -22,13 +23,12 @@ namespace web_app {
 inline constexpr char kUserAppScopeRules[] =
     "oganesson.web_apps.user_scope_rules";
 
-// Whether `url` is in the scope of app `app_id`, given whether it is in the
-// manifest's scope. Include rules add to the manifest's scope, except on a
-// host one of them names: there they replace it.
-bool IsUrlInUserAppScope(const PrefService& prefs,
-                         const webapps::AppId& app_id,
-                         const GURL& url,
-                         bool in_manifest_scope);
+// Whether `url` is in the scope of app `app_id` as the user's rules decide, or
+// nullopt where the manifest's scope decides. Include rules add to the
+// manifest's scope, except on a host one of them names: there they replace it.
+std::optional<bool> UserAppScopeOverride(const PrefService& prefs,
+                                         const webapps::AppId& app_id,
+                                         const GURL& url);
 
 // App `app_id`'s score for `url` with its rules applied, given its score for
 // the manifest's scope, as WebAppRegistrar ranks apps by: 0 if the rules take

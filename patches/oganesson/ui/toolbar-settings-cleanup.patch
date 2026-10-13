@@ -13,16 +13,16 @@
        Switch between two most recently used tabs with Ctrl+Tab
 --- a/chrome/browser/resources/settings/appearance_page/appearance_page.html.ts
 +++ b/chrome/browser/resources/settings/appearance_page/appearance_page.html.ts
-@@ -66,13 +66,11 @@ export function getHtml(this: SettingsAppearancePageElement) {
-     <div class="hr" ?hidden="${!this.showHr_(
+@@ -67,12 +67,16 @@ export function getHtml(this: SettingsAppearancePageElement) {
          this.pageVisibility_.setTheme, this.pageVisibility_.homeButton)}">
      </div>
--    <settings-toggle-button elide-label
+     <settings-toggle-button elide-label
 -        ?hidden="${!this.pageVisibility_.homeButton}"
--        pref-key="browser.show_home_button"
--        label="$i18n{showHomeButton}"
--        sub-label="${this.getShowHomeSubLabel_()}">
--    </settings-toggle-button>
++        hidden
+         pref-key="browser.show_home_button"
+         label="$i18n{showHomeButton}"
+         sub-label="${this.getShowHomeSubLabel_()}">
+     </settings-toggle-button>
      ${this.showHomeButtonPref_?.value ? html`
 +      <!-- Customize toolbar shows or hides the Home button. -->
 +      <div class="cr-row" ?hidden="${!this.pageVisibility_.homeButton}">
@@ -31,19 +31,16 @@
        <div id="home-button-options" class="list-frame"
            ?hidden="${!this.pageVisibility_.homeButton}">
          <settings-radio-group pref-key="homepage_is_newtabpage">
-@@ -187,12 +185,6 @@ export function getHtml(this: SettingsAppearancePageElement) {
+@@ -187,7 +191,8 @@ export function getHtml(this: SettingsAppearancePageElement) {
        </div>
      ` : ''}
  
 -    <settings-toggle-button id="showTabSearchButton" class="hr"
--        pref-key="tab_search.pinned_to_tabstrip"
--        label="$i18n{showTabSearchButton}"
--        @change="${this.onShowTabSearchButtonChange_}">
--    </settings-toggle-button>
--
-     <settings-toggle-button class="hr" id="showSavedTabGroups"
-         pref-key="bookmark_bar.show_tab_groups"
-         label="$i18n{showTabGroupsInBookmarksBar}"
++    <!-- Tab search is a toolbar item; Customize toolbar pins it. -->
++    <settings-toggle-button id="showTabSearchButton" class="hr" hidden
+         pref-key="tab_search.pinned_to_tabstrip"
+         label="$i18n{showTabSearchButton}"
+         @change="${this.onShowTabSearchButtonChange_}">
 --- a/chrome/browser/ui/tabs/tab_strip_prefs.cc
 +++ b/chrome/browser/ui/tabs/tab_strip_prefs.cc
 @@ -20,7 +20,8 @@
@@ -56,71 +53,32 @@
    registry->RegisterBooleanPref(prefs::kOrganizerPanelPinnedToTabstrip, true);
    registry->RegisterBooleanPref(prefs::kEverythingMenuPinnedToTabstrip, true);
    registry->RegisterBooleanPref(prefs::kTabScrollButtonsPinnedToTabstrip, true);
+--- a/chrome/browser/ui/toolbar/chrome_labs/chrome_labs_utils.cc
++++ b/chrome/browser/ui/toolbar/chrome_labs/chrome_labs_utils.cc
+@@ -140,6 +140,12 @@ bool AreNewChromeLabsExperimentsAvailable(Profile* profile) {
+ }
+ 
+ bool IsChromeLabsEnabled() {
++  // No Chrome Labs: its toolbar button and menu entry promote Google's
++  // experiments; chrome://flags has them all. The parentheses mark the rest as
++  // deliberately unreachable.
++  if ((true)) {
++    return false;
++  }
+   // Always early out on the stable channel regardless of other conditions.
+   if (chrome::GetChannel() == version_info::Channel::STABLE) {
+     return false;
 --- a/chrome/browser/ui/toolbar/toolbar_pref_names.cc
 +++ b/chrome/browser/ui/toolbar/toolbar_pref_names.cc
-@@ -14,13 +14,15 @@ namespace toolbar {
+@@ -14,8 +14,10 @@ namespace toolbar {
  
  void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
    base::ListValue default_pinned_actions;
--  const std::optional<std::string>& chrome_labs_action =
--      actions::ActionIdMap::ActionIdToString(kActionShowChromeLabs);
-+  // Tab search is a toolbar item, not a tab strip button (see
++  // Tab search is pinned to the toolbar instead of the tab strip (see
 +  // tab_strip_prefs.cc). There is no Chrome Labs to pin.
-+  const std::optional<std::string>& tab_search_action =
+   const std::optional<std::string>& chrome_labs_action =
+-      actions::ActionIdMap::ActionIdToString(kActionShowChromeLabs);
 +      actions::ActionIdMap::ActionIdToString(kActionTabSearch);
    // ActionIdToStringMappings are not initialized in unit tests, therefore will
    // not have a value. In the normal case, the action should always have a
    // value.
--  if (chrome_labs_action.has_value()) {
--    default_pinned_actions.Append(chrome_labs_action.value());
-+  if (tab_search_action.has_value()) {
-+    default_pinned_actions.Append(tab_search_action.value());
-   }
- 
-   if (base::FeatureList::IsEnabled(
---- a/chrome/browser/ui/toolbar/chrome_labs/chrome_labs_utils.cc
-+++ b/chrome/browser/ui/toolbar/chrome_labs/chrome_labs_utils.cc
-@@ -139,41 +139,9 @@
-       });
- }
- 
-+// No Chrome Labs: its toolbar button and menu entry promote Google's
-+// experiments; chrome://flags has them all.
- bool IsChromeLabsEnabled() {
--  // Always early out on the stable channel regardless of other conditions.
--  if (chrome::GetChannel() == version_info::Channel::STABLE) {
--    return false;
--  }
--#if !BUILDFLAG(IS_ANDROID)
--  if (features::IsWebUIPinnedToolbarActionsEnabled()) {
--    return false;
--  }
--#endif
--  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
--          ::switches::kEnableBenchmarking)) {
--    return true;
--  }
--  // Could be null in unit tests.
--  if (!g_browser_process->local_state()) {
--    return false;
--  }
--  if (g_browser_process->local_state()->GetInteger(
--          chrome_labs_prefs::kChromeLabsActivationThreshold) ==
--      chrome_labs_prefs::kChromeLabsActivationThresholdDefaultValue) {
--    g_browser_process->local_state()->SetInteger(
--        chrome_labs_prefs::kChromeLabsActivationThreshold,
--        base::RandIntInclusive(1, 100));
--  }
--
--  // The percentage of users that should see the feature.
--  const int kChromeLabsActivationPercentage = 99;
--
--  if (force_activation_for_testing ||
--      g_browser_process->local_state()->GetInteger(
--          chrome_labs_prefs::kChromeLabsActivationThreshold) <=
--          kChromeLabsActivationPercentage) {
--    return true;
--  }
-   return false;
- }
- 

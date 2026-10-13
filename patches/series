@@ -184,9 +184,7 @@ oganesson/ui/toolbar-settings-cleanup.patch
 oganesson/core/mru-tab-cycling.patch
 oganesson/settings/shortcut-capture.patch
 oganesson/core/webstore-prodversion.patch
-oganesson/core/pwa-external-links.patch
-oganesson/core/pwa-user-scope.patch
-oganesson/core/pwa-user-start-url.patch
+oganesson/core/web-apps.patch
 oganesson/core/firefox-tab-behavior.patch
 oganesson/core/webrequest-extension-reload.patch
 oganesson/core/prefs-editor.patch

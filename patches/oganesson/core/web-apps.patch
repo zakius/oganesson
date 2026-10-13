@@ -1,0 +1,469 @@
+--- a/chrome/app/chrome_command_ids.h
++++ b/chrome/app/chrome_command_ids.h
+@@ -336,6 +336,8 @@
+ #define IDC_CONTENT_CONTEXT_OPENLINKSPLITVIEW 50111
+ #define IDC_CONTENT_CONTEXT_ADD_LINK_TO_READING_LIST 50112
+ #define IDC_CONTENT_CONTEXT_OPENLINK_ISOLATED 50113
++#define IDC_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER 50114
++#define IDC_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER_BACKGROUND 50115
+ // Image items.
+ #define IDC_CONTENT_CONTEXT_SAVEIMAGEAS 50120
+ #define IDC_CONTENT_CONTEXT_COPYIMAGELOCATION 50121
+--- a/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
++++ b/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
+@@ -102,6 +102,7 @@
+ #include "chrome/browser/ui/read_anything/read_anything_side_panel_navigation_throttle.h"
+ #include "chrome/browser/ui/search/chrome_search_navigation_throttle.h"
+ #include "chrome/browser/ui/search/new_tab_page_navigation_throttle.h"
++#include "chrome/browser/ui/web_applications/out_of_scope_links.h"
+ #include "chrome/browser/ui/web_applications/tabbed_web_app_navigation_throttle.h"
+ #include "chrome/browser/ui/web_applications/webui_web_app_navigation_throttle.h"
+ #include "chrome/browser/ui/webui/image/image_navigation_throttle.h"
+@@ -491,6 +492,7 @@ void CreateAndAddChromeThrottlesForNavigation(
+   NewTabPageNavigationThrottle::MaybeCreateAndAdd(registry);
+ 
+   web_app::TabbedWebAppNavigationThrottle::MaybeCreateAndAdd(registry);
++  web_app::MaybeAddOutOfScopeLinkThrottle(registry);
+ 
+   web_app::WebUIWebAppNavigationThrottle::MaybeCreateAndAdd(registry);
+ 
+--- a/chrome/browser/renderer_context_menu/render_view_context_menu.cc
++++ b/chrome/browser/renderer_context_menu/render_view_context_menu.cc
+@@ -143,6 +143,7 @@
+ #include "chrome/browser/ui/ui_features.h"
+ #include "chrome/browser/ui/user_education/browser_user_education_interface.h"
+ #include "chrome/browser/ui/web_applications/app_browser_controller.h"
++#include "chrome/browser/ui/web_applications/out_of_scope_links.h"
+ #include "chrome/browser/ui/webauthn/context_menu_helper.h"
+ #include "chrome/browser/ui/webui/history/foreign_session_handler.h"
+ #include "chrome/browser/user_education/user_education_service.h"
+@@ -759,6 +760,11 @@ int CollapseCommandsForUMA(int id) {
+     return IDC_OPEN_LINK_IN_PROFILE_FIRST;
+   }
+ 
++  if (id == IDC_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER ||
++      id == IDC_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER_BACKGROUND) {
++    return IDC_CONTENT_CONTEXT_OPENLINKWITH;
++  }
++
+   return id;
+ }
+ 
+@@ -1984,6 +1990,11 @@ void RenderViewContextMenu::AppendLinkItems() {
+                  : IDS_CONTENT_CONTEXT_OPENLINKNEWTAB);
+     }
+ 
++    web_app::AppendDefaultBrowserLinkItems(
++        params_.link_url, GetBrowser(), menu_model_,
++        base::BindRepeating(&RenderViewContextMenu::UpdateMenuItem,
++                            weak_pointer_factory_.GetWeakPtr()));
++
+     if (show_open_in_new_window) {
+       AddItemWithOptionalIcon(IDC_CONTENT_CONTEXT_OPENLINKNEWWINDOW,
+                               IDS_CONTENT_CONTEXT_OPENLINKNEWWINDOW,
+@@ -3634,6 +3645,8 @@ bool RenderViewContextMenu::IsCommandIdEnabled(int id) const {
+     case IDC_CONTENT_CONTEXT_VIDEO_FRAME:
+     case IDC_SPELLCHECK_MENU:
+     case IDC_CONTENT_CONTEXT_OPENLINKWITH:
++    case IDC_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER:
++    case IDC_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER_BACKGROUND:
+     case IDC_CONTENT_CONTEXT_PROTOCOL_HANDLER_SETTINGS:
+     case IDC_CONTENT_CONTEXT_GENERATEPASSWORD:
+     case IDC_CONTENT_CONTEXT_SHOWALLSAVEDPASSWORDS:
+@@ -3803,6 +3816,17 @@ void RenderViewContextMenu::ExecuteCommand(int id, int event_flags) {
+   }
+ 
+   switch (id) {
++    case IDC_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER:
++    case IDC_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER_BACKGROUND:
++      if (web_app::OpenInDefaultBrowser(
++              params_.link_url,
++              id == IDC_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER_BACKGROUND)) {
++        break;
++      }
++      // oganesson became the default browser while the menu was open: the
++      // link opens as "Open link in new tab" opens it.
++      [[fallthrough]];
++
+     case IDC_CONTENT_CONTEXT_OPENLINKNEWTAB: {
+       WindowOpenDisposition new_tab_disposition =
+           WindowOpenDisposition::NEW_BACKGROUND_TAB;
+--- a/chrome/browser/resources/app_settings/BUILD.gn
++++ b/chrome/browser/resources/app_settings/BUILD.gn
+@@ -28,6 +28,10 @@ build_webui("build") {
+     "permission_item.ts",
+     "run_on_os_login_item.html.ts",
+     "run_on_os_login_item.ts",
++    "scope_rules_item.html.ts",
++    "scope_rules_item.ts",
++    "start_url_item.html.ts",
++    "start_url_item.ts",
+     "supported_links_dialog.html.ts",
+     "supported_links_dialog.ts",
+     "supported_links_item.html.ts",
+--- a/chrome/browser/resources/app_settings/app.html.ts
++++ b/chrome/browser/resources/app_settings/app.html.ts
+@@ -113,6 +113,14 @@ export function getHtml(this: AppElement) {
+     <app-management-supported-links-item id="supportedLinksOption"
+         class="permission-card-row" .app="${this.app_}" .apps="${this.apps_}">
+     </app-management-supported-links-item>
++    <app-management-scope-rules-item id="scopeRules"
++        class="permission-card-row" .app="${this.app_}">
++    </app-management-scope-rules-item>
++    ${this.isIsolatedWebApp_() ? '' : html`
++      <app-management-start-url-item id="startUrl"
++          class="permission-card-row" .app="${this.app_}">
++      </app-management-start-url-item>
++    `}
+   </div>
+ </div>
+ <!--_html_template_end_-->`;
+--- a/chrome/browser/resources/app_settings/app.ts
++++ b/chrome/browser/resources/app_settings/app.ts
+@@ -10,6 +10,8 @@ import './app_content_item.js';
+ import './file_handling_item.js';
+ import './more_permissions_item.js';
+ import './run_on_os_login_item.js';
++import './scope_rules_item.js';
++import './start_url_item.js';
+ import './permission_item.js';
+ import './window_mode_item.js';
+ import './icons.html.js';
+--- a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
++++ b/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
+@@ -52,6 +52,7 @@
+ #include "chrome/browser/ui/views/frame/contents_web_view.h"
+ #include "chrome/browser/ui/views/status_bubble_views.h"
+ #include "chrome/browser/ui/web_applications/app_browser_controller.h"
++#include "chrome/browser/ui/web_applications/out_of_scope_links.h"
+ #include "chrome/browser/web_applications/web_app_provider.h"
+ #include "chrome/browser/web_applications/web_app_registrar.h"
+ #include "chrome/browser/web_applications/web_app_tab_helper.h"
+@@ -516,6 +517,10 @@ content::PreloadingEligibility
+ BrowserWebContentsDelegate::IsPrerender2Supported(
+     content::WebContents& web_contents,
+     content::PreloadingTriggerType trigger_type) {
++  // A prerendered page activates without the out-of-scope link throttle.
++  if (web_app::IsWebAppOwnWindow(&browser_.get())) {
++    return content::PreloadingEligibility::kPreloadingUnsupportedByWebContents;
++  }
+   Profile* profile =
+       Profile::FromBrowserContext(web_contents.GetBrowserContext());
+   return prefetch::IsSomePreloadingEnabled(*profile->GetPrefs());
+--- a/chrome/browser/ui/navigator/browser_navigator.cc
++++ b/chrome/browser/ui/navigator/browser_navigator.cc
+@@ -48,6 +48,7 @@
+ #include "chrome/browser/ui/tabs/tab_strip_user_gesture_details.h"
+ #include "chrome/browser/ui/web_applications/app_browser_controller.h"
+ #include "chrome/browser/ui/web_applications/navigation_capturing_process.h"
++#include "chrome/browser/ui/web_applications/out_of_scope_links.h"
+ #include "chrome/browser/ui/web_applications/web_app_launch_navigation_handle_user_data.h"
+ #include "chrome/browser/ui/web_applications/web_app_launch_utils.h"
+ #include "chrome/browser/ui/web_applications/web_app_tabbed_utils.h"
+@@ -768,6 +769,10 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
+         params->source_contents, contents_to_navigate_or_insert);
+   }
+ 
++  if (web_app::MaybeOpenNewContentsOutsideApp(*params)) {
++    return nullptr;
++  }
++
+   int singleton_index = -1;
+ 
+   std::unique_ptr<web_app::NavigationCapturingProcess> app_navigation =
+--- a/chrome/browser/ui/web_applications/BUILD.gn
++++ b/chrome/browser/ui/web_applications/BUILD.gn
+@@ -151,6 +151,7 @@ source_set("impl") {
+       "diagnostics/web_app_icon_health_checks.cc",
+       "navigation_capturing_process.cc",
+       "navigation_capturing_redirection_throttle.cc",
++      "out_of_scope_links.cc",
+       "share_target_utils.cc",
+       "tabbed_web_app_navigation_throttle.cc",
+       "web_app_browser_controller.cc",
+--- a/chrome/browser/ui/web_applications/web_app_browser_controller.cc
++++ b/chrome/browser/ui/web_applications/web_app_browser_controller.cc
+@@ -39,6 +39,7 @@
+ #include "chrome/browser/web_applications/proto/web_app.pb.h"
+ #include "chrome/browser/web_applications/ui_manager/update_dialog_types.h"
+ #include "chrome/browser/web_applications/url_pattern_with_regex_matcher.h"
++#include "chrome/browser/web_applications/user_app_scope.h"
+ #include "chrome/browser/web_applications/web_app_command_scheduler.h"
+ #include "chrome/browser/web_applications/web_app_constants.h"
+ #include "chrome/browser/web_applications/web_app_filter.h"
+@@ -647,6 +648,10 @@ bool WebAppBrowserController::IsUrlInAppScope(const GURL& url) const {
+ #endif  // BUILDFLAG(IS_CHROMEOS)
+ 
+   std::optional<WebAppScope> scope = registrar().GetEffectiveScope(app_id());
++  if (std::optional<bool> in_scope = UserAppScopeOverride(
++          *browser()->GetProfile()->GetPrefs(), app_id(), url)) {
++    return *in_scope;
++  }
+   if (!scope.has_value()) {
+     return false;
+   }
+--- a/chrome/browser/ui/web_applications/web_app_launch_navigation_handle_user_data.cc
++++ b/chrome/browser/ui/web_applications/web_app_launch_navigation_handle_user_data.cc
+@@ -125,8 +125,11 @@ void WebAppLaunchNavigationHandleUserData::
+ 
+   // Keep started_new_navigation = true so Blink records correct metrics.
+   launch_params_->set_started_new_navigation(true);
+-  if (tab_helper->EnsureLaunchQueue().IsInScope(*launch_params_,
+-                                                navigation_handle_->GetURL())) {
++  // A user start URL out of the app's scope can redirect into it (#346); the
++  // launch queue takes only targets in scope.
++  webapps::LaunchQueue& launch_queue = tab_helper->EnsureLaunchQueue();
++  if (launch_queue.IsInScope(*launch_params_, navigation_handle_->GetURL()) &&
++      launch_queue.IsInScope(*launch_params_, target_url)) {
+     tab_helper->EnqueueLaunchParams(std::move(*launch_params_));
+   }
+ 
+--- a/chrome/browser/ui/web_applications/web_app_launch_process.cc
++++ b/chrome/browser/ui/web_applications/web_app_launch_process.cc
+@@ -27,6 +27,7 @@
+ #include "chrome/browser/ui/web_applications/web_app_launch_navigation_handle_user_data.h"
+ #include "chrome/browser/ui/web_applications/web_app_launch_utils.h"
+ #include "chrome/browser/web_applications/os_integration/os_integration_manager.h"
++#include "chrome/browser/web_applications/user_app_start_url.h"
+ #include "chrome/browser/web_applications/web_app.h"
+ #include "chrome/browser/web_applications/web_app_registrar.h"
+ #include "chrome/browser/web_applications/web_app_tab_helper.h"
+@@ -220,7 +221,8 @@ content::WebContents* WebAppLaunchProcess::Run() {
+   // urls to be launched here, even if they are not in scope.
+   if (in_scope_result == LaunchUrlInScopeResult::kNotInScope &&
+       !url::IsSameOriginWith(launch_url, web_app_scope->scope())) {
+-    launch_url = registrar_->GetAppStartUrl(params_->app_id);
++    launch_url = GetUserAppStartUrl(*profile_->GetPrefs(), params_->app_id,
++                                    registrar_->GetAppStartUrl(params_->app_id));
+     // If this was a file handler launch, then it would be unexpected that a
+     // file handle exists if we are resetting the URL. Thus, reset to only a
+     // regular launch.
+@@ -274,7 +276,10 @@ content::WebContents* WebAppLaunchProcess::Run() {
+   bool app_wants_focus_existing_without_navigation =
+      GetLaunchHandler().NeverNavigateExistingClients() ||
+      registrar_->IsPreventCloseEnabled(params_->app_id);
+-  if (!open_in_new_window && app_wants_focus_existing_without_navigation) {
++  // A user start URL can be out of the app's scope (#346); the existing
++  // client's launch queue only takes targets in scope, so navigate it instead.
++  if (!open_in_new_window && app_wants_focus_existing_without_navigation &&
++      registrar_->IsUrlInAppExtendedScope(launch_url, params_->app_id)) {
+     auto* tab_helper = WebAppTabHelper::FromWebContents(existing_tab);
+     if (tab_helper->pending_launch_app_id() == params_->app_id) {
+       // This WebContents is already handling a launch for this app. It may
+@@ -364,7 +369,9 @@ std::tuple<GURL, bool /*is_file_handling*/> WebAppLaunchProcess::GetLaunchUrl(
+     launch_url = web_app_->note_taking_new_note_url();
+   } else {
+     // This is a default launch.
+-    launch_url = registrar_->GetAppLaunchUrl(params_->app_id);
++    launch_url =
++        GetUserAppStartUrl(*profile_->GetPrefs(), params_->app_id,
++                           registrar_->GetAppLaunchUrl(params_->app_id));
+   }
+   DCHECK(launch_url.is_valid());
+ 
+--- a/chrome/browser/ui/web_applications/web_app_launch_utils.cc
++++ b/chrome/browser/ui/web_applications/web_app_launch_utils.cc
+@@ -58,6 +58,7 @@
+ #include "chrome/browser/ui/tabs/tab_strip_model.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
+ #include "chrome/browser/ui/web_applications/app_browser_controller.h"
++#include "chrome/browser/ui/web_applications/out_of_scope_links.h"
+ #include "chrome/browser/ui/web_applications/web_app_browser_controller.h"
+ #include "chrome/browser/ui/web_applications/web_app_launch_navigation_handle_user_data.h"
+ #include "chrome/browser/ui/web_applications/web_app_launch_process.h"
+@@ -342,6 +343,12 @@ void ReparentWebContentsIntoBrowserImpl(BrowserWindowInterface* source_browser,
+     web_contents->UpdateWindowControlsOverlay(gfx::Rect());
+   }
+ 
++  // A prerendered page activates without the out-of-scope link throttle, and
++  // the app window starts none of its own (IsPrerender2Supported()).
++  if (IsWebAppOwnWindow(target_browser)) {
++    web_contents->CancelAllPrerendering();
++  }
++
+   std::unique_ptr<content::WebContents> contents_move =
+       source_tabstrip->DetachWebContentsAtForInsertion(found_tab_index.value());
+ 
+--- a/chrome/browser/ui/webui/app_management/BUILD.gn
++++ b/chrome/browser/ui/webui/app_management/BUILD.gn
+@@ -8,6 +8,7 @@ source_set("app_management") {
+   sources = [
+     "app_management_page_handler_base.cc",
+     "app_management_page_handler_base.h",
++    "app_management_page_handler_oganesson.cc",
+     "app_management_page_handler_factory.cc",
+     "app_management_page_handler_factory.h",
+   ]
+--- a/chrome/browser/ui/webui/app_management/app_management_page_handler_base.h
++++ b/chrome/browser/ui/webui/app_management/app_management_page_handler_base.h
+@@ -53,6 +53,16 @@ class AppManagementPageHandlerBase : public app_management::mojom::PageHandler,
+   void OpenNativeSettings(const std::string& app_id) override;
+   void SetFileHandlingEnabled(const std::string& app_id, bool enabled) override;
+   void UpdateAppSize(const std::string& app_id) override;
++  void GetScopeRules(const std::string& app_id,
++                     GetScopeRulesCallback callback) override;
++  void SetScopeRules(const std::string& app_id,
++                     const std::string& rules,
++                     SetScopeRulesCallback callback) override;
++  void GetStartUrl(const std::string& app_id,
++                   GetStartUrlCallback callback) override;
++  void SetStartUrl(const std::string& app_id,
++                   const std::string& url,
++                   SetStartUrlCallback callback) override;
+ 
+  protected:
+   AppManagementPageHandlerBase(
+--- a/chrome/browser/web_applications/BUILD.gn
++++ b/chrome/browser/web_applications/BUILD.gn
+@@ -323,6 +323,10 @@ source_set("web_applications") {
+     "scope_extension_info.h",
+     "url_pattern_with_regex_matcher.cc",
+     "url_pattern_with_regex_matcher.h",
++    "user_app_scope.cc",
++    "user_app_scope.h",
++    "user_app_start_url.cc",
++    "user_app_start_url.h",
+     "user_display_mode.cc",
+     "user_display_mode.h",
+     "user_uninstalled_preinstalled_web_app_prefs.cc",
+@@ -594,6 +598,7 @@ source_set("web_applications") {
+     "//components/site_engagement/core/mojom:mojo_bindings",
+     "//components/sync",
+     "//components/ukm",
++    "//components/url_pattern",
+     "//components/user_manager",
+     "//components/web_package",
+     "//components/webapps/browser",
+--- a/chrome/browser/web_applications/web_app_registrar.cc
++++ b/chrome/browser/web_applications/web_app_registrar.cc
+@@ -42,6 +42,7 @@
+ #include "chrome/browser/web_applications/proto/web_app_install_state.pb.h"
+ #include "chrome/browser/web_applications/proto/web_app_os_integration_state.pb.h"
+ #include "chrome/browser/web_applications/url_pattern_with_regex_matcher.h"
++#include "chrome/browser/web_applications/user_app_scope.h"
+ #include "chrome/browser/web_applications/web_app.h"
+ #include "chrome/browser/web_applications/web_app_constants.h"
+ #include "chrome/browser/web_applications/web_app_filter.h"
+@@ -571,7 +572,8 @@ int WebAppRegistrar::GetAppExtendedScopeScore(
+   if (!scope) {
+     return 0;
+   }
+-  return scope->GetScopeScore(url);
++  return GetUserAppScopeScore(*profile_->GetPrefs(), app_id, url,
++                              scope->GetScopeScore(url));
+ }
+ 
+ int WebAppRegistrar::GetUrlInAppScopeScore(const GURL& url,
+@@ -580,7 +582,9 @@ int WebAppRegistrar::GetUrlInAppScopeScore(const GURL& url,
+   if (!scope) {
+     return 0;
+   }
+-  return scope->GetScopeScore(url, {.exclude_scope_extensions = true});
++  return GetUserAppScopeScore(
++      *profile_->GetPrefs(), app_id, url,
++      scope->GetScopeScore(url, {.exclude_scope_extensions = true}));
+ }
+ 
+ bool WebAppRegistrar::IsSystemApp(const webapps::AppId& app_id) const {
+@@ -1071,6 +1075,7 @@ std::optional<webapps::AppId> WebAppRegistrar::FindBestAppWithUrlInScope(
+     }
+ 
+     int score = scope->GetScopeScore(url, options.scope_score_options);
++    score = GetUserAppScopeScore(*profile_->GetPrefs(), app_id, url, score);
+     if (score > 0 && score > best_score) {
+       best_app_id = app_id;
+       best_score = score;
+@@ -1482,7 +1487,9 @@ WebAppRegistrar::GetAllAppsControllingUrl(
+ 
+     std::optional<WebAppScope> scope = GetEffectiveScope(app_id);
+     if (scope.has_value() &&
+-        scope->GetScopeScore(url, scope_score_options) > 0) {
++        GetUserAppScopeScore(*profile_->GetPrefs(), app_id, url,
++                             scope->GetScopeScore(url, scope_score_options)) >
++            0) {
+       all_controlling_apps.insert_or_assign(app_id, GetAppShortName(app_id));
+     }
+   }
+--- a/chrome/browser/webapps/webapps_client_desktop.cc
++++ b/chrome/browser/webapps/webapps_client_desktop.cc
+@@ -175,9 +175,23 @@ bool WebappsClientDesktop::IsAppFullyInstalledForSiteUrl(
+     content::BrowserContext* browser_context,
+     const GURL& site_url) const {
+   CHECK(browser_context);
+-  return web_app::FindInstalledAppWithUrlInScope(
+-             Profile::FromBrowserContext(browser_context), site_url)
+-      .has_value();
++  auto* provider = web_app::WebAppProvider::GetForLocalAppsUnchecked(
++      Profile::FromBrowserContext(browser_context));
++  if (!provider) {
++    return false;
++  }
++  // oganesson: the manifests' scopes, as FindInstalledAppWithUrlInScope()
++  // has them before the user's scope rules (user_app_scope.h) apply.
++  const web_app::WebAppRegistrar& registrar = provider->registrar_unsafe();
++  for (const webapps::AppId& app_id :
++       registrar.GetAppIds(web_app::WebAppFilter::InstalledInChrome())) {
++    std::optional<web_app::WebAppScope> scope =
++        registrar.GetEffectiveScope(app_id);
++    if (scope && scope->GetScopeScore(site_url) > 0) {
++      return true;
++    }
++  }
++  return false;
+ }
+ 
+ bool WebappsClientDesktop::IsUrlControlledBySeenManifest(
+--- a/content/browser/web_contents/web_contents_impl.cc
++++ b/content/browser/web_contents/web_contents_impl.cc
+@@ -291,6 +291,18 @@ namespace content {
+ 
+ namespace {
+ 
++// WebContents user data: see IsNewWindowForFormPost().
++const char kNewWindowForFormPostKey = 0;
++
++}  // namespace
++
++// Declared in content/public/browser/new_window_form_post.h.
++CONTENT_EXPORT bool IsNewWindowForFormPost(WebContents* contents) {
++  return contents->GetUserData(&kNewWindowForFormPostKey);
++}
++
++namespace {
++
+ // These values are persisted to logs. Entries should not be renumbered and
+ // numeric values should never be reused.
+ //
+@@ -5832,6 +5844,12 @@ FrameTree* WebContentsImpl::CreateNewWindow(
+                              false,  // started_from_context_menu
+                              true);  // renderer_initiated
+ 
++  if (params.form_submission_post_data) {
++    new_contents_impl->SetUserData(
++        &kNewWindowForFormPostKey,
++        std::make_unique<base::SupportsUserData::Data>());
++  }
++
+   if (!params.opener_suppressed) {
+     return &new_contents_impl->GetPrimaryFrameTree();
+   }
+--- a/ui/webui/resources/cr_components/app_management/app_management.mojom
++++ b/ui/webui/resources/cr_components/app_management/app_management.mojom
+@@ -250,6 +250,17 @@ interface PageHandler {
+   // Sets app locale for an app with the given |app_id|. Empty |locale_tag|
+   // indicates system language being chosen.
+   SetAppLocale(string app_id, string locale_tag);
++  // The scope rules the user added to the app, one per line.
++  GetScopeRules(string app_id) => (string rules);
++  // Sets them; returns why a rule is invalid, keeping the old rules, or an
++  // empty string.
++  SetScopeRules(string app_id, string rules) => (string error);
++  // The URL the user set for the app to open at, or an empty string, and the
++  // manifest's start URL.
++  GetStartUrl(string app_id) => (string url, string manifest_start_url);
++  // Sets it, empty for the manifest's; returns why it is invalid, keeping the
++  // old one, or an empty string.
++  SetStartUrl(string app_id, string url) => (string error);
+   // Called when the user clicks on the system notification settings link for an
+   // app with the given `app_id`, when that link was displayed because
+   // `show_system_notifications_settings_link` was true for the app.

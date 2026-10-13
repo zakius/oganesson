@@ -19,6 +19,7 @@
 #include "base/i18n/rtl.h"
 #include "base/no_destructor.h"
 #include "base/pickle.h"
+#include "base/scoped_multi_source_observation.h"
 #include "base/scoped_observation.h"
 #include "base/strings/strcat.h"
 #include "base/values.h"
@@ -29,12 +30,11 @@
 #include "chrome/browser/ui/layout_constants.h"
 #include "chrome/browser/ui/toolbar/app_menu_model.h"
 #include "chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model.h"
+#include "chrome/browser/ui/toolbar/toolbar_action_hover_card_types.h"
 #include "chrome/browser/ui/toolbar/toolbar_actions_model.h"
-#include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/extensions/browser_action_drag_data.h"
 #include "chrome/browser/ui/views/extensions/extensions_toolbar_desktop.h"
 #include "chrome/browser/ui/views/extensions/extensions_toolbar_button.h"
-#include "chrome/browser/ui/views/global_media_controls/media_toolbar_button_view.h"
 #include "chrome/browser/ui/views/location_bar/location_bar_view.h"
 #include "chrome/browser/ui/views/profiles/avatar_toolbar_button.h"
 #include "chrome/browser/ui/views/toolbar/app_menu.h"
@@ -46,8 +46,10 @@
 #include "chrome/browser/ui/views/toolbar/toolbar_action_view.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_bubble_arrow.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_button.h"
+#include "chrome/browser/ui/views/toolbar/toolbar_divider.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
 #include "chrome/common/pref_names.h"
+#include "components/prefs/pref_change_registrar.h"
 #include "components/prefs/pref_service.h"
 #include "components/prefs/scoped_user_pref_update.h"
 #include "extensions/browser/extension_prefs.h"
@@ -60,10 +62,15 @@
 #include "ui/base/dragdrop/os_exchange_data.h"
 #include "ui/color/color_provider.h"
 #include "ui/compositor/layer_tree_owner.h"
+#include "ui/events/event.h"
+#include "ui/events/event_handler.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/views/context_menu_controller.h"
 #include "ui/views/controls/button/button_controller.h"
+#include "ui/views/drag_controller.h"
+#include "ui/views/view_class_properties.h"
+#include "ui/views/view_observer.h"
 #include "ui/views/widget/widget.h"
 
 namespace {
@@ -117,43 +124,116 @@ class AppMenuFallback : public views::ContextMenuController {
   std::unique_ptr<AppMenu> menu_;
 };
 
-// Runs `apply` once the extensions container or Chrome's pinned buttons
-// container has updated its views for a change in the pinned items. It starts
-// observing after the containers, so it runs after them.
-class ContainersObserver : public ExtensionsToolbarViewModel::Observer,
-                           public PinnedToolbarActionsModel::Observer {
+// The toolbar items' state, owned by the toolbar. It applies the item prefs
+// when they change, and once the extensions container or Chrome's pinned
+// buttons container has updated its views for a change in the pinned items: it
+// starts observing after the containers, so it runs after them. It also drags
+// the built-in items, keeps the hidden ones hidden and, as a pre-target
+// handler of the toolbar, sees the mouse leave its extension icons.
+class ToolbarItemsState : public ExtensionsToolbarViewModel::Observer,
+                          public PinnedToolbarActionsModel::Observer,
+                          public views::DragController,
+                          public views::ViewObserver,
+                          public ui::EventHandler {
  public:
-  ContainersObserver(base::RepeatingClosure apply,
-                     ExtensionsToolbarViewModel* extensions,
-                     PinnedToolbarActionsModel* pinned)
-      : apply_(std::move(apply)) {
+  ToolbarItemsState(ToolbarView* toolbar,
+                    ExtensionsToolbarViewModel* extensions,
+                    PinnedToolbarActionsModel* pinned)
+      : toolbar_(toolbar) {
+    registrar_.Init(toolbar->browser()->GetProfile()->GetPrefs());
+    registrar_.Add(prefs::kToolbarItems,
+                   base::BindRepeating(&ToolbarView::ApplyToolbarItems,
+                                       base::Unretained(toolbar)));
+    registrar_.Add(prefs::kToolbarHiddenItems,
+                   base::BindRepeating(&ToolbarView::ApplyHiddenItems,
+                                       base::Unretained(toolbar)));
     if (extensions) {
       extensions_observation_.Observe(extensions);
     }
     if (pinned) {
       pinned_observation_.Observe(pinned);
     }
+    for (const auto& [token, item] : toolbar->GetBuiltInItems()) {
+      if (item && std::ranges::contains(kHideableItems, token)) {
+        hideable_observations_.AddObservation(item);
+      }
+    }
   }
+
+  // Where the drop indicator is painted while dragging, if at all.
+  std::optional<int> drop_x;
 
  private:
   // ExtensionsToolbarViewModel::Observer:
-  void OnActionsInitialized() override { apply_.Run(); }
+  void OnActionsInitialized() override { toolbar_->ApplyToolbarItems(); }
   void OnActionAdded(const ToolbarActionsModel::ActionId& action_id) override {
-    apply_.Run();
+    toolbar_->ApplyToolbarItems();
   }
   void OnActionRemoved(
       const ToolbarActionsModel::ActionId& action_id) override {}
   void OnActionUpdated(
       const ToolbarActionsModel::ActionId& action_id) override {}
-  void OnPinnedActionsChanged() override { apply_.Run(); }
+  void OnPinnedActionsChanged() override { toolbar_->ApplyToolbarItems(); }
   void OnActiveWebContentsChanged(bool is_same_document,
                                   content::WebContents* web_contents) override {
   }
 
   // PinnedToolbarActionsModel::Observer:
-  void OnActionsChanged() override { apply_.Run(); }
+  void OnActionsChanged() override { toolbar_->ApplyToolbarItems(); }
 
-  base::RepeatingClosure apply_;
+  // views::DragController, for the built-in items:
+  void WriteDragDataForView(views::View* sender,
+                            const gfx::Point& press_pt,
+                            ui::OSExchangeData* data) override;
+  int GetDragOperationsForView(views::View* sender,
+                               const gfx::Point& p) override {
+    return ui::DragDropTypes::DRAG_MOVE;
+  }
+  bool CanStartDragForView(views::View* sender,
+                           const gfx::Point& press_pt,
+                           const gfx::Point& p) override {
+    return true;
+  }
+  void OnWillStartDragForView(views::View* dragged_view) override {
+    // Holding back or forward opens their history menu after a delay.
+    static_cast<ToolbarButton*>(dragged_view)->ClearPendingMenu();
+  }
+
+  // views::ViewObserver, for the built-in items Customize toolbar can hide:
+  void OnViewVisibilityChanged(views::View* observed_view,
+                               views::View* starting_view,
+                               bool visible) override {
+    // Chromium shows some items on its own; one the prefs hide goes right
+    // back.
+    if (observed_view == starting_view && visible &&
+        observed_view->GetVisible() &&
+        observed_view->GetProperty(kHiddenByPrefKey)) {
+      observed_view->SetVisible(false);
+    }
+  }
+  void OnViewIsDeleting(views::View* observed_view) override {
+    hideable_observations_.RemoveObservation(observed_view);
+  }
+
+  // ui::EventHandler:
+  void OnMouseEvent(ui::MouseEvent* event) override {
+    // The extensions container hides the hover card when the mouse leaves it,
+    // but an icon on the toolbar has no such container.
+    if (event->type() != ui::EventType::kMouseExited) {
+      return;
+    }
+    auto* const icon = views::AsViewClass<ToolbarActionView>(
+        static_cast<views::View*>(event->target()));
+    if (icon && icon->parent() == toolbar_) {
+      toolbar_->extensions_container()->UpdateHoverCard(
+          nullptr, ToolbarActionHoverCardUpdateType::kHover);
+    }
+  }
+
+  raw_ptr<ToolbarView> toolbar_;
+  PrefChangeRegistrar registrar_;
+  base::ScopedMultiSourceObservation<views::View, views::ViewObserver>
+      hideable_observations_{this};
   base::ScopedObservation<ExtensionsToolbarViewModel,
                           ExtensionsToolbarViewModel::Observer>
       extensions_observation_{this};
@@ -165,14 +245,14 @@ class ContainersObserver : public ExtensionsToolbarViewModel::Observer,
 }  // namespace
 
 DEFINE_UI_CLASS_PROPERTY_TYPE(AppMenuFallback*)
-DEFINE_UI_CLASS_PROPERTY_TYPE(ContainersObserver*)
+DEFINE_UI_CLASS_PROPERTY_TYPE(ToolbarItemsState*)
 
 namespace {
 
 // Owns the toolbar's AppMenuFallback.
 DEFINE_OWNED_UI_CLASS_PROPERTY_KEY(AppMenuFallback, kAppMenuFallbackKey)
-// Owns the toolbar's ContainersObserver.
-DEFINE_OWNED_UI_CLASS_PROPERTY_KEY(ContainersObserver, kContainersObserverKey)
+// Owns the toolbar's ToolbarItemsState.
+DEFINE_OWNED_UI_CLASS_PROPERTY_KEY(ToolbarItemsState, kToolbarItemsStateKey)
 
 // Drag data of a built-in toolbar item: its pickled token.
 const ui::ClipboardFormatType& GetToolbarItemFormatType() {
@@ -182,47 +262,88 @@ const ui::ClipboardFormatType& GetToolbarItemFormatType() {
   return *format;
 }
 
+void ToolbarItemsState::WriteDragDataForView(views::View* sender,
+                                             const gfx::Point& press_pt,
+                                             ui::OSExchangeData* data) {
+  auto* const button = static_cast<ToolbarButton*>(sender);
+  data->provider().SetDragImage(button->GetImage(button->GetState()),
+                                press_pt.OffsetFromOrigin());
+  // A handle inside an item (the extensions button) drags the item.
+  views::View* item = sender;
+  while (item->parent() != toolbar_) {
+    item = item->parent();
+  }
+  base::Pickle pickle;
+  pickle.WriteString(toolbar_->GetItemToken(item));
+  data->SetPickledData(GetToolbarItemFormatType(), pickle);
+}
+
+// The toolbar holds pinned extension icons as items of its own. Such an icon
+// stays in the extensions container's icons, so popups, menus and hover cards
+// keep working; the container then holds only the extensions button and
+// actions shown for the moment (popped out).
+std::unique_ptr<ToolbarActionView> TakeIcon(
+    ExtensionsToolbarDesktop* container,
+    ToolbarActionView* icon) {
+  auto taken = container->RemoveChildViewT(icon);
+  // Undo the container's fade and flex state; the toolbar lays it out as a
+  // plain button.
+  taken->ClearProperty(views::kFlexBehaviorKey);
+  taken->SetVisible(true);
+  // Reorders the icons the container still holds.
+  container->OnPinnedActionsChanged();
+  return taken;
+}
+
+void ReturnIcon(ExtensionsToolbarDesktop* container,
+                std::unique_ptr<ToolbarActionView> icon) {
+  container->AddChildView(std::move(icon));
+  // Updates the icons' visibility and order.
+  container->OnPinnedActionsChanged();
+}
+
+// The view that drags the built-in `item`, if it moves at all. The extensions
+// button drags its container. The location bar stays put; the others move
+// around it.
+views::View* GetDragHandle(ToolbarView* toolbar,
+                           std::string_view token,
+                           views::View* item) {
+  if (item && item == toolbar->extensions_container()) {
+    return toolbar->GetExtensionsButton();
+  }
+  return token == "location_bar" ? nullptr : item;
+}
+
 }  // namespace
 
 void ToolbarView::InitToolbarItems() {
-  const auto apply = base::BindRepeating(&ToolbarView::ApplyToolbarItems,
-                                         base::Unretained(this));
-  const auto move_by =
-      base::BindRepeating(&ToolbarView::MoveItemBy, base::Unretained(this));
-  toolbar_items_registrar_.Init(browser_->GetProfile()->GetPrefs());
-  toolbar_items_registrar_.Add(prefs::kToolbarItems, apply);
-  toolbar_items_registrar_.Add(
-      prefs::kToolbarHiddenItems,
-      base::BindRepeating(&ToolbarView::ApplyHiddenItems,
-                          base::Unretained(this)));
   set_context_menu_controller(SetProperty(
       kAppMenuFallbackKey, std::make_unique<AppMenuFallback>(this)));
-  SetProperty(kContainersObserverKey,
-              std::make_unique<ContainersObserver>(
-                  apply,
-                  extensions_container_
-                      ? extensions_container_->GetToolbarViewModel()
-                      : nullptr,
-                  pinned_toolbar_actions_container_
-                      ? PinnedToolbarActionsModel::Get(browser_->GetProfile())
-                      : nullptr));
+  ToolbarItemsState* const state = SetProperty(
+      kToolbarItemsStateKey,
+      std::make_unique<ToolbarItemsState>(
+          this,
+          extensions_container_ ? extensions_container_->GetToolbarViewModel()
+                                : nullptr,
+          pinned_toolbar_actions_container_
+              ? PinnedToolbarActionsModel::Get(browser_->GetProfile())
+              : nullptr));
   if (extensions_container_) {
-    extensions_container_->SetMoveDetachedCallback(move_by);
+    AddPreTargetHandler(state);
   }
-  if (pinned_toolbar_actions_container_) {
-    pinned_toolbar_actions_container_->SetMoveDetachedCallback(move_by);
+  // Items move to either side of the extensions button, so the divider after
+  // it would stand between any two of them. Upstream only toggles it through
+  // the layout, which ignores it now.
+  if (toolbar_divider_) {
+    toolbar_divider_->SetProperty(views::kViewIgnoredByLayoutKey, true);
+    toolbar_divider_->SetVisible(false);
   }
   // Built-in items drag like pinned ones, and act on release so a press can
-  // start a drag. The extensions button drags its container. The location bar stays put; the others move around it.
-  // Incognito windows don't change the layout.
+  // start a drag. Incognito windows don't change the layout.
   if (!browser_->GetProfile()->IsOffTheRecord()) {
     for (const auto& [token, item] : GetBuiltInItems()) {
-      views::View* handle = item;
-      if (item && item == extensions_container_.get()) {
-        handle = extensions_container_->GetExtensionsButton();
-      }
-      if (handle && token != "location_bar") {
-        handle->set_drag_controller(this);
+      if (views::View* handle = GetDragHandle(this, token, item)) {
+        handle->set_drag_controller(state);
         static_cast<ToolbarButton*>(handle)
             ->button_controller()
             ->set_notify_action(
@@ -235,19 +356,21 @@ void ToolbarView::InitToolbarItems() {
 
 void ToolbarView::ShutdownToolbarItems() {
   set_context_menu_controller(nullptr);
+  for (const auto& [token, item] : GetBuiltInItems()) {
+    if (views::View* handle = GetDragHandle(this, token, item)) {
+      handle->set_drag_controller(nullptr);
+    }
+  }
+  if (extensions_container_) {
+    RemovePreTargetHandler(GetProperty(kToolbarItemsStateKey));
+  }
+  ClearProperty(kToolbarItemsStateKey);
   // Hand the pinned items back to their containers, which own their state, so
   // they are destroyed with them.
-  ClearProperty(kContainersObserverKey);
-  if (extensions_container_) {
-    extensions_container_->SetMoveDetachedCallback({});
-  }
-  if (pinned_toolbar_actions_container_) {
-    pinned_toolbar_actions_container_->SetMoveDetachedCallback({});
-  }
   for (views::View* child : View::Views(children())) {
     if (auto* action = views::AsViewClass<ToolbarActionView>(child);
         action && extensions_container_) {
-      extensions_container_->ReturnIcon(RemoveChildViewT(action));
+      ReturnIcon(extensions_container_, RemoveChildViewT(action));
     } else if (auto* button = views::AsViewClass<PinnedActionToolbarButton>(child);
                button && pinned_toolbar_actions_container_) {
       pinned_toolbar_actions_container_->AddChildView(RemoveChildViewT(button));
@@ -264,10 +387,6 @@ ToolbarView::GetBuiltInItems() {
           {"split_tabs", split_tabs_.get()},
           {"location_bar", location_bar_view_.get()},
           {"extensions", extensions_container_.get()},
-          {"media", media_button_ && !features::IsWebUIMediaButtonEnabled()
-                        ? static_cast<MediaToolbarButtonView*>(
-                              media_button_.get())
-                        : nullptr},
           {"avatar", avatar_.get()},
           {"app_menu", app_menu_button_.get()}};
 }
@@ -308,13 +427,13 @@ void ToolbarView::ApplyToolbarItems() {
       if (action &&
           (!can_show ||
            !std::ranges::contains(pinned, action->view_model()->GetId()))) {
-        extensions_container_->ReturnIcon(RemoveChildViewT(action));
+        ReturnIcon(extensions_container_, RemoveChildViewT(action));
       }
     }
     for (const std::string& id : pinned) {
-      if (can_show && extensions_container_->GetViewForId(id) &&
-          !extensions_container_->IsIconDetached(id)) {
-        AddChildViewAt(extensions_container_->TakeIcon(id),
+      ToolbarActionView* const icon = extensions_container_->GetViewForId(id);
+      if (can_show && icon && icon->parent() == extensions_container_) {
+        AddChildViewAt(TakeIcon(extensions_container_, icon),
                        GetIndexOf(extensions_container_).value());
       }
     }
@@ -325,7 +444,7 @@ void ToolbarView::ApplyToolbarItems() {
     for (actions::ActionId id :
          pinned_toolbar_actions_container_->PinnedActionIds()) {
       PinnedActionToolbarButton* const button =
-          pinned_toolbar_actions_container_->GetPinnedButton(id);
+          pinned_toolbar_actions_container_->GetButtonFor(id);
       if (button && button->parent() == pinned_toolbar_actions_container_) {
         auto taken =
             pinned_toolbar_actions_container_->RemoveChildViewT(button);
@@ -421,7 +540,7 @@ void ToolbarView::ApplyToolbarItems() {
       for (actions::ActionId id :
            pinned_toolbar_actions_container_->PinnedActionIds()) {
         PinnedActionToolbarButton* const button =
-            pinned_toolbar_actions_container_->GetPinnedButton(id);
+            pinned_toolbar_actions_container_->GetButtonFor(id);
         if (button && button->parent() == this) {
           move_before(button, pinned_toolbar_actions_container_.get());
         }
@@ -448,12 +567,6 @@ void ToolbarView::ApplyHiddenItems() {
       item->ClearProperty(kHiddenByPrefKey);
       item->SetVisible(true);
     }
-  }
-}
-
-void ToolbarView::ReapplyHiddenItem(views::View* child) {
-  if (child->GetVisible() && child->GetProperty(kHiddenByPrefKey)) {
-    child->SetVisible(false);
   }
 }
 
@@ -579,15 +692,18 @@ int ToolbarView::OnDragUpdated(const ui::DropTargetEvent& event) {
   if (index > 0) {
     x -= GetLayoutConstant(LayoutConstant::kToolbarIconDefaultMargin);
   }
-  if (drop_x_ != x) {
-    drop_x_ = x;
+  if (ToolbarItemsState* const state = GetProperty(kToolbarItemsStateKey);
+      state && state->drop_x != x) {
+    state->drop_x = x;
     SchedulePaint();
   }
   return ui::DragDropTypes::DRAG_MOVE;
 }
 
 void ToolbarView::OnDragExited() {
-  drop_x_.reset();
+  if (ToolbarItemsState* const state = GetProperty(kToolbarItemsStateKey)) {
+    state->drop_x.reset();
+  }
   SchedulePaint();
 }
 
@@ -626,48 +742,17 @@ views::View::DropCallback ToolbarView::GetDropCallback(
       WithAbsentItems(std::move(tokens)));
 }
 
-void ToolbarView::WriteDragDataForView(views::View* sender,
-                                       const gfx::Point& press_pt,
-                                       ui::OSExchangeData* data) {
-  auto* const button = static_cast<ToolbarButton*>(sender);
-  data->provider().SetDragImage(button->GetImage(button->GetState()),
-                                press_pt.OffsetFromOrigin());
-  // A handle inside an item (the extensions button) drags the item.
-  views::View* item = sender;
-  while (item->parent() != this) {
-    item = item->parent();
-  }
-  base::Pickle pickle;
-  pickle.WriteString(GetItemToken(item));
-  data->SetPickledData(GetToolbarItemFormatType(), pickle);
-}
-
-int ToolbarView::GetDragOperationsForView(views::View* sender,
-                                          const gfx::Point& p) {
-  return ui::DragDropTypes::DRAG_MOVE;
-}
-
-bool ToolbarView::CanStartDragForView(views::View* sender,
-                                      const gfx::Point& press_pt,
-                                      const gfx::Point& p) {
-  return true;
-}
-
-void ToolbarView::OnWillStartDragForView(views::View* dragged_view) {
-  // Holding back or forward opens their history menu after a delay.
-  static_cast<ToolbarButton*>(dragged_view)->ClearPendingMenu();
-}
-
 void ToolbarView::OnPaint(gfx::Canvas* canvas) {
   AccessiblePaneView::OnPaint(canvas);
-  if (!drop_x_) {
+  const ToolbarItemsState* const state = GetProperty(kToolbarItemsStateKey);
+  if (!state || !state->drop_x) {
     return;
   }
   constexpr int kIndicatorWidth = 2;
   const int height = GetLayoutConstant(LayoutConstant::kToolbarButtonHeight);
+  const int x = *state->drop_x - kIndicatorWidth / 2;
   canvas->FillRect(
-      gfx::Rect(GetMirroredXWithWidthInView(*drop_x_ - kIndicatorWidth / 2,
-                                            kIndicatorWidth),
+      gfx::Rect(GetMirroredXWithWidthInView(x, kIndicatorWidth),
                 (this->height() - height) / 2, kIndicatorWidth, height),
       GetColorProvider()->GetColor(kColorToolbarButtonIcon));
 }
