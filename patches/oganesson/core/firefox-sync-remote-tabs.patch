@@ -182,7 +182,7 @@
 +    </cr-button>
 +  </div>
 +` : ''}
-+${false ? html`
++${(false as boolean) ? html`
    <div id="history-sync-optin" class="history-sync-optin">
      ${this.isSignInState_(HistorySignInState.SIGNED_OUT) ||
              this.isSignInState_(HistorySignInState.WEB_ONLY_SIGNED_IN) ?
