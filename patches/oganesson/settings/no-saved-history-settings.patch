@@ -8,16 +8,6 @@
        <if expr="not is_android">
          <part file="shared_settings_strings.grdp"/>
        </if>
---- a/chrome/app/generated_resources.grd.gritdeps
-+++ b/chrome/app/generated_resources.grd.gritdeps
-@@ -15,6 +15,7 @@
- chrome/app/nearby_share_strings.grdp
- chrome/app/notebooks_strings.grdp
- chrome/app/oganesson_firefox_sync_strings.grdp
-+chrome/app/oganesson_history_strings.grdp
- chrome/app/oganesson_mouse_gestures_strings.grdp
- chrome/app/oganesson_toolbar_strings.grdp
- chrome/app/oganesson_web_app_strings.grdp
 --- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
 +++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
 @@ -19,6 +19,7 @@

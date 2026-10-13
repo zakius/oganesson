@@ -7,3 +7,4 @@ for check in check_mouse_gestures test_job_lock test_pack; do
     python3 "tools/$check.py" > /dev/null || { echo "pre-commit: tools/$check.py failed" >&2; exit 1; }
 done
 python3 tools/translate.py --check > /dev/null || { python3 tools/translate.py --check >&2; exit 1; }
+python3 tools/grit_fixups.py --test > /dev/null || { echo "pre-commit: tools/grit_fixups.py --test failed" >&2; exit 1; }

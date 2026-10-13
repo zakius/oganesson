@@ -122,7 +122,13 @@ def main():
         subprocess.run([str(ROOT / 'utils/downloads.py'), action, '-i', str(ROOT / 'deps.ini'),
                         '-c', str(cache), *extra, '--components', 'ublock_origin', 'onboarding'],
                        check=True)
-    # Our new files, which the patches then hook in.
+    # Our new files, which the patches then hook in. Preparation copies them over the tree, so a
+    # file upstream added at the same path would be replaced without a word.
+    ours = sorted(str(p.relative_to(ROOT / 'src')) for p in (ROOT / 'src').rglob('*') if p.is_file())
+    shadowed = subprocess.run(['git', '-C', str(src), 'ls-tree', '-r', '--name-only', 'HEAD', '--',
+                               *ours], capture_output=True, text=True, check=True).stdout.split()
+    if shadowed:
+        sys.exit('src/ files that Chromium now has too; rename ours:\n  ' + '\n  '.join(shadowed))
     shutil.copytree(ROOT / 'src', src, dirs_exist_ok=True)
     failed = apply_series(src)
     report(failed)

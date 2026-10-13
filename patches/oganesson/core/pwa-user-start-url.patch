@@ -176,17 +176,6 @@
      "user_display_mode.cc",
      "user_display_mode.h",
      "user_uninstalled_preinstalled_web_app_prefs.cc",
---- a/tools/gritsettings/resource_ids.spec
-+++ b/tools/gritsettings/resource_ids.spec
-@@ -225,7 +225,7 @@
-     "includes": [2780],
-   },
-   "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/app_settings/resources.grd": {
--    "META": {"sizes": {"includes": [45]}},
-+    "META": {"sizes": {"includes": [50]}},
-     "includes": [2800],
-   },
-   "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/ash/extended_updates/resources.grd": {
 --- a/ui/webui/resources/cr_components/app_management/app_management.mojom
 +++ b/ui/webui/resources/cr_components/app_management/app_management.mojom
 @@ -255,6 +255,12 @@ interface PageHandler {

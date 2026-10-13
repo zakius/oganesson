@@ -40,7 +40,9 @@ apply_patches() {
             "${_main_repo}/utils/prune_binaries.py" "${_src_dir}" "${_main_repo}/pruning.list"
             touch "${_src_dir}/.pruned.stamp"
         fi
-        "${_main_repo}/utils/patches.py" apply "${_src_dir}" "${_main_repo}/patches" "${_root_dir}/patches"
+        # Zero fuzz, as check-patches applies them: a hunk whose context
+        # drifted fails here instead of landing somewhere else.
+        "${_main_repo}/utils/patches.py" apply --no-fuzz "${_src_dir}" "${_main_repo}/patches" "${_root_dir}/patches"
         touch "${_src_dir}/.patched.stamp"
     fi
 }
@@ -122,13 +124,16 @@ if [ ! -f "$stamp" ]; then
     cp -r /oganesson/src/. "$_src_dir"
     apply_patches
     # After helium-linux's platform patches, which set the names these rename.
-    "${_main_repo}/utils/patches.py" apply "$_src_dir" /oganesson/late
+    "${_main_repo}/utils/patches.py" apply --no-fuzz "$_src_dir" /oganesson/late
     apply_domsub
     helium_substitution
     helium_apply_translations
     python3 /oganesson/tools/translate.py "$_src_dir"
     # Helium -> oganesson in UI strings, after both steps above write them.
     python3 /oganesson/tools/branding.py "$_src_dir"
+    # .gritdeps and resource ID sizes for our resources, once every step
+    # that adds them has run.
+    python3 /oganesson/tools/grit_fixups.py "$_src_dir"
     helium_version
     helium_resources
     fix_tool_downloading

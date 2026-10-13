@@ -12,7 +12,8 @@ from check_patches import apply_series, report
 ROOT = Path(__file__).resolve().parent.parent
 work = Path(sys.argv[1])
 src = work / 'src'
-for repo in [src, *src.glob('third_party/*/src'), src / 'third_party/search_engines_data/resources']:
+for repo in [src, *src.glob('third_party/*/src'), src / 'third_party/skia',
+             src / 'third_party/search_engines_data/resources']:
     if (repo / '.git').exists():
         # regen.py leaves a commit per patch on top of the checkout; go back to the checkout.
         root = subprocess.run(['git', '-C', str(repo), 'rev-list', '--max-parents=0', 'HEAD'],

@@ -16,11 +16,14 @@
 
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
+#include "base/i18n/rtl.h"
 #include "base/no_destructor.h"
 #include "base/pickle.h"
+#include "base/scoped_observation.h"
 #include "base/strings/strcat.h"
 #include "base/values.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/extensions/extensions_toolbar_view_model.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/layout_constants.h"
@@ -41,6 +44,7 @@
 #include "chrome/browser/ui/views/toolbar/pinned_toolbar_actions_container.h"
 #include "chrome/browser/ui/views/toolbar/reload_button.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_action_view.h"
+#include "chrome/browser/ui/views/toolbar/toolbar_bubble_arrow.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_button.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
 #include "chrome/common/pref_names.h"
@@ -60,6 +64,7 @@
 #include "ui/gfx/geometry/rect.h"
 #include "ui/views/context_menu_controller.h"
 #include "ui/views/controls/button/button_controller.h"
+#include "ui/views/widget/widget.h"
 
 namespace {
 
@@ -112,14 +117,62 @@ class AppMenuFallback : public views::ContextMenuController {
   std::unique_ptr<AppMenu> menu_;
 };
 
+// Runs `apply` once the extensions container or Chrome's pinned buttons
+// container has updated its views for a change in the pinned items. It starts
+// observing after the containers, so it runs after them.
+class ContainersObserver : public ExtensionsToolbarViewModel::Observer,
+                           public PinnedToolbarActionsModel::Observer {
+ public:
+  ContainersObserver(base::RepeatingClosure apply,
+                     ExtensionsToolbarViewModel* extensions,
+                     PinnedToolbarActionsModel* pinned)
+      : apply_(std::move(apply)) {
+    if (extensions) {
+      extensions_observation_.Observe(extensions);
+    }
+    if (pinned) {
+      pinned_observation_.Observe(pinned);
+    }
+  }
+
+ private:
+  // ExtensionsToolbarViewModel::Observer:
+  void OnActionsInitialized() override { apply_.Run(); }
+  void OnActionAdded(const ToolbarActionsModel::ActionId& action_id) override {
+    apply_.Run();
+  }
+  void OnActionRemoved(
+      const ToolbarActionsModel::ActionId& action_id) override {}
+  void OnActionUpdated(
+      const ToolbarActionsModel::ActionId& action_id) override {}
+  void OnPinnedActionsChanged() override { apply_.Run(); }
+  void OnActiveWebContentsChanged(bool is_same_document,
+                                  content::WebContents* web_contents) override {
+  }
+
+  // PinnedToolbarActionsModel::Observer:
+  void OnActionsChanged() override { apply_.Run(); }
+
+  base::RepeatingClosure apply_;
+  base::ScopedObservation<ExtensionsToolbarViewModel,
+                          ExtensionsToolbarViewModel::Observer>
+      extensions_observation_{this};
+  base::ScopedObservation<PinnedToolbarActionsModel,
+                          PinnedToolbarActionsModel::Observer>
+      pinned_observation_{this};
+};
+
 }  // namespace
 
 DEFINE_UI_CLASS_PROPERTY_TYPE(AppMenuFallback*)
+DEFINE_UI_CLASS_PROPERTY_TYPE(ContainersObserver*)
 
 namespace {
 
 // Owns the toolbar's AppMenuFallback.
 DEFINE_OWNED_UI_CLASS_PROPERTY_KEY(AppMenuFallback, kAppMenuFallbackKey)
+// Owns the toolbar's ContainersObserver.
+DEFINE_OWNED_UI_CLASS_PROPERTY_KEY(ContainersObserver, kContainersObserverKey)
 
 // Drag data of a built-in toolbar item: its pickled token.
 const ui::ClipboardFormatType& GetToolbarItemFormatType() {
@@ -144,12 +197,19 @@ void ToolbarView::InitToolbarItems() {
                           base::Unretained(this)));
   set_context_menu_controller(SetProperty(
       kAppMenuFallbackKey, std::make_unique<AppMenuFallback>(this)));
+  SetProperty(kContainersObserverKey,
+              std::make_unique<ContainersObserver>(
+                  apply,
+                  extensions_container_
+                      ? extensions_container_->GetToolbarViewModel()
+                      : nullptr,
+                  pinned_toolbar_actions_container_
+                      ? PinnedToolbarActionsModel::Get(browser_->GetProfile())
+                      : nullptr));
   if (extensions_container_) {
-    extensions_container_->SetIconsChangedCallback(apply);
     extensions_container_->SetMoveDetachedCallback(move_by);
   }
   if (pinned_toolbar_actions_container_) {
-    pinned_toolbar_actions_container_->SetButtonsChangedCallback(apply);
     pinned_toolbar_actions_container_->SetMoveDetachedCallback(move_by);
   }
   // Built-in items drag like pinned ones, and act on release so a press can
@@ -177,12 +237,11 @@ void ToolbarView::ShutdownToolbarItems() {
   set_context_menu_controller(nullptr);
   // Hand the pinned items back to their containers, which own their state, so
   // they are destroyed with them.
+  ClearProperty(kContainersObserverKey);
   if (extensions_container_) {
-    extensions_container_->SetIconsChangedCallback({});
     extensions_container_->SetMoveDetachedCallback({});
   }
   if (pinned_toolbar_actions_container_) {
-    pinned_toolbar_actions_container_->SetButtonsChangedCallback({});
     pinned_toolbar_actions_container_->SetMoveDetachedCallback({});
   }
   for (views::View* child : View::Views(children())) {
@@ -268,7 +327,11 @@ void ToolbarView::ApplyToolbarItems() {
       PinnedActionToolbarButton* const button =
           pinned_toolbar_actions_container_->GetPinnedButton(id);
       if (button && button->parent() == pinned_toolbar_actions_container_) {
-        AddChildViewAt(pinned_toolbar_actions_container_->TakeButton(id),
+        auto taken =
+            pinned_toolbar_actions_container_->RemoveChildViewT(button);
+        taken->SetVisible(true);
+        pinned_toolbar_actions_container_->InvalidateLayout();
+        AddChildViewAt(std::move(taken),
                        GetIndexOf(pinned_toolbar_actions_container_).value());
       }
     }
@@ -607,4 +670,17 @@ void ToolbarView::OnPaint(gfx::Canvas* canvas) {
                                             kIndicatorWidth),
                 (this->height() - height) / 2, kIndicatorWidth, height),
       GetColorProvider()->GetColor(kColorToolbarButtonIcon));
+}
+
+views::BubbleBorder::Arrow GetToolbarBubbleArrow(const views::View* anchor) {
+  const views::Widget* const widget = anchor ? anchor->GetWidget() : nullptr;
+  if (!widget) {
+    return views::BubbleBorder::TOP_RIGHT;
+  }
+  gfx::Point center = anchor->GetLocalBounds().CenterPoint();
+  views::View::ConvertPointToWidget(anchor, &center);
+  // Bubble arrows are mirrored in RTL, where the leading half is the right one.
+  const bool in_left_half = center.x() < widget->GetRootView()->width() / 2;
+  return in_left_half != base::i18n::IsRTL() ? views::BubbleBorder::TOP_LEFT
+                                             : views::BubbleBorder::TOP_RIGHT;
 }

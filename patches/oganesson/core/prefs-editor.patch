@@ -4,32 +4,10 @@
      ":net_export_ui",
      ":ntp_tiles_internals_ui",
      ":signin_internals_ui",
-+    ":prefs_editor",
++    "//chrome/browser/ui/webui/prefs_editor",
      ":webui",
      "//chrome/browser/actor/ui:actor_overlay",
      "//chrome/browser/browser_actuator/internals",
-@@ -651,6 +652,21 @@ source_set("chrome_web_ui_controller_factory") {
-   }
- }
- 
-+source_set("prefs_editor") {
-+  sources = [ "prefs_editor/prefs_editor_ui.cc" ]
-+  public = [ "prefs_editor/prefs_editor_ui.h" ]
-+  public_deps = [
-+    "//chrome/common",
-+    "//content/public/browser",
-+  ]
-+  deps = [
-+    "//base",
-+    "//chrome/browser:browser_process",
-+    "//chrome/browser/profiles:profile",
-+    "//components/prefs",
-+  ]
-+}
-+
- if (enable_extensions_core) {
-   source_set("managed_ui_handler") {
-     sources = [ "managed_ui_handler.cc" ]
 --- a/chrome/browser/ui/webui/chrome_web_ui_configs.cc
 +++ b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
 @@ -48,6 +48,7 @@

@@ -8,16 +8,6 @@
        <if expr="not is_android">
          <part file="shared_settings_strings.grdp"/>
        </if>
---- a/chrome/app/generated_resources.grd.gritdeps
-+++ b/chrome/app/generated_resources.grd.gritdeps
-@@ -14,6 +14,7 @@ chrome/app/media_live_preview_strings.grdp
- chrome/app/media_router_strings.grdp
- chrome/app/nearby_share_strings.grdp
- chrome/app/notebooks_strings.grdp
-+chrome/app/oganesson_mouse_gestures_strings.grdp
- chrome/app/os_settings_search_tag_strings.grdp
- chrome/app/os_settings_strings.grdp
- chrome/app/password_manager_ui_strings.grdp
 --- a/chrome/browser/resources/settings/BUILD.gn
 +++ b/chrome/browser/resources/settings/BUILD.gn
 @@ -498,6 +498,13 @@ build_webui("build") {

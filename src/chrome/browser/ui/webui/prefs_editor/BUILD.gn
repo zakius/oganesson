@@ -1,0 +1,18 @@
+# Copyright 2026 The oganesson Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+source_set("prefs_editor") {
+  sources = [ "prefs_editor_ui.cc" ]
+  public = [ "prefs_editor_ui.h" ]
+  public_deps = [
+    "//chrome/common",
+    "//content/public/browser",
+  ]
+  deps = [
+    "//base",
+    "//chrome/browser:browser_process",
+    "//chrome/browser/profiles:profile",
+    "//components/prefs",
+  ]
+}
