@@ -13,7 +13,7 @@ Requires Linux x86-64, Python 3, Git, Docker, and space for a Chromium build. Th
 ```sh
 ./oganesson.py check-patches
 ./oganesson.py build -j 16 --nice 19
-./oganesson.py test gestures toolbar tab_behavior firefox_sync ubo_restart web_app_links
+./oganesson.py test gestures toolbar tab_behavior firefox_sync ubo_restart web_app_links shortcuts
 ./oganesson.py run
 ```
 
