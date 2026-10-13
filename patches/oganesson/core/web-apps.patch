@@ -213,15 +213,7 @@
    std::unique_ptr<web_app::NavigationCapturingProcess> app_navigation =
 --- a/chrome/browser/ui/web_applications/BUILD.gn
 +++ b/chrome/browser/ui/web_applications/BUILD.gn
-@@ -40,6 +40,7 @@ source_set("web_applications") {
-       "navigation_capturing_process.h",
-       "navigation_capturing_redirection_throttle.h",
-       "navigation_handle_user_data_forwarder.h",
-+      "out_of_scope_links.h",
-       "share_target_utils.h",
-       "tabbed_web_app_navigation_throttle.h",
-       "web_app_browser_controller.h",
-@@ -151,6 +152,7 @@ source_set("impl") {
+@@ -151,6 +151,7 @@ source_set("impl") {
        "diagnostics/web_app_icon_health_checks.cc",
        "navigation_capturing_process.cc",
        "navigation_capturing_redirection_throttle.cc",
@@ -551,15 +543,7 @@
  bool WebappsClientDesktop::IsUrlControlledBySeenManifest(
 --- a/content/browser/web_contents/web_contents_impl.cc
 +++ b/content/browser/web_contents/web_contents_impl.cc
-@@ -164,6 +164,7 @@
- #include "content/public/browser/keyboard_event_processing_result.h"
- #include "content/public/browser/navigation_details.h"
- #include "content/public/browser/navigation_throttle_registry.h"
-+#include "content/public/browser/new_window_form_post.h"
- #include "content/public/browser/permission_descriptor_util.h"
- #include "content/public/browser/picture_in_picture_window_controller.h"
- #include "content/public/browser/preload_pipeline_info.h"
-@@ -291,6 +292,17 @@ namespace content {
+@@ -291,6 +291,18 @@ namespace content {
  
  namespace {
  
@@ -568,7 +552,8 @@
 +
 +}  // namespace
 +
-+bool IsNewWindowForFormPost(WebContents* contents) {
++// Declared in content/public/browser/new_window_form_post.h.
++CONTENT_EXPORT bool IsNewWindowForFormPost(WebContents* contents) {
 +  return contents->GetUserData(&kNewWindowForFormPostKey);
 +}
 +
@@ -590,16 +575,6 @@
    if (!params.opener_suppressed) {
      return &new_contents_impl->GetPrimaryFrameTree();
    }
---- a/content/public/browser/BUILD.gn
-+++ b/content/public/browser/BUILD.gn
-@@ -279,6 +279,7 @@ source_set("browser_sources") {
-     "navigation_throttle.h",
-     "navigation_throttle_registry.h",
-     "navigation_ui_data.h",
-+    "new_window_form_post.h",
-     "network_context_client_base.h",
-     "network_quality_observer_factory.h",
-     "network_service_instance.h",
 --- a/ui/webui/resources/cr_components/app_management/app_management.mojom
 +++ b/ui/webui/resources/cr_components/app_management/app_management.mojom
 @@ -250,6 +250,17 @@ interface PageHandler {
