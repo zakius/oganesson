@@ -14,7 +14,7 @@ A link in an installed web app's window that leads out of the app's scope opens 
 - **Normal tabs** are not affected.
 - **Turning it off.** The pref `oganesson.web_apps.open_out_of_scope_links_in_default_browser` in `about:config` (on by default, one setting for all apps).
 
-Code: `src/chrome/browser/ui/web_applications/out_of_scope_links.cc`, hooked in by `patches/oganesson/core/pwa-external-links.patch`. Verified by `./oganesson.py test web_app_links`.
+Code: `src/chrome/browser/ui/web_applications/out_of_scope_links.cc`, hooked in by `patches/oganesson/core/web-apps.patch`. Verified by `./oganesson.py test web_app_links`.
 
 ## Scope rules
 
@@ -34,7 +34,7 @@ An installed app's settings page (`chrome://app-settings/<id>`) has a "Pages tha
 - **What doesn't.** Installing and updating apps use the manifest's scope only, as does the install icon's check whether a page's app is already installed.
 - **Saving.** Save checks every pattern. An invalid one is rejected with a message naming it, and the rules saved before stay. An empty card removes the rules.
 - **Storage.** Per app, in the profile pref `oganesson.web_apps.user_scope_rules`. App updates and restarts keep them; they are not synced, and stay if the app is uninstalled, for a reinstall.
-Code: `src/chrome/browser/web_applications/user_app_scope.cc` and `src/chrome/browser/resources/app_settings/scope_rules_item.ts`, hooked in by `patches/oganesson/core/pwa-user-scope.patch`. In normal tabs, the rules apply through `WebAppRegistrar`, whose URL-to-app matching (`FindBestAppWithUrlInScope`, `IsUrlInAppScope`, `IsUrlInAppExtendedScope`, `FindAppThatCapturesLinksInScope`, `GetAllAppsControllingUrl`) goes through `GetUserAppScopeScore()`; `WebappsClientDesktop::IsAppFullyInstalledForSiteUrl` asks it with `manifest_scope_only`. Verified by `./oganesson.py test web_app_links`.
+Code: `src/chrome/browser/web_applications/user_app_scope.cc` and `src/chrome/browser/resources/app_settings/scope_rules_item.ts`, hooked in by `patches/oganesson/core/web-apps.patch`. In normal tabs, the rules apply through `WebAppRegistrar`, whose URL-to-app matching (`FindBestAppWithUrlInScope`, `IsUrlInAppScope`, `IsUrlInAppExtendedScope`, `FindAppThatCapturesLinksInScope`, `GetAllAppsControllingUrl`) goes through `GetUserAppScopeScore()`; `WebappsClientDesktop::IsAppFullyInstalledForSiteUrl` asks it with `manifest_scope_only`. Verified by `./oganesson.py test web_app_links`.
 
 ## Start address
 
@@ -46,4 +46,4 @@ The same page has a "Start address" card: the URL the app opens at, in place of 
 - **Out of scope.** Allowed: the app opens there and shows the out-of-app bar, as for any page out of its scope. Rejecting it would make the user add a scope rule first, and a start address on another site (a sign-in page, say) is a valid choice. An app whose `launch_handler` focuses its open window (`focus-existing`) gets launches in its page's launch queue, which only takes URLs in its scope; for an out-of-scope start address, its open window navigates there instead.
 - **Storage.** Per app, in the profile pref `oganesson.web_apps.user_start_urls`, kept like the scope rules: across app updates and restarts, not synced, and kept after an uninstall, for a reinstall.
 
-Code: `src/chrome/browser/web_applications/user_app_start_url.cc` and `src/chrome/browser/resources/app_settings/start_url_item.ts`, hooked in by `patches/oganesson/core/pwa-user-start-url.patch`. Verified by `./oganesson.py test web_app_links`.
+Code: `src/chrome/browser/web_applications/user_app_start_url.cc` and `src/chrome/browser/resources/app_settings/start_url_item.ts`, hooked in by `patches/oganesson/core/web-apps.patch`. Verified by `./oganesson.py test web_app_links`.
