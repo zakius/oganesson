@@ -31,6 +31,8 @@ class DocumentInput final : public GarbageCollected<DocumentInput>,
   void Trace(Visitor* visitor) const override { Supplement::Trace(visitor); }
 };
 
+}  // namespace
+
 bool HadDocumentInput(const Frame& frame) {
   const auto* local_frame = DynamicTo<LocalFrame>(frame);
   // ponytail: a frame in another process (the parent of an out-of-process
@@ -43,8 +45,6 @@ bool HadDocumentInput(const Frame& frame) {
          Supplement<LocalDOMWindow>::From<DocumentInput>(
              local_frame->DomWindow());
 }
-
-}  // namespace
 
 bool RequiresDocumentInput(const Document& document) {
   return document.GetPage() &&

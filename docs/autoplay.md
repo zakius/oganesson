@@ -5,7 +5,7 @@ Settings → Privacy and security → Site settings → Autoplay (in "Additional
 | Choice | Value | What plays without user input |
 |---|---|---|
 | Allow audio and video | `ALLOW` | Everything. |
-| Block audio | `ASK` | Chromium's own policy: muted video, and media with sound once the user interacted with the site, also on a page opened from it, and on sites with high media engagement. |
+| Block audio | `ASK` | Chromium's own policy: muted video, and media with sound once the user interacted with the site, also on a page opened from it, and on sites with high media engagement. As with Block audio and video, an extension's script or message isn't interaction. |
 | Block audio and video (default) | `BLOCK` | Nothing, muted media included. |
 
 Exceptions for a site are Allow or Block, set on the Autoplay page or in the site's permissions. The setting of the top-level site applies to all its frames. A changed setting applies to the next page loaded, not to pages already open.
@@ -28,7 +28,7 @@ Chromium's other exceptions still allow autoplay: an installed web app's own pag
 
 ## Code
 
-`src/chrome/browser/content_settings/autoplay_setting.cc` reads the setting for the top-level URL when a frame is about to commit a new document (`SoundContentSettingObserver::ReadyToCommitNavigation`) and sends blink an autoplay flag for that document, through the existing `AutoplayConfigurationClient`: `kAutoplayFlagForceAllow` for Allow, the new `kAutoplayFlagDocumentInputRequired` for Block, none for Block audio. The flag arrives before the document runs script. Block audio leaves the WebPreferences autoplay policy (`kDocumentUserActivationRequired`) as Chromium sets it.
+`src/chrome/browser/content_settings/autoplay_setting.cc` reads the setting for the top-level URL when a frame is about to commit a new document (`SoundContentSettingObserver::ReadyToCommitNavigation`) and sends blink an autoplay flag for that document, through the existing `AutoplayConfigurationClient`: `kAutoplayFlagForceAllow` for Allow, the new `kAutoplayFlagDocumentInputRequired` for Block, none for Block audio. The flag arrives before the document runs script. Block audio leaves the WebPreferences autoplay policy (`kDocumentUserActivationRequired`) as Chromium sets it. Its checks of the frame's sticky and transient activation use `HadDocumentInput()` and `HasTransientUserActivation()` from `oganesson_autoplay.cc`, so the activation an extension passes on doesn't count there either.
 
 When the page has `kAutoplayFlagDocumentInputRequired`, blink's `AutoplayPolicy` hands three decisions to `src/third_party/blink/renderer/core/html/media/oganesson_autoplay.cc` (hooks in `patches/oganesson/core/autoplay-setting.patch`):
 

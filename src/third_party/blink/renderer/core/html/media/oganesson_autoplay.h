@@ -23,6 +23,11 @@ namespace oganesson_autoplay {
 // The page's Autoplay setting is "Block audio and video".
 bool RequiresDocumentInput(const Document& document);
 
+// `frame`'s document received user input: the sticky activation that Block
+// audio counts in place of the frame's, which an extension's script or
+// message can also set (see DidReceiveUserActivation()).
+bool HadDocumentInput(const Frame& frame);
+
 // AutoplayPolicy::IsDocumentAllowedToPlay() after the force-allow and media
 // capture checks: only input in `document` or in an ancestor delegating
 // autoplay counts. Not the activation a navigation carries over, media
@@ -31,7 +36,8 @@ bool IsDocumentAllowedToPlay(const Document& document);
 
 // AutoplayPolicy::HasTransientUserActivation(): the transient activation of
 // `frame`'s own document, not the opener's, nor what a reused frame keeps from
-// the previous document.
+// the previous document, and only once the document had input. Block audio
+// uses it for the frame's own activation too.
 bool HasTransientUserActivation(const LocalFrame& frame);
 
 // A user activation reached `frame`'s document: input in it or in a child
