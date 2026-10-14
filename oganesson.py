@@ -56,7 +56,8 @@ PREP_INPUTS = ('work/helium-tree', 'linux/helium-linux', 'l10n', 'dubna/l10n',
                'tools/branding.py', 'tools/grit_fixups.py', 'dubna/tools/translate.py',
                'linux/container-build.sh', 'tools/prepare.sh')
 # The Windows tree's inputs besides those: helium-windows and its build script.
-WINDOWS_INPUTS = ('windows/helium-windows', 'windows/container-build.sh')
+WINDOWS_INPUTS = ('windows/helium-windows', 'windows/container-build.sh',
+                  'windows/helium-windows-drops.txt')
 # Caches, tests, resources/generated (which preparation itself writes), git
 # metadata and helium-linux's own copy of Helium, which TREE stands in for.
 PREP_SKIP = {'__pycache__', 'tests', 'generated', '.git', 'helium-chromium'}

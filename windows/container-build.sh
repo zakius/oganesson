@@ -32,6 +32,20 @@ export DEPOT_TOOLS_WIN_TOOLCHAIN=1
 export DEPOT_TOOLS_WIN_TOOLCHAIN_BASE_URL="$toolchain"
 export "GYP_MSVS_HASH_${pin_hash}=$(cat "$toolchain/hash")"
 
+# helium-windows' series without windows/helium-windows-drops.txt: a folder of
+# links to its patches, with its own series.
+_platform_patches="${_build_dir}/helium-windows-patches"
+platform_series() {
+    rm -rf "$_platform_patches"
+    mkdir -p "$_platform_patches"
+    local entry
+    for entry in "$_root_dir"/patches/*; do
+        [ "$(basename "$entry")" = series ] || ln -s "$entry" "$_platform_patches/"
+    done
+    grep -vxF -f <(cut -f1 /oganesson/windows/helium-windows-drops.txt | grep -v '^#') \
+        "$_root_dir/patches/series" > "$_platform_patches/series"
+}
+
 # Windows' own dependencies (DirectX and WebAuthn headers, WTL, the LZMA SDK's
 # tools...): the clone's gclient config, with Windows added to its targets.
 windows_deps() {
@@ -98,6 +112,7 @@ fi
 
 if [ ! -f "$stamp" ]; then
     windows_deps
+    platform_series
     prepare_tree
     windows_resources
     # helium-linux's host tools (Linux clang and Rust, node, CIPD packages),

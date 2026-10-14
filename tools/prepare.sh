@@ -2,7 +2,8 @@
 # scripts/shared.sh (its platform-neutral steps) and after the script sets
 # _main_repo (work/helium-tree), _root_dir (the platform's Helium repo:
 # helium-linux or helium-windows), _build_dir, _src_dir, _dl_cache, _out_dir,
-# _namesubs_cache, _mtimes and stamp.
+# _namesubs_cache, _mtimes and stamp; _platform_patches, when set, replaces
+# the platform's patches folder.
 
 # helium-linux's step: Helium's series, then the platform's and ours. Pruning
 # runs once per tree, as it also removes the toolchains setup_toolchain installs.
@@ -15,7 +16,7 @@ apply_patches() {
         # Zero fuzz, as check-patches applies them: a hunk whose context
         # drifted fails here instead of landing somewhere else.
         "${_main_repo}/utils/patches.py" apply --no-fuzz "${_src_dir}" "${_main_repo}/patches" \
-            "${_root_dir}/patches" /oganesson/patches
+            "${_platform_patches:-${_root_dir}/patches}" /oganesson/patches
         touch "${_src_dir}/.patched.stamp"
     fi
 }

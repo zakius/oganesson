@@ -1,0 +1,11 @@
+# helium-windows patches oganesson leaves out (windows/container-build.sh removes them from
+# helium-windows' series), as patches/helium-drops.txt does for Helium's. One per line: path in
+# helium-windows' series<TAB>reason.
+helium/windows/updater/winsparkle-drop-3rdparty-deps.patch	No auto-updater: WinSparkle, which these build into the browser, is not fetched
+helium/windows/updater/winsparkle-api-extensions.patch	No auto-updater: WinSparkle, which these build into the browser, is not fetched
+helium/windows/updater/winsparkle-headless-ui.patch	No auto-updater: WinSparkle, which these build into the browser, is not fetched
+helium/windows/updater/glue.patch	No auto-updater: WinSparkle, which these build into the browser, is not fetched
+helium/windows/updater/build-wiring.patch	No auto-updater: WinSparkle, which these build into the browser, is not fetched
+helium/windows/updater/register.patch	No auto-updater: WinSparkle, which these build into the browser, is not fetched
+helium/windows/updater/helper.patch	No auto-updater: WinSparkle, which these build into the browser, is not fetched
+helium/windows/updater/update-notifications.patch	No auto-updater: WinSparkle, which these build into the browser, is not fetched
