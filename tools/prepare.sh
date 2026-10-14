@@ -3,7 +3,8 @@
 # _main_repo (work/helium-tree), _root_dir (the platform's Helium repo:
 # helium-linux or helium-windows), _build_dir, _src_dir, _dl_cache, _out_dir,
 # _namesubs_cache, _mtimes and stamp; _platform_patches, when set, replaces
-# the platform's patches folder.
+# the platform's patches folder; _platform_late, when set, is the platform's
+# late series (linux/late).
 
 # helium-linux's step: Helium's series, then the platform's and ours. Pruning
 # runs once per tree, as it also removes the toolchains setup_toolchain installs.
@@ -56,6 +57,9 @@ prepare_tree() {
     apply_patches
     # After the platform patches, which set the names these rename.
     "${_main_repo}/utils/patches.py" apply --no-fuzz "$_src_dir" /oganesson/late
+    # The platform's: renames of what its Helium repo's patches set.
+    [ -z "${_platform_late:-}" ] ||
+        "${_main_repo}/utils/patches.py" apply --no-fuzz "$_src_dir" "$_platform_late"
     apply_domsub
     helium_substitution
     helium_apply_translations
@@ -79,7 +83,7 @@ build_ours() {
     local -a ours
     mapfile -t ours < <(python3 /oganesson/dubna/tools/ours.py "$_out_dir" \
         /oganesson/dubna/src /oganesson/src \
-        $(for d in /oganesson/patches /oganesson/late; do sed "/^#/d;/^$/d;s|^|$d/|" "$d/series"; done))
+        $(for d in /oganesson/patches /oganesson/late ${_platform_late:-}; do sed "/^#/d;/^$/d;s|^|$d/|" "$d/series"; done))
     [ ${#ours[@]} -eq 0 ] ||
         python3 third_party/depot_tools/autoninja.py -C "$_out_dir" "${jobs[@]}" -k 0 "${ours[@]}"
 }

@@ -1,0 +1,173 @@
+# Renames what helium-windows' change-branding.patch names Helium: the install and profile
+# folder (%LOCALAPPDATA%\Oganesson, no company folder, as Chromium's), ProgIDs (11 characters at
+# most), the URL scheme, the policy key and the installer's names. Made from that patch's
+# lines carrying the name.
+--- a/chrome/install_static/chromium_install_modes.h
++++ b/chrome/install_static/chromium_install_modes.h
+@@ -17,14 +17,14 @@
+ 
+ // The brand-specific company name to be included as a component of the install
+ // and user data directory paths. May be empty if no such dir is to be used.
+-inline constexpr wchar_t kCompanyPathName[] = L"imput";
++inline constexpr wchar_t kCompanyPathName[] = L"";
+ 
+ // The brand-specific product name to be included as a component of the install
+ // and user data directory paths.
+-inline constexpr wchar_t kProductPathName[] = L"Helium";
++inline constexpr wchar_t kProductPathName[] = L"Oganesson";
+ 
+ // The brand-specific safe browsing client name.
+-inline constexpr char kSafeBrowsingName[] = "helium";
++inline constexpr char kSafeBrowsingName[] = "oganesson";
+ 
+ // Note: This list of indices must be kept in sync with the brand-specific
+ // resource strings in chrome/installer/util/prebuild/create_string_rc.
+@@ -54,15 +54,15 @@
+         .logo_suffix = L"",  // No logo suffix for the primary install mode.
+         .app_guid =
+             L"{FB68A146-637A-48C2-A0C4-1565DE45FEBD}",
+-        .base_app_name = L"Helium",              // A distinct base_app_name.
+-        .base_app_id = L"Helium",                // A distinct base_app_id.
+-        .browser_prog_id_prefix = L"HeliumHTM",  // Browser ProgID prefix.
++        .base_app_name = L"Oganesson",              // A distinct base_app_name.
++        .base_app_id = L"Oganesson",                // A distinct base_app_id.
++        .browser_prog_id_prefix = L"OganessonHT",  // Browser ProgID prefix.
+         .browser_prog_id_description =
+-            L"Helium HTML Document",  // Browser ProgID description.
+-        .direct_launch_url_scheme = "helium",
+-        .pdf_prog_id_prefix = L"HeliumPDF",  // PDF ProgID prefix.
++            L"Oganesson HTML Document",  // Browser ProgID description.
++        .direct_launch_url_scheme = "oganesson",
++        .pdf_prog_id_prefix = L"OganessonPD",  // PDF ProgID prefix.
+         .pdf_prog_id_description =
+-            L"Helium PDF Document",  // PDF ProgID description.
++            L"Oganesson PDF Document",  // PDF ProgID description.
+         .active_setup_guid =
+             L"{FB68A146-637A-48C2-A0C4-1565DE45FEBD}",  // Active Setup
+                                                         // GUID.
+--- a/chrome/installer/mini_installer/mini_installer_constants.cc
++++ b/chrome/installer/mini_installer/mini_installer_constants.cc
+@@ -12,7 +12,7 @@
+ // The target name of the installer extracted from resources.
+ const wchar_t kSetupExe[] = L"setup.exe";
+ // The prefix of the chrome archive resource.
+-const wchar_t kChromeArchivePrefix[] = L"helium";
++const wchar_t kChromeArchivePrefix[] = L"oganesson";
+ // The prefix of the installer resource.
+ const wchar_t kSetupPrefix[] = L"setup";
+ 
+--- a/chrome/installer/setup/installer_crash_reporter_client.cc
++++ b/chrome/installer/setup/installer_crash_reporter_client.cc
+@@ -103,7 +103,7 @@
+       L"SOFTWARE\\Policies\\Google\\Chrome";
+ #else
+   static const wchar_t kRegistryChromePolicyKey[] =
+-      L"SOFTWARE\\Policies\\Helium";
++      L"SOFTWARE\\Policies\\Oganesson";
+ #endif
+   static const wchar_t kMetricsReportingEnabled[] = L"MetricsReportingEnabled";
+ 
+--- a/components/policy/tools/generate_policy_source.py
++++ b/components/policy/tools/generate_policy_source.py
+@@ -28,7 +28,7 @@
+ 
+ CHROME_POLICY_KEY = 'SOFTWARE\\\\Policies\\\\Google\\\\Chrome'
+ CHROME_FOR_TESTING_POLICY_KEY = CHROME_POLICY_KEY + ' for Testing'
+-CHROMIUM_POLICY_KEY = 'SOFTWARE\\\\Policies\\\\Helium'
++CHROMIUM_POLICY_KEY = 'SOFTWARE\\\\Policies\\\\Oganesson'
+ PLATFORM_STRINGS = {
+     'chrome_frame': ['win'],
+     'chrome_os': ['chrome_os'],
+--- a/chrome/installer/setup/setup_constants.cc
++++ b/chrome/installer/setup/setup_constants.cc
+@@ -7,14 +7,14 @@
+ namespace installer {
+ 
+ // Elements that make up install paths.
+-const wchar_t kChromeArchive[] = L"helium.7z";
+-const wchar_t kChromeCompressedArchive[] = L"helium.packed.7z";
++const wchar_t kChromeArchive[] = L"oganesson.7z";
++const wchar_t kChromeCompressedArchive[] = L"oganesson.packed.7z";
+ const char kVisualElements[] = "VisualElements";
+ const wchar_t kVisualElementsManifest[] = L"chrome.VisualElementsManifest.xml";
+ 
+ // Sub directory of install source package under install temporary directory.
+ const wchar_t kInstallSourceDir[] = L"source";
+-const wchar_t kInstallSourceChromeDir[] = L"Helium-bin";
++const wchar_t kInstallSourceChromeDir[] = L"Oganesson-bin";
+ 
+ const wchar_t kMediaPlayerRegPath[] =
+     L"Software\\Microsoft\\MediaPlayer\\ShimInclusionList";
+--- a/chrome/installer/util/logging_installer.cc
++++ b/chrome/installer/util/logging_installer.cc
+@@ -126,7 +126,7 @@
+ #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
+       FILE_PATH_LITERAL("chrome_installer.log");
+ #else  // BUILDFLAG(CHROMIUM_BRANDING)
+-      FILE_PATH_LITERAL("helium_installer.log");
++      FILE_PATH_LITERAL("oganesson_installer.log");
+ #endif
+ 
+   // Fallback to current directory if getting the secure or temp directory
+--- a/chrome/installer/mini_installer/BUILD.gn
++++ b/chrome/installer/mini_installer/BUILD.gn
+@@ -159,8 +159,8 @@
+   ]
+ 
+   outputs = [
+-    "$root_out_dir/helium.7z",
+-    "$root_out_dir/helium.packed.7z",
++    "$root_out_dir/oganesson.7z",
++    "$root_out_dir/oganesson.packed.7z",
+     "$root_out_dir/setup.ex_",
+     packed_files_rc_file,
+   ]
+--- a/chrome/tools/build/win/create_installer_archive.py
++++ b/chrome/tools/build/win/create_installer_archive.py
+@@ -25,7 +25,7 @@
+ # suffix to uncompressed full archive file, appended to options.output_name
+ ARCHIVE_SUFFIX = ".7z"
+ BSDIFF_EXEC = "bsdiff.exe"
+-CHROME_DIR = "Helium-bin"
++CHROME_DIR = "Oganesson-bin"
+ CHROME_PATCH_FILE_SUFFIX = "_patch"  # prefixed by options.output_name
+ 
+ # compressed full archive suffix, will be prefixed by options.output_name
+@@ -892,7 +892,7 @@
+     parser.add_option(
+         '-n',
+         '--output_name',
+-        default='helium',
++        default='oganesson',
+         help='Name used to prefix names of generated archives.',
+     )
+     parser.add_option(
+--- a/components/policy/tools/template_writers/writer_configuration.py
++++ b/components/policy/tools/template_writers/writer_configuration.py
+@@ -27,21 +27,21 @@
+   if '_chromium' in defines:
+     config = {
+         'build': 'chromium',
+-        'app_name': 'Helium',
++        'app_name': 'Oganesson',
+         'doc_url': 'https://chromeenterprise.google/policies/',
+         'frame_name': 'Chromium Frame',
+         'os_name': 'ChromiumOS',
+         'webview_name': 'Chromium WebView',
+         'win_config': {
+             'win': {
+-                'reg_mandatory_key_name': 'Software\\Policies\\Helium',
++                'reg_mandatory_key_name': 'Software\\Policies\\Oganesson',
+                 'reg_recommended_key_name':
+-                'Software\\Policies\\Helium\\Recommended',
++                'Software\\Policies\\Oganesson\\Recommended',
+                 'mandatory_category_path': ['chromium'],
+                 'recommended_category_path': ['chromium_recommended'],
+                 'category_path_strings': {
+-                    'chromium': 'Helium',
+-                    'chromium_recommended': 'Helium - {doc_recommended}',
++                    'chromium': 'Oganesson',
++                    'chromium_recommended': 'Oganesson - {doc_recommended}',
+                 },
+                 'namespace': 'Chromium.Policies.Chromium',
+             },

@@ -43,8 +43,10 @@ TREE = WORK / 'helium-tree'
 DROPS = ROOT / 'patches/helium-drops.txt'
 UTILS_PATCH = ROOT / 'patches/helium-utils.patch'
 # Applied in this order: Helium's, helium-linux's, ours (with dubna's), and the
-# late ones that rename what the platform patches set.
-SERIES = (TREE / 'patches', HELIUM_LINUX / 'patches', ROOT / 'patches', ROOT / 'late')
+# late ones: late/ for every platform, then linux/late, which renames what
+# helium-linux's patches set.
+SERIES = (TREE / 'patches', HELIUM_LINUX / 'patches', ROOT / 'patches', ROOT / 'late',
+          ROOT / 'linux/late')
 # Our new files, copied over the tree before the patches: dubna's, which
 # tennessine shares, then ours.
 SOURCES = ('dubna/src', 'src')
@@ -57,7 +59,7 @@ PREP_INPUTS = ('work/helium-tree', 'linux/helium-linux', 'l10n', 'dubna/l10n',
                'linux/container-build.sh', 'tools/prepare.sh')
 # The Windows tree's inputs besides those: helium-windows and its build script.
 WINDOWS_INPUTS = ('windows/helium-windows', 'windows/container-build.sh',
-                  'windows/helium-windows-drops.txt')
+                  'windows/helium-windows-drops.txt', 'windows/late')
 # Caches, tests, resources/generated (which preparation itself writes), git
 # metadata and helium-linux's own copy of Helium, which TREE stands in for.
 PREP_SKIP = {'__pycache__', 'tests', 'generated', '.git', 'helium-chromium'}

@@ -39,7 +39,7 @@ The browser keeps its own profile in `~/.config/oganesson-focused`, separate fro
 | `linux/` | The Linux build (`container-build.sh`), packaging and publishing, and the `helium-linux` submodule with its platform patches. |
 | `dubna/` | Submodule: [dubna](https://github.com/zakius/dubna), the code, patches and translations shared with tennessine. |
 | `patches/` | Our patches (`series`), applied after Helium's and helium-linux's. Also `helium-drops.txt`, and `helium-utils.patch` with our fixes to Helium's build tools. |
-| `late/` | Patches applied after the platform's, which rename what the platform sets (branding). |
+| `late/` | Patches applied after the platform's: branding for every platform. Each platform's own renames of what its Helium repo sets are in `linux/late/` (and `windows/late/`). |
 | `src/` | Our new files, copied over the Chromium tree after `dubna/src/`. |
 | `resources/` | Our branding, laid over Helium's resources. |
 | `l10n/` | Polish translations of our strings. |

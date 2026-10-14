@@ -16,6 +16,7 @@ set -euo pipefail
 setup_environment
 _main_repo=/oganesson/work/helium-tree
 _root_dir=/oganesson/windows/helium-windows
+_platform_late=/oganesson/windows/late
 _build_dir=/oganesson/work/helium-windows/build
 _dl_cache="${_build_dir}/download_cache"
 _src_dir="${_build_dir}/src"
