@@ -25,9 +25,13 @@
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/ui/navigator/browser_navigator.h"
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
-#include "crypto/nss_util.h"
+#include "build/build_config.h"
 #include "services/data_decoder/public/cpp/decode_image.h"
 #include "third_party/skia/include/core/SkBitmap.h"
+
+#if BUILDFLAG(IS_LINUX)
+#include "crypto/nss_util.h"
+#endif
 #include "ui/gfx/image/image.h"
 #include "url/gurl.h"
 
@@ -117,11 +121,17 @@ std::unique_ptr<Platform> CreatePlatform(Profile* profile) {
 }
 
 base::FilePath SyncLibraryPath() {
-  // Chromium's own NSS setup first; the library then uses it as is.
-  crypto::EnsureNSSInit();
   base::FilePath dir;
   base::PathService::Get(base::DIR_MODULE, &dir);
+#if BUILDFLAG(IS_WIN)
+  // Next to chrome.dll, with the NSS DLLs it loads; it initializes NSS itself,
+  // which Chromium doesn't use on Windows.
+  return dir.Append(FILE_PATH_LITERAL("oganesson_sync.dll"));
+#else
+  // Chromium's own NSS setup first; the library then uses it as is.
+  crypto::EnsureNSSInit();
   return dir.Append(FILE_PATH_LITERAL("liboganesson_sync.so"));
+#endif
 }
 
 }  // namespace firefox_sync

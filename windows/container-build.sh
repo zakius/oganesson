@@ -179,3 +179,5 @@ jobs=()
 export SISO_PATH="${_src_dir}/third_party/siso/cipd/siso"
 build_ours
 python3 third_party/depot_tools/autoninja.py -C "$_out_dir" "${jobs[@]}" -k 0 chrome
+# Firefox Sync's Rust library, loaded by the browser from its folder.
+bash /oganesson/windows/build-sync-lib.sh "$_src_dir" "$_out_dir"
