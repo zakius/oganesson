@@ -42,7 +42,9 @@ Every other Helium patch is carried, also the ones earlier reviews called indiff
 | `helium/core/override-chrome-protocol` | Internal pages show as `oganesson://` instead of `helium://` (`late/branding`); `chrome://` still works. |
 | `helium/core/change-chromium-branding` | `late/branding` renames Helium to oganesson. |
 | `helium/core/flags-setup`, `add-low-power-framerate-flag`, `bookmark-open-all-confirmation-flag`, `helium/ui/hide-page-actions-flag`, the `ungoogled-chromium/add-flag-*` and `bromite/*-flags` patches | Only add `chrome://flags` entries, off by default. |
-| `helium/core/search/restore-google`, `force-eu-search-features`, `break-favicons`, `update-default-browser-prefs`, `add-default-browser-reject-button`, `remove-dead-toolbar-actions`, `scan-chrome-native-messaging-hosts` | Neutral as they are. |
+| `helium/core/update-default-browser-prefs`, `add-default-browser-reject-button`, `remove-dead-toolbar-actions`, `scan-chrome-native-messaging-hosts` | Neutral as they are. |
+
+- Search engines: Helium's whole search group is carried, with ungoogled-chromium's `prepopulated-search-engines` (`restore-google` renames Google's engine and `engine-defaults` updates the regional lists to match, so they go together). New profiles get one engine list everywhere, DuckDuckGo first, and the EU search engine choice screen (`force-eu-search-features`); engines' favicons aren't fetched (`break-favicons`). Decided 2026-10-14.
 
 ## Notes on carried patches
 
