@@ -24,7 +24,8 @@ class ToolbarTest(BrowserTest):
         cls.folder = Path(tempfile.mkdtemp(prefix='oganesson-toolbar-'))
         (cls.folder / 'manifest.json').write_text(json.dumps(MANIFEST))
         cls.browser_args = (f'--load-extension={cls.folder}',)
-        cls.prefs = {'toolbar': {'pinned_actions': ['kActionSidePanelShowReadingList']}}
+        # Print: Helium removes Reading list from the pinnable buttons.
+        cls.prefs = {'toolbar': {'pinned_actions': ['kActionPrint']}}
         super().setUpClass()
 
     @classmethod
@@ -40,8 +41,8 @@ class ToolbarTest(BrowserTest):
         return self.browser.wait_view('BackForwardButton', match=lambda v: (
             v['TooltipText'] or '').startswith('Click to go back'))
 
-    def reading_list(self):
-        return self.browser.wait_view('PinnedActionToolbarButton', TooltipText='Reading list')
+    def print_button(self):
+        return self.browser.wait_view('PinnedActionToolbarButton', TooltipText='Print')
 
     def drag(self, view, to_x):
         x, y = view.center
@@ -52,7 +53,7 @@ class ToolbarTest(BrowserTest):
 
     def order(self):
         """The left-to-right order of the items these tests move."""
-        items = {'action': self.action(), 'reading_list': self.reading_list(),
+        items = {'action': self.action(), 'print': self.print_button(),
                  'reload': self.browser.wait_view('ReloadButton'),
                  'back': self.back(),
                  'location_bar': self.browser.wait_view('LocationBarView')}
@@ -84,9 +85,9 @@ class ToolbarTest(BrowserTest):
 
     def test_4_chrome_pinned_button_moves_on_its_own(self):
         back = self.back()
-        self.drag(self.reading_list(), back.bounds['x'] + back.bounds['width'])
-        wait_for(lambda: self.order()[:3] == ['action', 'back', 'reading_list'],
-                 what='reading list right after back')
+        self.drag(self.print_button(), back.bounds['x'] + back.bounds['width'])
+        wait_for(lambda: self.order()[:3] == ['action', 'back', 'print'],
+                 what='print right after back')
 
     def test_5_order_survives_restart(self):
         before = self.order()
@@ -128,10 +129,10 @@ class ToolbarTest(BrowserTest):
           return walk(document); })()"""
         wait_for(lambda: page.eval(f'{reset} && !{reset}.disabled'), what='reset enabled')
         page.eval(f'{reset}.click()')
-        # Reading list is unpinned; the others are back in their places, the
+        # Print is unpinned; the others are back in their places, the
         # extension's action just before the extensions button.
         wait_for(lambda: not any(v.visible for v in self.browser.views(
-            'PinnedActionToolbarButton', TooltipText='Reading list')), what='Reading list unpinned')
+            'PinnedActionToolbarButton', TooltipText='Print')), what='Print unpinned')
 
         def order():
             items = {'action': self.action(), 'back': self.back(),
@@ -205,7 +206,7 @@ class TabSearchButtonTest(BrowserTest):
 
 class VerticalTabSearchButtonTest(TabSearchButtonTest):
     """The same with the vertical tab strip."""
-    prefs = {'vertical_tabs': {'enabled': True}}
+    prefs = {'helium': {'browser': {'layout': 2}}}  # Helium's vertical layout
 
 
 if __name__ == '__main__':
