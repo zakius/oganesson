@@ -46,7 +46,11 @@ windows_deps() {
         echo "gclient state still names the Linux tree" >&2
         exit 1
     fi
-    (cd "$staging" && DEPOT_TOOLS_UPDATE=0 \
+    # clone.py's environment: its depot_tools (and their vpython3, on the
+    # system Python) first.
+    (cd "$staging" && PATH="$staging/depot_tools:$PATH" PYTHONPATH="$staging/depot_tools" \
+        DEPOT_TOOLS_UPDATE=0 PYTHONDONTWRITEBYTECODE=1 PYTHONWARNINGS=ignore::SyntaxWarning \
+        VPYTHON_BYPASS='manually managed python not supported by chrome operations' \
         python3 depot_tools/gclient.py sync --nohooks --no-history --shallow -j 8)
     touch "${_src_dir}/.windeps.stamp"
 }
