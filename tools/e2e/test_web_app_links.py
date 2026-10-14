@@ -1,8 +1,7 @@
-"""Installed web apps' out-of-scope links open in the system default browser
-(#270), with the scope rules the user adds on chrome://app-settings (#271,
-#346) and the start address set there (#346), and from a link's context menu
-in an app window (#345); also for DIY apps, and not for isolated web apps
-(#351). In normal tabs, "Open in app" and link capturing follow the scope
+"""Installed web apps' out-of-scope links open in the system default browser,
+with the scope rules the user adds on chrome://app-settings and the start
+address set there, and from a link's context menu in an app window; also for
+DIY apps, and not for isolated web apps. In normal tabs, "Open in app" and link capturing follow the scope
 rules too. A stub `xdg-open` on PATH stands in for the desktop's default
 handler and records the URLs it gets, and the activation token variables it
 sees, which decide whether the browser it starts may take focus; a stub `xdg-settings` and a desktop
@@ -489,7 +488,7 @@ class WebAppLinksTest(WebAppTest):
         self.assertEqual(self.opened(), [])
 
     def test_user_rule_on_app_site_narrows_scope(self):
-        # #346: the manifest's /app/ on 127.0.0.1 gives way to the rule there.
+        # the manifest's /app/ on 127.0.0.1 gives way to the rule there.
         self.set_rules(NARROW)
         app = self.launch_app()
         app.click('#inside')
@@ -542,7 +541,7 @@ class WebAppLinksTest(WebAppTest):
         self.assertEqual(self.settings_rules(), [RULES, '', False])
 
     def test_rules_row_stacks(self):
-        # #287: the textarea spans the row, the error and Save below it.
+        # the textarea spans the row, the error and Save below it.
         *_, shown, boxes = self.settings_rules('http://example.com/(\\d+)', layout=True)
         self.assertTrue(shown)
         card, textarea, error, save = (boxes[k] for k in ('card', 'textarea', 'error', 'save'))
@@ -674,7 +673,7 @@ class WebAppLinksTest(WebAppTest):
         self.assertEqual(self.opened(), [])
 
     def test_menu_opens_link_in_default_browser(self):
-        # #345: also a link in the app's scope, which a click keeps in the app.
+        # also a link in the app's scope, which a click keeps in the app.
         app = self.launch_app()
         self.browser.click_view(self.link_menu(app, '#inside')[1])
         wait_for(self.opened, what='xdg-open')
@@ -848,7 +847,7 @@ class BrowserTabTest(WebAppTest):
 
 
 class StartUrlTest(WebAppTest):
-    """The start address the user sets on chrome://app-settings (#346)."""
+    """The start address the user sets on chrome://app-settings."""
 
     def test_launch_opens_start_url(self):
         self.set_start_url(self.server.url('/app/start.html'))
@@ -911,7 +910,7 @@ class StartUrlTest(WebAppTest):
 
 class DiyAppTest(WebAppTest):
     """A page without a manifest, installed with "Install page as app…": a
-    DIY app, which opens in its own window (#351). It gets all a PWA gets. On
+    DIY app, which opens in its own window. It gets all a PWA gets. On
     Linux, Chromium's "Create shortcut…" only puts a desktop shortcut to the
     page, which opens in a tab."""
 
@@ -974,7 +973,7 @@ class DiyAppTest(WebAppTest):
 class IsolatedWebAppTest(WebAppTest):
     """An isolated web app, from a dev-mode proxy: its links keep Chromium's
     handling, which opens other origins in a browser tab, and its link menu
-    has no default browser items (#351). Hosted (extension) apps can't open
+    has no default browser items. Hosted (extension) apps can't open
     their window on Linux: Chromium 154 refuses to launch Chrome apps there."""
 
     browser_args = ('--enable-features=IsolatedWebApps,IsolatedWebAppDevMode',)
@@ -1068,7 +1067,7 @@ class FocusExistingTest(WebAppTest):
 
 
 class ActivationTokenTest(WebAppTest):
-    """On Wayland, where the browser has activation tokens to hand on (#317)."""
+    """On Wayland, where the browser has activation tokens to hand on."""
 
     wayland = True
 

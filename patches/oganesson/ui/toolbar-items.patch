@@ -4,7 +4,7 @@
    pref_service_->ClearPref(prefs::kShowForwardButton);
    pref_service_->ClearPref(prefs::kPinSplitTabButton);
    pref_service_->ClearPref(prefs::kPinnedActions);
-+  // The toolbar's item order (#62).
++  // The toolbar's item order.
 +  pref_service_->ClearPref(prefs::kToolbarItems);
 +  pref_service_->ClearPref(prefs::kToolbarHiddenItems);
  }

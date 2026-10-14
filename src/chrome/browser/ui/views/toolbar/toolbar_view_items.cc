@@ -516,7 +516,7 @@ void ToolbarView::ApplyToolbarItems() {
   }
   if (reset) {
     // The default order, also right after Customize toolbar's reset clears
-    // the list (#62): the built-in items in the order they were made, then
+    // the list: the built-in items in the order they were made, then
     // pinned extension icons just before the extensions button and Chrome's
     // pinned buttons where their container is.
     const auto move_before = [this](views::View* item, views::View* anchor) {

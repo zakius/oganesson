@@ -35,6 +35,9 @@ namespace firefox_sync {
 
 namespace {
 
+// The decoded picture's limit in bytes, as the download's.
+constexpr size_t kMaxPictureSize = 4 * 1024 * 1024;
+
 class DesktopPlatform : public Platform {
  public:
   explicit DesktopPlatform(Profile* profile)
@@ -68,7 +71,7 @@ class DesktopPlatform : public Platform {
     }
     data_decoder::DecodeImageIsolated(
         base::as_byte_span(picture), data_decoder::mojom::ImageCodec::kDefault,
-        /*shrink_to_fit=*/true, picture.size(), gfx::Size(),
+        /*shrink_to_fit=*/true, kMaxPictureSize, gfx::Size(),
         base::BindOnce(&DesktopPlatform::SetProfileAccount,
                        weak_factory_.GetWeakPtr(), name, url,
                        /*keep_picture=*/false));

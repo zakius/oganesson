@@ -1,4 +1,4 @@
-"""The harness leaves no browser behind when its run is killed (#321): not one
+"""The harness leaves no browser behind when its run is killed: not one
 that relaunched itself (chrome://restart) when the run gets SIGTERM, as from
 `tools/detach.sh --stop`, and not its own child when the run gets SIGKILL."""
 

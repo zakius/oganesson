@@ -8,7 +8,7 @@ Two review passes produced these lists. Patches are listed by their path in Heli
 
 ## Decisions that are not per patch
 
-- Firefox-style tab placement and selection after closing a tab is a must have, with selectable alternatives: Settings > Behavior > Tab behavior, a Chromium or Firefox preset over knobs, Helium's "next to the active tab" switch among them ([tab behavior](tab-behavior.md), #315, #338).
+- Firefox-style tab placement and selection after closing a tab is a must have, with selectable alternatives: Settings > Behavior > Tab behavior, a Chromium or Firefox preset over knobs, Helium's "next to the active tab" switch among them ([tab behavior](tab-behavior.md)).
 - Visual redesign patches (`helium/ui/*`, `helium/ui/layout/*`, most of `helium/settings/*`) are indifferent. We may want our own design later.
 - Memory Saver, infinite tab freezing and Back-to-opener stay off by default. The settings stay available, so their default-on patches are omitted.
 - No Helium servers. Patches gated by `helium_services` (component updates, uBlock asset downloads, spellcheck downloads, extension download proxy) need our own gate or replacement.
@@ -31,7 +31,7 @@ Two review passes produced these lists. Patches are listed by their path in Heli
 
 - `helium/core/ridiculous-google-compat-exceptions` (Helium 0.19.2): keeps Google sign-in, session cookies and security-key enrollment working under domain substitution. Maintainer's decision, 2026-10-09.
 - `upstream-fixes/missing-dependencies`
-- `upstream-fixes/tab-restore-live-tabs` (Helium 0.19.1, #359): kept, vendored before `helium/core/lazy-session-restore`. Maintainer's decision, 2026-10-08.
+- `upstream-fixes/tab-restore-live-tabs` (Helium 0.19.1): kept, vendored before `helium/core/lazy-session-restore`. Maintainer's decision, 2026-10-08.
 - `inox-patchset/fix-building-without-safebrowsing`
 - `inox-patchset/disable-autofill-download-manager`
 - `inox-patchset/disable-update-pings`
@@ -128,7 +128,7 @@ Two review passes produced these lists. Patches are listed by their path in Heli
 - `helium/core/fixups-chrome-webstore-script`
 - `helium/core/custom-keyboard-shortcuts`
 - `helium/core/copy-url-tab-context-menu`
-- `helium/core/disable-annoying-infobars` (Helium 0.19.1, #360): kept; its kPdfInfoBar change covers `helium/core/disable-pdf-infobar`. Maintainer's decision, 2026-10-08.
+- `helium/core/disable-annoying-infobars` (Helium 0.19.1): kept; its kPdfInfoBar change covers `helium/core/disable-pdf-infobar`. Maintainer's decision, 2026-10-08.
 - `helium/core/enable-screenshots`
 - `helium/core/force-paste-action`
 - `helium/core/shift-right-click-context-menu`
@@ -145,11 +145,11 @@ Two review passes produced these lists. Patches are listed by their path in Heli
 - `helium/ui/page-zoom-indicator`
 - `helium/ui/add-more-zoom-presets`
 - `helium/core/prioritize-platform-policy-loading` (Helium 0.18.2): uBlock Origin reads its managed settings at startup in milliseconds, not seconds. Maintainer's decision, 2026-10-02.
-- `helium/ui/tab-search-in-toolbar`: tab search is a toolbar button, as Firefox's "List all tabs" is, and its bubble opens under it (#237). Maintainer's decision, 2026-10-04.
-- `helium/core/mute-tab-context-menu` (Helium 0.18.3, #2631): Mute tab / Unmute tab in the tab context menu, as Firefox's "Mute Tab". Maintainer's decision, 2026-10-06 (#273).
-- `helium/settings/disable-safety-hub-page`: Safety Hub reports on services this build doesn't have (Safe Browsing, password leak check, updates). Maintainer reported it, 2026-10-06 (#286).
-- `helium/settings/remove-safety-hub-entry-points`: same reason; removes the settings entry points to Safety Hub. Maintainer reported it, 2026-10-06 (#286). The app menu's Safety Hub notification lives in the omitted `helium/ui/app-menu-model`, so `oganesson/ui/no-safety-hub-menu` drops it alone.
-- `helium/core/open-new-tabs-next-to-active-tab-option`: kept for its pref and switch, one of Tab behavior's knobs (#315, #338): Firefox's `browser.tabs.insertAfterCurrent`. Turned on, it leaves the Chromium preset, so Firefox's rules place the tab and the patch's own placement in `AddTab` no longer runs; the patch stays whole to stay comparable with upstream.
+- `helium/ui/tab-search-in-toolbar`: tab search is a toolbar button, as Firefox's "List all tabs" is, and its bubble opens under it. Maintainer's decision, 2026-10-04.
+- `helium/core/mute-tab-context-menu` (Helium 0.18.3, #2631): Mute tab / Unmute tab in the tab context menu, as Firefox's "Mute Tab". Maintainer's decision, 2026-10-06.
+- `helium/settings/disable-safety-hub-page`: Safety Hub reports on services this build doesn't have (Safe Browsing, password leak check, updates). Maintainer reported it, 2026-10-06.
+- `helium/settings/remove-safety-hub-entry-points`: same reason; removes the settings entry points to Safety Hub. Maintainer reported it, 2026-10-06. The app menu's Safety Hub notification lives in the omitted `helium/ui/app-menu-model`, so `oganesson/ui/no-safety-hub-menu` drops it alone.
+- `helium/core/open-new-tabs-next-to-active-tab-option`: kept for its pref and switch, one of Tab behavior's knobs: Firefox's `browser.tabs.insertAfterCurrent`. Turned on, it leaves the Chromium preset, so Firefox's rules place the tab and the patch's own placement in `AddTab` no longer runs; the patch stays whole to stay comparable with upstream.
 - `ungoogled-chromium/add-flag-to-close-window-with-last-tab`: Firefox's `browser.tabs.closeWindowWithLastTab`. Maintainer's decision, 2026-10-11.
 - `helium/core/close-tabs-to-left`: "Close tabs to the left", as in Firefox's tab menu. Maintainer's decision, 2026-10-11.
 - `helium/core/hibernate-tab-context-menu`: unloads a tab from the tab menu, as Firefox's "Unload Tab"; Memory Saver stays off by default. Maintainer's decision, 2026-10-11.
@@ -396,8 +396,8 @@ Two review passes produced these lists. Patches are listed by their path in Heli
 - `helium/hop/disable-password-manager`
 - `helium/ui/helium-noise-page-info`
 - `helium/ui/hide-page-actions-flag` (Helium 0.18.2, #2599): oganesson shows Firefox page actions in the location bar on purpose. Maintainer's decision, 2026-10-02.
-- `helium/core/sync/provider/repository` (Helium 0.18.3, #2604): Helium's own sync; Firefox Sync replaces `helium/core/sync/*`. Maintainer confirmed, 2026-10-06 (#273).
-- `helium/core/disable-pdf-infobar` (Helium 0.19.1, #360): dropped from the series. `helium/core/disable-annoying-infobars` covers its kPdfInfoBar change. Maintainer's decision, 2026-10-08.
+- `helium/core/sync/provider/repository` (Helium 0.18.3, #2604): Helium's own sync; Firefox Sync replaces `helium/core/sync/*`. Maintainer confirmed, 2026-10-06.
+- `helium/core/disable-pdf-infobar` (Helium 0.19.1): dropped from the series. `helium/core/disable-annoying-infobars` covers its kPdfInfoBar change. Maintainer's decision, 2026-10-08.
 
 ## Undecided (0)
 

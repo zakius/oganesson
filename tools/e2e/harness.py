@@ -82,7 +82,7 @@ FATAL_MARKERS = ('FATAL:', 'Check failed', 'DanglingPtr', 'Received signal')
 WINDOW = (1300, 850)
 # Helium's bundled uBlock Origin.
 UBO = 'blockjmkbacgjkknlgpkjjiijinjdanf'
-# Browsers not stopped yet, which the harness stops when it exits (#321).
+# Browsers not stopped yet, which the harness stops when it exits.
 BROWSERS = set()
 LIBC = ctypes.CDLL(None)
 
@@ -461,7 +461,7 @@ class Browser:
 
     def _wait_ubo(self):
         """A page loaded before the bundled uBlock Origin listens isn't
-        filtered (#201), and uBlock restarts on its first launch (#281), so a
+        filtered, and uBlock restarts on its first launch, so a
         start waits until it filters. A profile that disables it
         (`disable_reasons` in its Preferences)
         doesn't wait."""
@@ -668,7 +668,7 @@ class Browser:
 
     def ubo_background(self, extension_id=UBO):
         """uBlock Origin's background page once it filters. Seeing Chromium,
-        uBlock restarts itself on its first launch, before it filters (#165):
+        uBlock restarts itself on its first launch, before it filters:
         the target keeps its URL while its first page goes away, and an eval
         landing in between fails, so each try attaches anew."""
         url = f'chrome-extension://{extension_id}/background.html'

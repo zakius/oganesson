@@ -14,7 +14,7 @@ import {getCss} from './app_management_shared_style.css.js';
 import {getHtml} from './scope_rules_item.html.js';
 import {createDummyApp} from './web_app_settings_utils.js';
 
-// The URL patterns the user adds to the app's scope (#271).
+// The URL patterns the user adds to the app's scope.
 export class ScopeRulesItemElement extends CrLitElement {
   static get is() {
     return 'app-management-scope-rules-item';

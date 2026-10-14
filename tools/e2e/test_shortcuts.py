@@ -1,8 +1,8 @@
 """Keyboard shortcuts with real key presses: most recently used tab cycling
-after Ctrl+W closes a tab mid-cycle (#23), and recording browser shortcuts
-such as Ctrl+T on the shortcuts page (#24), also while another settings tab
+after Ctrl+W closes a tab mid-cycle, and recording browser shortcuts
+such as Ctrl+T on the shortcuts page, also while another settings tab
 of the window that recorded closes, and Ctrl+Tab and Ctrl+Shift+Tab
-removed there staying off, also after a restart (#25).
+removed there staying off, also after a restart.
 """
 
 import time

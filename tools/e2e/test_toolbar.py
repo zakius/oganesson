@@ -1,8 +1,8 @@
-"""One toolbar (#25, #37): every button moves anywhere on it, pinned extension
+"""One toolbar: every button moves anywhere on it, pinned extension
 actions and Chrome's pinned buttons alike, and keeps its place on restart.
 Customize toolbar hides and shows the built-in items too. Customize toolbar's
-reset puts them back (#62). On a fresh profile tab search
-is a toolbar button, in either tab strip (#237).
+reset puts them back. On a fresh profile tab search
+is a toolbar button, in either tab strip.
 """
 
 import json

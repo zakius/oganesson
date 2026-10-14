@@ -210,7 +210,7 @@
    launch_params_->set_started_new_navigation(true);
 -  if (tab_helper->EnsureLaunchQueue().IsInScope(*launch_params_,
 -                                                navigation_handle_->GetURL())) {
-+  // A user start URL out of the app's scope can redirect into it (#346); the
++  // A user start URL out of the app's scope can redirect into it; the
 +  // launch queue takes only targets in scope.
 +  webapps::LaunchQueue& launch_queue = tab_helper->EnsureLaunchQueue();
 +  if (launch_queue.IsInScope(*launch_params_, navigation_handle_->GetURL()) &&
@@ -243,7 +243,7 @@
       GetLaunchHandler().NeverNavigateExistingClients() ||
       registrar_->IsPreventCloseEnabled(params_->app_id);
 -  if (!open_in_new_window && app_wants_focus_existing_without_navigation) {
-+  // A user start URL can be out of the app's scope (#346); the existing
++  // A user start URL can be out of the app's scope; the existing
 +  // client's launch queue only takes targets in scope, so navigate it instead.
 +  if (!open_in_new_window && app_wants_focus_existing_without_navigation &&
 +      registrar_->IsUrlInAppExtendedScope(launch_url, params_->app_id)) {

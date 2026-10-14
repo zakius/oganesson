@@ -14,7 +14,7 @@ import {getCss} from './app_management_shared_style.css.js';
 import {getHtml} from './start_url_item.html.js';
 import {createDummyApp} from './web_app_settings_utils.js';
 
-// The URL the user sets for the app to open at (#346).
+// The URL the user sets for the app to open at.
 export class StartUrlItemElement extends CrLitElement {
   static get is() {
     return 'app-management-start-url-item';

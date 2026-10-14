@@ -15,7 +15,7 @@
 +  // A reloading or updating extension usually comes right back, in this same
 +  // task. Dropping the proxies until then resets the URL loader factories,
 +  // and a request that waited for its listener could never start: a pending
-+  // navigation ended blank (#281). One that doesn't come back (a failed
++  // navigation ended blank. One that doesn't come back (a failed
 +  // reload, an update that disables it) gets the check a task later.
    if (update_may_have_proxies) {
 -    UpdateMayHaveProxies();

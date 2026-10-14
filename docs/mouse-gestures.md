@@ -18,7 +18,7 @@ A gesture that isn't set does nothing. A plain right click still opens the conte
 
 Open Settings, then **System → Shortcuts and gestures** (`chrome://settings/system/shortcuts`). On a command's row, **Add gesture** opens a dialog: pick the kind of gesture, and for a stroke type its directions, such as `DR`. A gesture shows as a chip on the row; remove the chip to remove the gesture.
 
-Add-on commands are listed under **Extension commands**, where **Add** records a keyboard shortcut as for the browser's commands, and a scope menu sets whether its shortcut works only in the browser or also outside it ("Global"; not for a command that clicks the add-on's button, and only once it has a shortcut). Firefox's rules apply: `Ctrl+Alt` combinations, F1 to F12 alone and the media keys are accepted. A shortcut another command has is named before saving and moves on save, except a media key another add-on has: add-ons share media keys, so both keep it, and each row names the add-on commands it shares it with. An add-on's shortcut runs before the browser's, so a browser command that has one too (after a reset, or Ctrl+Shift+C on Inspect elements) lists it as overridden by the add-on's command. `chrome://extensions/shortcuts`, the extensions page's **Keyboard shortcuts** link and an add-on's `commands.openShortcutSettings()` open this page at **Extension commands**.
+Add-on commands are listed under **Extension commands**, each with its gestures.
 
 Gestures can run the commands listed on that page, including add-ons' commands under **Extension commands**.
 
@@ -31,5 +31,5 @@ Gestures can run the commands listed on that page, including add-ons' commands u
 ## Limits
 
 - Linux only, on X11 and Wayland. Touchpad scrolling doesn't trigger wheel gestures.
-- Not tested, because they need hardware the test display doesn't have: screens with different scale factors, and touchpads (#113).
+- Not tested, because they need hardware the test display doesn't have: screens with different scale factors, and touchpads (#2).
 - Native file pickers, system menus and window decorations drawn by the desktop don't see gestures.

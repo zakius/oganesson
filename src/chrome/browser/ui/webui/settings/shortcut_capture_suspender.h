@@ -18,7 +18,7 @@ namespace settings {
 
 // Reserved shortcuts such as Ctrl+T and Ctrl+W run before a page sees the
 // key, so the shortcuts page suspends its window's shortcut handling while it
-// records one (#24). Several settings pages of one window may record at once;
+// records one. Several settings pages of one window may record at once;
 // the window's shortcuts resume when the last one stops, or goes away.
 class ShortcutCaptureSuspender : public views::WidgetObserver {
  public:

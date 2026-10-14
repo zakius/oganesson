@@ -22,7 +22,7 @@
 +  }
 +
 +  // While the recording area has the focus, browser shortcuts such as Ctrl+T
-+  // reach it instead of running (#24).
++  // reach it instead of running.
 +  private onCaptureFocus_() {
 +    chrome.send('setShortcutHandlingSuspended', [true]);
 +  }

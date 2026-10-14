@@ -42,7 +42,7 @@
      const ui::Accelerator& accelerator) const {
 -  const auto it = defaults_.find(command_id);
 +  // Under the owner BuildCurrentDefaults() files the command's defaults under,
-+  // so removing Ctrl+Tab from Next tab drops the table's cycle entry (#25).
++  // so removing Ctrl+Tab from Next tab drops the table's cycle entry.
 +  const auto it = defaults_.find(GetDefaultOwner(command_id, prefs_));
    return it != defaults_.end() && ContainsAccelerator(it->second, accelerator);
  }

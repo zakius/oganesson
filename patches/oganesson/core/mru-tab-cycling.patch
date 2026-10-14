@@ -23,7 +23,7 @@
    }
  
 +  // Tabs closed or moved to another window since the cycle started drop out;
-+  // the others are found where they are now (#23).
++  // the others are found where they are now.
 +  std::erase_if(mru_cycle_list_, [this](tabs::TabHandle tab) {
 +    return GetIndexOfTab(tab.Get()) == kNoTab;
 +  });

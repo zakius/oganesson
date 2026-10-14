@@ -26,7 +26,7 @@ namespace {
 constexpr char kExclude[] = "!";
 
 // Whether `pattern` names `host` itself, with no wildcard: such a rule narrows
-// the app's scope on that host (#346). "https://*/login/*" names no host, so
+// the app's scope on that host. "https://*/login/*" names no host, so
 // it doesn't narrow every site the app reaches. The pattern's host is compared
 // canonicalized, as the matcher does: "bücher.de" names "xn--bcher-kva.de",
 // "[\:\:1]" names "[::1]".

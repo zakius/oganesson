@@ -1,9 +1,9 @@
-"""Requests across a restart of Helium's uBlock Origin (#281). On a new
+"""Requests across a restart of Helium's uBlock Origin. On a new
 profile's first launch uBlock restarts itself (`runtime.reload()`). Requests
 in flight keep their way to the network through the restart: a navigation the
 browser restarts for a `Critical-CH` client hint, as Google's pages ask, loads
-instead of leaving its tab blank, and a page loading images doesn't lose one
-(#306). Test 1 holds the navigation with uBlock's own suspension,
+instead of leaving its tab blank, and a page loading images doesn't lose one.
+Test 1 holds the navigation with uBlock's own suspension,
 `vAPI.net.suspend()`, so it is in flight when uBlock restarts. Until uBlock
 filters, it holds requests with a pending promise, as in Firefox: a page
 opened while it loads its lists gets its image and audio, and not the image a

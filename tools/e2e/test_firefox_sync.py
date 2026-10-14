@@ -1,10 +1,10 @@
 """Firefox Sync in the browser, against tools/fake_firefox_sync.py: sign-in
 from settings, then bookmarks, passwords, and history sync. A bookmark edited
-mid-sync keeps the edit (#39), and signing out drops held sync and sign-in
-replies (#37). Firefox bookmark separators stay in Firefox. Password
-changes and edits made mid-sync are retained (#258, #259); a login with empty
+mid-sync keeps the edit, and signing out drops held sync and sign-in
+replies. Firefox bookmark separators stay in Firefox. Password
+changes and edits made mid-sync are retained; a login with empty
 field names that Firefox fills keeps its leaked warning. A history deletion
-made before quitting reaches Firefox after restart (#260); clearing all
+made before quitting reaches Firefox after restart; clearing all
 history replaces saved deletions, and signed-out deletions aren't saved.
 
 Failures: with the servers gone, syncing and signing in fail with an error
@@ -175,7 +175,7 @@ class FirefoxSyncTest(BrowserTest):
         self.sync_now(page)
         record = self.firefox_login('me')
         self.assertEqual([record['password'], record['usernameField']], ['first', ''])
-        # Firefox, which knows the field names, changes the password (#258).
+        # Firefox, which knows the field names, changes the password.
         self.firefox_change_password(record, 'second', usernameField='user',
                                      passwordField='pass')
         self.sync_now(page)
@@ -188,7 +188,7 @@ class FirefoxSyncTest(BrowserTest):
         page = self.settings('/people', 'settings-people-page')
         self.firefox_change_password(self.firefox_login('me'), 'from-firefox')
         # The held sync has the snapshot with `second` and downloads Firefox's
-        # change; the edit here comes after the snapshot (#259).
+        # change; the edit here comes after the snapshot.
         self.fake.hold('/storage/')
         page.eval("chrome.send('firefoxSyncNow')")
         wait_for(self.fake.held.is_set, timeout=30, what='the held sync')
@@ -263,7 +263,7 @@ class FirefoxSyncTest(BrowserTest):
         self.sync_now(self.settings('/people', 'settings-people-page'))
         guid = next(i for i, r in self.firefox_history().items() if r.get('histUri') == url)
         self.delete_from_history(url)
-        # Quit well within the 30 s until the deletion's sync (#260).
+        # Quit well within the 30 s until the deletion's sync.
         self.browser.quit()
         self.browser.start()
         wait_for(lambda: self.firefox_history()[guid].get('deleted'), timeout=90,
@@ -524,7 +524,7 @@ class FirefoxSyncFailuresTest(BrowserTest):
 
 
 class FirefoxSyncServerTest(BrowserTest):
-    """The account server field (#110) and the sync server field (#262),
+    """The account server field and the sync server field,
     without OGANESSON_FXA_SERVER. Steps run in order and build on each other."""
     settings = FirefoxSyncTest.settings
     status = FirefoxSyncTest.status
