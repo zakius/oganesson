@@ -1,10 +1,18 @@
-# oganesson focused
+# oganesson
+
+> **Highly volatile.** This is a personal project. Features change or disappear without notice, some may misbehave, updates can break things, and development may stop at any moment. Use it knowing that.
 
 A Linux Chromium browser source layer for mouse gestures, a configurable toolbar, full Chromium uBlock Origin, hidden tab close buttons, middle-click new tabs, Firefox tab rules, Firefox Sync, installed web app controls, and switches that stop saving browsing and download history.
 
 This repository is a focused feature set taken from the earlier oganesson-core (gone; its issues and the oldest repo's patches are archived locally). It keeps the Helium patch baseline and existing build tools. Product code lives in `src/`, with feature patches in `patches/oganesson/`. What it shares with [tennessine](https://github.com/zakius/tennessine), the Android browser (Firefox Sync, no saved history), is in the `dubna` submodule ([zakius/dubna](https://github.com/zakius/dubna)): clone with `--recurse-submodules`, or run `git submodule update --init`. The Chromium checkout and build outputs live in ignored `work/`.
 
 **Status:** source extraction under validation. This repository is not a tested browser release. Patch application and tooling checks do not establish browser behavior. The first full build, browser tests, and real-account Sync verification are release gates.
+
+## The name
+
+Oganesson (Og, element 118) sits in the same group as helium, which this browser is built on, at the other end of it: helium is the lightest noble gas, oganesson the heaviest. The name was picked for that, same group as Helium but not lightweight. It is only nominally a noble gas: calculations predict it is a solid at room temperature, and far more reactive than the rest of its group. That fits too.
+
+Its Android sibling, [tennessine](https://github.com/zakius/tennessine), is named after its neighbour, element 117. That both were first made in Dubna, at the Joint Institute for Nuclear Research (oganesson in 2002, tennessine in 2010), is a coincidence, and the name of the [code they share](https://github.com/zakius/dubna).
 
 ## Build and check
 
