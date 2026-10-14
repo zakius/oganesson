@@ -21,7 +21,7 @@ for repo in [src, *src.glob('third_party/*/src'), src / 'third_party/skia',
         subprocess.run(['git', '-C', str(repo), 'reset', '-q', '--hard', root], check=True)
         subprocess.run(['git', '-C', str(repo), 'clean', '-fdxq'], check=True)
 for action, extra in (('unpack', [str(src)]),):
-    subprocess.run([str(ROOT / 'utils/downloads.py'), action, '-i', str(ROOT / 'deps.ini'),
+    subprocess.run([str(oganesson.helium_tree() / 'utils/downloads.py'), action, '-i', str(oganesson.TREE / 'deps.ini'),
                     '-c', str(work / 'cache'), *extra, '--components', 'ublock_origin', 'onboarding'],
                    check=True, capture_output=True)
 oganesson.copy_new_files(src)

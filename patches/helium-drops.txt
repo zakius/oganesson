@@ -1,0 +1,42 @@
+# Helium patches oganesson leaves out (oganesson.py's helium_tree() removes them from Helium's
+# series). Only patches no later Helium patch builds on; ./oganesson.py check-patches fails
+# when one does. One per line: path in Helium's series<TAB>reason. Unwanted patches that others
+# build on are carried and turned off instead: docs/helium-patch-decisions.md.
+helium/core/clean-omnibox-suggestions.patch	Do not want
+helium/core/degoogle-context-menu.patch	Do not want
+helium/core/disable-bookmarks-bar.patch	Do not want
+helium/core/disable-history-clusters.patch	Do not want
+helium/core/disable-live-caption-completely.patch	Do not want
+helium/core/disable-non-standard-auth-features.patch	Do not want
+helium/core/disable-outdated-build-detector.patch	Do not want
+helium/core/disable-user-education-nags.patch	Do not want
+helium/core/enable-back-to-opener.patch	Do not want
+helium/core/enable-tab-hover-cards.patch	Do not want
+helium/core/exclude-irrelevant-flags.patch	Do not want
+helium/core/fix-building-without-safebrowsing.patch	Do not want
+helium/core/fix-instance-id-stuck.patch	Do not want
+helium/core/fix-tab-sync-unreached-error.patch	Do not want
+helium/core/increase-incognito-storage-quota.patch	Do not want
+helium/core/infinite-tab-freezing.patch	Do not want
+helium/core/memory-saving-by-default.patch	Do not want
+helium/core/rbe-nativelink-config.patch	Do not want
+helium/core/replace-default-profile-name.patch	Do not want
+helium/core/search/add-kagi-image-search.patch	Do not want
+helium/core/search/engine-defaults.patch	Do not want
+helium/core/search/fix-brave-name.patch	Do not want
+helium/core/search/fix-search-engine-icons.patch	Do not want
+helium/core/search/omnibox-default-search-icon.patch	Do not want
+helium/core/search/remove-description-snippet-deps.patch	Do not want
+helium/core/spoof-chrome-ua-brand.patch	Do not want
+helium/core/sync/datatype-policy.patch	Do not want
+helium/core/sync/disable-google-backed-sync-integrations.patch	Do not want
+helium/core/sync/history-expiration-threshold.patch	Do not want
+helium/core/sync/provider/service.patch	Do not want
+helium/core/sync/vault-engine-backend.patch	Do not want
+helium/core/sync/vault-store.patch	Do not want
+helium/core/unbreak-chromium-link.patch	Do not want
+helium/hop/disable-password-manager.patch	Do not want
+helium/settings/sync-setup-contract.patch	Do not want
+helium/ui/bangs-ui.patch	needs `add-native-bangs`
+helium/ui/helium-noise-page-info.patch	Do not want
+ungoogled-chromium/prepopulated-search-engines.patch	Do not want

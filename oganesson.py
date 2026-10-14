@@ -34,27 +34,68 @@ ROOT = Path(__file__).resolve().parent
 WORK = ROOT / 'work'
 # helium-linux's layout, which the shared base tree and its build cache use.
 SRC = WORK / 'helium-linux/build/src'
-SERIES = (ROOT / 'patches', ROOT / 'linux/patches', ROOT / 'late')
+# Helium's tree as the build reads it (helium_tree()): the helium submodule with
+# our fixes to its utils/, our branding over its resources/, and its series
+# without the patches in DROPS.
+HELIUM = ROOT / 'helium'
+HELIUM_LINUX = ROOT / 'linux/helium-linux'
+TREE = WORK / 'helium-tree'
+DROPS = ROOT / 'patches/helium-drops.txt'
+UTILS_PATCH = ROOT / 'patches/helium-utils.patch'
+# Applied in this order: Helium's, helium-linux's, ours (with dubna's), and the
+# late ones that rename what the platform patches set.
+SERIES = (TREE / 'patches', HELIUM_LINUX / 'patches', ROOT / 'patches', ROOT / 'late')
 # Our new files, copied over the tree before the patches: dubna's, which
 # tennessine shares, then ours.
 SOURCES = ('dubna/src', 'src')
-# What preparation reads besides the series and SOURCES: the Chromium pin (a new
-# one also refetches the sources, see tools/container-build.sh), version files,
-# dependency and transformation lists, translations, resources and the scripts
-# that apply them.
-PREP_INPUTS = ('chromium_version.txt', 'version.txt', 'revision.txt', 'linux/revision.txt',
-               'deps.ini', 'pruning.list', 'domain_regex.list', 'domain_substitution.list',
-               'i18n', 'l10n', 'dubna/l10n', 'resources', 'utils', 'tools/branding.py',
-               'tools/grit_fixups.py', 'dubna/tools/translate.py',
-               'linux/scripts/shared.sh')
-# Caches, tests and resources/generated, which preparation itself writes.
-PREP_SKIP = {'__pycache__', 'tests', 'generated'}
+# What preparation reads besides the series and SOURCES: Helium's assembled tree
+# (the Chromium pin, whose change also refetches the sources, see
+# linux/container-build.sh; version files, lists, translations, resources and the
+# scripts that apply them), helium-linux's, our translations and our scripts.
+PREP_INPUTS = ('work/helium-tree', 'linux/helium-linux', 'l10n', 'dubna/l10n',
+               'tools/branding.py', 'tools/grit_fixups.py', 'dubna/tools/translate.py',
+               'linux/container-build.sh')
+# Caches, tests, resources/generated (which preparation itself writes), git
+# metadata and helium-linux's own copy of Helium, which TREE stands in for.
+PREP_SKIP = {'__pycache__', 'tests', 'generated', '.git', 'helium-chromium'}
 IMAGE = 'oganesson-builder'
 MOUNT = '/oganesson'
 
 
 def fail(message):
     sys.exit(f'oganesson: {message}')
+
+
+def helium_tree():
+    """Assembles TREE from the helium submodule's checkout, once per change of
+    its inputs: the submodule's commit, UTILS_PATCH, DROPS and our resources/."""
+    digest = hashlib.sha256(subprocess.run(['git', '-C', str(HELIUM), 'rev-parse', 'HEAD'],
+                                           capture_output=True, check=True).stdout)
+    for path in [UTILS_PATCH, DROPS, *sorted((ROOT / 'resources').rglob('*'))]:
+        if path.is_file():
+            digest.update(str(path.relative_to(ROOT)).encode() + path.read_bytes())
+    stamp = TREE / '.oganesson-tree'
+    if stamp.is_file() and stamp.read_text() == digest.hexdigest():
+        return TREE
+    shutil.rmtree(TREE, ignore_errors=True)
+    TREE.mkdir(parents=True)
+    archive = subprocess.run(['git', '-C', str(HELIUM), 'archive', 'HEAD'], capture_output=True,
+                             check=True).stdout
+    subprocess.run(['tar', '-x', '-C', str(TREE)], input=archive, check=True)
+    subprocess.run(['patch', '-p1', '-s', '--fuzz=0', '--no-backup-if-mismatch', '-d', str(TREE),
+                    '-i', str(UTILS_PATCH)], check=True)
+    shutil.copytree(ROOT / 'resources', TREE / 'resources', dirs_exist_ok=True)
+    drops = {line.split('\t')[0] for line in DROPS.read_text().splitlines()
+             if line.strip() and not line.startswith('#')}
+    series = (TREE / 'patches/series').read_text().splitlines()
+    missing = drops - {line.strip() for line in series}
+    if missing:
+        fail('patches/helium-drops.txt names patches Helium\'s series no longer has:\n  '
+             + '\n  '.join(sorted(missing)))
+    (TREE / 'patches/series').write_text(
+        ''.join(line + '\n' for line in series if line.strip() not in drops))
+    stamp.write_text(digest.hexdigest())
+    return TREE
 
 
 def new_files():
@@ -84,6 +125,7 @@ def series_entries(text):
 
 def series_patches():
     """Every series patch, in the order preparation applies them."""
+    helium_tree()
     return [patches / line for patches in SERIES
             for line in series_entries((patches / 'series').read_text())]
 
@@ -108,6 +150,7 @@ def sections(text):
 def patch_hash():
     """Hashes every input of the prepared tree: each series and its patches,
     our new files and PREP_INPUTS."""
+    helium_tree()
     digest = hashlib.sha256()
     for patches in SERIES:
         series = (patches / 'series').read_text()
@@ -189,10 +232,10 @@ def tree_lacks(previous, current):
     unverifiable): unverifiable is what can't be checked, such as hunks where
     the later patches don't reverse, or in branding and translations (.grd,
     .grdp, .xtb)."""
-    sys.path.insert(0, str(Path(__file__).resolve().parent / 'utils'))
+    sys.path.insert(0, str(helium_tree() / 'utils'))
     from domain_substitution import DomainRegexList  # pylint: disable=import-outside-toplevel
-    pairs = DomainRegexList(ROOT / 'domain_regex.list').regex_pairs
-    domsub = set((ROOT / 'domain_substitution.list').read_text().split())
+    pairs = DomainRegexList(TREE / 'domain_regex.list').regex_pairs
+    domsub = set((TREE / 'domain_substitution.list').read_text().split())
 
     def substitute(name, text, whole=False):
         """Helium's domain substitution, which preparation runs after the
@@ -345,7 +388,7 @@ def build_image():
     if os.getuid() != 0:
         uid_args = ['--build-arg', f'UID={os.getuid()}', '--build-arg', f'GID={os.getgid()}']
     subprocess.run(['docker', 'build', '-t', IMAGE, *uid_args, '-f',
-                    str(ROOT / 'linux/docker/build.Dockerfile'), str(ROOT / 'linux/docker')],
+                    str(HELIUM_LINUX / 'docker/build.Dockerfile'), str(HELIUM_LINUX / 'docker')],
                    check=True)
 
 
@@ -371,7 +414,7 @@ def build(args):
     mode = 'release' if args.release else 'dev'
     # With --nice, the container also gets a low CPU weight, so it yields to
     # other containers too.
-    code = docker_run(['bash', f'{MOUNT}/tools/container-build.sh', mode], env,
+    code = docker_run(['bash', f'{MOUNT}/linux/container-build.sh', mode], env,
                       nice=args.nice, cpu_shares=256 if args.nice else None)
     # A tree prepared for these inputs gets their record, for the next stamp.
     stamp_file = SRC / '.oganesson-prepared'

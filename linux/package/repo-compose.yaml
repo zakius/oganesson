@@ -1,0 +1,14 @@
+# The package repository server's compose project (linux/publish-repo.sh
+# copies it to DIR/compose.yaml and REPO_DOMAIN to DIR/.env): the static files
+# in DIR/www, behind the host's Traefik.
+services:
+  packages:
+    image: nginx:alpine
+    restart: unless-stopped
+    volumes:
+      - ./www:/usr/share/nginx/html:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.packages.rule=Host(`${REPO_DOMAIN:?}`)"
+      - "traefik.http.routers.packages.entrypoints=websecure"
+      - "traefik.http.services.packages.loadbalancer.server.port=80"

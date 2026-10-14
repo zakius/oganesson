@@ -14,7 +14,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 import oganesson  # pylint: disable=wrong-import-position
-BASES = (ROOT / 'patches', ROOT / 'linux/patches', ROOT / 'late')
+BASES = oganesson.SERIES
 
 
 def git(*args):
@@ -94,7 +94,8 @@ def main():
                     "tree if it's at the pinned version, else googlesource)")
     ap.add_argument('--keep', help='unpack into this directory instead of a temp one')
     args = ap.parse_args()
-    version = (ROOT / 'chromium_version.txt').read_text().strip()
+    tree_dir = oganesson.helium_tree()
+    version = (tree_dir / 'chromium_version.txt').read_text().strip()
     paths = sorted({p for b in BASES for e in series(b) for p in touched((b / e).read_text())})
     tmp = tempfile.TemporaryDirectory()
     work = Path(args.keep or tmp.name)
@@ -121,7 +122,7 @@ def main():
             sparse_clone(url, re.search(key, deps, re.S).group(1), src / folder, files,
                          tree and tree / folder)
     for action, extra in (('retrieve', []), ('unpack', [str(src)])):
-        subprocess.run([str(ROOT / 'utils/downloads.py'), action, '-i', str(ROOT / 'deps.ini'),
+        subprocess.run([str(tree_dir / 'utils/downloads.py'), action, '-i', str(tree_dir / 'deps.ini'),
                         '-c', str(cache), *extra, '--components', 'ublock_origin', 'onboarding'],
                        check=True)
     # Our new files, which the patches then hook in. Preparation copies them over the tree, so a

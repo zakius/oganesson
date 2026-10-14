@@ -1,3 +1,9 @@
 [submodule "dubna"]
 	path = dubna
 	url = git@github.com:zakius/dubna.git
+[submodule "helium"]
+	path = helium
+	url = https://github.com/imputnet/helium.git
+[submodule "linux/helium-linux"]
+	path = linux/helium-linux
+	url = https://github.com/imputnet/helium-linux.git
