@@ -61,6 +61,18 @@ platform_series() {
     echo drop-nodejs-version-check.patch >> "$_platform_patches/series"
 }
 
+# Chromium's pre-generated MIDL and message compiler outputs, which a Linux
+# host can't make (Microsoft's midl.exe and mc.exe): pruning removes them as
+# binaries, git has them.
+restore_win_build_output() {
+    local path repo
+    grep win_build_output "${_main_repo}/pruning.list" | while read -r path; do
+        repo="$(dirname "$path")"
+        until [ -e "${_src_dir}/$repo/.git" ]; do repo="$(dirname "$repo")"; done
+        git -C "${_src_dir}/$repo" checkout HEAD -- "${path#"$repo"/}"
+    done
+}
+
 # Windows' own dependencies (DirectX and WebAuthn headers, WTL, the LZMA SDK's
 # tools...): the clone's gclient config, with Windows added to its targets.
 windows_deps() {
@@ -131,6 +143,7 @@ if [ ! -f "$stamp" ]; then
     windows_deps
     platform_series
     prepare_tree
+    restore_win_build_output
     windows_resources
     # helium-linux's host tools (Linux clang and Rust, node, CIPD packages),
     # which read the arguments, then Windows' own.
