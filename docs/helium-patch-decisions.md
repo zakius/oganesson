@@ -17,7 +17,7 @@ Every other Helium patch is carried, also the ones earlier reviews called indiff
 - Extension installs from the Chrome Web Store and AMO stay supported. Helium's download proxy (`proxy-extension-downloads`) acts only with its services on.
 - Firefox Sync replaces Helium's sync. Its patches (`helium/core/sync/*`) are carried, as later patches build on them, and stay inert: Helium sync needs Helium's services and its provider feature is off.
 - Onboarding (`helium/core/onboarding-page`) is carried but never shown: a first run opens a normal window. It may serve as the basis of our own.
-- Password manager stays enabled, so `hop/disable-password-manager` is dropped.
+- Password manager stays enabled, so `hop/disable-password-manager` is dropped. Helium turns it off as insecure. Malware running as the user can read decrypted passwords from the browser's memory whatever the at-rest encryption, and full-disk encryption covers a stolen disk, so a separate password manager adds little. Maintainer's decision, 2026-10-14.
 - The `ungoogled-chromium/add-flag-*` patches are carried.
 - A patch that only changes the default of an existing Chromium setting is dropped when we don't want that default. A patch that adds a new setting or flag is kept. Many `add-flag-*` patches add only a `chrome://flags` entry, not a Settings page option.
 - Credits and licensing: credit every project we take patches from and handle their licenses correctly. Keep `add-credits`, and adapt `helium/ui/licenses-in-credits` and `helium/core/update-credits` to our credits page.
