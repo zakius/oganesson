@@ -54,6 +54,11 @@ platform_series() {
     done
     grep -vxF -f <(cut -f1 /oganesson/windows/helium-windows-drops.txt | grep -v '^#') \
         "$_root_dir/patches/series" > "$_platform_patches/series"
+    # The build runs the image's Node (22, as helium-linux's builds do) rather
+    # than the Node 24 Chromium checks for: helium-linux's patch dropping the check.
+    ln -s /oganesson/linux/helium-linux/patches/ungoogled-chromium/portablelinux/drop-nodejs-version-check.patch \
+        "$_platform_patches/drop-nodejs-version-check.patch"
+    echo drop-nodejs-version-check.patch >> "$_platform_patches/series"
 }
 
 # Windows' own dependencies (DirectX and WebAuthn headers, WTL, the LZMA SDK's
