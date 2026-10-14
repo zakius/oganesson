@@ -37,12 +37,12 @@ export "GYP_MSVS_HASH_${pin_hash}=$(cat "$toolchain/hash")"
 windows_deps() {
     [ -f "${_src_dir}/.windeps.stamp" ] && return
     local staging="${_src_dir}/uc_staging"
-    # The copy's gclient state names the Linux tree's paths: this tree's
-    # instead, or gclient would go through the Linux tree.
-    sed -i "s|/oganesson/work/helium-linux/build/src|${_src_dir}|g" "$staging"/.gclient*  \
-        "$staging/.gcs_entries"
+    # The copy's gclient state, and clone.py's patched gclient, name the Linux
+    # tree's paths: this tree's instead, or gclient would go through the Linux tree.
+    grep -rlIZ /oganesson/work/helium-linux/build/src "$staging" |
+        xargs -0 -r sed -i "s|/oganesson/work/helium-linux/build/src|${_src_dir}|g"
     sed -i "s|^target_os = .*|target_os = ['unix', 'win'];|" "$staging/.gclient"
-    if grep -rq helium-linux "$staging"/.gclient* "$staging/.gcs_entries"; then
+    if grep -rqI /oganesson/work/helium-linux "$staging"; then
         echo "gclient state still names the Linux tree" >&2
         exit 1
     fi
