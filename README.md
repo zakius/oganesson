@@ -8,7 +8,9 @@ Its Android sibling is [tennessine](https://github.com/zakius/tennessine). What 
 
 ## The name
 
-Oganesson (Og, element 118) is the heaviest noble gas, at the far end of the group that starts with helium, which this browser is built on. It was first made in 2002 at the Joint Institute for Nuclear Research in Dubna, and named after Yuri Oganessian. Its Android sibling is named after element 117, made there too.
+Oganesson (Og, element 118) sits in the same group as helium, which this browser is built on, at the other end of it: helium is the lightest noble gas, oganesson the heaviest. The name was picked for that, same group as Helium but not lightweight. It is only nominally a noble gas: calculations predict it is a solid at room temperature, and far more reactive than the rest of its group. That fits too.
+
+Its Android sibling, [tennessine](https://github.com/zakius/tennessine), is named after its neighbour, element 117. That both were first made in Dubna, at the Joint Institute for Nuclear Research (oganesson in 2002, tennessine in 2010), is a coincidence, and the name of the [code they share](https://github.com/zakius/dubna).
 
 ## Install
 
