@@ -6,6 +6,10 @@ A Linux Chromium browser source layer for mouse gestures, a configurable toolbar
 
 This repository is a focused feature set taken from the earlier oganesson-core (gone; its issues and the oldest repo's patches are archived locally). It keeps the Helium patch baseline and existing build tools. Product code lives in `src/`, with feature patches in `patches/oganesson/`. What it shares with [tennessine](https://github.com/zakius/tennessine), the Android browser (Firefox Sync, no saved history), is in the `dubna` submodule ([zakius/dubna](https://github.com/zakius/dubna)): clone with `--recurse-submodules`, or run `git submodule update --init`. The Chromium checkout and build outputs live in ignored `work/`.
 
+## What it's for
+
+A browser that is complete for the way its maintainer uses it, not one that tries to do everything: Vivaldi shows where that leads, with so many features that some never work well. What an extension does well stays an extension's job. Content blocking is uBlock Origin, the state of the art, built in through Helium's work. The browser itself only builds what an extension can't do: mouse gestures that also work on internal pages and while a page loads, a toolbar whose every item moves and hides, Firefox's tab placement and close selection, Firefox Sync for passwords, bookmarks, history, tabs and addresses, installed web apps whose outside links open in the default browser, and switches that stop saving history.
+
 ## The name
 
 Oganesson (Og, element 118) sits in the same group as helium, which this browser is built on, at the other end of it: helium is the lightest noble gas, oganesson the heaviest. The name was picked for that, same group as Helium but not lightweight. It is only nominally a noble gas: calculations predict it is a solid at room temperature, and far more reactive than the rest of its group. That fits too.
