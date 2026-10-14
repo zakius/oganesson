@@ -1,0 +1,67 @@
+# Firefox Sync's library and the NSS DLLs it loads, built next to the browser by
+# windows/build-sync-lib.sh: in the installer's payload, next to chrome.dll, and in the zip.
+--- a/chrome/installer/mini_installer/chrome.release
++++ b/chrome/installer/mini_installer/chrome.release
+@@ -22,6 +22,16 @@
+ chrome_100_percent.pak: %(VersionDir)s\
+ chrome_child.dll: %(VersionDir)s\
+ chrome_elf.dll: %(VersionDir)s\
++# oganesson: Firefox Sync's library and the NSS it loads (windows/build-sync-lib.sh).
++oganesson_sync.dll: %(VersionDir)s\
++nss3.dll: %(VersionDir)s\
++nssutil3.dll: %(VersionDir)s\
++softokn3.dll: %(VersionDir)s\
++freebl3.dll: %(VersionDir)s\
++libnspr4.dll: %(VersionDir)s\
++libplc4.dll: %(VersionDir)s\
++libplds4.dll: %(VersionDir)s\
++libsqlite3-0.dll: %(VersionDir)s\
+ chrome_pwa_launcher.exe: %(VersionDir)s\
+ chrome_renderer.dll: %(VersionDir)s\
+ chrome_wer.dll: %(VersionDir)s\
+--- a/chrome/tools/build/win/FILES.cfg
++++ b/chrome/tools/build/win/FILES.cfg
+@@ -68,6 +68,43 @@
+     'buildtype': ['official'],
+     'filegroup': ['default', 'symsrc'],
+   },
++  # oganesson: Firefox Sync's library and the NSS it loads (windows/build-sync-lib.sh).
++  {
++    'filename': 'oganesson_sync.dll',
++    'buildtype': ['dev', 'official'],
++  },
++  {
++    'filename': 'nss3.dll',
++    'buildtype': ['dev', 'official'],
++  },
++  {
++    'filename': 'nssutil3.dll',
++    'buildtype': ['dev', 'official'],
++  },
++  {
++    'filename': 'softokn3.dll',
++    'buildtype': ['dev', 'official'],
++  },
++  {
++    'filename': 'freebl3.dll',
++    'buildtype': ['dev', 'official'],
++  },
++  {
++    'filename': 'libnspr4.dll',
++    'buildtype': ['dev', 'official'],
++  },
++  {
++    'filename': 'libplc4.dll',
++    'buildtype': ['dev', 'official'],
++  },
++  {
++    'filename': 'libplds4.dll',
++    'buildtype': ['dev', 'official'],
++  },
++  {
++    'filename': 'libsqlite3-0.dll',
++    'buildtype': ['dev', 'official'],
++  },
+   {
+     'filename': 'chrome_renderer.dll',
+     'buildtype': ['official'],
