@@ -54,11 +54,14 @@ SOURCES = ('dubna/src', 'src')
 # scripts that apply them), helium-linux's, our translations and our scripts.
 PREP_INPUTS = ('work/helium-tree', 'linux/helium-linux', 'l10n', 'dubna/l10n',
                'tools/branding.py', 'tools/grit_fixups.py', 'dubna/tools/translate.py',
-               'linux/container-build.sh')
+               'linux/container-build.sh', 'tools/prepare.sh')
+# The Windows tree's inputs besides those: helium-windows and its build script.
+WINDOWS_INPUTS = ('windows/helium-windows', 'windows/container-build.sh')
 # Caches, tests, resources/generated (which preparation itself writes), git
 # metadata and helium-linux's own copy of Helium, which TREE stands in for.
 PREP_SKIP = {'__pycache__', 'tests', 'generated', '.git', 'helium-chromium'}
 IMAGE = 'oganesson-builder'
+WINDOWS_IMAGE = 'oganesson-windows-builder'
 MOUNT = '/oganesson'
 
 
@@ -147,9 +150,9 @@ def sections(text):
     return pre, secs
 
 
-def patch_hash():
+def patch_hash(extra=()):
     """Hashes every input of the prepared tree: each series and its patches,
-    our new files and PREP_INPUTS."""
+    our new files, PREP_INPUTS and `extra` (WINDOWS_INPUTS for that tree)."""
     helium_tree()
     digest = hashlib.sha256()
     for patches in SERIES:
@@ -158,7 +161,7 @@ def patch_hash():
         for line in series_entries(series):
             digest.update((patches / line).read_bytes())
     paths = []
-    for top in (*SOURCES, *PREP_INPUTS):
+    for top in (*SOURCES, *PREP_INPUTS, *extra):
         top = ROOT / top
         paths += [top] if top.is_file() else top.rglob('*')
     for path in sorted(paths):
@@ -365,12 +368,12 @@ def record_inputs(tree_hash, files):
     (SRC / '.oganesson-prepared').write_text(f'tree {tree_hash}\n')
 
 
-def docker_run(command, env=(), nice=0, cpu_shares=None):
+def docker_run(command, env=(), nice=0, cpu_shares=None, image=IMAGE, options=()):
     tty = ['-t'] if sys.stdin.isatty() else []
     # --init: a stop signal the docker CLI forwards ends the build (bash as
     # PID 1 would ignore it, and the container would outlive the checkout lock).
     cmd = ['docker', 'run', '--rm', '--init', '-i', *tty, '-u', f'{os.getuid()}:{os.getgid()}',
-           '-v', f'{ROOT}:{MOUNT}', '-w', MOUNT]
+           '-v', f'{ROOT}:{MOUNT}', '-w', MOUNT, *options]
     if cpu_shares:
         cmd += ['--cpu-shares', str(cpu_shares)]
     for key, value in env:
@@ -380,7 +383,7 @@ def docker_run(command, env=(), nice=0, cpu_shares=None):
         command = ['nice', '-n', str(nice), 'ionice', '-c', '2', '-n', '7', *command]
     # The docker CLI inherits the checkout lock: killing only this process
     # leaves the lock held for as long as the build goes on.
-    return subprocess.run(cmd + [IMAGE, *command], check=False, pass_fds=held_lock()).returncode
+    return subprocess.run(cmd + [image, *command], check=False, pass_fds=held_lock()).returncode
 
 
 def build_image():
@@ -390,6 +393,8 @@ def build_image():
     subprocess.run(['docker', 'build', '-t', IMAGE, *uid_args, '-f',
                     str(HELIUM_LINUX / 'docker/build.Dockerfile'), str(HELIUM_LINUX / 'docker')],
                    check=True)
+    subprocess.run(['docker', 'build', '-t', WINDOWS_IMAGE, '-f', str(ROOT / 'windows/Dockerfile'),
+                    str(ROOT / 'windows')], check=True)
 
 
 # Builds started on a weekday from 2:00 to 15:00, while the machine is in
@@ -407,6 +412,8 @@ def build(args):
         args.jobs, args.nice = QUIET_JOBS, QUIET_NICE
         print(f'oganesson: weekday daytime build: -j {QUIET_JOBS}, nice {QUIET_NICE}', file=sys.stderr)
     build_image()
+    if args.windows:
+        sys.exit(build_windows(args))
     tree_hash, files = patch_hash(), input_hashes()
     env = [('OGANESSON_PATCH_HASH', tree_hash)]
     if args.jobs:
@@ -424,6 +431,23 @@ def build(args):
         out = SRC / 'out' / ('Release' if args.release else 'Default')
         print(f'Built {out}/oganesson')
     sys.exit(code)
+
+
+def build_windows(args):
+    """The Windows release build, cross-compiled (windows/container-build.sh).
+    FUSE for the case-insensitive toolchain mount Chromium makes."""
+    if not (WORK / 'win/toolchain/hash').is_file():
+        fail('no Windows toolchain: see windows/make_toolchain.py')
+    env = [('OGANESSON_PATCH_HASH', patch_hash(WINDOWS_INPUTS))]
+    if args.jobs:
+        env.append(('OGANESSON_JOBS', str(args.jobs)))
+    code = docker_run(['bash', f'{MOUNT}/windows/container-build.sh'], env, nice=args.nice,
+                      cpu_shares=256 if args.nice else None, image=WINDOWS_IMAGE,
+                      options=['--device', '/dev/fuse', '--cap-add', 'SYS_ADMIN',
+                               '--security-opt', 'apparmor=unconfined'])
+    if code == 0:
+        print(f'Built {WORK}/helium-windows/build/src/out/Release/chrome.exe')
+    return code
 
 
 def snapshot(args):
@@ -544,6 +568,8 @@ def main():
     build_parser = commands.add_parser('build', help='prepare the tree and build it in a container')
     build_parser.add_argument('--release', action='store_true',
                               help='official build for x86-64-v2 instead of a component build (much slower)')
+    build_parser.add_argument('--windows', action='store_true',
+                              help='the Windows x64 release build, cross-compiled (see windows/)')
     build_parser.add_argument('-j', '--jobs', type=int,
                               help='parallel compile jobs (weekdays 2:00-15:00 default: 24, with --nice 19)')
     build_parser.add_argument('--nice', type=int, metavar='N',

@@ -7,3 +7,6 @@
 [submodule "linux/helium-linux"]
 	path = linux/helium-linux
 	url = https://github.com/imputnet/helium-linux.git
+[submodule "windows/helium-windows"]
+	path = windows/helium-windows
+	url = https://github.com/imputnet/helium-windows.git
