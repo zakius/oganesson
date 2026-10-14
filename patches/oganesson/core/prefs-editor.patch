@@ -1,8 +1,8 @@
 --- a/chrome/browser/ui/webui/BUILD.gn
 +++ b/chrome/browser/ui/webui/BUILD.gn
-@@ -51,6 +51,7 @@ source_set("configs") {
-     ":net_export_ui",
+@@ -52,6 +52,7 @@ source_set("configs") {
      ":ntp_tiles_internals_ui",
+     ":onboarding",
      ":signin_internals_ui",
 +    "//chrome/browser/ui/webui/prefs_editor",
      ":webui",
@@ -10,15 +10,15 @@
      "//chrome/browser/browser_actuator/internals",
 --- a/chrome/browser/ui/webui/chrome_web_ui_configs.cc
 +++ b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
-@@ -48,6 +48,7 @@
- #include "chrome/browser/ui/webui/ntp_tiles_internals_ui.h"
+@@ -49,6 +49,7 @@
  #include "chrome/browser/ui/webui/omnibox/omnibox_ui.h"
+ #include "chrome/browser/ui/webui/onboarding/onboarding_page_ui.h"
  #include "chrome/browser/ui/webui/policy/policy_ui.h"
 +#include "chrome/browser/ui/webui/prefs_editor/prefs_editor_ui.h"
  #include "chrome/browser/ui/webui/predictors/predictors_ui.h"
  #include "chrome/browser/ui/webui/regional_capabilities_internals/regional_capabilities_internals_ui.h"
  #include "chrome/browser/ui/webui/saved_tab_groups_unsupported/saved_tab_groups_unsupported_ui.h"
-@@ -475,6 +476,7 @@ void RegisterChromeWebUIConfigs() {
+@@ -476,6 +477,7 @@ void RegisterChromeWebUIConfigs() {
  
  #if BUILDFLAG(ENABLE_DICE_SUPPORT)
    map.AddWebUIConfig(std::make_unique<CrossDeviceSigninQrBubbleUIConfig>());
@@ -34,5 +34,5 @@
        kChromeUIProfileInternalsHost,
 +      "config",  // oganesson's about:config, see prefs_editor_ui.h.
        content::kChromeUIQuotaInternalsHost,
+       kHeliumSetupHost,
  #if !BUILDFLAG(IS_ANDROID)
-       kChromeUIWebUIToolbarHost,

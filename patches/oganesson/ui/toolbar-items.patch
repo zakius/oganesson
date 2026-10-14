@@ -1,6 +1,6 @@
 --- a/chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model.cc
 +++ b/chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model.cc
-@@ -218,6 +218,9 @@ void PinnedToolbarActionsModel::ResetToDefault() {
+@@ -227,6 +227,9 @@ void PinnedToolbarActionsModel::ResetToDefault() {
    pref_service_->ClearPref(prefs::kShowForwardButton);
    pref_service_->ClearPref(prefs::kPinSplitTabButton);
    pref_service_->ClearPref(prefs::kPinnedActions);
@@ -10,14 +10,14 @@
  }
  
  bool PinnedToolbarActionsModel::IsDefault() const {
-@@ -229,6 +232,7 @@ bool PinnedToolbarActionsModel::IsDefault() const {
+@@ -238,6 +241,7 @@ bool PinnedToolbarActionsModel::IsDefault() const {
    return std::ranges::all_of(
        std::initializer_list{prefs::kPinnedActions, prefs::kShowHomeButton,
                              prefs::kShowForwardButton,
 +                            prefs::kToolbarItems, prefs::kToolbarHiddenItems,
-                             prefs::kPinSplitTabButton},
-       is_default_pref_value);
- }
+                             prefs::kPinSplitTabButton,
+                             prefs::kShowBackButton,
+                             prefs::kShowReloadButton,
 --- a/chrome/browser/ui/views/extensions/extension_action_delegate_desktop.cc
 +++ b/chrome/browser/ui/views/extensions/extension_action_delegate_desktop.cc
 @@ -16,6 +16,7 @@
@@ -42,7 +42,7 @@
        extensions_container_views_->GetReferenceButtonForPopup(model_->GetId()),
 --- a/chrome/browser/ui/views/extensions/extensions_toolbar_desktop.cc
 +++ b/chrome/browser/ui/views/extensions/extensions_toolbar_desktop.cc
-@@ -41,6 +41,7 @@
+@@ -42,6 +42,7 @@
  #include "chrome/browser/ui/views/frame/browser_view.h"
  #include "chrome/browser/ui/views/frame/toolbar_button_provider.h"
  #include "chrome/browser/ui/views/toolbar/toolbar_action_hover_card_controller.h"
@@ -50,7 +50,7 @@
  #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
  #include "chrome/browser/user_education/user_education_service.h"
  #include "chrome/browser/user_education/user_education_service_factory.h"
-@@ -512,7 +513,7 @@ void ExtensionsToolbarDesktop::UpdateIconVisibility(
+@@ -514,7 +515,7 @@ void ExtensionsToolbarDesktop::UpdateIconVisibility(
    }
  
    ToolbarActionView* const action_view = GetViewForId(extension_id);
@@ -59,16 +59,16 @@
      return;
    }
  
-@@ -584,6 +585,8 @@ void ExtensionsToolbarDesktop::AnchorAndShowWidgetImmediately(
-   widget->widget_delegate()->AsBubbleDialogDelegate()->SetAnchorView(
-       anchor_view && anchor_view->GetVisible() ? anchor_view
-                                                : GetExtensionsButton());
+@@ -603,6 +604,8 @@ void ExtensionsToolbarDesktop::AnchorAndShowWidgetImmediately(
+       ->SetAnchorView(anchor_view);
+   }
+ 
 +  auto* const bubble = widget->widget_delegate()->AsBubbleDialogDelegate();
 +  bubble->SetArrow(GetToolbarBubbleArrow(bubble->GetAnchorView()));
    widget->Show();
  }
  
-@@ -639,9 +642,11 @@ void ExtensionsToolbarDesktop::PopOutAction(
+@@ -658,9 +661,11 @@ void ExtensionsToolbarDesktop::PopOutAction(
  
  void ExtensionsToolbarDesktop::ReorderAllChildViews() {
    // Reorder pinned action views left-to-right.
@@ -83,7 +83,7 @@
    }
    if (drop_info_.get()) {
      ReorderChildView(GetViewForId(drop_info_->action_id), drop_info_->index);
-@@ -703,6 +708,13 @@ gfx::Size ExtensionsToolbarDesktop::GetToolbarActionSize() {
+@@ -722,6 +727,13 @@ gfx::Size ExtensionsToolbarDesktop::GetToolbarActionSize() {
  
  void ExtensionsToolbarDesktop::MovePinnedActionBy(const std::string& action_id,
                                                    int move_by) {
@@ -97,7 +97,7 @@
    toolbar_view_model_->MovePinnedActionBy(action_id, move_by);
  }
  
-@@ -839,7 +851,8 @@ void ExtensionsToolbarDesktop::OnActionRemoved(
+@@ -858,7 +870,8 @@ void ExtensionsToolbarDesktop::OnActionRemoved(
  
    ToolbarActionView* action_view = GetViewForId(action_id);
    if (action_view) {
@@ -107,7 +107,7 @@
      icons_.erase(action_id);
    }
  
-@@ -962,7 +975,8 @@ bool ExtensionsToolbarDesktop::AreDropTypesRequired() {
+@@ -981,7 +994,8 @@ bool ExtensionsToolbarDesktop::AreDropTypesRequired() {
  }
  
  bool ExtensionsToolbarDesktop::CanDrop(const OSExchangeData& data) {
@@ -129,7 +129,7 @@
      "webui_back_forward_control.cc",
 --- a/chrome/browser/ui/views/toolbar/pinned_toolbar_actions_container.cc
 +++ b/chrome/browser/ui/views/toolbar/pinned_toolbar_actions_container.cc
-@@ -280,6 +280,12 @@ void PinnedToolbarActionsContainer::MovePinnedAction(
+@@ -282,6 +282,12 @@ void PinnedToolbarActionsContainer::MovePinnedAction(
  void PinnedToolbarActionsContainer::MovePinnedActionBy(actions::ActionId id,
                                                         int delta) {
    DCHECK(IsActionPinned(id));
@@ -142,7 +142,7 @@
    const auto& pinned_action_ids = model_->PinnedActionIds();
  
    auto iter = std::ranges::find(pinned_action_ids, id);
-@@ -318,8 +324,8 @@ bool PinnedToolbarActionsContainer::AreDropTypesRequired() {
+@@ -320,8 +326,8 @@ bool PinnedToolbarActionsContainer::AreDropTypesRequired() {
  }
  
  bool PinnedToolbarActionsContainer::CanDrop(const OSExchangeData& data) {
@@ -153,7 +153,7 @@
  }
  
  void PinnedToolbarActionsContainer::OnDragEntered(
-@@ -571,6 +577,9 @@ void PinnedToolbarActionsContainer::RemovePinnedActionButtonFor(
+@@ -573,6 +579,9 @@ void PinnedToolbarActionsContainer::RemovePinnedActionButtonFor(
    if (iter == pinned_buttons_.end()) {
      return;
    }
@@ -163,7 +163,7 @@
    if (!ShouldRemainPoppedOutInToolbar(*iter)) {
      GetAnimatingLayoutManager()->FadeOut(*iter);
      GetAnimatingLayoutManager()->PostOrQueueAction(
-@@ -704,7 +713,8 @@ void PinnedToolbarActionsContainer::ReorderViews() {
+@@ -706,7 +715,8 @@ void PinnedToolbarActionsContainer::ReorderViews() {
    // or from the user dragging to reorder.
    const auto ordered_pinned_ids = model_->PinnedActionIds();
    for (auto id : ordered_pinned_ids) {
@@ -175,7 +175,7 @@
      }
 --- a/chrome/browser/ui/views/toolbar/toolbar_view.cc
 +++ b/chrome/browser/ui/views/toolbar/toolbar_view.cc
-@@ -306,6 +306,8 @@ ToolbarView::~ToolbarView() {
+@@ -416,6 +416,8 @@ ToolbarView::~ToolbarView() {
      overflow_button_->set_toolbar_controller(nullptr);
    }
  
@@ -184,7 +184,7 @@
    for (const auto& view_and_command : GetViewCommandMap()) {
      chrome::RemoveCommandObserver(browser_, view_and_command.second, this);
    }
-@@ -708,6 +710,8 @@ void ToolbarView::Init() {
+@@ -921,6 +923,8 @@ void ToolbarView::Init() {
      glic_split_button_controller_->SetVerticalTabsDelegate(this);
    }
  
@@ -195,7 +195,7 @@
  
 --- a/chrome/browser/ui/views/toolbar/toolbar_view.h
 +++ b/chrome/browser/ui/views/toolbar/toolbar_view.h
-@@ -250,6 +250,42 @@ class ToolbarView : public views::AccessiblePaneView,
+@@ -269,6 +269,42 @@ class ToolbarView : public views::AccessiblePaneView,
    bool AcceleratorPressed(const ui::Accelerator& acc) override;
    void ChildPreferredSizeChanged(views::View* child) override;
    void ChildVisibilityChanged(View* child) override;
@@ -250,7 +250,7 @@
      "//chrome/browser:browser_public_dependencies",
 --- a/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar.mojom
 +++ b/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar.mojom
-@@ -35,6 +35,13 @@ enum ActionId {
+@@ -43,6 +43,13 @@ enum ActionId {
    kSplitTab,
    kContextualTasks,
    kShowTabsFromOtherDevices,
@@ -274,10 +274,10 @@
  #include "chrome/browser/ui/webui/util/image_util.h"
  #include "chrome/browser/ui/webui/webui_embedding_context.h"
  #include "chrome/common/chrome_features.h"
-@@ -196,6 +197,13 @@ CustomizeToolbarHandler::CustomizeToolbarHandler(
+@@ -237,6 +238,13 @@ CustomizeToolbarHandler::CustomizeToolbarHandler(
        base::BindRepeating(&CustomizeToolbarHandler::OnActionPinnedChanged,
-                           base::Unretained(this), kActionSplitTab,
-                           prefs::kPinSplitTabButton));
+                           base::Unretained(this), kActionMediaControls,
+                           prefs::kShowMediaButton));
 +  // A moved toolbar item changes whether the toolbar is customized, and a
 +  // hidden built-in item is listed unpinned.
 +  for (const char* pref : {prefs::kToolbarItems, prefs::kToolbarHiddenItems}) {
@@ -288,16 +288,16 @@
  }
  
  CustomizeToolbarHandler::~CustomizeToolbarHandler() = default;
-@@ -261,6 +269,8 @@ void CustomizeToolbarHandler::ListActions(ListActionsCallback callback) {
-           scale_factor)));
- 
-   actions.push_back(std::move(split_tab_action));
+@@ -422,6 +430,8 @@ void CustomizeToolbarHandler::ListActions(ListActionsCallback callback) {
+   actions.push_back(std::move(media_controls_action));
+   actions.push_back(std::move(avatar_action));
+   actions.push_back(std::move(menu_action));
 +  AppendHideableToolbarItems(actions, *prefs(), provider, icon_color_id,
 +                             scale_factor);
  
    const auto add_action =
        [&actions, this, &provider, scale_factor, bwi](
-@@ -395,6 +405,9 @@ void CustomizeToolbarHandler::ListCategories(ListCategoriesCallback callback) {
+@@ -539,6 +549,9 @@ void CustomizeToolbarHandler::ListCategories(ListCategoriesCallback callback) {
  void CustomizeToolbarHandler::PinAction(
      side_panel::customize_chrome::mojom::ActionId action_id,
      bool pin) {
@@ -309,7 +309,7 @@
    if (!chrome_action.has_value()) {
 --- a/chrome/common/pref_names.h
 +++ b/chrome/common/pref_names.h
-@@ -627,6 +627,13 @@ inline constexpr char kShowZoomIndicator[] =
+@@ -663,6 +663,13 @@ inline constexpr char kHeliumShowProgressBar[] =
  // visible on the toolbar.
  inline constexpr char kShowHomeButton[] = "browser.show_home_button";
  

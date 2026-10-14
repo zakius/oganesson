@@ -1,7 +1,7 @@
 --- a/chrome/browser/extensions/updater/extension_updater.cc
 +++ b/chrome/browser/extensions/updater/extension_updater.cc
-@@ -793,6 +793,14 @@ bool ExtensionUpdater::CanUseUpdateService(
-     return true;
+@@ -802,6 +802,14 @@ bool ExtensionUpdater::CanUseUpdateService(
+     return false;
    }
  
 +  // oganesson: update_client's checks are blocked (ungoogled-chromium's
@@ -15,27 +15,15 @@
    // UpdateService can only update extensions that have been installed on the
    // system.
    // TODO(crbug.com/482088398): Eliminate this constraint.
---- a/chrome/browser/spellchecker/spellcheck_hunspell_dictionary.cc
-+++ b/chrome/browser/spellchecker/spellcheck_hunspell_dictionary.cc
-@@ -285,7 +285,6 @@ GURL SpellcheckHunspellDictionary::GetDictionaryURL() {
- }
- 
- void SpellcheckHunspellDictionary::DownloadDictionary(GURL url) {
--  return;
-   DCHECK_CURRENTLY_ON(BrowserThread::UI);
-   DCHECK(browser_context_);
- 
---- a/extensions/browser/updater/extension_downloader.cc
-+++ b/extensions/browser/updater/extension_downloader.cc
-@@ -347,6 +347,11 @@ void ExtensionDownloader::DoStartAllPending() {
-     AddToFetches(fetches_preparing, std::move(task));
-   pending_tasks_.clear();
- 
-+  for (auto& fetch_list : fetches_preparing) {
-+    for (auto& fetch : fetch_list.second)
-+      StartUpdateCheck(std::move(fetch));
-+  }
-+
- }
- 
- void ExtensionDownloader::SetIdentityManager(
+--- a/chrome/browser/ui/browser_ui_prefs.cc
++++ b/chrome/browser/ui/browser_ui_prefs.cc
+@@ -257,7 +257,8 @@ void RegisterBrowserUserPrefs(user_prefs::PrefRegistrySyncable* registry) {
+   {
+     registry->RegisterIntegerPref(prefs::kHeliumSchemaVersion, 0);
+     registry->RegisterBooleanPref(prefs::kHeliumDisableSchemaAlerts, false);
+-    registry->RegisterBooleanPref(prefs::kHeliumServicesEnabled, true);
++    // oganesson: no Helium servers unless the user turns them on.
++    registry->RegisterBooleanPref(prefs::kHeliumServicesEnabled, false);
+     registry->RegisterBooleanPref(prefs::kHeliumBangsEnabled, true);
+     registry->RegisterBooleanPref(prefs::kHeliumExtProxyEnabled, true);
+     registry->RegisterBooleanPref(prefs::kHeliumSpellcheckEnabled, true);
