@@ -8,16 +8,23 @@ Usage: windows/make_toolchain.py MSVC_DIR SRC_TREE OUT_DIR
 Chromium's own package is made on Windows (depot_tools'
 win_toolchain/package_from_installed.py, from an installed Visual Studio). This
 makes the same layout here: VC/, Windows Kits/10/ (with the SetEnv files the
-build reads its environment from), DIA SDK/, the runtime DLLs in sys32/ and
-sys64/, and VS_VERSION. The zip lands in OUT_DIR as <hash>.zip, under the hash
-depot_tools checks after unpacking it; the build then takes it with
+build reads its environment from, and the Debugging Tools' DLLs), DIA SDK/,
+the runtime DLLs in sys32/ and sys64/, and VS_VERSION. The zip lands in
+OUT_DIR as <hash>.zip, under the hash depot_tools checks after unpacking it;
+the build then takes it with
 DEPOT_TOOLS_WIN_TOOLCHAIN_BASE_URL=OUT_DIR and GYP_MSVS_HASH_<pin>=<hash>
 (printed, and written to OUT_DIR/hash).
 """
-import glob, os, shutil, subprocess, sys, tempfile, zipfile
+import glob, hashlib, io, os, shutil, subprocess, sys, tempfile, urllib.request, zipfile
 from pathlib import Path
 
 VS_VERSION = '2026'
+# The SDK's Debugging Tools, which Chromium ships dbghelp.dll and dbgcore.dll
+# from: Visual Studio's installer doesn't carry them, Microsoft's NuGet package
+# does (under the Windows SDK's license).
+DBGENG = ('https://www.nuget.org/api/v2/package/Microsoft.Debugging.Platform.DbgEng/'
+          '20260319.1511.0')
+DBGENG_SHA256 = '875678516f9ceed4a1c8b9b106d165106fcaa38723ad7c584c47b95b231600de'
 
 
 def main():
@@ -45,6 +52,16 @@ def main():
                         *glob.glob(str(msvc / f'Windows Kits/10/Redist/{sdk}/ucrt/DLLs/{cpu}/*.dll'))]:
                 shutil.copy2(dll, stage / sys_dir)
         (stage / 'sysarm64').mkdir()
+        with urllib.request.urlopen(DBGENG, timeout=60) as response:
+            package = response.read()
+        if hashlib.sha256(package).hexdigest() != DBGENG_SHA256:
+            sys.exit('make_toolchain.py: the Debugging Tools package changed')
+        with zipfile.ZipFile(io.BytesIO(package)) as nupkg:
+            for arch, cpu in (('amd64', 'x64'), ('x86', 'x86'), ('arm64', 'arm64')):
+                debuggers = stage / 'Windows Kits/10/Debuggers' / cpu
+                debuggers.mkdir(parents=True)
+                for dll in ('dbghelp.dll', 'dbgcore.dll'):
+                    (debuggers / dll).write_bytes(nupkg.read(f'content/{arch}/{dll}'))
 
         # depot_tools' generator, with its globals as its main() sets them. It
         # names the files with Windows separators, which on Linux are part of
