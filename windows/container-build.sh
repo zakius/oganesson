@@ -33,6 +33,15 @@ export DEPOT_TOOLS_WIN_TOOLCHAIN=1
 export DEPOT_TOOLS_WIN_TOOLCHAIN_BASE_URL="$toolchain"
 export "GYP_MSVS_HASH_${pin_hash}=$(cat "$toolchain/hash")"
 
+# Runs a command in clone.py's environment, as its Google Storage downloads
+# need: its depot_tools (and their vpython3, on the system Python) first.
+with_depot_tools() {
+    local tools="${_src_dir}/uc_staging/depot_tools"
+    PATH="$tools:$PATH" PYTHONPATH="$tools" DEPOT_TOOLS_UPDATE=0 PYTHONDONTWRITEBYTECODE=1 \
+        PYTHONWARNINGS=ignore::SyntaxWarning \
+        VPYTHON_BYPASS='manually managed python not supported by chrome operations' "$@"
+}
+
 # helium-windows' series without windows/helium-windows-drops.txt: a folder of
 # links to its patches, with its own series.
 _platform_patches="${_build_dir}/helium-windows-patches"
@@ -61,12 +70,8 @@ windows_deps() {
         echo "gclient state still names the Linux tree" >&2
         exit 1
     fi
-    # clone.py's environment: its depot_tools (and their vpython3, on the
-    # system Python) first.
-    (cd "$staging" && PATH="$staging/depot_tools:$PATH" PYTHONPATH="$staging/depot_tools" \
-        DEPOT_TOOLS_UPDATE=0 PYTHONDONTWRITEBYTECODE=1 PYTHONWARNINGS=ignore::SyntaxWarning \
-        VPYTHON_BYPASS='manually managed python not supported by chrome operations' \
-        python3 depot_tools/gclient.py sync --nohooks --no-history --shallow -j 8)
+    (cd "$staging" &&
+        with_depot_tools python3 depot_tools/gclient.py sync --nohooks --no-history --shallow -j 8)
     touch "${_src_dir}/.windeps.stamp"
 }
 
@@ -90,10 +95,16 @@ windows_toolchain() {
     cd "$_src_dir"
     python3 -c "import sys; sys.path.insert(0, 'tools/clang/scripts'); import update; \
 update.DownloadAndUnpackClangWinRuntime(update.LLVM_BUILD_DIR)"
-    python3 third_party/depot_tools/download_from_google_storage.py --no_resume \
-        --no_auth --bucket chromium-browser-clang/rc -s build/toolchain/win/rc/linux64/rc.sha1
-    python3 tools/update_pgo_profiles.py --target=win64 update \
-        --gs-url-base=chromium-optimization-profiles/pgo_profiles
+    # Both public on Google Storage, named by the files the tree pins them in.
+    local gcs=https://storage.googleapis.com rc=build/toolchain/win/rc/linux64/rc
+    curl -sfL -o "$rc" "$gcs/chromium-browser-clang/rc/$(cat "$rc.sha1")"
+    echo "$(cat "$rc.sha1")  $rc" | sha1sum -c --quiet
+    chmod +x "$rc"
+    local profile
+    profile="chrome/build/pgo_profiles/$(cat chrome/build/win64.pgo.txt)"
+    mkdir -p chrome/build/pgo_profiles
+    [ -f "$profile" ] || curl -sfL -o "$profile" \
+        "$gcs/chromium-optimization-profiles/pgo_profiles/${profile##*/}"
     python3 build/vs_toolchain.py update --force
     cd - >/dev/null
 }
