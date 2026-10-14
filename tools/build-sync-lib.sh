@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds rust/oganesson_sync (Firefox Sync over application-services) into
+# Builds dubna/rust/oganesson_sync (Firefox Sync over application-services) into
 # out/Default/liboganesson_sync.so, inside the build container. Uses
 # Chromium's own rustc and cargo, links with its clang and the Debian sysroot
 # against the system NSS Chromium already uses. Crates are pinned by
@@ -11,7 +11,7 @@ src="$(realpath "$1")"   # the Chromium tree
 mode="${2:-build}"       # or "test": build the unit tests, print their path
 out="${3:-$src/out/Default}"  # the browser's output folder
 level="${4:-}"           # an x86-64 level for release tiers, e.g. x86-64-v4
-crate=/oganesson/rust/oganesson_sync
+crate=/oganesson/dubna/rust/oganesson_sync
 sysroot="$src/build/linux/debian_bullseye_amd64-sysroot"
 syslib="$sysroot/usr/lib/x86_64-linux-gnu"
 target="$out/oganesson_sync"

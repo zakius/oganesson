@@ -120,15 +120,16 @@ if [ ! -f "$stamp" ]; then
     # Clone mode (git checkout of the Chromium tag): release tarballs are
     # often missing for new versions.
     fetch_sources true false
-    # Our new files, which the patches then hook in.
-    cp -r /oganesson/src/. "$_src_dir"
+    # Our new files, which the patches then hook in: dubna's shared ones, then ours.
+    cp -r /oganesson/dubna/src/. /oganesson/src/. "$_src_dir"
     apply_patches
     # After helium-linux's platform patches, which set the names these rename.
     "${_main_repo}/utils/patches.py" apply --no-fuzz "$_src_dir" /oganesson/late
     apply_domsub
     helium_substitution
     helium_apply_translations
-    python3 /oganesson/tools/translate.py "$_src_dir"
+    PYTHONPATH=/oganesson/utils python3 /oganesson/dubna/tools/translate.py "$_src_dir" \
+        /oganesson/dubna /oganesson
     # Helium -> oganesson in UI strings, after both steps above write them.
     python3 /oganesson/tools/branding.py "$_src_dir"
     # .gritdeps and resource ID sizes for our resources, once every step
@@ -156,7 +157,7 @@ jobs=()
 export SISO_PATH="${_src_dir}/third_party/siso/cipd/siso"
 # Our own files first: after a Chromium update, an API they use may be gone,
 # and in the full build that error shows only near its end.
-mapfile -t ours < <(cd /oganesson/src && find . -name '*.cc' -printf '../../%P^\n')
+mapfile -t ours < <(find /oganesson/dubna/src /oganesson/src -name '*.cc' -printf '../../%P^\n')
 python3 third_party/depot_tools/autoninja.py -C "$_out_dir" "${jobs[@]}" -k 0 "${ours[@]}"
 python3 third_party/depot_tools/autoninja.py -C "$_out_dir" "${jobs[@]}" -k 0 chrome
 # Firefox Sync's Rust library, loaded by the browser from its folder.

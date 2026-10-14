@@ -1,0 +1,3 @@
+[submodule "dubna"]
+	path = dubna
+	url = git@github.com:zakius/dubna.git

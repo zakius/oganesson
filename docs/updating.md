@@ -8,4 +8,4 @@
 
 Keep emergency Chromium security updates distinct from product changes. A new upstream pin and clean patch application are intermediate results. They do not prove that a copied adapter or a changed upstream API still behaves correctly.
 
-To update Mozilla application-services, use `tools/update-app-services.sh TAG`, review the locked dependencies, then rebuild and test Sync. The library and the browser adapters share a JSON contract.
+To update Mozilla application-services, use `dubna/tools/update_app_services.py TAG`, review the locked dependencies, then rebuild and test Sync on both products. The library and the browser adapters share a JSON contract.

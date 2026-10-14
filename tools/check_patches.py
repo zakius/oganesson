@@ -8,10 +8,12 @@ A failing patch doesn't stop the run: its hunks that fit are applied, so the pat
 as much of it as they can, and the end lists every failing patch with the hunks patch reported.
 Usage: tools/check_patches.py [--chromium URL_OR_LOCAL_CLONE] [--keep DIR]
 """
-import argparse, re, shutil, subprocess, sys, tempfile
+import argparse, re, subprocess, sys, tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+import oganesson  # pylint: disable=wrong-import-position
 BASES = (ROOT / 'patches', ROOT / 'linux/patches', ROOT / 'late')
 
 
@@ -124,14 +126,21 @@ def main():
                        check=True)
     # Our new files, which the patches then hook in. Preparation copies them over the tree, so a
     # file upstream added at the same path would be replaced without a word.
-    ours = sorted(str(p.relative_to(ROOT / 'src')) for p in (ROOT / 'src').rglob('*') if p.is_file())
+    ours = oganesson.new_files()
     shadowed = subprocess.run(['git', '-C', str(src), 'ls-tree', '-r', '--name-only', 'HEAD', '--',
                                *ours], capture_output=True, text=True, check=True).stdout.split()
     if shadowed:
-        sys.exit('src/ files that Chromium now has too; rename ours:\n  ' + '\n  '.join(shadowed))
-    shutil.copytree(ROOT / 'src', src, dirs_exist_ok=True)
+        sys.exit('new files that Chromium now has too; rename ours:\n  '
+                 + '\n  '.join(ours[name] for name in shadowed))
+    oganesson.copy_new_files(src)
     failed = apply_series(src)
     report(failed)
+    # dubna's update policy: both products build one milestone, except for an
+    # exploit in the wild (dubna/README.md).
+    milestone = (ROOT / 'dubna/milestone.txt').read_text().strip()
+    if version.split('.')[0] != milestone:
+        print(f'WARNING: Chromium {version} is not on milestone {milestone} of dubna/milestone.txt; '
+              'only an exploit in the wild allows that')
     sys.exit(1 if failed else 0)
 
 

@@ -27,6 +27,8 @@ import os, re, shutil, subprocess, sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+import oganesson  # pylint: disable=wrong-import-position
 work = Path(sys.argv[1])
 src = work / 'src'
 state = work / '.regen-index'
@@ -86,8 +88,8 @@ def diff_of_last(path):
                 # An edit that only brings a src/ file to its src/ version isn't
                 # the patch's: src/ goes in before any patch.
                 name = re.match(r'--- a/(\S+)', section)[1]
-                ours = ROOT / 'src' / name
-                if ours.is_file() and ours.read_bytes() == (src / name).read_bytes():
+                ours = oganesson.new_files().get(name)
+                if ours and (ROOT / ours).read_bytes() == (src / name).read_bytes():
                     print(f'dropped {name}: same as src/')
                 else:
                     kept.append(section)
@@ -184,11 +186,10 @@ def edit(start):
         git('clean', '-fdq', repo=repo)
     # Commits from before a file moved to src/ lack it. Only missing files: a
     # patch before this point may have edited the others.
-    for file in (ROOT / 'src').rglob('*'):
-        target = src / file.relative_to(ROOT / 'src')
-        if file.is_file() and not target.exists():
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(file, target)
+    for name, file in oganesson.new_files().items():
+        if not (src / name).exists():
+            (src / name).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(ROOT / file, src / name)
     fetch_files(entries[start])
     run(*patch_cmd(entries[start], 3), check=False)
     state.write_text(str(start))
@@ -227,7 +228,7 @@ else:
     subprocess.run([str(ROOT / 'utils/downloads.py'), 'unpack', '-i', str(ROOT / 'deps.ini'),
                     '-c', str(work / 'cache'), str(src), '--components', 'ublock_origin',
                     'onboarding'], check=True, capture_output=True)
-    shutil.copytree(ROOT / 'src', src, dirs_exist_ok=True)
+    oganesson.copy_new_files(src)
     commit('base')
 
 

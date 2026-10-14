@@ -2,7 +2,7 @@
 
 A Linux Chromium browser source layer for mouse gestures, a configurable toolbar, full Chromium uBlock Origin, hidden tab close buttons, middle-click new tabs, Firefox tab rules, Firefox Sync, installed web app controls, and switches that stop saving browsing and download history.
 
-This repository extracts a focused feature set from [oganesson-core](https://github.com/zakius/oganesson-core). It keeps the Helium patch baseline and existing build tools. Product code lives in `src/`, with feature patches in `patches/oganesson/`. The Chromium checkout and build outputs live in ignored `work/`.
+This repository extracts a focused feature set from [oganesson-core](https://github.com/zakius/oganesson-core). It keeps the Helium patch baseline and existing build tools. Product code lives in `src/`, with feature patches in `patches/oganesson/`. What it shares with [tennessine](https://github.com/zakius/tennessine-focused), the Android browser (Firefox Sync, no saved history), is in the `dubna` submodule ([zakius/dubna](https://github.com/zakius/dubna)): clone with `--recurse-submodules`, or run `git submodule update --init`. The Chromium checkout and build outputs live in ignored `work/`.
 
 **Status:** source extraction under validation. This repository is not a tested browser release. Patch application and tooling checks do not establish browser behavior. The first full build, browser tests, and real-account Sync verification are release gates.
 

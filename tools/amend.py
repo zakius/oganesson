@@ -59,10 +59,11 @@ def diff(a, b, name):
 
 
 def original(name, ser):
-    """FILE before any patch: our src/ copy, the fetched source (from the git repository that
+    """FILE before any patch: our src/ or dubna/src/ copy, the fetched source (from the git repository that
     holds it, such as DevTools' own), or empty for a file a patch of the series creates."""
-    if (ROOT / 'src' / name).exists():
-        return (ROOT / 'src' / name).read_bytes()
+    ours = oganesson.new_files().get(name)
+    if ours:
+        return (ROOT / ours).read_bytes()
     path = SRC / name
     r = subprocess.run(['git', '-C', str(path.parent), 'show', f'HEAD:./{path.name}'],
                        capture_output=True)

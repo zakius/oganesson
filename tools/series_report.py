@@ -4,10 +4,10 @@
 Lists every failing patch, as check_patches.py does, on a tree regen.py may have left patched.
 Usage: [FUZZ=N] tools/series_report.py WORKDIR   (WORKDIR holds src/ and cache/)
 """
-import os, shutil, subprocess, sys
+import os, subprocess, sys
 from pathlib import Path
 
-from check_patches import apply_series, report
+from check_patches import apply_series, oganesson, report
 
 ROOT = Path(__file__).resolve().parent.parent
 work = Path(sys.argv[1])
@@ -24,5 +24,5 @@ for action, extra in (('unpack', [str(src)]),):
     subprocess.run([str(ROOT / 'utils/downloads.py'), action, '-i', str(ROOT / 'deps.ini'),
                     '-c', str(work / 'cache'), *extra, '--components', 'ublock_origin', 'onboarding'],
                    check=True, capture_output=True)
-shutil.copytree(ROOT / 'src', src, dirs_exist_ok=True)
+oganesson.copy_new_files(src)
 report(apply_series(src, int(os.environ.get('FUZZ', '0'))))

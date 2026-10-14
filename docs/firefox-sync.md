@@ -1,6 +1,6 @@
 # Firefox Sync
 
-The browser's C++ adapters connect Chromium's password, bookmark, history, tab, and autofill stores to `rust/oganesson_sync`. The Rust library uses pinned Mozilla application-services crates for account and Sync protocols. It loads beside the browser as `liboganesson_sync.so`.
+The browser's C++ adapters connect Chromium's password, bookmark, history, tab, and autofill stores to `dubna/rust/oganesson_sync`, shared with tennessine. The Rust library uses pinned Mozilla application-services crates for account and Sync protocols. It loads beside the browser as `liboganesson_sync.so`.
 
 The retained implementation uses OAuth with PKCE, encrypts saved account secrets through Chromium's OS cryptography service, and routes HTTP through the profile's network context. Signing out discards pending results. The client must honor server backoff and preserve local edits made during a sync.
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Builds oganesson: Helium's tree with the patch series in patches/, linux/
-patches and late/, and our new files in src/.
+patches and late/, and our new files in dubna/src/ (shared with tennessine) and
+src/.
 
 build:    prepares the Chromium tree in work/ (once per patch set) and builds it
           in helium-linux's builder container.
@@ -10,7 +11,7 @@ run:      starts the dev build with a profile in work/profile.
 test:     runs the end-to-end tests in tools/e2e against the dev build.
 stamp:    marks work/ as prepared for the current patches, after the same edit
           was made in the tree by hand, so build doesn't reset it. Refuses
-          when a patch or src/ file changed since the last stamp isn't in
+          when a patch or new file changed since the last stamp isn't in
           the tree, or a removed one still is.
 shell:    opens a shell in the builder container.
 check-patches: applies the whole series to a sparse checkout, zero fuzz, and
@@ -34,14 +35,17 @@ WORK = ROOT / 'work'
 # helium-linux's layout, which the shared base tree and its build cache use.
 SRC = WORK / 'helium-linux/build/src'
 SERIES = (ROOT / 'patches', ROOT / 'linux/patches', ROOT / 'late')
-# What preparation reads besides the series and src/: the Chromium pin (a new
+# Our new files, copied over the tree before the patches: dubna's, which
+# tennessine shares, then ours.
+SOURCES = ('dubna/src', 'src')
+# What preparation reads besides the series and SOURCES: the Chromium pin (a new
 # one also refetches the sources, see tools/container-build.sh), version files,
 # dependency and transformation lists, translations, resources and the scripts
 # that apply them.
 PREP_INPUTS = ('chromium_version.txt', 'version.txt', 'revision.txt', 'linux/revision.txt',
                'deps.ini', 'pruning.list', 'domain_regex.list', 'domain_substitution.list',
-               'i18n', 'l10n', 'resources', 'utils', 'tools/branding.py', 'tools/grit_fixups.py',
-               'tools/translate.py',
+               'i18n', 'l10n', 'dubna/l10n', 'resources', 'utils', 'tools/branding.py',
+               'tools/grit_fixups.py', 'dubna/tools/translate.py',
                'linux/scripts/shared.sh')
 # Caches, tests and resources/generated, which preparation itself writes.
 PREP_SKIP = {'__pycache__', 'tests', 'generated'}
@@ -51,6 +55,26 @@ MOUNT = '/oganesson'
 
 def fail(message):
     sys.exit(f'oganesson: {message}')
+
+
+def new_files():
+    """{path in the tree: path from ROOT} of every file in SOURCES."""
+    found = {}
+    for top in SOURCES:
+        for path in sorted((ROOT / top).rglob('*')):
+            relative = path.relative_to(ROOT)
+            if path.is_file() and not PREP_SKIP & set(relative.parts):
+                name = str(path.relative_to(ROOT / top))
+                if name in found:
+                    fail(f'{found[name]} and {relative} are the same tree file')
+                found[name] = str(relative)
+    return found
+
+
+def copy_new_files(tree):
+    for name, path in new_files().items():
+        (Path(tree) / name).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(ROOT / path, Path(tree) / name)
 
 
 def series_entries(text):
@@ -91,7 +115,7 @@ def patch_hash():
         for line in series_entries(series):
             digest.update((patches / line).read_bytes())
     paths = []
-    for top in ('src', *PREP_INPUTS):
+    for top in (*SOURCES, *PREP_INPUTS):
         top = ROOT / top
         paths += [top] if top.is_file() else top.rglob('*')
     for path in sorted(paths):
@@ -103,11 +127,18 @@ def patch_hash():
 
 
 def input_hashes():
-    """Each series patch's and src/ file's hash, by path: what stamp compares
+    """Each series patch's and new file's hash, by path: what stamp compares
     with the last stamp's to find the changes it checks in the tree."""
-    paths = series_patches() + sorted(p for p in (ROOT / 'src').rglob('*') if p.is_file()
-                                      and not PREP_SKIP & set(p.relative_to(ROOT).parts))
+    paths = series_patches() + [ROOT / p for p in new_files().values()]
     return {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}
+
+
+def tree_name(path):
+    """The tree path of a new file's path from ROOT, or None for a patch."""
+    for top in SOURCES:
+        if path.startswith(top + '/'):
+            return path[len(top) + 1:]
+    return None
 
 
 def failed_hunks(path, section):
@@ -150,11 +181,11 @@ def old_text(path, digest):
 
 def tree_lacks(previous, current):
     """Checks the tree against what changed in the inputs since the last stamp.
-    Each series patch and src/ file whose hash differs must be in the tree: a
+    Each series patch and new file whose hash differs must be in the tree: a
     patch's hunks with the later series patches' sections of the same file
-    reversed, a src/ file with the series patches that edit it applied. A hunk
+    reversed, a new file with the series patches that edit it applied. A hunk
     of the old version of a changed or dropped patch that no patch still has,
-    and a removed src/ file, must be gone from it. Returns (missing,
+    and a removed new file, must be gone from it. Returns (missing,
     unverifiable): unverifiable is what can't be checked, such as hunks where
     the later patches don't reverse, or in branding and translations (.grd,
     .grdp, .xtb)."""
@@ -184,8 +215,9 @@ def tree_lacks(previous, current):
     for path, digest in sorted(current.items()):
         if previous.get(path) == digest:
             continue
-        if path.startswith('src/'):
-            name, tree = path[4:], SRC / path[4:]
+        if tree_name(path):
+            name = tree_name(path)
+            tree = SRC / name
             edits = [s for secs in parsed for n, s in secs if n == name]
             with tempfile.TemporaryDirectory() as directory:
                 expected = applied(ROOT / path, edits, directory)
@@ -229,8 +261,8 @@ def tree_lacks(previous, current):
     for path, digest in sorted(previous.items()):
         if path in current and current[path] == digest:
             continue
-        if path.startswith('src/'):
-            tree = SRC / path[4:]
+        if tree_name(path):
+            tree = SRC / tree_name(path)
             if tree.is_file() and hashlib.sha256(tree.read_bytes()).hexdigest() == digest:
                 missing.append(f'{path}: removed, but the tree still has it')
             continue
@@ -498,7 +530,7 @@ def main():
     test_parser.set_defaults(handler=test)
     stamp_parser = commands.add_parser(
         'stamp', help='mark the tree as prepared for the current patches, after making the same '
-                      'edit in it by hand; refuses when a patch or src/ file changed since the '
+                      'edit in it by hand; refuses when a patch or new file changed since the '
                       'last stamp is not in the tree, or a removed one still is')
     stamp_parser.add_argument('--force', action='store_true',
                               help='stamp without checking the tree, e.g. when it holds the '
