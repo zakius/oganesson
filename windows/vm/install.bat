@@ -1,0 +1,4 @@
+@echo off
+rem First logon in the test VM (dockur/windows runs C:\OEM\install.bat): Windows'
+rem OpenSSH server, for the key oganesson's tests use, and PowerShell as its shell.
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0; Set-Service sshd -StartupType Automatic; Start-Service sshd; New-ItemProperty -Path 'HKLM:\SOFTWARE\OpenSSH' -Name DefaultShell -Value 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe' -PropertyType String -Force; Set-Content -Path 'C:\ProgramData\ssh\administrators_authorized_keys' -Value 'KEY'; icacls 'C:\ProgramData\ssh\administrators_authorized_keys' /inheritance:r /grant 'Administrators:F' /grant 'SYSTEM:F'; New-NetFirewallRule -Name sshd -DisplayName 'OpenSSH Server' -Protocol TCP -LocalPort 22 -Action Allow -ErrorAction SilentlyContinue"

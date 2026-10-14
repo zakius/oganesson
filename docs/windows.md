@@ -37,10 +37,13 @@ The packages include Microsoft's runtime DLLs (`vcruntime140*.dll`, `msvcp140*.d
 
 ## Testing in a VM
 
-A Windows 11 VM in Docker ([dockur/windows](https://github.com/dockur/windows)) runs the installer and the browser. Its files are in `work/win/vm`: `storage/` (the disk), `share/` (`\\host.lan\Data` in Windows), `oem/install.bat` (first-logon setup: OpenSSH for `ssh_key`), and `password` for the `oganesson` user. The VM's screen is at port 8006 in a web browser, and RDP is on port 3389. SSH is on port 2222, from this machine only:
+`windows/vm/vm.sh` runs a Windows 11 VM in Docker ([dockur/windows](https://github.com/dockur/windows), with KVM), for the installer and the browser:
 
 ```sh
-ssh -i work/win/vm/ssh_key -p 2222 oganesson@127.0.0.1
+windows/vm/vm.sh start [ADDRESS]   # first time: downloads and installs Windows unattended
+windows/vm/vm.sh install           # the newest installer, with its GUI, on the VM's desktop
+windows/vm/vm.sh run               # the installed browser on the VM's desktop
+windows/vm/vm.sh ssh               # PowerShell in the VM
 ```
 
-SSH runs outside the desktop session. `share/run-oganesson.ps1` starts the browser in it, and `share/gui-install.ps1` reinstalls with the installer's GUI.
+Its screen is at http://localhost:8006, and with ADDRESS (for example this machine's Tailscale address) also there, with RDP on port 3389. The VM's files are in `work/win/vm`: the disk (`storage/`), the shared folder (`share/`, `\\host.lan\Data` in Windows), the SSH key and the `oganesson` user's password. On first logon, `windows/vm/install.bat` turns on Windows' OpenSSH server for that key. SSH runs outside the desktop session, so the scripts start the installer and the browser in it with scheduled tasks.
