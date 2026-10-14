@@ -250,17 +250,12 @@
      "//chrome/browser:browser_public_dependencies",
 --- a/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar.mojom
 +++ b/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar.mojom
-@@ -43,6 +43,13 @@ enum ActionId {
+@@ -43,6 +43,8 @@ enum ActionId {
    kSplitTab,
    kContextualTasks,
    kShowTabsFromOtherDevices,
-+  // oganesson: built-in toolbar items that Customize toolbar shows or hides.
-+  kBack,
-+  kReload,
++  // oganesson: the address bar, which Customize toolbar shows or hides.
 +  kLocationBar,
-+  kExtensions,
-+  kAvatar,
-+  kAppMenu,
  };
  
  // Unique identifiers for categories the actions can belong to.

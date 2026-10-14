@@ -8,7 +8,6 @@
 
 #include "base/containers/span.h"
 #include "base/values.h"
-#include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/prefs/pref_service.h"
@@ -35,22 +34,13 @@ struct HideableItem {
 };
 
 base::span<const HideableItem> Items() {
+  // Helium's toolbar-button-prefs lists Back, Reload, Extensions, the profile
+  // button, the menu and media controls, with its helium.browser.show_*
+  // prefs; the address bar is ours.
   static const HideableItem kItems[] = {
-      {ActionId::kBack, "back", IDS_OGANESSON_TOOLBAR_ITEM_BACK,
-       vector_icons::kBackArrowChromeRefreshOldIcon, CategoryId::kNavigation},
-      {ActionId::kReload, "reload", IDS_OGANESSON_TOOLBAR_ITEM_RELOAD,
-       vector_icons::kReloadChromeRefreshOldIcon, CategoryId::kNavigation},
       {ActionId::kLocationBar, "location_bar",
        IDS_OGANESSON_TOOLBAR_ITEM_LOCATION_BAR, vector_icons::kSearchIcon,
        CategoryId::kNavigation},
-      {ActionId::kExtensions, "extensions",
-       IDS_OGANESSON_TOOLBAR_ITEM_EXTENSIONS,
-       vector_icons::kExtensionChromeRefreshOldIcon,
-       CategoryId::kYourChrome},
-      {ActionId::kAvatar, "avatar", IDS_OGANESSON_TOOLBAR_ITEM_AVATAR,
-       vector_icons::kAccountCircleIcon, CategoryId::kYourChrome},
-      {ActionId::kAppMenu, "app_menu", IDS_OGANESSON_TOOLBAR_ITEM_APP_MENU,
-       kBrowserToolsChromeRefreshOldIcon, CategoryId::kYourChrome},
   };
   return kItems;
 }
