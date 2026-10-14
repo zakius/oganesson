@@ -8,7 +8,7 @@ Keep feature patches separate. Hooks that every feature needs are in `patches/og
 
 ## Source provenance
 
-Initial extraction: `zakius/oganesson-core` at `f0b39417cd03c7adf13518027a3f0269af99ec60`, inspected 2026-10-09. The inherited baseline pins Helium to `8309d0e93a7c728e8cbc06f3f112bc457c235793` and helium-linux to `0.19.1.2`. The machine-readable pins are in `upstream.txt` and `chromium_version.txt`.
+Initial extraction: oganesson-core (since deleted) at `f0b39417cd03c7adf13518027a3f0269af99ec60`, inspected 2026-10-09. The inherited baseline pins Helium to `8309d0e93a7c728e8cbc06f3f112bc457c235793` and helium-linux to `0.19.1.2`. The machine-readable pins are in `upstream.txt` and `chromium_version.txt`.
 
 uBO comes from the pinned Chromium package in `deps.ini`. It is full uBO, not uBO Lite, and not the Firefox XPI. Firefox-only response-filtering APIs are not part of this scope.
 
