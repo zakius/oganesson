@@ -2,7 +2,13 @@
 
 A desktop Chromium browser layered on [Helium](https://github.com/imputnet/helium): mouse gestures, a toolbar whose items move and hide, full Chromium uBlock Origin, Firefox tab placement and close selection, Firefox Sync, installed web app controls, and switches that stop saving browsing and download history. Linux x86-64 today; Windows is planned (`windows/`, not there yet). [goals.md](goals.md) says what is in scope and what isn't.
 
+> **Highly volatile.** This is a personal project. Features change or disappear without notice, some may misbehave, updates can break things, and development may stop at any moment. Use it knowing that.
+
 Its Android sibling is [tennessine](https://github.com/zakius/tennessine). What the two share (Firefox Sync, no saved history, the Chromium update policy) is in [dubna](https://github.com/zakius/dubna).
+
+## The name
+
+Oganesson (Og, element 118) is the heaviest noble gas, at the far end of the group that starts with helium, which this browser is built on. It was first made in 2002 at the Joint Institute for Nuclear Research in Dubna, and named after Yuri Oganessian. Its Android sibling is named after element 117, made there too.
 
 ## Install
 
