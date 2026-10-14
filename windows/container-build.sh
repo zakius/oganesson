@@ -39,7 +39,7 @@ windows_deps() {
     local staging="${_src_dir}/uc_staging"
     # The copy's gclient state, and clone.py's patched gclient, name the Linux
     # tree's paths: this tree's instead, or gclient would go through the Linux tree.
-    grep -rlIZ /oganesson/work/helium-linux/build/src "$staging" |
+    { grep -rlIZ /oganesson/work/helium-linux/build/src "$staging" || true; } |
         xargs -0 -r sed -i "s|/oganesson/work/helium-linux/build/src|${_src_dir}|g"
     sed -i "s|^target_os = .*|target_os = ['unix', 'win'];|" "$staging/.gclient"
     if grep -rqI /oganesson/work/helium-linux "$staging"; then
