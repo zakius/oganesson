@@ -6,6 +6,10 @@ A desktop Chromium browser layered on [Helium](https://github.com/imputnet/heliu
 
 Its Android sibling is [tennessine](https://github.com/zakius/tennessine). What the two share (Firefox Sync, no saved history, the Chromium update policy) is in [dubna](https://github.com/zakius/dubna).
 
+## What it's for
+
+A browser that is complete for the way its maintainer uses it, not one that tries to do everything: Vivaldi shows where that leads, with so many features that some never work well. What an extension does well stays an extension's job. Content blocking is uBlock Origin, the state of the art, built in through Helium's work. The browser itself only builds what an extension can't do: mouse gestures that also work on internal pages and while a page loads, a toolbar whose every item moves and hides, Firefox's tab placement and close selection, Firefox Sync for passwords, bookmarks, history, tabs and addresses, installed web apps whose outside links open in the default browser, and switches that stop saving history.
+
 ## The name
 
 Oganesson (Og, element 118) sits in the same group as helium, which this browser is built on, at the other end of it: helium is the lightest noble gas, oganesson the heaviest. The name was picked for that, same group as Helium but not lightweight. It is only nominally a noble gas: calculations predict it is a solid at room temperature, and far more reactive than the rest of its group. That fits too.
