@@ -88,6 +88,22 @@ def report(failed):
         print(*('  ' + line for line in output.splitlines()), sep='\n')
 
 
+def drops_still_used():
+    """Files a dropped Helium patch creates that a carried patch still names
+    (a build file listing it, an include): the build would fail on them."""
+    drops = {line.split('\t')[0] for line in oganesson.DROPS.read_text().splitlines()
+             if line.strip() and not line.startswith('#')}
+    helium = oganesson.HELIUM / 'patches'
+    carried = [p.read_text(errors='replace') for b in BASES for e in series(b)
+               for p in [b / e] if not (b == oganesson.TREE / 'patches' and e in drops)]
+    added = '\n'.join(l for t in carried for l in t.splitlines() if l.startswith('+'))
+    return [f'{drop} creates {Path(f).name}, which a carried patch uses'
+            for drop in sorted(drops)
+            for f in re.findall(r'(?m)^--- /dev/null\n\+\+\+ b/(\S+)',
+                                (helium / drop).read_text(errors='replace'))
+            if Path(f).name in added]
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--chromium', help='Chromium source to check against (default: the prepared '
@@ -136,6 +152,9 @@ def main():
     oganesson.copy_new_files(src)
     failed = apply_series(src)
     report(failed)
+    for problem in drops_still_used():
+        print(f'FAILED patches/helium-drops.txt: {problem}')
+        failed = failed or [problem]
     # dubna's update policy: both products build one milestone, except for an
     # exploit in the wild (dubna/README.md).
     milestone = (ROOT / 'dubna/milestone.txt').read_text().strip()
