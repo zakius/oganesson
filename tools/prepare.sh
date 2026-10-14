@@ -78,9 +78,11 @@ prepare_tree() {
 # Our own files first, new and patched (dubna/tools/ours.py): after a Chromium
 # update, an API they use may be gone, and in the full build that error shows
 # only near its end. -k 0: all of ours, then set -e stops on an error. Run in
-# the tree, with jobs set.
+# the tree, with jobs set. gn writes the build files again first: ours.py reads
+# them, and after a prepare they may still be the last tree's.
 build_ours() {
     local -a ours
+    ./buildtools/linux64/gn gen "$_out_dir" >/dev/null
     mapfile -t ours < <(python3 /oganesson/dubna/tools/ours.py "$_out_dir" \
         /oganesson/dubna/src /oganesson/src \
         $(for d in /oganesson/patches /oganesson/late ${_platform_late:-}; do sed "/^#/d;/^$/d;s|^|$d/|" "$d/series"; done))
