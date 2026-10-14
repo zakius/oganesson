@@ -22,7 +22,6 @@ from pathlib import Path
 
 from harness import BrowserTest, Page, Server, wait_for
 
-PREF = 'oganesson.web_apps.open_out_of_scope_links_in_default_browser'
 
 APP_PAGE = b'''<!doctype html><link rel="manifest" href="/app/manifest.json">
 <a id="plain" href="/out.html?plain">out</a>
@@ -221,20 +220,6 @@ class WebAppTest(BrowserTest):
         # The open menu has the keyboard grab.
         self.browser.xdotool('key', 'Escape')
         wait_for(lambda: not self.browser.menus(), what='the menu to close')
-
-    def set_pref(self, value):
-        tab = self.browser.new_tab('chrome://config/')
-        try:
-            # The tab is on about:blank, already complete, at first.
-            wait_for(lambda: tab.eval('location.href === "chrome://config/"'
-                                      ' && document.readyState === "complete"'),
-                     what='chrome://config')
-            # An error message, empty on success.
-            self.assertEqual(tab.eval("import('chrome://resources/js/cr.js').then(cr => "
-                                      f"cr.sendWithPromise('setPref', 'profile', {json.dumps(PREF)}, "
-                                      f"{json.dumps(json.dumps(value))}))"), '')
-        finally:
-            self.browser.close_target(tab)
 
     def set_default_browser_name(self, name):
         """Makes the default https handler a desktop entry named `name`."""
@@ -440,19 +425,6 @@ class WebAppLinksTest(WebAppTest):
         app.click('#rewrite')
         self.assert_excluded_opened(app)
         self.assertIn('/app/to-excluded', self.server.requests)
-
-    def test_exclusion_off_with_pref(self):
-        self.set_rules(RULES)
-        self.set_pref(False)
-        self.addCleanup(self.set_pref, True)
-        app = self.launch_app()
-        app.click('#push')
-        wait_for(lambda: app.eval('location.href') == self.server.url('/app/excluded.html'),
-                 what='the pushed page in the app window')
-        app.click('#assign')
-        wait_for(lambda: app.eval('document.body?.textContent') == 'excluded',
-                 what='the excluded page in the app window')
-        self.assertEqual(self.opened(), [])
 
     def test_default_browser_opens_excluded_page_in_tab(self):
         self.set_rules(RULES)
@@ -688,15 +660,6 @@ class WebAppLinksTest(WebAppTest):
         self.assertEqual(self.opened(), [self.server.url('/out.html?plain')])
         self.assertEqual(app.eval('location.href'), self.server.url('/app/index.html'))
         self.assertEqual(self.out_tabs(), [])
-
-    def test_pref_off_hides_menu_items(self):
-        app = self.launch_app()
-        shown = len(self.link_menu(app, '#plain'))
-        self.close_menus()
-        self.set_pref(False)
-        self.addCleanup(self.set_pref, True)
-        self.assertEqual(len(self.link_menu(app, '#plain')), shown - 2)
-        self.close_menus()
 
     def test_default_browser_hides_menu_items(self):
         app = self.launch_app()

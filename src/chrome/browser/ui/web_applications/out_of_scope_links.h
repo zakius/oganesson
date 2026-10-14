@@ -23,21 +23,14 @@ class NavigationThrottleRegistry;
 
 namespace web_app {
 
-// Profile pref: links from an installed web app's window that leave the
-// app's scope open in the system default browser.
-inline constexpr char kOpenOutOfScopeLinksInDefaultBrowser[] =
-    "oganesson.web_apps.open_out_of_scope_links_in_default_browser";
-
 // Whether `window` is an installed web app's own window: a registered web app
 // that isn't isolated, not a hosted (extension) app. Not its popups (window.open
 // with window features): sign-in flows open the provider in one, and its links
 // and its opener stay with it. Such a window has no prerendered pages, neither
-// its own nor a reparented tab's, whatever the pref: activating one skips the
-// navigation throttle, and the pref can be turned on while one is waiting.
+// its own nor a reparented tab's: activating one skips the navigation
+// throttle. Links from such a window that leave the app's scope open in the
+// system default browser.
 bool IsWebAppOwnWindow(BrowserWindowInterface* window);
-
-// Whether `window` is a web app's own window, with the pref on.
-bool SendsOutOfScopeLinksOut(BrowserWindowInterface* window);
 
 // For Navigate(): a new tab or window that a web app's window opens on a URL
 // out of the app's scope goes to the system default browser, unless that is

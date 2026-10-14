@@ -58,12 +58,6 @@ bool IsWebAppOwnWindow(BrowserWindowInterface* window) {
          provider->registrar_unsafe().GetAppById(controller->app_id());
 }
 
-bool SendsOutOfScopeLinksOut(BrowserWindowInterface* window) {
-  return IsWebAppOwnWindow(window) &&
-         window->GetProfile()->GetPrefs()->GetBoolean(
-             kOpenOutOfScopeLinksInDefaultBrowser);
-}
-
 namespace {
 
 #if BUILDFLAG(IS_LINUX)
@@ -88,7 +82,7 @@ void OpenExternalInBackground(const GURL& url) {
 // app's scope is the one Chromium keeps the window to (manifest scope and
 // scope extensions); a user-configured scope belongs there too.
 bool LeavesApp(BrowserWindowInterface* window, const GURL& url) {
-  return SendsOutOfScopeLinksOut(window) && url.SchemeIsHTTPOrHTTPS() &&
+  return IsWebAppOwnWindow(window) && url.SchemeIsHTTPOrHTTPS() &&
          !AppBrowserController::From(window)->IsUrlInAppScope(url);
 }
 
@@ -96,7 +90,7 @@ bool LeavesApp(BrowserWindowInterface* window, const GURL& url) {
 // one of the user's exclusions, which no route gets past: not script
 // navigations, redirects or same-document navigations either.
 bool HitsExclusion(BrowserWindowInterface* window, const GURL& url) {
-  return SendsOutOfScopeLinksOut(window) && url.SchemeIsHTTPOrHTTPS() &&
+  return IsWebAppOwnWindow(window) && url.SchemeIsHTTPOrHTTPS() &&
          IsUrlExcludedFromUserAppScope(
              *window->GetProfile()->GetPrefs(),
              AppBrowserController::From(window)->app_id(), url);
@@ -299,7 +293,7 @@ WEB_CONTENTS_USER_DATA_KEY_IMPL(ExclusionObserver);
 }  // namespace
 
 bool MaybeOpenNewContentsOutsideApp(NavigateParams& params) {
-  if (!SendsOutOfScopeLinksOut(params.browser)) {
+  if (!IsWebAppOwnWindow(params.browser)) {
     return false;
   }
   RefreshIsDefaultBrowser();
@@ -372,7 +366,7 @@ void AppendDefaultBrowserLinkItems(const GURL& url,
                                    BrowserWindowInterface* window,
                                    ui::SimpleMenuModel& model,
                                    UpdateMenuItemCallback update_item) {
-  if (!url.SchemeIsHTTPOrHTTPS() || !SendsOutOfScopeLinksOut(window)) {
+  if (!url.SchemeIsHTTPOrHTTPS() || !IsWebAppOwnWindow(window)) {
     return;
   }
   static constexpr int kIds[] = {
@@ -418,7 +412,7 @@ void MaybeAddOutOfScopeLinkThrottle(
   if (handle.IsInPrimaryMainFrame()) {
     tabs::TabInterface* tab =
         tabs::TabInterface::MaybeGetFromContents(handle.GetWebContents());
-    if (tab && SendsOutOfScopeLinksOut(tab->GetBrowserWindowInterface())) {
+    if (tab && IsWebAppOwnWindow(tab->GetBrowserWindowInterface())) {
       RefreshIsDefaultBrowser();
     }
     // On every tab: one can move into an app window with its page loaded.
