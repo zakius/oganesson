@@ -8,7 +8,7 @@ This repository is a focused feature set taken from the earlier oganesson-core (
 
 ## What it's for
 
-A browser that is complete for the way its maintainer uses it, not one that tries to do everything: Vivaldi shows where that leads, with so many features that some never work well. What an extension does well stays an extension's job. Content blocking is uBlock Origin, the state of the art, built in through Helium's work. The browser itself only builds what an extension can't do: mouse gestures that also work on internal pages and while a page loads, a toolbar whose every item moves and hides, Firefox's tab placement and close selection, Firefox Sync for passwords, bookmarks, history, tabs and addresses, installed web apps whose outside links open in the default browser, and switches that stop saving history.
+A browser that is complete for the way its maintainer uses it, not one that tries to do everything: Vivaldi shows where that leads, with so many features that some never work well. What an extension does well stays an extension's job. Content blocking is uBlock Origin, the state of the art, built in through Helium's work. The browser itself only builds what an extension can't do: mouse gestures that work on every page, internal ones included, a toolbar whose every item moves and hides, Firefox's tab placement and close selection, Firefox Sync for passwords, bookmarks, history, tabs and addresses, installed web apps whose outside links open in the default browser, and switches that stop saving history.
 
 ## The name
 
