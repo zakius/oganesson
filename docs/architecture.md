@@ -1,6 +1,6 @@
 # Upstream strategy
 
-Keep the existing Helium-derived ordered patch series and place new product code in separate `src/` files. This fits the selected features better than an embedding framework or a large replacement UI. Tab placement, toolbar layout, and mouse event handling need native browser integration. A framework would add browser-shell work without removing the Chromium maintenance beneath it.
+Keep Helium's ordered patch series as it is, our patches after it, and place new product code in separate `src/` files. Helium and helium-linux are submodules, never edited: what we don't want of Helium is either dropped (`patches/helium-drops.txt`, only for patches nothing later builds on) or turned off by our patches. This fits the selected features better than an embedding framework or a large replacement UI. Tab placement, toolbar layout, and mouse event handling need native browser integration. A framework would add browser-shell work without removing the Chromium maintenance beneath it.
 
 Helium supplies the full Chromium uBO integration and the Manifest V2 support it needs. Following that work avoids owning those changes alone. It also introduces dependency on Helium's release timing and carries its baseline privacy/UI changes. The alternative is a direct Chromium fork with fewer inherited choices and more responsibility for extension support. For this scope, reuse wins until a concrete Helium change makes that tradeoff unfavorable.
 
@@ -8,7 +8,7 @@ Keep feature patches separate. Hooks that every feature needs are in `patches/og
 
 ## Source provenance
 
-Initial extraction: oganesson-core (since deleted) at `f0b39417cd03c7adf13518027a3f0269af99ec60`, inspected 2026-10-09. The inherited baseline pins Helium to `8309d0e93a7c728e8cbc06f3f112bc457c235793` and helium-linux to `0.19.1.2`. The machine-readable pins are in `upstream.txt` and `chromium_version.txt`.
+Initial extraction: oganesson-core (since deleted) at `f0b39417cd03c7adf13518027a3f0269af99ec60`, inspected 2026-10-09. The inherited baseline pins Helium to `8309d0e93a7c728e8cbc06f3f112bc457c235793` and helium-linux to `0.19.1.2`. The pins are now the `helium` and `linux/helium-linux` submodules (Chromium's version is `helium/chromium_version.txt`). Since 2026-10-14 oganesson carries Helium's whole series, minus the patches in `patches/helium-drops.txt`, instead of a hand-picked subset that needed 21 of Helium's patches edited to apply.
 
 uBO comes from the pinned Chromium package in `deps.ini`. It is full uBO, not uBO Lite, and not the Firefox XPI. Firefox-only response-filtering APIs are not part of this scope.
 

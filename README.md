@@ -1,6 +1,6 @@
-# oganesson focused
+# oganesson
 
-A Linux Chromium browser source layer for mouse gestures, a configurable toolbar, full Chromium uBlock Origin, hidden tab close buttons, middle-click new tabs, Firefox tab rules, Firefox Sync, installed web app controls, and switches that stop saving browsing and download history.
+A desktop Chromium browser (Linux; Windows planned) layered on Helium, for mouse gestures, a configurable toolbar, full Chromium uBlock Origin, hidden tab close buttons, middle-click new tabs, Firefox tab rules, Firefox Sync, installed web app controls, and switches that stop saving browsing and download history.
 
 This repository is a focused feature set taken from the earlier oganesson-core (gone; its issues and the oldest repo's patches are archived locally). It keeps the Helium patch baseline and existing build tools. Product code lives in `src/`, with feature patches in `patches/oganesson/`. What it shares with [tennessine](https://github.com/zakius/tennessine), the Android browser (Firefox Sync, no saved history), is in the `dubna` submodule ([zakius/dubna](https://github.com/zakius/dubna)): clone with `--recurse-submodules`, or run `git submodule update --init`. The Chromium checkout and build outputs live in ignored `work/`.
 
@@ -27,4 +27,4 @@ Browser tests also require Xvfb, xdotool, and xwd. They use throwaway profiles. 
 
 [Architecture and provenance](docs/architecture.md) explains the upstream choice, retained dependencies, and exclusions. [Updating](docs/updating.md) describes upgrading Helium and Chromium. [Installed web apps](docs/web-apps.md) covers the PWA controls. [Address bar suggestions](docs/omnibox.md) lists the suggestion switches and describes their order and site autofill. [Autoplay](docs/autoplay.md) describes the Firefox-style autoplay setting. [Firefox Sync](docs/firefox-sync.md) records the protocol boundary and validation requirements.
 
-The patch order is authoritative in `patches/series`, `linux/patches/series`, and `late/series`. `chromium_version.txt`, `upstream.txt`, `deps.ini`, and Rust's `Cargo.lock` pin the inputs. Preserve inherited licenses and copyright notices.
+Patches apply in this order: Helium's series (`helium/patches/series` minus `patches/helium-drops.txt`), helium-linux's, ours in `patches/series` (with dubna's), then `late/series`. The `helium`, `linux/helium-linux` and `dubna` submodules and Rust's `Cargo.lock` pin the inputs; `oganesson.py` assembles Helium's tree in `work/helium-tree` with our fixes to its tools (`patches/helium-utils.patch`) and our branding (`resources/`). Linux's build and packaging are in `linux/`. Preserve inherited licenses and copyright notices.
