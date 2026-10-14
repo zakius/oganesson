@@ -18,11 +18,13 @@ formats=("$@")
 
 repo=/oganesson
 linux="$repo/linux"
+# helium-linux's packaging files (the linux/helium-linux submodule).
+helium_linux="$linux/helium-linux"
 packages="${PACKAGES:-$repo/work/packages}"
 # The version the build itself carries (chrome/VERSION): the vendored files,
 # the same ones as the packaging files.
-version=${VERSION:-$(python3 "$repo/utils/helium_version.py" \
-    --tree "$repo" --platform-tree "$repo/linux" --print)}
+version=${VERSION:-$(python3 "$repo/helium/utils/helium_version.py" \
+    --tree "$repo/helium" --platform-tree "$helium_linux" --print)}
 name="oganesson-${version}-x86_64-${target}"
 tarball="${name}_linux"
 stage="$(mktemp -d)"
@@ -49,9 +51,9 @@ else
     done
     cp "$out/locales/"*.pak "$dir/locales/"
     cp "$repo/resources/oganesson.desktop" "$dir/"
-    sed 's/helium/oganesson/g' "$linux/package/apparmor.cfg" > "$dir/apparmor.cfg"
+    sed 's/helium/oganesson/g' "$helium_linux/package/apparmor.cfg" > "$dir/apparmor.cfg"
     sed -e 's|"\$HERE/helium"|"$HERE/oganesson"|' -e 's/Helium/oganesson/g' \
-        "$linux/package/helium-wrapper.sh" > "$dir/oganesson-wrapper"
+        "$helium_linux/package/helium-wrapper.sh" > "$dir/oganesson-wrapper"
     chmod 755 "$dir/oganesson-wrapper"
     ln -sf oganesson "$dir/chrome"
     find "$dir" -type f -exec file {} + | awk -F: '/ELF/ {print $1}' \
@@ -72,7 +74,7 @@ if want appimage; then
     cp "$repo/resources/oganesson.desktop" "$app/"
     sed -e 's|/opt/helium/helium|/opt/oganesson/oganesson|' \
         -e 's/helium-appimage/oganesson-appimage/g' -e 's/Helium/oganesson/g' \
-        "$linux/package/helium-wrapper-appimage.sh" > "$app/AppRun"
+        "$helium_linux/package/helium-wrapper-appimage.sh" > "$app/AppRun"
     chmod 755 "$app/AppRun"
     cp "$dir/product_logo_256.png" "$app/oganesson.png"
     cp "$dir/product_logo_256.png" "$app/usr/share/icons/hicolor/256x256/apps/oganesson.png"
