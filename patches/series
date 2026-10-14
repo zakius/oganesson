@@ -13,7 +13,7 @@ oganesson/ui/vertical-tab-strip-clicks.patch
 ../dubna/patches/firefox-sync.patch
 oganesson/settings/firefox-sync-settings.patch
 oganesson/core/no-helium-services.patch
-../dubna/patches/ublock-assets-update.patch
+oganesson/core/ublock-assets-update.patch
 oganesson/core/chrome-scheme.patch
 oganesson/core/x86-64-levels.patch
 oganesson/core/offer-to-save-passwords.patch

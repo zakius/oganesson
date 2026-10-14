@@ -130,7 +130,7 @@ if [ ! -f "$stamp" ]; then
     apply_domsub
     helium_substitution
     helium_apply_translations
-    PYTHONPATH="${_main_repo}/utils" python3 /oganesson/dubna/tools/translate.py "$_src_dir" \
+    python3 /oganesson/dubna/tools/translate.py "$_src_dir" \
         /oganesson/dubna /oganesson
     # Helium -> oganesson in UI strings, after both steps above write them.
     python3 /oganesson/tools/branding.py "$_src_dir"
