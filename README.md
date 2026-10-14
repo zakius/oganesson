@@ -37,9 +37,10 @@ The browser keeps its own profile in `~/.config/oganesson-focused`, separate fro
 |---|---|
 | `helium/` | Submodule at the Helium commit that helium-linux builds on. Its patch series applies as it is, minus `patches/helium-drops.txt`. Never edited: what we don't want from Helium is dropped there or turned off by our patches ([decisions](docs/helium-patch-decisions.md)). |
 | `linux/` | The Linux build (`container-build.sh`), packaging and publishing, and the `helium-linux` submodule with its platform patches. |
+| `windows/` | The Windows build, cross-compiled on Linux: its container, toolchain, Sync library and packaging, and the `helium-windows` submodule with its platform patches ([docs/windows.md](docs/windows.md)). |
 | `dubna/` | Submodule: [dubna](https://github.com/zakius/dubna), the code, patches and translations shared with tennessine. |
 | `patches/` | Our patches (`series`), applied after Helium's and helium-linux's. Also `helium-drops.txt`, and `helium-utils.patch` with our fixes to Helium's build tools. |
-| `late/` | Patches applied after the platform's: branding for every platform. Each platform's own renames of what its Helium repo sets are in `linux/late/` (and `windows/late/`). |
+| `late/` | Patches applied after the platform's: branding for every platform. Each platform's own renames of what its Helium repo sets are in `linux/late/` and `windows/late/`. |
 | `src/` | Our new files, copied over the Chromium tree after `dubna/src/`. |
 | `resources/` | Our branding, laid over Helium's resources. |
 | `l10n/` | Polish translations of our strings. |
@@ -55,6 +56,7 @@ A build needs Linux x86-64, Python 3, Git, Docker, and room for a Chromium build
 ```sh
 ./oganesson.py check-patches            # every patch, zero fuzz, without compiling
 ./oganesson.py build --release          # without --release: the dev build
+./oganesson.py build --windows          # the Windows build and its packages (docs/windows.md)
 ./oganesson.py test --release           # all browser tests, or name suites: toolbar web_app_links
 ./oganesson.py run                      # the dev build, with the profile in work/profile
 ```
@@ -76,13 +78,14 @@ A build takes the checkout's lock. To keep a build running after the terminal cl
 ./oganesson.py test --release
 linux/pack.sh
 linux/publish-repo.sh
+./oganesson.py build --windows          # packages in work/dl/windows
 ```
 
 [docs/packages.md](docs/packages.md) covers the repository. The version is Helium's version plus the commit time.
 
 ## Docs
 
-[Architecture](docs/architecture.md), [Helium patch decisions](docs/helium-patch-decisions.md), [Firefox-compatible Sync](docs/firefox-sync.md), [mouse gestures](docs/mouse-gestures.md), [toolbar](docs/toolbar.md), [tab behavior](docs/tab-behavior.md), [installed web apps](docs/web-apps.md), [address bar suggestions](docs/omnibox.md), [autoplay](docs/autoplay.md), [packages](docs/packages.md), [updating](docs/updating.md).
+[Architecture](docs/architecture.md), [Helium patch decisions](docs/helium-patch-decisions.md), [Firefox-compatible Sync](docs/firefox-sync.md), [mouse gestures](docs/mouse-gestures.md), [toolbar](docs/toolbar.md), [tab behavior](docs/tab-behavior.md), [installed web apps](docs/web-apps.md), [address bar suggestions](docs/omnibox.md), [autoplay](docs/autoplay.md), [packages](docs/packages.md), [Windows](docs/windows.md), [updating](docs/updating.md).
 
 ## License
 

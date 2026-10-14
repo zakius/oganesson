@@ -1,6 +1,6 @@
 # Firefox Sync
 
-Sync is shared with tennessine through dubna: its C++ adapters (`dubna/src/chrome/browser/firefox_sync/`) connect Chromium's password, bookmark, history and autofill stores to `dubna/rust/oganesson_sync`. Desktop's side, the tabs adapter, the synced-tab views and the account on the profile, implements dubna's `firefox_sync_platform.h` in `src/chrome/browser/firefox_sync/platform/`. The Rust library uses pinned Mozilla application-services crates for account and Sync protocols. It loads beside the browser as `liboganesson_sync.so`.
+Sync is shared with tennessine through dubna: its C++ adapters (`dubna/src/chrome/browser/firefox_sync/`) connect Chromium's password, bookmark, history and autofill stores to `dubna/rust/oganesson_sync`. Desktop's side, the tabs adapter, the synced-tab views and the account on the profile, implements dubna's `firefox_sync_platform.h` in `src/chrome/browser/firefox_sync/platform/`. The Rust library uses pinned Mozilla application-services crates for account and Sync protocols. It loads beside the browser as `liboganesson_sync.so`, using the browser's NSS, or on Windows as `oganesson_sync.dll`, with its own NSS ([Windows](windows.md)).
 
 The retained implementation uses OAuth with PKCE, encrypts saved account secrets through Chromium's OS cryptography service, and routes HTTP through the profile's network context. Signing out discards pending results. The client must honor server backoff and preserve local edits made during a sync.
 

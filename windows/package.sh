@@ -39,7 +39,7 @@ EOF
 # windows/late/branding.patch has it: no company folder).
 nsi="$(mktemp --suffix=.nsi)"
 trap 'rm -f "$nsi"' EXIT
-sed -e 's/^!define PRODUCT_NAME "Helium"/!define PRODUCT_NAME "Oganesson"/' \
+sed -e 's/^!define PRODUCT_NAME "Helium"/!define PRODUCT_NAME "oganesson"/' \
     -e 's/^!define PRODUCT_PUBLISHER "imput"/!define PRODUCT_PUBLISHER "oganesson"/' \
     -e 's/^!define PRODUCT_COMPANY_PATH "imput"/!define PRODUCT_COMPANY_PATH ""/' \
     -e 's/^!define PRODUCT_GUID ".*"/!define PRODUCT_GUID "{161B2895-4044-4BBE-B56B-942B997EB7D0}"/' \

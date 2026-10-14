@@ -437,10 +437,9 @@ def build(args):
 
 
 def build_windows(args):
-    """The Windows release build, cross-compiled (windows/container-build.sh).
-    FUSE for the case-insensitive toolchain mount Chromium makes."""
-    if not (WORK / 'win/toolchain/hash').is_file():
-        fail('no Windows toolchain: see windows/make_toolchain.py')
+    """The Windows release build and its packages, cross-compiled
+    (windows/container-build.sh). FUSE for the case-insensitive toolchain mount
+    Chromium makes."""
     env = [('OGANESSON_PATCH_HASH', patch_hash(WINDOWS_INPUTS))]
     if args.jobs:
         env.append(('OGANESSON_JOBS', str(args.jobs)))
@@ -449,7 +448,8 @@ def build_windows(args):
                       options=['--device', '/dev/fuse', '--cap-add', 'SYS_ADMIN',
                                '--security-opt', 'apparmor=unconfined'])
     if code == 0:
-        print(f'Built {WORK}/helium-windows/build/src/out/Release/chrome.exe')
+        print(f'Built {WORK}/helium-windows/build/src/out/Release/chrome.exe; packages in '
+              f'{WORK}/dl/windows')
     return code
 
 
