@@ -1,6 +1,6 @@
 # Helium patches oganesson leaves out (oganesson.py's helium_tree() removes them from Helium's
-# series). Only patches no later Helium patch builds on; ./oganesson.py check-patches fails
-# when one does. One per line: path in Helium's series<TAB>reason. Unwanted patches that others
+# series). Only patches no later Helium patch builds on, in its text or in the files it
+# names (build files, includes): ./oganesson.py check-patches or the build fail otherwise. One per line: path in Helium's series<TAB>reason. Unwanted patches that others
 # build on are carried and turned off instead: docs/helium-patch-decisions.md.
 helium/core/clean-omnibox-suggestions.patch	Do not want
 helium/core/degoogle-context-menu.patch	Do not want
@@ -28,12 +28,6 @@ helium/core/search/fix-search-engine-icons.patch	Do not want
 helium/core/search/omnibox-default-search-icon.patch	Do not want
 helium/core/search/remove-description-snippet-deps.patch	Do not want
 helium/core/spoof-chrome-ua-brand.patch	Do not want
-helium/core/sync/datatype-policy.patch	Do not want
-helium/core/sync/disable-google-backed-sync-integrations.patch	Do not want
-helium/core/sync/history-expiration-threshold.patch	Do not want
-helium/core/sync/provider/service.patch	Do not want
-helium/core/sync/vault-engine-backend.patch	Do not want
-helium/core/sync/vault-store.patch	Do not want
 helium/core/unbreak-chromium-link.patch	Do not want
 helium/hop/disable-password-manager.patch	Do not want
 helium/settings/sync-setup-contract.patch	Do not want
