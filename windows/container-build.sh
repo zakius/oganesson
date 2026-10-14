@@ -126,11 +126,20 @@ update.DownloadAndUnpackClangWinRuntime(update.LLVM_BUILD_DIR)"
     cd - >/dev/null
 }
 
+# Helium's and helium-windows' arguments, and ours: an official build for
+# Windows, with V8's instance types from Torque (its metagen alternative runs
+# libclang in clang-cl mode, which on Linux reads its absolute input path as an
+# option). Written when they change; the build then reruns gn itself.
 write_windows_args() {
-    [ -f "${_out_dir}/args.gn" ] && return
     mkdir -p "$_out_dir"
-    cat "${_main_repo}/flags.gn" "${_root_dir}/flags.windows.gn" > "${_out_dir}/args.gn"
-    printf '%s\n' 'target_os="win"' 'is_official_build=true' >> "${_out_dir}/args.gn"
+    { cat "${_main_repo}/flags.gn" "${_root_dir}/flags.windows.gn"
+      printf '%s\n' 'target_os="win"' 'is_official_build=true' \
+          'v8_use_metagen_instance_types=false'; } > "${_out_dir}/args.gn.new"
+    if cmp -s "${_out_dir}/args.gn.new" "${_out_dir}/args.gn"; then
+        rm "${_out_dir}/args.gn.new"
+    else
+        mv "${_out_dir}/args.gn.new" "${_out_dir}/args.gn"
+    fi
 }
 
 # A tree prepared for other inputs (or the Linux tree it was copied from).
@@ -158,6 +167,7 @@ if [ ! -f "$stamp" ]; then
     fi
 fi
 
+write_windows_args
 # vs_toolchain's ciopfs mount ends with the container: mounted again for each build.
 (cd "$_src_dir" && python3 build/vs_toolchain.py update --force)
 if [ ! -f "${_out_dir}/build.ninja" ]; then
