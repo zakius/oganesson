@@ -51,7 +51,8 @@ mkdir "$stage/packages"
 # Each build's packages count as newer than the last: the commit time goes in
 # the release field (1.YYYYMMDDHHMMSS, UTC), which apt, dnf and Discover compare.
 release="1.$(TZ=UTC0 git -C "$root" log -1 --format=%cd --date=format-local:%Y%m%d%H%M%S)"
-version="$(python3 "$root/utils/helium_version.py" --tree "$root" --platform-tree "$root/linux" \
+version="$(python3 "$root/helium/utils/helium_version.py" --tree "$root/helium" \
+    --platform-tree "$root/linux/helium-linux" \
     --print)-$release"
 tar -C "$stage" -cf - "$name" | xz -T0 -9 > "$stage/packages/$name.tar.xz"
 docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp \
