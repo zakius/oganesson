@@ -140,7 +140,7 @@ class SettingsPageTest(BrowserTest):
 
 
 class VerticalTabsTest(TabAudioIndicatorTest):
-    extra_prefs = {'vertical_tabs': {'enabled': True}}
+    extra_prefs = {'helium': {'browser': {'layout': 2}}}  # Helium's vertical layout
     tab_class = 'TabView'
 
 

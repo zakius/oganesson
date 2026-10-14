@@ -55,34 +55,9 @@
     "message": "Przytrzymaj prawy, przewiń w dół"
   },
   {
-    "name": "IDS_OGANESSON_TOOLBAR_ITEM_BACK",
-    "source": "Back",
-    "message": "Wstecz"
-  },
-  {
-    "name": "IDS_OGANESSON_TOOLBAR_ITEM_RELOAD",
-    "source": "Reload",
-    "message": "Odśwież"
-  },
-  {
     "name": "IDS_OGANESSON_TOOLBAR_ITEM_LOCATION_BAR",
     "source": "Address bar",
     "message": "Pasek adresu"
-  },
-  {
-    "name": "IDS_OGANESSON_TOOLBAR_ITEM_EXTENSIONS",
-    "source": "Extensions",
-    "message": "Rozszerzenia"
-  },
-  {
-    "name": "IDS_OGANESSON_TOOLBAR_ITEM_AVATAR",
-    "source": "Profile",
-    "message": "Profil"
-  },
-  {
-    "name": "IDS_OGANESSON_TOOLBAR_ITEM_APP_MENU",
-    "source": "Menu",
-    "message": "Menu"
   },
   {
     "name": "IDS_OGANESSON_SHOW_TAB_AUDIO_INDICATOR",

@@ -1,16 +1,15 @@
 --- a/chrome/browser/resources/settings/privacy_page/privacy_page.html
 +++ b/chrome/browser/resources/settings/privacy_page/privacy_page.html
-@@ -16,6 +16,7 @@
-         label="$i18n{clearBrowsingData}"
-         sub-label="$i18n{clearBrowsingDataDescription}"
-         on-click="onClearBrowsingDataClick_"></cr-link-row>
+@@ -27,5 +27,6 @@
+       </cr-link-row>
+     </template>
 +    <settings-history-saving prefs="{{prefs}}"></settings-history-saving>
+     <template is="dom-if" if="[[false]]">
      <cr-link-row id="thirdPartyCookiesLinkRow"
          start-icon="privacy:cookie"
-         class="hr"
 --- a/chrome/browser/resources/settings/privacy_page/privacy_page.ts
 +++ b/chrome/browser/resources/settings/privacy_page/privacy_page.ts
-@@ -16,6 +16,7 @@
+@@ -16,6 +16,7 @@ import '../icons.html.js';
  import '../privacy_icons.html.js';
  import '../settings_page/settings_section.js';
  import '../settings_shared.css.js';

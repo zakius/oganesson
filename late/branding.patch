@@ -37,13 +37,13 @@
 --- a/chrome/app/theme/chromium/BRANDING
 +++ b/chrome/app/theme/chromium/BRANDING
 @@ -1,10 +1,10 @@
--COMPANY_FULLNAME=The Chromium Authors
--COMPANY_SHORTNAME=The Chromium Authors
--PRODUCT_FULLNAME=Chromium
--PRODUCT_SHORTNAME=Chromium
--PRODUCT_INSTALLER_FULLNAME=Chromium Installer
--PRODUCT_INSTALLER_SHORTNAME=Chromium Installer
--COPYRIGHT=Copyright @LASTCHANGE_YEAR@ The Chromium Authors. All rights reserved.
+-COMPANY_FULLNAME=The Helium Authors
+-COMPANY_SHORTNAME=The Helium Authors
+-PRODUCT_FULLNAME=Helium
+-PRODUCT_SHORTNAME=Helium
+-PRODUCT_INSTALLER_FULLNAME=Helium Installer
+-PRODUCT_INSTALLER_SHORTNAME=Helium Installer
+-COPYRIGHT=Copyright @LASTCHANGE_YEAR@ The Helium Authors. All rights reserved.
 +COMPANY_FULLNAME=The oganesson Authors
 +COMPANY_SHORTNAME=The oganesson Authors
 +PRODUCT_FULLNAME=oganesson
@@ -51,9 +51,9 @@
 +PRODUCT_INSTALLER_FULLNAME=oganesson Installer
 +PRODUCT_INSTALLER_SHORTNAME=oganesson Installer
 +COPYRIGHT=Copyright @LASTCHANGE_YEAR@ The oganesson Authors. All rights reserved.
- MAC_BUNDLE_ID=org.chromium.Chromium
+ MAC_BUNDLE_ID=net.imput.helium
  MAC_CREATOR_CODE=Cr24
- MAC_TEAM_ID=
+ MAC_TEAM_ID=S4Q33XPHB4
 --- a/chrome/browser/memory_details_linux.cc
 +++ b/chrome/browser/memory_details_linux.cc
 @@ -118,7 +118,7 @@ void MemoryDetails::CollectProcessData(
@@ -167,6 +167,41 @@
  
      // When --use-cros-crash-reporter is set (below), the handler passes dumps
      // to ChromeOS's /sbin/crash_reporter which in turn passes the dump to
+--- a/components/extstore_fixups/chrome-webstore.js
++++ b/components/extstore_fixups/chrome-webstore.js
+@@ -24,7 +24,7 @@
+         return false;
+       }
+ 
+-      el.nodeValue = el.nodeValue.replace(/\b(Google\s)?Chrome\b/, 'Helium');
++      el.nodeValue = el.nodeValue.replace(/\b(Google\s)?Chrome\b/, 'oganesson');
+       return true;
+     } else if (el.childNodes) {
+       for (const node of el.childNodes) {
+--- a/components/url_formatter/url_fixer.cc
++++ b/components/url_formatter/url_fixer.cc
+@@ -39,7 +39,8 @@ namespace {
+ 
+ // Hardcode these constants to avoid dependences on //chrome and //content.
+ const char kChromeUIScheme[] = "chrome";
+-const char kHeliumUIScheme[] = "helium";
++// oganesson: as content::kHeliumUIScheme.
++const char kHeliumUIScheme[] = "oganesson";
+ const char kDevToolsScheme[] = "devtools";
+ const char kChromeUIDefaultHost[] = "version";
+ const char kViewSourceScheme[] = "view-source";
+--- a/content/public/common/url_constants.h
++++ b/content/public/common/url_constants.h
+@@ -19,7 +19,8 @@ namespace content {
+ inline constexpr char kChromeDevToolsScheme[] = "devtools";
+ inline constexpr char kChromeErrorScheme[] = "chrome-error";
+ inline constexpr char kChromeUIScheme[] = "chrome";  // Used for WebUIs.
+-inline constexpr char kHeliumUIScheme[] = "helium";  // also used for webuis :3
++// oganesson: internal pages show as oganesson://, as Helium shows them as helium://.
++inline constexpr char kHeliumUIScheme[] = "oganesson";
+ inline constexpr char kChromeNativeScheme[] = "chrome-native";
+ inline constexpr char kChromeUIUntrustedScheme[] = "chrome-untrusted";
+ inline constexpr char kViewSourceScheme[] = "view-source";
 --- a/media/audio/pulse/pulse_util.cc
 +++ b/media/audio/pulse/pulse_util.cc
 @@ -39,8 +39,8 @@ namespace {
@@ -180,14 +215,3 @@
  #endif
  
  #if defined(DLOPEN_PULSEAUDIO)
---- a/components/extstore_fixups/chrome-webstore.js
-+++ b/components/extstore_fixups/chrome-webstore.js
-@@ -24,7 +24,7 @@
-         return false;
-       }
- 
--      el.nodeValue = el.nodeValue.replace(/\b(Google\s)?Chrome\b/, 'Helium');
-+      el.nodeValue = el.nodeValue.replace(/\b(Google\s)?Chrome\b/, 'oganesson');
-       return true;
-     } else if (el.childNodes) {
-       for (const node of el.childNodes) {

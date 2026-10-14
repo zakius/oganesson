@@ -28,12 +28,12 @@ SRC = ROOT / 'work/helium-linux/build/src'
 # patch and diff write temporary files; /tmp may be a small tmpfs.
 TMP = ROOT / 'work/tmp'
 sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / 'utils'))
 import oganesson  # pylint: disable=wrong-import-position
+sys.path.insert(0, str(oganesson.helium_tree() / 'utils'))
 from domain_substitution import DomainRegexList  # pylint: disable=wrong-import-position
 
-DOMSUB = DomainRegexList(ROOT / 'domain_regex.list')
-DOMSUB_FILES = set((ROOT / 'domain_substitution.list').read_text().split())
+DOMSUB = DomainRegexList(oganesson.TREE / 'domain_regex.list')
+DOMSUB_FILES = set((oganesson.TREE / 'domain_substitution.list').read_text().split())
 
 
 def apply(content, section, reverse=False, failure='patch failed'):

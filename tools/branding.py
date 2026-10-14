@@ -24,7 +24,8 @@ import xml.etree.ElementTree as xml
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'utils'))
+# Helium's utils, with oganesson's fixes (oganesson.py's helium_tree()).
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'work/helium-tree/utils'))
 # pylint: disable=wrong-import-position
 import name_substitution_utils as util
 from name_substitution import get_substitutable_files

@@ -1,6 +1,6 @@
 --- a/chrome/browser/ui/views/frame/horizontal_tab_strip_region_view.cc
 +++ b/chrome/browser/ui/views/frame/horizontal_tab_strip_region_view.cc
-@@ -98,6 +98,20 @@ class FrameGrabHandle : public views::View {
+@@ -104,6 +104,20 @@ class FrameGrabHandle : public views::View {
  
    void RemovedFromWidget() override { dialog_anchor_.reset(); }
  
@@ -20,10 +20,10 @@
 +
    gfx::Size CalculatePreferredSize(
        const views::SizeBounds& available_size) const override {
-     // Reserve some space for the frame to be grabbed by, even if the tabstrip
+     // Show the grab handle only in Classic layout
 --- a/ui/views/widget/desktop_aura/window_event_filter_linux.cc
 +++ b/ui/views/widget/desktop_aura/window_event_filter_linux.cc
-@@ -85,6 +85,11 @@ bool WindowEventFilterLinux::HandleMouseEventWithHitTest(
+@@ -84,6 +84,11 @@ bool WindowEventFilterLinux::HandleMouseEventWithHitTest(
    }
  
    if (hit_test == HTCAPTION) {

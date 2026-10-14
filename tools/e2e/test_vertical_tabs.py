@@ -7,7 +7,7 @@ from harness import BrowserTest, wait_for
 
 
 class VerticalTabsTest(BrowserTest):
-    prefs = {'vertical_tabs': {'enabled': True}}
+    prefs = {'helium': {'browser': {'layout': 2}}}  # Helium's vertical layout
 
     def pages(self):
         return [t for t in self.browser.targets() if t['type'] == 'page']

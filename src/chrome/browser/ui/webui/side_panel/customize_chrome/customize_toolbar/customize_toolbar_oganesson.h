@@ -15,10 +15,9 @@ namespace ui {
 class ColorProvider;
 }
 
-// Customize toolbar's switches for the built-in toolbar items it can hide:
-// back, reload, the location bar, the extensions button, the avatar and the
-// app menu. Their state is prefs::kToolbarHiddenItems, which ToolbarView
-// applies (toolbar_view_items.cc).
+// Customize toolbar's switches for the built-in toolbar items it can hide that
+// Helium's toolbar-button-prefs doesn't list: the location bar. Their state is
+// prefs::kToolbarHiddenItems, which ToolbarView applies (toolbar_view_items.cc).
 
 // Adds them to `actions`, with icons in `icon_color_id` at `scale_factor`.
 void AppendHideableToolbarItems(

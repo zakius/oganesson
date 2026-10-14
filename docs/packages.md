@@ -1,6 +1,6 @@
 # Package repository
 
-`tools/publish-repo.sh` publishes signed apt and dnf repositories with the 3 newest release builds, for x86-64-v2 machines. Below, `<domain>` is the repository's domain.
+`linux/publish-repo.sh` publishes signed apt and dnf repositories with the 3 newest release builds, for x86-64-v2 machines. Below, `<domain>` is the repository's domain.
 
 ## Server setup
 
@@ -26,10 +26,10 @@ Back up `~/.local/share/oganesson-repo`. The key exists only there; with a new k
 ## Publishing
 
 1. `./oganesson.py build --release`
-2. `tools/pack.sh`
-3. `tools/publish-repo.sh`
+2. `linux/pack.sh`
+3. `linux/publish-repo.sh`
 
-`pack.sh` also keeps the tarball the packages are made from. `publish-repo.sh` uploads only that tarball and the local .deb's `Depends:` line to `REPO_TARGET`. There, `tools/package/repo-build.sh` makes the .deb and .rpm natively, also on arm64. debbuild can't run `ldd` on x86 binaries there, so it takes the uploaded `Depends:` line instead. The repository metadata comes back to the build machine to be signed. `publish-repo.sh` also starts the server's compose project (`tools/package/repo-compose.yaml`), which serves the repository.
+`pack.sh` also keeps the tarball the packages are made from. `publish-repo.sh` uploads only that tarball and the local .deb's `Depends:` line to `REPO_TARGET`. There, `linux/package/repo-build.sh` makes the .deb and .rpm natively, also on arm64. debbuild can't run `ldd` on x86 binaries there, so it takes the uploaded `Depends:` line instead. The repository metadata comes back to the build machine to be signed. `publish-repo.sh` also starts the server's compose project (`linux/package/repo-compose.yaml`), which serves the repository.
 
 ## Adding the repository
 

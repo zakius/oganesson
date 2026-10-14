@@ -1,0 +1,291 @@
+# oganesson's fixes to Helium's utils/, applied to the assembled tree (tools/helium_tree.py):
+# clone.py keeps out/ and lets gclient move nested checkouts, so a new Chromium version
+# rebuilds incrementally; install_cipd_deps.py fetches public buckets over https (the build
+# container has no gsutil); downloads.py checks the cache again before unpacking;
+# domain_substitution.py keeps file modes; name_substitution_utils.py gives every rewritten
+# .xtb translation its source message's new fingerprint. With their tests.
+--- a/utils/clone.py
++++ b/utils/clone.py
+@@ -74,7 +74,10 @@
+             cwd=args.output,
+             check=True)
+         run(['git', 'reset', '--hard', 'FETCH_HEAD'], cwd=args.output, check=True)
+-        run(['git', 'clean', '-ffdx', '-e', 'uc_staging'], cwd=args.output, check=True)
++        # oganesson: one -f leaves the nested dependency checkouts for gclient sync to move,
++        # and out/ stays, so a new Chromium version rebuilds incrementally.
++        run(['git', 'clean', '-fdx', '-e', '/uc_staging', '-e', '/out'], cwd=args.output,
++            check=True)
+     else:
+         run([
+             'git', 'clone', '-c', 'advice.detachedHead=false', '-b', chromium_version, '--depth=2',
+@@ -235,6 +238,9 @@
+ 
+     get_logger().info('Removing unneeded files')
+     for path in sorted(args.output.rglob('*'), key=lambda l: len(str(l)), reverse=True):
++        # oganesson: not the build output folders
++        if path.relative_to(args.output).parts[0] == 'out':
++            continue
+         if not path.is_symlink() and '.git' not in path.parts:
+             if path.is_file() and (('out' in path.parts and 'node_modules' not in path.parts)
+                                    or path.name.startswith('ChangeLog')):
+--- a/utils/domain_substitution.py
++++ b/utils/domain_substitution.py
+@@ -300,8 +300,13 @@
+         # Move original files over substituted ones
+         get_logger().debug('Moving original files over substituted ones...')
+         for relative_path in cache_index_files:
+-            with _update_timestamp(resolved_tree / relative_path, set_new=False):
+-                (extract_path / _ORIG_DIR / relative_path).replace(resolved_tree / relative_path)
++            path = resolved_tree / relative_path
++            # Substitution rewrites files in place, so they keep their modes;
++            # the cache's copies don't have them.
++            mode = path.stat().st_mode
++            with _update_timestamp(path, set_new=False):
++                (extract_path / _ORIG_DIR / relative_path).replace(path)
++            path.chmod(mode)
+ 
+         # Quick check for unused files in cache
+         orig_has_unused = False
+--- a/utils/downloads.py
++++ b/utils/downloads.py
+@@ -388,10 +388,7 @@
+                         help='Path to the directory to cache downloads.')
+ 
+ 
+-def _retrieve_callback(args):
+-    info = DownloadInfo(args.ini)
+-    info.check_sections_exist(args.components)
+-    retrieve_downloads(info, args.cache, args.components, args.show_progress)
++def _check_downloads_or_exit(info, args):
+     try:
+         check_downloads(info, args.cache, args.components)
+     except HashMismatchError as exc:
+@@ -399,6 +396,13 @@
+         sys.exit(1)
+ 
+ 
++def _retrieve_callback(args):
++    info = DownloadInfo(args.ini)
++    info.check_sections_exist(args.components)
++    retrieve_downloads(info, args.cache, args.components, args.show_progress)
++    _check_downloads_or_exit(info, args)
++
++
+ def _unpack_callback(args):
+     extractors = {
+         ExtractorEnum.SEVENZIP: args.sevenz_path,
+@@ -407,6 +411,8 @@
+     }
+     info = DownloadInfo(args.ini)
+     info.check_sections_exist(args.components)
++    # The cache can change between retrieve and unpack.
++    _check_downloads_or_exit(info, args)
+     unpack_downloads(info, args.cache, args.components, args.output, extractors)
+ 
+ 
+--- a/utils/install_cipd_deps.py
++++ b/utils/install_cipd_deps.py
+@@ -6,8 +6,10 @@
+ import os
+ from pathlib import Path, PurePosixPath
+ import platform
++import shutil
+ import subprocess
+ import sys
++import urllib.request
+ 
+ HOST_OS = {"darwin": "mac", "linux": "linux", "win32": "win"}
+ 
+@@ -56,9 +58,28 @@
+     sys.path.insert(0, str(src_dir / "third_party/depot_tools"))
+     import gclient_eval # pylint: disable=import-outside-toplevel,import-error
+     import gclient # pylint: disable=import-outside-toplevel,import-error
++    import download_from_google_storage # pylint: disable=import-outside-toplevel,import-error
++    download_from_google_storage.Gsutil.check_call = gsutil_over_https
+     return gclient_eval, gclient
+ 
+ 
++def gsutil_over_https(_gsutil, command, url, output_file=None):
++    """Stand in for depot_tools' gsutil.py on public buckets.
++
++    gsutil.py needs vpython3 and luci-auth, which the build container lacks,
++    and domain substitution breaks its URLs. gclient still checks the
++    archive's hash and size, and extracts it.
++    """
++    if command == "stat":
++        # Only read for the executable bit, which an archive doesn't need.
++        return 0, "", ""
++    assert command == "cp" and url.startswith("gs://"), (command, url)
++    with urllib.request.urlopen("https://storage.googleapis.com/" + url[len("gs://"):]) as response:
++        with open(output_file, "wb") as output:
++            shutil.copyfileobj(response, output)
++    return 0, "", ""
++
++
+ def load_deps(src_dir, gclient_eval):
+     """Load the DEPS entries used by this installer."""
+     deps_file = src_dir / "DEPS"
+--- a/utils/name_substitution_utils.py
++++ b/utils/name_substitution_utils.py
+@@ -113,15 +113,16 @@
+ def replace_xtb_translation(msg, fp_map):
+     """
+     Replaces instances of Chrom(e | ium) with Helium in a
+-    .xtb <translation>.
++    .xtb <translation>, and gives it its source message's new
++    fingerprint: also when its text doesn't name the product, or names
++    it in a way the regexes leave alone (Chromium에서는).
+     """
+-    if not replace_grit_message(msg):
+-        return False
+-
++    changed = replace_grit_message(msg)
+     msg_id = msg.get('id')
+     if msg_id in fp_map:
+         msg.set('id', fp_map[msg_id])
+-    return True
++        changed = True
++    return changed
+ 
+ 
+ def get_parser():
+--- a/utils/patches.py
++++ b/utils/patches.py
+@@ -183,12 +183,17 @@
+             known_paths.update(generate_patches_from_series(destination))
+         else:
+             raise FileExistsError(f'destination already exists: {destination}')
++    sources = []
+     for source_dir in source_iter:
+         patch_paths = tuple(generate_patches_from_series(source_dir))
+         patch_intersection = known_paths.intersection(patch_paths)
+         if patch_intersection:
+             raise FileExistsError(f'Patches from {source_dir} have conflicting paths '
+                                   f'with other sources: {patch_intersection}')
++        known_paths.update(patch_paths)
++        sources.append((source_dir, patch_paths))
++    # Copies only once no source conflicts, so a failed merge overwrites nothing.
++    for source_dir, patch_paths in sources:
+         series.extend(patch_paths)
+         _copy_files(patch_paths, source_dir, destination)
+     if prepend and (destination / 'series').exists():
+--- a/utils/tests/test_domain_substitution.py
++++ b/utils/tests/test_domain_substitution.py
+@@ -97,3 +97,21 @@
+         assert crc32_hash is None
+         assert orig_content is None
+         assert path.read_text(encoding='UTF-8') == content
++
++
++def test_revert_keeps_executable_mode(tmp_path):
++    tree = tmp_path / 'tree'
++    tree.mkdir()
++    script = tree / 'helper.sh'
++    original = '#!/bin/sh\nprintf "google.com\\n"\n'
++    script.write_text(original)
++    script.chmod(0o755)
++    files = tmp_path / 'files.list'
++    files.write_text('helper.sh\n')
++    cache = tmp_path / 'cache.tar.gz'
++    domain_substitution.apply_substitution(
++        Path(__file__).parents[2] / 'domain_regex.list', files, tree, cache)
++    assert script.read_text() != original
++    domain_substitution.revert_substitution(cache, tree)
++    assert script.read_text() == original
++    assert script.stat().st_mode & 0o777 == 0o755
+--- a/utils/tests/test_downloads.py
++++ b/utils/tests/test_downloads.py
+@@ -0,0 +1,42 @@
++# -*- coding: UTF-8 -*-
++
++import hashlib
++import subprocess
++import sys
++import zipfile
++from pathlib import Path
++
++DOWNLOADS = Path(__file__).resolve().parent.parent / 'downloads.py'
++
++
++def _unpack(tmp_path, expected=None):
++    """Unpacks a cached ZIP configured with the hash of expected, or its own."""
++    cache, output = tmp_path / 'cache', tmp_path / 'output'
++    cache.mkdir()
++    output.mkdir()
++    with zipfile.ZipFile(cache / 'a.zip', 'w') as archive:
++        archive.writestr('a.txt', 'cached bytes')
++    digest = hashlib.sha256(expected or (cache / 'a.zip').read_bytes()).hexdigest()
++    config = tmp_path / 'downloads.ini'
++    config.write_text('[test]\nurl = https://invalid.example/a.zip\ndownload_filename = a.zip\n'
++                      f'output_path = ./\nsha256 = {digest}\n')
++    result = subprocess.run(
++        [sys.executable,
++         str(DOWNLOADS), 'unpack', '-i',
++         str(config), '-c',
++         str(cache),
++         str(output)],
++        check=False)
++    return result.returncode, output / 'a.txt'
++
++
++def test_unpack_checks_hashes(tmp_path):
++    returncode, extracted = _unpack(tmp_path, b'other bytes')
++    assert returncode == 1
++    assert not extracted.exists()
++
++
++def test_unpack_matching_hash(tmp_path):
++    returncode, extracted = _unpack(tmp_path)
++    assert returncode == 0
++    assert extracted.read_text() == 'cached bytes'
+--- a/utils/tests/test_name_substitution_utils.py
++++ b/utils/tests/test_name_substitution_utils.py
+@@ -0,0 +1,23 @@
++# -*- coding: UTF-8 -*-
++
++import xml.etree.ElementTree as xml
++
++from .. import name_substitution_utils as util
++
++
++def test_xtb_rekeys_translations_without_a_replacement():
++    xtb = ('<translationbundle lang="ko">'
++           '<translation id="1">Chromium에서는 이 확장 프로그램을 검토할 것을 권장합니다.</translation>'
++           '<translation id="2">이 확장 프로그램을 검토하세요.</translation>'
++           '<translation id="3">Chromium을 사용하세요</translation>'
++           '</translationbundle>')
++    result = util.replace_xtb_tree(xtb, {'1': '10', '2': '20'})
++    assert result is not None
++    translations = xml.fromstring(result).findall('translation')
++    assert [t.get('id') for t in translations] == ['10', '20', '3']
++    assert translations[0].text.startswith('Chromium에서는')
++
++
++def test_xtb_unchanged_without_mapped_ids():
++    xtb = '<translationbundle><translation id="1">이 확장 프로그램</translation></translationbundle>'
++    assert util.replace_xtb_tree(xtb, {'2': '20'}) is None
+--- a/utils/tests/test_patches.py
++++ b/utils/tests/test_patches.py
+@@ -38,3 +38,22 @@
+ 
+     del os.environ['PATCH_BIN']
+     assert patches._find_patch_from_env() is None
++
++
++def test_merge_patches(tmp_path):
++    for name in ('first', 'second', 'other'):
++        (tmp_path / name).mkdir()
++        patch = 'other.patch' if name == 'other' else 'same.patch'
++        (tmp_path / name / 'series').write_text(f'{patch}\n')
++        (tmp_path / name / patch).write_text(name)
++
++    with pytest.raises(FileExistsError):
++        patches.merge_patches([tmp_path / 'first', tmp_path / 'second'], tmp_path / 'merged')
++    assert not (tmp_path / 'merged').exists()
++
++    patches.merge_patches([tmp_path / 'first', tmp_path / 'other'], tmp_path / 'merged')
++    assert (tmp_path / 'merged/series').read_text() == 'same.patch\nother.patch'
++
++    with pytest.raises(FileExistsError):
++        patches.merge_patches([tmp_path / 'second'], tmp_path / 'merged', prepend=True)
++    assert (tmp_path / 'merged/same.patch').read_text() == 'first'

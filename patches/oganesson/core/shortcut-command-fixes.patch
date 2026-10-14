@@ -1,6 +1,6 @@
 --- a/chrome/browser/ui/browser_shortcuts/browser_shortcut_metadata.cc
 +++ b/chrome/browser/ui/browser_shortcuts/browser_shortcut_metadata.cc
-@@ -129,11 +129,15 @@ std::optional<BrowserShortcutCommandLabel> GetBrowserShortcutCommandLabel(
+@@ -131,11 +131,15 @@ std::optional<BrowserShortcutCommandLabel> GetBrowserShortcutCommandLabel(
      case IDC_RESTORE_TAB:
        return Label(IDS_RESTORE_TAB);
      case IDC_SELECT_NEXT_TAB:
@@ -28,15 +28,15 @@
  #include "chrome/common/pref_names.h"
  #include "components/prefs/pref_service.h"
  #include "ui/base/l10n/l10n_util.h"
-@@ -114,6 +134,7 @@ BrowserShortcutService::BrowserShortcutS
-       &BrowserShortcutService::OnCommandLabelsChanged, base::Unretained(this));
-   pref_change_registrar_.Add(::prefs::kCopyPageUrlShortcut,
+@@ -117,6 +118,7 @@ BrowserShortcutService::BrowserShortcutService(PrefService* prefs)
+   pref_change_registrar_.Add(::prefs::kHeliumLayout, on_label_pref_changed);
+   pref_change_registrar_.Add(::prefs::kVerticalCollapseShortcut,
                               on_label_pref_changed);
 +  pref_change_registrar_.Add(::prefs::kCtrlTabMru, on_label_pref_changed);
  
    LoadFromPrefs();
    RebuildCommandCache();
-@@ -143,7 +164,9 @@ bool BrowserShortcutService::HasCommand(
+@@ -146,7 +148,9 @@ bool BrowserShortcutService::HasCommand(int command_id) const {
  bool BrowserShortcutService::HasDefaultAccelerator(
      int command_id,
      const ui::Accelerator& accelerator) const {
@@ -47,7 +47,7 @@
    return it != defaults_.end() && ContainsAccelerator(it->second, accelerator);
  }
  
-@@ -480,10 +503,10 @@ BrowserShortcutService::BuildCurrentDefa
+@@ -483,10 +487,10 @@ BrowserShortcutService::BuildCurrentDefaults() const {
      // Browser accelerator dispatch can only route one command per accelerator.
      // Locked platform defaults are inserted first, so they own conflicts with
      // user-modifiable accelerator-table defaults.

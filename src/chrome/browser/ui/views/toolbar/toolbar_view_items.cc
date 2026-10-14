@@ -80,10 +80,33 @@ namespace {
 constexpr std::string_view kExtensionItemPrefix = "extension:";
 constexpr std::string_view kActionItemPrefix = "action:";
 
-// The built-in items Customize toolbar can hide, by prefs::kToolbarItems
-// token (customize_toolbar_oganesson.cc lists them).
-constexpr std::string_view kHideableItems[] = {
-    "back", "reload", "location_bar", "extensions", "avatar", "app_menu"};
+// The built-in items Customize toolbar can hide through
+// prefs::kToolbarHiddenItems, by prefs::kToolbarItems token
+// (customize_toolbar_oganesson.cc lists them). Helium's
+// helium.browser.show_* prefs hide the other buttons.
+constexpr std::string_view kHideableItems[] = {"location_bar"};
+
+// Items that prefs::kToolbarHiddenItems hid before Helium's prefs took them
+// over, and those prefs.
+constexpr std::pair<std::string_view, const char*> kHeliumHiddenItems[] = {
+    {"back", prefs::kShowBackButton},
+    {"reload", prefs::kShowReloadButton},
+    {"extensions", prefs::kShowExtensionsButton},
+    {"avatar", prefs::kShowAvatarButton},
+    {"app_menu", prefs::kShowMenuButton}};
+
+// Moves those items' hidden state to Helium's prefs, once per profile.
+void MigrateHiddenItems(PrefService* prefs) {
+  // A copy: each update below replaces the list.
+  const base::ListValue hidden = prefs->GetList(prefs::kToolbarHiddenItems).Clone();
+  for (const auto& [token, pref] : kHeliumHiddenItems) {
+    if (std::ranges::contains(hidden, base::Value(token))) {
+      prefs->SetBoolean(pref, false);
+      ScopedListPrefUpdate(prefs, prefs::kToolbarHiddenItems)
+          ->EraseValue(base::Value(token));
+    }
+  }
+}
 
 // Set on an item while ApplyHiddenItems() keeps it hidden.
 DEFINE_UI_CLASS_PROPERTY_KEY(bool, kHiddenByPrefKey, false)
@@ -106,7 +129,7 @@ class AppMenuFallback : public views::ContextMenuController {
       const gfx::Point& point,
       ui::mojom::MenuSourceType source_type) override {
     BrowserWindowInterface* const browser = toolbar_->browser();
-    if (!IsItemHidden(browser->GetProfile()->GetPrefs(), "app_menu")) {
+    if (browser->GetProfile()->GetPrefs()->GetBoolean(prefs::kShowMenuButton)) {
       return;
     }
     menu_.reset();
@@ -140,6 +163,7 @@ class ToolbarItemsState : public ExtensionsToolbarViewModel::Observer,
                     ExtensionsToolbarViewModel* extensions,
                     PinnedToolbarActionsModel* pinned)
       : toolbar_(toolbar) {
+    MigrateHiddenItems(toolbar->browser()->GetProfile()->GetPrefs());
     registrar_.Init(toolbar->browser()->GetProfile()->GetPrefs());
     registrar_.Add(prefs::kToolbarItems,
                    base::BindRepeating(&ToolbarView::ApplyToolbarItems,

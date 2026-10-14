@@ -51,8 +51,9 @@ def repos():
                         src / 'third_party/search_engines_data/resources'] if (r / '.git').exists()]
 
 
+oganesson.helium_tree()
 entries = []
-for base in (ROOT / 'patches', ROOT / 'linux/patches', ROOT / 'late'):
+for base in oganesson.SERIES:
     for line in (base / 'series').read_text().splitlines():
         if line.strip() and not line.startswith('#'):
             entries.append(base / line.strip())
@@ -225,7 +226,8 @@ else:
         root = git('rev-list', '--max-parents=0', 'HEAD', repo=repo).stdout.split()[0]
         git('reset', '-q', '--hard', root, repo=repo)
         git('clean', '-fdxq', repo=repo)
-    subprocess.run([str(ROOT / 'utils/downloads.py'), 'unpack', '-i', str(ROOT / 'deps.ini'),
+    subprocess.run([str(oganesson.helium_tree() / 'utils/downloads.py'), 'unpack', '-i',
+                    str(oganesson.TREE / 'deps.ini'),
                     '-c', str(work / 'cache'), str(src), '--components', 'ublock_origin',
                     'onboarding'], check=True, capture_output=True)
     oganesson.copy_new_files(src)

@@ -1,4 +1,0 @@
-# The Helium and helium-linux refs (tags or commits) that the vendored files
-# follow. tools/update_helium.py reads and updates this file.
-helium 9aa23f3cd9e5e6bcb91c8c8029b738e8da2de493
-helium-linux 0.19.2.1

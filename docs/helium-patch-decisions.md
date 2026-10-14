@@ -1,149 +1,56 @@
 # Helium patch decisions
 
-Which Helium patches oganesson carries in `patches/series`, and why the others are dropped. The lists were made for the move from a layer over Helium to one series applied to Chromium, which is done. A Helium patch dropped later gets a line here with its reason, and so does every patch a later Helium release adds: `tools/update_helium.py` refuses to update while one is undecided. First basis: Helium `3eb149f5` (2026-09-24), Chromium 154.0.8037.57. The current pins are in `upstream.txt`.
+oganesson carries Helium's whole series (`helium/patches/series`) as it is, in the `helium` submodule, and never edits it. What it doesn't want of Helium is handled in one of two ways:
 
-"Indifferent" means the old layered build kept the patch and the series omits it. "Want while cheap" means copy Helium's fixes as they come, and defer or drop the patch if it needs custom repair.
+- **Dropped**, in `patches/helium-drops.txt` with the reason, which `oganesson.py` removes from the series. Only for a patch that no later Helium patch builds on: `./oganesson.py check-patches` fails otherwise.
+- **Carried and turned off** by our patches, for an unwanted patch that later ones build on. The table below says how.
 
-Two review passes produced these lists. Patches are listed by their path in Helium's `patches/series`. Patches not listed there are ours and are not covered.
+Every other Helium patch is carried, also the ones earlier reviews called indifferent. A new Helium release's patches are carried unless they go into the drop list; `tools/update_helium.py` lists them. Until 2026-10-14 oganesson carried a hand-picked subset of 139 patches, which needed 21 of Helium's patches edited to apply; that is why the earlier lists named patches "omitted".
 
 ## Decisions that are not per patch
 
 - Firefox-style tab placement and selection after closing a tab is a must have, with selectable alternatives: Settings > Behavior > Tab behavior, a Chromium or Firefox preset over knobs, Helium's "next to the active tab" switch among them ([tab behavior](tab-behavior.md)).
-- Visual redesign patches (`helium/ui/*`, `helium/ui/layout/*`, most of `helium/settings/*`) are indifferent. We may want our own design later.
-- Memory Saver, infinite tab freezing and Back-to-opener stay off by default. The settings stay available, so their default-on patches are omitted.
-- No Helium servers. Patches gated by `helium_services` (component updates, uBlock asset downloads, spellcheck downloads, extension download proxy) need our own gate or replacement.
-- uBlock Origin: keep Helium's patch set. Replace `ublock-helium-services` with a plain pref so filter lists update from uBlock's own URLs. Revisit if the WebExtensions uBlock Origin becomes reliable.
-- Extension installs from the Chrome Web Store and AMO stay supported. `proxy-extension-downloads` needs a proxy-free replacement.
-- Firefox Sync replaces Helium's sync and vault patches (`helium/core/sync/*`).
-- Onboarding (`helium/core/onboarding-page`) will be heavily modified. It may be used as a basis.
-- Password manager stays enabled, so `hop/disable-password-manager` is omitted.
-- The `ungoogled-chromium/add-flag-*` patches are wanted, except those made irrelevant by the decisions above.
-- Second pass rule: a patch that only changes the default of an existing Chromium setting is dropped. A patch that adds a new setting or flag is kept. Many kept `add-flag-*` patches add only a `chrome://flags` entry, not a Settings page option.
+- Helium's visual redesign patches (`helium/ui/*`, `helium/ui/layout/*`, `helium/settings/*`) are carried. We may want our own design later.
+- Memory Saver, infinite tab freezing and Back-to-opener stay off by default. The settings stay available; their default-on patches are dropped.
+- No Helium servers by default. Helium's services are off (`oganesson/core/no-helium-services`), and with them component updates, uBlock asset downloads, spellcheck dictionary downloads and the extension download proxy. The user can turn them on in Settings.
+- uBlock Origin: Helium's patch set. With Helium's services off, filter lists update from uBlock's own URLs (dubna's `ublock-assets-update`). Revisit if the WebExtensions uBlock Origin becomes reliable.
+- Extension installs from the Chrome Web Store and AMO stay supported. Helium's download proxy (`proxy-extension-downloads`) acts only with its services on.
+- Firefox Sync replaces Helium's sync. Its patches (`helium/core/sync/*`) are carried, as later patches build on them, and stay inert: Helium sync needs Helium's services and its provider feature is off.
+- Onboarding (`helium/core/onboarding-page`) is carried but never shown: a first run opens a normal window. It may serve as the basis of our own.
+- Password manager stays enabled, so `hop/disable-password-manager` is dropped. Helium turns it off as insecure. Malware running as the user can read decrypted passwords from the browser's memory whatever the at-rest encryption, and full-disk encryption covers a stolen disk, so a separate password manager adds little. Maintainer's decision, 2026-10-14.
+- The `ungoogled-chromium/add-flag-*` patches are carried.
+- A patch that only changes the default of an existing Chromium setting is dropped when we don't want that default. A patch that adds a new setting or flag is kept. Many `add-flag-*` patches add only a `chrome://flags` entry, not a Settings page option.
 - Credits and licensing: credit every project we take patches from and handle their licenses correctly. Keep `add-credits`, and adapt `helium/ui/licenses-in-credits` and `helium/core/update-credits` to our credits page.
 - Importers: keep all, including Helium's Zen and Arc importers.
 - `enable-tab-hover-cards` is dropped, since hover-card images are already on by default outside Mac. The ungoogled `add-flag-for-tab-hover-cards` flag (None or Tooltip) is kept.
 - `inox-patchset/modify-default-prefs` is kept. Its list of defaults still needs an audit.
 - `ungoogled-chromium/disable-webstore-urls` is kept. Check at build time that Chrome Web Store installs still work.
-- Fingerprint noise (`helium/core/noise/*`, its settings page and page-info UI) is stripped for now, and can return later.
-- Group defaults: degoogling and privacy patches (Inox, Iridium, Bromite, Debian, ungoogled-chromium, Brave) and build fixes are wanted. Remaining `helium/core/*` patches are not wanted unless listed as an exception.
+- Fingerprint noise (`helium/core/noise/*` and its settings page) is carried and off by default; its page-info UI is dropped.
 
-## Want (130)
+## Carried and turned off
+
+| Patches | How |
+|---|---|
+| `helium/core/services-prefs`, `services-schema-nag`, `component-updates`, `fixups-component-setup`, `proxy-extension-downloads`, `reenable-spellcheck-downloads`, `ublock-helium-services` | Helium's services are off by default (`oganesson/core/no-helium-services`), and these act only with them. uBlock Origin's filter lists update from uBlock's own URLs (dubna's `ublock-assets-update`). Spellcheck dictionaries download only with the services on. |
+| `helium/core/add-native-bangs` | Off by default: the bang list comes from Helium's services. On again once we have our own bang source. |
+| `helium/core/reenable-update-checks`, `add-updater-preference`, `add-update-channel-flag`, `add-helium-versioning` | Helium's update checks are off by default: oganesson updates from its package repository. |
+| `helium/core/onboarding-page` | Marked as done by default: never shown. |
+| `helium/core/crash-reporting-prefs`, `helium/settings/crash-reporting-settings` | Crash reporting is off by default: reports would go to Helium's crash server. |
+| `helium/core/noise/*`, `helium/settings/helium-noise-settings` | Off by default; the setting stays. |
+| `helium/core/sync/*` | Inert: needs Helium's services, and its provider feature is off. |
+| `helium/hop/setup` | Inert: the one policy Helium ships with it (`hop/disable-password-manager`) is dropped. |
+| `helium/core/override-chrome-protocol` | Internal pages show as `oganesson://` instead of `helium://` (`late/branding`); `chrome://` still works. |
+| `helium/core/change-chromium-branding` | `late/branding` renames Helium to oganesson. |
+| `helium/core/flags-setup`, `add-low-power-framerate-flag`, `bookmark-open-all-confirmation-flag`, `helium/ui/hide-page-actions-flag`, the `ungoogled-chromium/add-flag-*` and `bromite/*-flags` patches | Only add `chrome://flags` entries, off by default. |
+| `helium/core/update-default-browser-prefs`, `add-default-browser-reject-button`, `remove-dead-toolbar-actions`, `scan-chrome-native-messaging-hosts` | Neutral as they are. |
+
+- Search engines: Helium's whole search group is carried, with ungoogled-chromium's `prepopulated-search-engines` (`restore-google` renames Google's engine and `engine-defaults` updates the regional lists to match, so they go together). New profiles get one engine list everywhere, DuckDuckGo first, and the EU search engine choice screen (`force-eu-search-features`); engines' favicons aren't fetched (`break-favicons`). Decided 2026-10-14.
+
+## Notes on carried patches
 
 - `helium/core/ridiculous-google-compat-exceptions` (Helium 0.19.2): keeps Google sign-in, session cookies and security-key enrollment working under domain substitution. Maintainer's decision, 2026-10-09.
-- `upstream-fixes/missing-dependencies`
 - `upstream-fixes/tab-restore-live-tabs` (Helium 0.19.1): kept, vendored before `helium/core/lazy-session-restore`. Maintainer's decision, 2026-10-08.
-- `inox-patchset/fix-building-without-safebrowsing`
-- `inox-patchset/disable-autofill-download-manager`
-- `inox-patchset/disable-update-pings`
-- `inox-patchset/disable-rlz`
-- `iridium-browser/safe-browsing-disable-reporting`
-- `ungoogled-chromium/disable-google-host-detection`
-- `ungoogled-chromium/toggle-translation-via-switch`
-- `ungoogled-chromium/disable-untraceable-urls`
-- `ungoogled-chromium/disable-profile-avatar-downloading`
-- `ungoogled-chromium/disable-gcm`
-- `ungoogled-chromium/disable-domain-reliability`
-- `ungoogled-chromium/block-trk-and-subdomains`
-- `ungoogled-chromium/disable-gaia`
-- `ungoogled-chromium/disable-fonts-googleapis-references`
-- `ungoogled-chromium/disable-webstore-urls`
-- `ungoogled-chromium/fix-learn-doubleclick-hsts`
-- `ungoogled-chromium/disable-webrtc-log-uploader`
-- `ungoogled-chromium/disable-ai`
-- `ungoogled-chromium/fix-building-with-prunned-binaries`
-- `ungoogled-chromium/disable-network-time-tracker`
-- `ungoogled-chromium/disable-mei-preload`
-- `ungoogled-chromium/fix-building-without-safebrowsing`
-- `ungoogled-chromium/remove-unused-preferences-fields`
-- `ungoogled-chromium/block-requests`
-- `ungoogled-chromium/disable-privacy-sandbox`
-- `ungoogled-chromium/extensions-manifestv2`
-- `ungoogled-chromium/remove-f1-shortcut`
-- `ungoogled-chromium/move-js-optimizer-unfamiliar-sites`
-- `ungoogled-chromium/build-with-wasm-rollup`: removed upstream with Chromium 155 (Helium 0.19.1), so no longer in the series.
-- `ungoogled-chromium/remove-navigation-source-param`
-- `ungoogled-chromium/bundle-hyphenation-patterns`
-- `ungoogled-chromium/disable-tos-dialog`
-- `bromite/disable-fetching-field-trials`
-- `ungoogled-chromium/add-ungoogled-flag-headers`
-- `inox-patchset/modify-default-prefs`
-- `inox-patchset/disable-battery-status-service`
-- `debian/disable-google-api-warning`
-- `iridium-browser/updater-disable-auto-update`
-- `iridium-browser/browser-disable-profile-auto-import-on-first-run`
-- `ungoogled-chromium/add-components-ungoogled`
-- `ungoogled-chromium/add-ipv6-probing-option`
-- `ungoogled-chromium/disable-intranet-redirect-detector`
-- `ungoogled-chromium/fix-building-without-mdns-and-service-discovery`
-- `ungoogled-chromium/add-flag-to-configure-extension-downloading`
-- `ungoogled-chromium/add-flag-for-search-engine-collection`
-- `ungoogled-chromium/add-flag-to-force-punycode-hostnames`
-- `ungoogled-chromium/add-flag-to-show-avatar-button`
-- `ungoogled-chromium/add-suggestions-url-field`
-- `ungoogled-chromium/add-flag-to-hide-crashed-bubble`
-- `ungoogled-chromium/enable-paste-and-go-new-tab-button`
-- `ungoogled-chromium/add-flag-for-bookmark-bar-ntp`
-- `ungoogled-chromium/enable-menu-on-reload-button`
-- `ungoogled-chromium/add-flag-for-omnibox-autocomplete-filtering`
-- `ungoogled-chromium/disable-dial-repeating-discovery`
-- `ungoogled-chromium/remove-uneeded-ui`
-- `ungoogled-chromium/add-flag-to-convert-popups-to-tabs`
-- `ungoogled-chromium/add-flag-to-disable-local-history-expiration`
-- `ungoogled-chromium/add-flag-to-clear-data-on-exit`
-- `ungoogled-chromium/add-flag-for-close-confirmation`
-- `ungoogled-chromium/add-flag-for-custom-ntp`
-- `ungoogled-chromium/add-flag-for-tab-hover-cards`
-- `ungoogled-chromium/add-flag-to-hide-tab-close-buttons`
-- `ungoogled-chromium/add-flag-for-disabling-link-drag`
-- `ungoogled-chromium/add-flag-to-hide-fullscreen-exit-ui`
-- `ungoogled-chromium/add-flags-for-referrer-customization`
-- `ungoogled-chromium/add-flag-to-reduce-system-info`
-- `ungoogled-chromium/add-flag-to-remove-client-hints`
-- `ungoogled-chromium/remove-pac-size-limit`
-- `ungoogled-chromium/enable-certificate-transparency-and-add-flag`
-- `ungoogled-chromium/add-flag-to-spoof-webgl-renderer-info`
-- `ungoogled-chromium/add-credits`
-- `ungoogled-chromium/disable-ai-search-shortcuts`
-- `brave/chrome-importer-files`
-- `brave/custom-importer`
-- `brave/fix-component-content-settings-store`
-- `brave/tab-cycling-mru-impl`
-- `helium/core/add-zen-importer`
-- `helium/core/add-arc-importer`
-- `helium/core/disable-unsupported-importers`
-- `helium/core/keyboard-shortcuts`
-- `helium/core/prefer-https-by-default`
-- `helium/core/update-credits`
-- `helium/core/spoof-extension-downloader-platform`
-- `helium/core/add-middle-click-autoscroll-flag`
-- `helium/core/add-component-l10n-support`
-- `helium/core/add-component-managed-schema-support`
-- `helium/core/ublock-setup-sources`
-- `helium/core/ublock-install-as-component`
-- `helium/core/ublock-reconfigure-defaults`
-- `helium/core/ublock-dns-uncloaking`
-- `helium/core/disable-ad-topics-and-etc`
-- `helium/core/disable-fedcm-bubble`
-- `helium/core/webrtc-default-handling-policy`
-- `helium/core/fixups-chrome-webstore-script`
-- `helium/core/custom-keyboard-shortcuts`
-- `helium/core/copy-url-tab-context-menu`
 - `helium/core/disable-annoying-infobars` (Helium 0.19.1): kept; its kPdfInfoBar change covers `helium/core/disable-pdf-infobar`. Maintainer's decision, 2026-10-08.
-- `helium/core/enable-screenshots`
-- `helium/core/force-paste-action`
-- `helium/core/shift-right-click-context-menu`
-- `helium/core/crash-reporter-privacy-tweaks`
-- `helium/core/disable-omnibox-webui`
-- `helium/settings/custom-keyboard-shortcuts-page`
-- `helium/ui/tab-favicon-retention`
-- `helium/ui/remove-devtools-annoyances`
-- `helium/ui/remove-google-promotional-resources`
-- `helium/ui/ublock-show-in-settings`
-- `helium/ui/licenses-in-credits`
-- `helium/ui/custom-keyboard-shortcuts-wiring`
-- `helium/ui/generate-standard-qr-codes`
-- `helium/ui/page-zoom-indicator`
-- `helium/ui/add-more-zoom-presets`
 - `helium/core/prioritize-platform-policy-loading` (Helium 0.18.2): uBlock Origin reads its managed settings at startup in milliseconds, not seconds. Maintainer's decision, 2026-10-02.
 - `helium/ui/tab-search-in-toolbar`: tab search is a toolbar button, as Firefox's "List all tabs" is, and its bubble opens under it. Maintainer's decision, 2026-10-04.
 - `helium/core/mute-tab-context-menu` (Helium 0.18.3, #2631): Mute tab / Unmute tab in the tab context menu, as Firefox's "Mute Tab". Maintainer's decision, 2026-10-06.
@@ -160,245 +67,8 @@ Two review passes produced these lists. Patches are listed by their path in Heli
 - `helium/core/network/ignore-system-proxy-server-flag`: adds a flag only. Maintainer's decision, 2026-10-11.
 - `helium/ui/show-tabs-from-non-account-backends`: History's "Tabs from other devices" shows Firefox Sync's open tabs without a Google sign-in (`oganesson/core/firefox-sync-remote-tabs`). Maintainer's decision, 2026-10-11.
 
-## Want while cheap (2)
-
-- `helium/core/tab-cycling-mru`
-- `helium/core/lazy-session-restore`
-
-## Want, needs our own replacement (5)
-
-- `helium/core/proxy-extension-downloads`
-- `helium/core/reenable-spellcheck-downloads`
-- `helium/core/ublock-helium-services`
-- `helium/core/add-native-bangs`: its bang list comes from Helium's services; out of the series until we have our own bang source.
-- `helium/ui/bangs-ui`: needs `add-native-bangs`.
-
-## Indifferent (omitted) (123)
-
-- `ungoogled-chromium/add-flag-to-scroll-tabs`
-- `helium/settings/setup-behavior-settings-page`
-- `helium/core/network/dns-providers`
-- `helium/core/reduce-accept-language-headers`
-- `helium/core/disable-touch-ui`
-- `helium/core/disable-update-toast`
-- `helium/core/browser-window-context-menu`
-- `helium/core/disable-ntp-footer`
-- `helium/core/disable-side-panel-flyover`
-- `helium/core/custom-profile-avatar`
-- `helium/core/simplify-context-menu`
-- `helium/core/enable-glow-up-features`
-- `helium/core/enable-bookmark-bar-settings`
-- `helium/core/use-system-python3`
-- `helium/settings/settings-page-icons`
-- `helium/settings/move-search-suggest`
-- `helium/settings/remove-autofill`
-- `helium/settings/remove-profile-page-sections`
-- `helium/settings/fix-page-names`
-- `helium/settings/remove-results-help-link`
-- `helium/settings/about-page-tweaks`
-- `helium/settings/remove-translate-section`
-- `helium/settings/reenable-update-status`
-- `helium/settings/privacy-page-tweaks`
-- `helium/settings/fix-section-separators`
-- `helium/settings/fix-text-on-cookies-page`
-- `helium/settings/update-search-suggest-text`
-- `helium/settings/fix-appearance-page`
-- `helium/settings/reorder-settings-menu`
-- `helium/settings/add-search-engine-button`
-- `helium/settings/custom-profile-avatar-ui`
-- `helium/settings/clear-browsing-data-popup`
-- `helium/settings/network-and-security-page`
-- `helium/ui/layout-constants`
-- `helium/ui/layout-provider`
-- `helium/ui/update-cr-components`
-- `helium/ui/always-use-better-ntp`
-- `helium/ui/clean-new-tab-page`
-- `helium/ui/remove-toolbar-corners`
-- `helium/ui/location-bar`
-- `helium/ui/location-bar-page-action`
-- `helium/ui/tabs`
-- `helium/ui/tab-icon`
-- `helium/ui/tab-strip-controls`
-- `helium/ui/toolbar`
-- `helium/ui/remove-toolbar-dividers`
-- `helium/ui/toolbar-window-frame-hit-test`
-- `helium/ui/toolbar-button-prefs`
-- `helium/ui/omnibox`
-- `helium/ui/app-menu-style`
-- `helium/ui/app-menu-model`
-- `helium/ui/app-menu-button`
-- `helium/ui/remove-reading-list-from-app-menu`
-- `helium/ui/remove-split-view-mini-toolbar`
-- `helium/ui/split-view`
-- `helium/ui/frame-radius-helper`
-- `helium/ui/multi-contents-view`
-- `helium/ui/rounded-frame-corners`
-- `helium/ui/fix-layout-separators`
-- `helium/ui/multi-contents-drop-target`
-- `helium/ui/fix-customize-side-panel`
-- `helium/ui/side-panel`
-- `helium/ui/remove-dead-toolbar-actions`
-- `helium/ui/remove-dead-profile-actions`
-- `helium/ui/clean-up-installed-extension-bubble`
-- `helium/ui/add-specific-error-for-disabled-extension-downloads`
-- `helium/ui/selected-keyword-view`
-- `helium/ui/bookmark-button-bg-fix`
-- `helium/ui/restyle-ntp-tiles`
-- `helium/ui/side-panel-webui-general`
-- `helium/ui/side-panel-webui-customize`
-- `helium/ui/helium-logo-icons`
-- `helium/ui/square-ntp-monograms`
-- `helium/ui/default-theme`
-- `helium/ui/toast`
-- `helium/ui/square-interstitial-buttons`
-- `helium/ui/center-window-on-launch`
-- `helium/ui/bookmarks-bar-padding`
-- `helium/ui/profile-picker-cleanup`
-- `helium/ui/disable-tab-group-editor-footer`
-- `helium/ui/profile-customization-cleanup`
-- `helium/ui/infobar`
-- `helium/ui/reduce-text-button-height`
-- `helium/ui/pwa-toolbar`
-- `helium/ui/helium-color-mixers`
-- `helium/ui/frame-background`
-- `helium/ui/status-bubble`
-- `helium/ui/clean-incognito-guest-ntp`
-- `helium/ui/enable-fluent-scrollbar`
-- `helium/ui/helium-color-scheme`
-- `helium/ui/improve-flags-webui`
-- `helium/ui/remove-autofill-link-to-password-manager`
-- `helium/ui/fix-caption-button-bounds`
-- `helium/ui/find-bar`
-- `helium/ui/crash-dialog`
-- `helium/ui/crashes-webui-fixes`
-- `helium/ui/layout/core`
-- `helium/ui/layout/settings`
-- `helium/ui/layout/context-menu`
-- `helium/ui/layout/shortcuts`
-- `helium/ui/layout/centered-address-bar`
-- `helium/ui/layout/frame-grab-handle`
-- `helium/ui/layout/horizontal-tabs`
-- `helium/ui/layout/toolbar-layout`
-- `helium/ui/layout/minimal-location-bar`
-- `helium/ui/layout/dynamic`
-- `helium/ui/layout/compact`
-- `helium/ui/layout/vertical`
-- `helium/ui/layout/toolbar-actions`
-- `helium/ui/layout/zen-mode-wiring`
-- `helium/ui/layout/zen-caption-buttons`
-- `helium/ui/layout/zen-mode`
-- `helium/ui/pdf-viewer`
-- `helium/ui/hide-pip-live-caption-button`
-- `helium/ui/disable-ink-ripple-effect`
-- `helium/ui/dont-antialias-rects`
-- `helium/ui/fix-windows-ui-position`
-- `helium/ui/native-frame-materials`
-- `helium/ui/compact-debugger-warning`
-- `helium/ui/progress-bar`
-- `helium/ui/exclusive-access-bubble`
-- `helium/ui/layout/toolbar-overflow` (Helium 0.18.2): builds on the omitted layout patches. Maintainer's decision, 2026-10-02.
-- `helium/ui/layout/min-window-width` (Helium 0.18.2): builds on the omitted layout patches. Maintainer's decision, 2026-10-02.
-
 ## Taken from ungoogled-chromium, not in Helium (1)
 
-`tools/update_helium.py` does not track these; refresh them from ungoogled-chromium by hand.
+Ours, in `patches/series`; `tools/update_helium.py` doesn't track them, so refresh them from ungoogled-chromium by hand.
 
-- `ungoogled-chromium/keep-expired-flags` (ungoogled-chromium `ffeb45a`): expired `chrome://flags` entries stay usable. Helium replaced it with `exclude-irrelevant-flags`, which we omit. Maintainer's decision, 2026-10-11.
-
-## Do not want as-is, may serve as basis (1)
-
-- `helium/core/onboarding-page`
-
-## Do not want (87)
-
-- `helium/core/crash-reporting-prefs`: dropped. It adds upload consent and Helium's crash server URL. Without its settings page or crash dialog, nothing can change the consent, and Chromium builds have no upload URL, so crash reports stay on disk either way.
-- `helium/settings/crash-reporting-settings`: dropped, since its UI lives on Helium's services page and `crash-reporting-prefs` is dropped.
-- `bromite/fingerprinting-flags-client-rects-and-measuretext`
-- `bromite/flag-max-connections-per-host`
-- `ungoogled-chromium/add-flag-to-disable-beforeunload`
-- `ungoogled-chromium/prepopulated-search-engines`
-- `ungoogled-chromium/add-flag-to-disable-tls-grease`
-- `ungoogled-chromium/add-flag-to-change-http-accept-header`
-- `ungoogled-chromium/add-flag-to-hide-extensions-menu`
-- `ungoogled-chromium/add-flag-for-incognito-themes`
-- `ungoogled-chromium/add-flags-for-existing-switches`
-- `ungoogled-chromium/add-flag-to-increase-incognito-storage-quota`
-- `helium/core/fix-building-without-safebrowsing`
-- `helium/core/services-prefs`
-- `helium/core/services-schema-nag`
-- `helium/core/override-chrome-protocol`
-- `helium/core/change-chromium-branding`
-- `helium/core/scan-chrome-native-messaging-hosts`
-- `helium/core/search/restore-google`
-- `helium/core/search/engine-defaults`
-- `helium/core/search/fix-search-engine-icons`
-- `helium/core/search/force-eu-search-features`
-- `helium/core/search/remove-description-snippet-deps`
-- `helium/core/search/break-favicons`
-- `helium/core/search/omnibox-default-search-icon`
-- `helium/core/search/add-kagi-image-search`
-- `helium/core/search/fix-brave-name`
-- `helium/core/sync/engine-interface`
-- `helium/core/sync/service-backends`
-- `helium/core/sync/datatype-policy`
-- `helium/core/sync/vault-format`
-- `helium/core/sync/vault-encryption`
-- `helium/core/sync/vault-transport`
-- `helium/core/sync/vault-store`
-- `helium/core/sync/loopback-server-in-memory`
-- `helium/core/sync/history-expiration-threshold`
-- `helium/core/sync/vault-engine-backend`
-- `helium/core/sync/provider/api`
-- `helium/core/sync/provider/manifest-handler`
-- `helium/core/sync/provider/service`
-- `helium/core/sync/provider/profile-prefs`
-- `helium/core/sync/provider/exclude-from-vault`
-- `helium/core/sync/disable-google-backed-sync-integrations`
-- `helium/core/update-default-browser-prefs`
-- `helium/core/add-default-browser-reject-button`
-- `helium/core/reenable-update-checks`
-- `helium/core/disable-bookmarks-bar`
-- `helium/core/enable-tab-hover-cards`
-- `helium/core/memory-saving-by-default`
-- `helium/core/disable-history-clusters`
-- `helium/core/unbreak-chromium-link`
-- `helium/core/disable-user-education-nags`
-- `helium/core/replace-default-profile-name`
-- `helium/core/disable-live-caption-completely`
-- `helium/core/spoof-chrome-ua-brand`
-- `helium/core/add-helium-versioning`
-- `helium/core/degoogle-context-menu`
-- `helium/core/fix-tab-sync-unreached-error`
-- `helium/core/fix-instance-id-stuck`
-- `helium/core/flags-setup`
-- `helium/core/add-low-power-framerate-flag`
-- `helium/core/bookmark-open-all-confirmation-flag`
-- `helium/core/add-update-channel-flag`
-- `helium/core/add-updater-preference`
-- `helium/core/exclude-irrelevant-flags`
-- `helium/core/disable-outdated-build-detector`
-- `helium/core/remove-dead-toolbar-actions`
-- `helium/core/clean-omnibox-suggestions`
-- `helium/core/increase-incognito-storage-quota`
-- `helium/core/noise/core`
-- `helium/core/noise/canvas`
-- `helium/core/noise/audio`
-- `helium/core/noise/hardware-concurrency`
-- `helium/core/infinite-tab-freezing`
-- `helium/core/component-updates`
-- `helium/core/fixups-component-setup`
-- `helium/core/rbe-nativelink-config`
-- `helium/core/disable-non-standard-auth-features`
-- `helium/core/enable-back-to-opener`
-- `helium/settings/helium-noise-settings`
-- `helium/settings/sync-setup-contract`
-- `helium/hop/setup`
-- `helium/hop/disable-password-manager`
-- `helium/ui/helium-noise-page-info`
-- `helium/ui/hide-page-actions-flag` (Helium 0.18.2, #2599): oganesson shows Firefox page actions in the location bar on purpose. Maintainer's decision, 2026-10-02.
-- `helium/core/sync/provider/repository` (Helium 0.18.3, #2604): Helium's own sync; Firefox Sync replaces `helium/core/sync/*`. Maintainer confirmed, 2026-10-06.
-- `helium/core/disable-pdf-infobar` (Helium 0.19.1): dropped from the series. `helium/core/disable-annoying-infobars` covers its kPdfInfoBar change. Maintainer's decision, 2026-10-08.
-
-## Undecided (0)
-
-A new upstream patch waits here, out of the series, while its grilling issue is open. Its line moves under the maintainer's answer, and the next upgrade run carries it if the answer is a "Want" heading.
+- `ungoogled-chromium/keep-expired-flags` (ungoogled-chromium `ffeb45a`): expired `chrome://flags` entries stay usable. Helium replaced it with `exclude-irrelevant-flags`, which we drop. Maintainer's decision, 2026-10-11.
