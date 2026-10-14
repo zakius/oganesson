@@ -157,10 +157,14 @@ cd "$_src_dir"
 jobs=()
 [ -n "${OGANESSON_JOBS:-}" ] && jobs=(-j "$OGANESSON_JOBS")
 export SISO_PATH="${_src_dir}/third_party/siso/cipd/siso"
-# Our own files first: after a Chromium update, an API they use may be gone,
-# and in the full build that error shows only near its end.
-mapfile -t ours < <(find /oganesson/dubna/src /oganesson/src -name '*.cc' -printf '../../%P^\n')
-python3 third_party/depot_tools/autoninja.py -C "$_out_dir" "${jobs[@]}" -k 0 "${ours[@]}"
+# Our own files first, new and patched (dubna/tools/ours.py): after a Chromium
+# update, an API they use may be gone, and in the full build that error shows
+# only near its end. -k 0: all of ours, then set -e stops on an error.
+mapfile -t ours < <(python3 /oganesson/dubna/tools/ours.py "$_out_dir" \
+    /oganesson/dubna/src /oganesson/src \
+    $(for d in /oganesson/patches /oganesson/late; do sed "/^#/d;/^$/d;s|^|$d/|" "$d/series"; done))
+[ ${#ours[@]} -eq 0 ] ||
+    python3 third_party/depot_tools/autoninja.py -C "$_out_dir" "${jobs[@]}" -k 0 "${ours[@]}"
 python3 third_party/depot_tools/autoninja.py -C "$_out_dir" "${jobs[@]}" -k 0 chrome
 # Firefox Sync's Rust library, loaded by the browser from its folder.
 level=""
