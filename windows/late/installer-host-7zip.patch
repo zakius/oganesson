@@ -1,0 +1,15 @@
+# Cross builds pack the installer's payload with the build host's 7-Zip: helium-windows'
+# windows-compile-mini-installer.patch looks for an installed 7-Zip in Windows' registry.
+--- a/chrome/tools/build/win/create_installer_archive.py
++++ b/chrome/tools/build/win/create_installer_archive.py
+@@ -262,6 +262,10 @@
+ 
+ 
+ def GetLZMAExec(build_dir):
++    # oganesson: a cross build packs with the build host's 7-Zip (the Windows
++    # build image's 7zip package).
++    if sys.platform != 'win32':
++        return '7za'
+     # Taken from ungoogled-chromium's _extraction.py file, modified for Python 2
+     import winreg
+     sub_key_7zfm = 'SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\7zFM.exe'
