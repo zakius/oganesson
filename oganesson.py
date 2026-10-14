@@ -393,8 +393,6 @@ def build_image():
     subprocess.run(['docker', 'build', '-t', IMAGE, *uid_args, '-f',
                     str(HELIUM_LINUX / 'docker/build.Dockerfile'), str(HELIUM_LINUX / 'docker')],
                    check=True)
-    subprocess.run(['docker', 'build', '-t', WINDOWS_IMAGE, '-f', str(ROOT / 'windows/Dockerfile'),
-                    str(ROOT / 'windows')], check=True)
 
 
 # Builds started on a weekday from 2:00 to 15:00, while the machine is in
@@ -413,6 +411,8 @@ def build(args):
         print(f'oganesson: weekday daytime build: -j {QUIET_JOBS}, nice {QUIET_NICE}', file=sys.stderr)
     build_image()
     if args.windows:
+        subprocess.run(['docker', 'build', '-t', WINDOWS_IMAGE, '-f', str(ROOT / 'windows/Dockerfile'),
+                        str(ROOT / 'windows')], check=True)
         sys.exit(build_windows(args))
     tree_hash, files = patch_hash(), input_hashes()
     env = [('OGANESSON_PATCH_HASH', tree_hash)]
