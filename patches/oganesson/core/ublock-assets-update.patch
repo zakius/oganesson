@@ -1,5 +1,6 @@
-# Filter lists update from uBlock's own URLs, not Helium's servers. Replaces Helium's
-# helium/core/ublock-helium-services.
+# uBlock Origin refreshes its catalog of filter lists (assets.json) from GitHub again:
+# helium/core/ublock-setup-sources removes that address and serves the catalog through
+# Helium's services, which are off by default.
 --- a/third_party/ublock/assets/assets.json
 +++ b/third_party/ublock/assets/assets.json
 @@ -3,6 +3,7 @@
