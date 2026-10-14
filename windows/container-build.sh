@@ -134,6 +134,7 @@ write_windows_args() {
 }
 
 # A tree prepared for other inputs (or the Linux tree it was copied from).
+echo "Inputs ${OGANESSON_PATCH_HASH}; the tree's: $(cut -d' ' -f2 "$stamp" 2>/dev/null)"
 if [ -f "${_src_dir}/.downloaded.stamp" ] &&
     { [ ! -f "$stamp" ] || [ "$(cut -d' ' -f2 "$stamp")" != "$OGANESSON_PATCH_HASH" ]; }; then
     reset_tree
