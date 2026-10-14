@@ -2,8 +2,8 @@
 # Helium's services, so no Helium server is contacted unless the user turns them on (with them
 # go component updates, the extension download proxy, spellcheck dictionary downloads and uBO's
 # asset mirror); bangs, whose list comes from those services; Helium's update checks (updates
-# come from the package repository); onboarding (a first run opens a normal window); and
-# fingerprint noise. Store extensions update through ExtensionDownloader, as update_client's
+# come from the package repository); onboarding (a first run opens a normal window);
+# fingerprint noise; and crash reports, which would go to Helium's crash server. Store extensions update through ExtensionDownloader, as update_client's
 # checks are blocked.
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
@@ -34,6 +34,20 @@
    // UpdateService can only update extensions that have been installed on the
    // system.
    // TODO(crbug.com/482088398): Eliminate this constraint.
+--- a/chrome/browser/prefs/browser_prefs.cc
++++ b/chrome/browser/prefs/browser_prefs.cc
+@@ -1427,9 +1427,10 @@ void RegisterLocalState(PrefRegistrySimple* registry) {
+   breadcrumbs::RegisterPrefs(registry);
+   browser_shutdown::RegisterPrefs(registry);
+   BrowserProcessImpl::RegisterPrefs(registry);
++  // oganesson: no crash reports to Helium's server unless the user asks.
+   registry->RegisterIntegerPref(
+       prefs::kHeliumCrashReportingMode,
+-      static_cast<int>(helium::CrashReportingMode::kAsk));
++      static_cast<int>(helium::CrashReportingMode::kDisabled));
+   ChromeContentBrowserClient::RegisterLocalStatePrefs(registry);
+ #if BUILDFLAG(CHROME_FOR_TESTING)
+   chrome_for_testing::RegisterPrefs(registry);
 --- a/chrome/browser/ui/browser_ui_prefs.cc
 +++ b/chrome/browser/ui/browser_ui_prefs.cc
 @@ -257,14 +257,18 @@ void RegisterBrowserUserPrefs(user_prefs::PrefRegistrySyncable* registry) {
