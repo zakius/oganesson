@@ -1,0 +1,30 @@
+# Copyright 2026 The oganesson Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# Firefox Sync's desktop side: dubna's firefox_sync_platform.h for the desktop
+# browser. dubna's firefox-sync.patch makes the browser depend on this.
+source_set("platform") {
+  sources = [
+    "desktop_platform.cc",
+    "remote_tabs.cc",
+    "remote_tabs.h",
+    "tabs_adapter.cc",
+    "tabs_adapter.h",
+  ]
+  public_deps = [ "//chrome/browser/firefox_sync" ]
+  deps = [
+    "//base",
+    "//chrome/browser/profiles:profile",
+    "//chrome/browser/sync",
+    "//components/sessions",
+    "//components/sync/protocol",
+    "//components/sync_device_info",
+    "//components/sync_sessions",
+    "//content/public/browser",
+    "//crypto",
+    "//services/data_decoder/public/cpp",
+    "//skia",
+    "//ui/gfx",
+  ]
+}
