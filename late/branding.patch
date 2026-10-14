@@ -178,6 +178,30 @@
        return true;
      } else if (el.childNodes) {
        for (const node of el.childNodes) {
+--- a/components/url_formatter/url_fixer.cc
++++ b/components/url_formatter/url_fixer.cc
+@@ -39,7 +39,8 @@ namespace {
+ 
+ // Hardcode these constants to avoid dependences on //chrome and //content.
+ const char kChromeUIScheme[] = "chrome";
+-const char kHeliumUIScheme[] = "helium";
++// oganesson: as content::kHeliumUIScheme.
++const char kHeliumUIScheme[] = "oganesson";
+ const char kDevToolsScheme[] = "devtools";
+ const char kChromeUIDefaultHost[] = "version";
+ const char kViewSourceScheme[] = "view-source";
+--- a/content/public/common/url_constants.h
++++ b/content/public/common/url_constants.h
+@@ -19,7 +19,8 @@ namespace content {
+ inline constexpr char kChromeDevToolsScheme[] = "devtools";
+ inline constexpr char kChromeErrorScheme[] = "chrome-error";
+ inline constexpr char kChromeUIScheme[] = "chrome";  // Used for WebUIs.
+-inline constexpr char kHeliumUIScheme[] = "helium";  // also used for webuis :3
++// oganesson: internal pages show as oganesson://, as Helium shows them as helium://.
++inline constexpr char kHeliumUIScheme[] = "oganesson";
+ inline constexpr char kChromeNativeScheme[] = "chrome-native";
+ inline constexpr char kChromeUIUntrustedScheme[] = "chrome-untrusted";
+ inline constexpr char kViewSourceScheme[] = "view-source";
 --- a/media/audio/pulse/pulse_util.cc
 +++ b/media/audio/pulse/pulse_util.cc
 @@ -39,8 +39,8 @@ namespace {

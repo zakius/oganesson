@@ -1,3 +1,22 @@
+# Helium's features oganesson carries but doesn't want, off by default (they stay available):
+# Helium's services, so no Helium server is contacted unless the user turns them on (with them
+# go component updates, the extension download proxy, spellcheck dictionary downloads and uBO's
+# asset mirror); bangs, whose list comes from those services; Helium's update checks (updates
+# come from the package repository); onboarding (a first run opens a normal window); and
+# fingerprint noise. Store extensions update through ExtensionDownloader, as update_client's
+# checks are blocked.
+--- a/chrome/browser/chrome_content_browser_client.cc
++++ b/chrome/browser/chrome_content_browser_client.cc
+@@ -1618,7 +1618,8 @@ void ChromeContentBrowserClient::RegisterProfilePrefs(
+     user_prefs::PrefRegistrySyncable* registry) {
+   registry->RegisterBooleanPref(prefs::kDisable3DAPIs, false);
+   registry->RegisterBooleanPref(prefs::kEnableHyperlinkAuditing, false);
+-  registry->RegisterBooleanPref(prefs::kHeliumNoiseEnabled, true);
++  // oganesson: no fingerprint noise unless the user turns it on.
++  registry->RegisterBooleanPref(prefs::kHeliumNoiseEnabled, false);
+   // Register user prefs for mapping SitePerProcess and IsolateOrigins in
+   // user policy in addition to the same named ones in Local State (which are
+   // used for mapping the command-line flags).
 --- a/chrome/browser/extensions/updater/extension_updater.cc
 +++ b/chrome/browser/extensions/updater/extension_updater.cc
 @@ -802,6 +802,14 @@ bool ExtensionUpdater::CanUseUpdateService(
@@ -17,13 +36,26 @@
    // TODO(crbug.com/482088398): Eliminate this constraint.
 --- a/chrome/browser/ui/browser_ui_prefs.cc
 +++ b/chrome/browser/ui/browser_ui_prefs.cc
-@@ -257,7 +257,8 @@ void RegisterBrowserUserPrefs(user_prefs::PrefRegistrySyncable* registry) {
+@@ -257,14 +257,18 @@ void RegisterBrowserUserPrefs(user_prefs::PrefRegistrySyncable* registry) {
    {
      registry->RegisterIntegerPref(prefs::kHeliumSchemaVersion, 0);
      registry->RegisterBooleanPref(prefs::kHeliumDisableSchemaAlerts, false);
 -    registry->RegisterBooleanPref(prefs::kHeliumServicesEnabled, true);
+-    registry->RegisterBooleanPref(prefs::kHeliumBangsEnabled, true);
 +    // oganesson: no Helium servers unless the user turns them on.
 +    registry->RegisterBooleanPref(prefs::kHeliumServicesEnabled, false);
-     registry->RegisterBooleanPref(prefs::kHeliumBangsEnabled, true);
++    // oganesson: the bang list comes from Helium's services.
++    registry->RegisterBooleanPref(prefs::kHeliumBangsEnabled, false);
      registry->RegisterBooleanPref(prefs::kHeliumExtProxyEnabled, true);
      registry->RegisterBooleanPref(prefs::kHeliumSpellcheckEnabled, true);
+     registry->RegisterStringPref(prefs::kHeliumServicesOrigin, "");
+-    registry->RegisterBooleanPref(prefs::kHeliumDidOnboarding, false);
++    // oganesson: no onboarding; a first run opens a normal window.
++    registry->RegisterBooleanPref(prefs::kHeliumDidOnboarding, true);
+     registry->RegisterBooleanPref(prefs::kHeliumServicesConsented, false);
+-    registry->RegisterBooleanPref(prefs::kHeliumUpdateFetchingEnabled, true);
++    // oganesson: updates come from the package repository, not Helium's.
++    registry->RegisterBooleanPref(prefs::kHeliumUpdateFetchingEnabled, false);
+     registry->RegisterBooleanPref(prefs::kHeliumUBlockAssetsEnabled, true);
+   }
+ 
