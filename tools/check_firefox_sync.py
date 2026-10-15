@@ -23,7 +23,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 import fake_firefox_sync  # noqa: E402
-from fake_firefox_sync import decrypt, encrypt  # noqa: E402
 
 LIB = Path(__file__).resolve().parent.parent / \
     'work/helium-linux/build/src/out/Default/liboganesson_sync.so'

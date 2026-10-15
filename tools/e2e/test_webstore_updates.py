@@ -10,7 +10,6 @@ Extensions folder has the browser install it from that server. Then an update
 check for the installed extension has to reach the server too.
 """
 
-import base64
 import hashlib
 import json
 import subprocess
