@@ -1,4 +1,4 @@
-# Working on oganesson focused
+# Working on oganesson
 
 Read `goals.md` for scope and `README.md` for commands. Product code belongs in `src/`; small feature patches connect it to Chromium. The three series files define application order.
 
