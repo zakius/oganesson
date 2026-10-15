@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Lets Discover and GNOME Software show the installed package as an app. -->
+<component type="desktop-application">
+  <id>io.github.zakius.oganesson</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-only</project_license>
+  <name>oganesson</name>
+  <summary>Chromium browser with mouse gestures and Firefox Sync</summary>
+  <description>
+    <p>A desktop Chromium browser built on Helium. It adds mouse gestures, a toolbar whose items
+    move and hide, and Firefox tab placement and close selection. It also has Firefox-compatible
+    Sync, controls for installed web apps, and switches that stop saving history.</p>
+  </description>
+  <developer id="io.github.zakius">
+    <name>zakius</name>
+  </developer>
+  <url type="homepage">https://github.com/zakius/oganesson</url>
+  <url type="bugtracker">https://github.com/zakius/oganesson/issues</url>
+  <categories>
+    <category>Network</category>
+    <category>WebBrowser</category>
+  </categories>
+  <launchable type="desktop-id">oganesson.desktop</launchable>
+  <provides>
+    <binary>oganesson</binary>
+  </provides>
+  <pkgname>oganesson</pkgname>
+  <content_rating type="oars-1.1"/>
+</component>

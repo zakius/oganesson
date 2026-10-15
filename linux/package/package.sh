@@ -87,6 +87,7 @@ spec() {  # <tool> <topdir> [defines...]
     shift 2
     mkdir -p "$top"/{BUILD,SOURCES,SPECS,DEBS,RPMS}
     ln -sf "$stage/$tarball.tar.xz" "$top/SOURCES/"
+    cp "$repo/linux/package/oganesson.metainfo.xml" "$top/SOURCES/"
     "$tool" --define "_topdir $top" --define "version ${version}" \
         --define "pkgrelease ${PKG_RELEASE:-1}" \
         --define "tarball $tarball" "$@" -bb "$repo/linux/package/oganesson.spec"

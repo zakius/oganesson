@@ -5,13 +5,14 @@
 %global _build_id_links none
 
 Name:    oganesson
-Summary: Chromium browser with Firefox's add-ons, sync and comforts
+Summary: Chromium browser with mouse gestures and Firefox Sync
 Version: %{version}
 Release: %{pkgrelease}%{?dist}
 Group:   web
 License: GPL-3.0
 URL:     https://github.com/zakius/oganesson
 Source0: %{tarball}.tar.xz
+Source1: oganesson.metainfo.xml
 
 %if 0%{?debbuild}
 Packager: oganesson
@@ -37,8 +38,9 @@ AutoProv: no
 %endif
 
 %description
-A Chromium browser, built on Helium, with Firefox add-on compatibility,
-Firefox Sync and Firefox quality-of-life features.
+A desktop Chromium browser built on Helium. It adds mouse gestures, a toolbar whose items
+move and hide, and Firefox tab placement and close selection. It also has Firefox-compatible
+Sync, controls for installed web apps, and switches that stop saving history.
 
 %prep
 %setup -q -n %{tarball}
@@ -49,7 +51,7 @@ Firefox Sync and Firefox quality-of-life features.
 %install
 %define og_base /opt/oganesson
 mkdir -p %{buildroot}%{og_base} %{buildroot}%{_bindir} \
-         %{buildroot}%{_datadir}/applications \
+         %{buildroot}%{_datadir}/applications %{buildroot}%{_datadir}/metainfo \
          %{buildroot}%{_datadir}/icons/hicolor/256x256/apps
 cp -a . %{buildroot}%{og_base}
 %if 0%{?debbuild}
@@ -60,6 +62,8 @@ sed -Ei "s/(CHROME_VERSION_EXTRA=).*/\1rpm/" %{buildroot}%{og_base}/oganesson-wr
 install -m 644 product_logo_256.png \
     %{buildroot}%{_datadir}/icons/hicolor/256x256/apps/oganesson.png
 install -m 644 oganesson.desktop %{buildroot}%{_datadir}/applications/
+install -m 644 %{SOURCE1} \
+    %{buildroot}%{_datadir}/metainfo/io.github.zakius.oganesson.metainfo.xml
 ln -sf %{og_base}/oganesson-wrapper %{buildroot}%{_bindir}/oganesson
 
 %files
@@ -67,6 +71,7 @@ ln -sf %{og_base}/oganesson-wrapper %{buildroot}%{_bindir}/oganesson
 %{og_base}/
 %{_bindir}/oganesson
 %{_datadir}/applications/oganesson.desktop
+%{_datadir}/metainfo/io.github.zakius.oganesson.metainfo.xml
 %{_datadir}/icons/hicolor/256x256/apps/oganesson.png
 
 %post
