@@ -591,7 +591,7 @@ def main():
     run_parser.set_defaults(handler=run)
     test_parser = commands.add_parser('test', help='run the end-to-end tests against the build')
     test_parser.add_argument('suites', nargs='*',
-                             help='suites or suite.test to run, e.g. toolbar urls.firefox_about_names '
+                             help='suites or suite.test to run, e.g. toolbar gestures.internal_page '
                                   '(default: all)')
     test_parser.add_argument('--list', action='store_true', help='list the suite.test names')
     test_target = test_parser.add_mutually_exclusive_group()
