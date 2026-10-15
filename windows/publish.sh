@@ -9,6 +9,7 @@
 set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd -P)"
 dir="${1:-$(find "$root/work/dl/windows" -mindepth 1 -maxdepth 1 -type d -name '[0-9]*' | sort -V | tail -1)}"
+[ -d "$dir" ] || { echo "publish.sh: no version folder to publish (${dir:-none in work/dl/windows})" >&2; exit 1; }
 # shellcheck source=/dev/null
 [ -f "$root/.env" ] && . "$root/.env"
 target="${WINDOWS_TARGET:?set it in $root/.env, e.g. WINDOWS_TARGET=myserver:dubna/www/windows}"
