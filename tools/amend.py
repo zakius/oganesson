@@ -3,7 +3,7 @@
 
 Usage: tools/amend.py PATCH FILE...
 
-PATCH is a series entry under patches/ (e.g. oganesson/core/firefox-menus.patch), FILE a path in
+PATCH is a series entry under patches/ (e.g. oganesson/core/mouse-gestures.patch), FILE a path in
 the Chromium tree (e.g. chrome/browser/foo.cc). Edit FILE in work/helium-linux/build/src, then run
 this: it rebuilds FILE's section of PATCH (adding one if PATCH didn't touch FILE, dropping it if
 the edit is undone) and stamps the tree, so `./oganesson.py build` compiles the edit without
