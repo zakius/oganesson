@@ -1,6 +1,6 @@
 # oganesson
 
-oganesson is a desktop Chromium browser built on [Helium](https://github.com/imputnet/helium). It adds mouse gestures, a toolbar whose items move and hide, and Firefox tab placement and close selection. It also has Firefox-compatible Sync, controls for installed web apps, and switches that stop saving history. It runs on Linux x86-64. Windows is planned. Its Android sibling is [tennessine](https://github.com/zakius/tennessine), and the code the two share is in [dubna](https://github.com/zakius/dubna).
+oganesson is a desktop Chromium browser built on [Helium](https://github.com/imputnet/helium). It adds mouse gestures, a toolbar whose items move and hide, and Firefox tab placement and close selection. It also has Firefox-compatible Sync, controls for installed web apps, and switches that stop saving history. It runs on Linux x86-64 and Windows x64. Its Android sibling is [tennessine](https://github.com/zakius/tennessine), and the code the two share is in [dubna](https://github.com/zakius/dubna).
 
 > **Highly volatile.** This is a personal project. Features change or disappear without notice, some may misbehave, updates can break things, and development may stop at any moment. Use it knowing that.
 
@@ -30,6 +30,8 @@ tennessine is named after oganesson's neighbour, element 117. Both elements were
 ## Install
 
 Release builds are in a signed apt and dnf repository for x86-64-v2 machines. [docs/packages.md](docs/packages.md) shows how to add it.
+
+On Windows, an installer and a zip to unpack anywhere are on the [site](https://dubna.zakius.xyz/install.html#windows). They are unsigned and don't update themselves ([docs/windows.md](docs/windows.md)).
 
 The browser keeps its own profile in `~/.config/oganesson`, separate from Helium's and Chromium's (on Windows, `%LOCALAPPDATA%\oganesson`). A profile in `~/.config/oganesson-focused`, its name before October 2026, moves there on the first start.
 
