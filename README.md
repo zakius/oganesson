@@ -17,6 +17,8 @@ Where an extension does the job well, the job stays with the extension. Content 
 - Installed web apps that open outside links in the default browser.
 - Switches that stop saving browsing and download history.
 
+oganesson is not privacy-paranoid. It keeps features that some privacy-focused browsers remove, because they are useful: the built-in password manager, Sync, and Google among the search engines. Each one is yours to skip. DuckDuckGo is the default search engine, Sync stays off until you sign in, and saving passwords can be turned off in settings. If you don't trust a feature, don't use it.
+
 [goals.md](goals.md) sets out what is in scope and what isn't.
 
 ## The name
