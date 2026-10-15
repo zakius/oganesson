@@ -10,6 +10,8 @@ from pathlib import Path
 from check_patches import apply_series, oganesson, report
 
 ROOT = Path(__file__).resolve().parent.parent
+if len(sys.argv) != 2:
+    sys.exit(__doc__)
 work = Path(sys.argv[1])
 src = work / 'src'
 for repo in [src, *src.glob('third_party/*/src'), src / 'third_party/skia',
