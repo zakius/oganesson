@@ -214,7 +214,10 @@ dry = '--dry-run' in sys.argv
 start = 0
 if '--edit' in sys.argv:
     wanted = sys.argv[sys.argv.index('--edit') + 1]
-    edit(next(n for n, e in enumerate(entries) if label(e).endswith(wanted)))
+    match = next((n for n, e in enumerate(entries) if label(e).endswith(wanted)), None)
+    if match is None:
+        sys.exit(f'no patch named {wanted}')
+    edit(match)
 elif '--resume' in sys.argv or '--retry' in sys.argv:
     start = int(state.read_text())
     if list(src.rglob('*.rej')):
