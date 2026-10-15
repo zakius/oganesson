@@ -13,8 +13,8 @@ out="$(realpath "$1")"
 dest="$2"
 src="$(realpath "$out/../..")"
 helium_windows=/oganesson/windows/helium-windows
-version="$(python3 /oganesson/helium/utils/helium_version.py --tree /oganesson/helium \
-    --platform-tree "$helium_windows" --print)"
+# Chromium's version, as patches/helium-utils.patch makes the build's.
+version="$(cat /oganesson/helium/chromium_version.txt)"
 release="1.$(TZ=UTC0 git -C /oganesson log -1 --format=%cd --date=format-local:%Y%m%d%H%M%S)"
 dir="$dest/$version-$release"
 mkdir -p "$dir"

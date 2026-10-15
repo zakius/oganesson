@@ -2,7 +2,8 @@
 # helium_tree()):
 # clone.py moves an existing checkout to the pinned tag in place, keeping out/, so a new
 # Chromium version rebuilds incrementally; downloads.py checks the cache again before unpacking;
-# domain_substitution.py keeps file modes; name_substitution_utils.py gives every rewritten
+# domain_substitution.py keeps file modes; helium_version.py makes the version Chromium's own;
+# name_substitution_utils.py gives every rewritten
 # .xtb translation its source message's new fingerprint. With their tests.
 --- a/utils/clone.py
 +++ b/utils/clone.py
@@ -75,6 +76,35 @@
      unpack_downloads(info, args.cache, args.components, args.output, extractors)
  
  
+--- a/utils/helium_version.py
++++ b/utils/helium_version.py
+@@ -48,20 +48,12 @@
+ 
+ def get_version_parts(tree, platform_tree):
+     """Compiles all the version parts into the full version"""
+-    version_paths = {
+-        "HELIUM_MAJOR": tree / "version.txt",
+-        "HELIUM_MINOR": tree / "chromium_version.txt",
+-        "HELIUM_PATCH": tree / "revision.txt",
+-    }
+-
+-    if platform_tree is not None:
+-        version_paths["HELIUM_PLATFORM"] = platform_tree / "revision.txt"
+-
+-    version_parts = {}
+-    for name, path in version_paths.items():
+-        delta = 0 if name != "HELIUM_MINOR" else -CHROME_VERSION_BASE
+-        version_parts[name] = str(get_version_part(path) + delta)
+-    return version_parts
++    # oganesson: the version is Chromium's own, as tennessine's is, so the two
++    # browsers' versions line up; a rebuild on the same Chromium shows in the
++    # packages' release field (the commit time) instead.
++    parts = (tree / "chromium_version.txt").read_text(encoding="utf-8").strip().split(".")
++    names = ("HELIUM_MAJOR", "HELIUM_MINOR", "HELIUM_PATCH", "HELIUM_PLATFORM")
++    return dict(zip(names, parts))
+ 
+ 
+ def main():
 --- a/utils/name_substitution_utils.py
 +++ b/utils/name_substitution_utils.py
 @@ -113,15 +113,16 @@

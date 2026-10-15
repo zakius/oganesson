@@ -23,8 +23,7 @@ helium_linux="$linux/helium-linux"
 packages="${PACKAGES:-$repo/work/packages}"
 # The version the build itself carries (chrome/VERSION): the vendored files,
 # the same ones as the packaging files.
-version=${VERSION:-$(python3 "$repo/helium/utils/helium_version.py" \
-    --tree "$repo/helium" --platform-tree "$helium_linux" --print)}
+version=${VERSION:-$(cat "$repo/helium/chromium_version.txt")}
 name="oganesson-${version}-x86_64-${target}"
 tarball="${name}_linux"
 stage="$(mktemp -d)"

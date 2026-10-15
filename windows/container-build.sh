@@ -139,8 +139,7 @@ python3 third_party/depot_tools/autoninja.py -C "$_out_dir" "${jobs[@]}" -k 0 ch
 # The version folder's assembly manifest, <version>.manifest, stays in the out
 # folder after the next version's build, and the zip (FILES.cfg) and the
 # installer (chrome.release) take every *.manifest there.
-version="$(python3 /oganesson/helium/utils/helium_version.py --tree /oganesson/helium \
-    --platform-tree "$_root_dir" --print)"
+version="$(cat /oganesson/helium/chromium_version.txt)"
 find "$_out_dir" -maxdepth 1 -name '*.manifest' ! -name "$version.manifest" -delete
 # Firefox Sync's Rust library, loaded by the browser from its folder, then the
 # installer, whose payload includes it, and the packages.
