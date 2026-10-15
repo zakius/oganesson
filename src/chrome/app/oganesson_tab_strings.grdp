@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright 2026 The oganesson Authors. GPL-3.0, see the LICENSE file. -->
+<grit-part>
+  <message name="IDS_OGANESSON_TAB_BEHAVIOR" desc="Settings, Behavior: label for the dropdown that sets where new tabs open and which tab is selected after closing one to the rules of Chromium or of Firefox. The settings below it set each rule.">
+    Tab behavior
+  </message>
+  <message name="IDS_OGANESSON_TAB_BEHAVIOR_CUSTOM" desc="Settings, Behavior: option of the Tab behavior dropdown, shown when the settings below it match neither Chromium nor Firefox. Its other options are the browser names Chromium and Firefox.">
+    Custom
+  </message>
+  <message name="IDS_OGANESSON_TAB_LINK_POSITION" desc="Settings, Behavior: label for the dropdown that chooses where a link opened in a new tab opens.">
+    Open links in new tabs
+  </message>
+  <message name="IDS_OGANESSON_TAB_LINK_POSITION_AS_IN" desc="Settings, Behavior: option of the dropdown for where a link opened in a new tab opens: where the named browser opens it.">
+    As in <ph name="BROWSER">$1<ex>Firefox</ex></ph>
+  </message>
+  <message name="IDS_OGANESSON_TAB_LINK_POSITION_AT_END" desc="Settings, Behavior: option of the dropdown for where a link opened in a new tab opens: at the end of the tab strip.">
+    At the end
+  </message>
+  <message name="IDS_OGANESSON_TAB_SELECT_RELATED_ON_CLOSE" desc="Settings, Behavior: switch. Closing a tab first selects a tab it opened, or another tab opened by the tab that opened it, as Chromium does.">
+    Closing a tab first selects a tab it opened, or one opened from the same tab
+  </message>
+  <message name="IDS_OGANESSON_TAB_SELECT_OWNER_ON_CLOSE" desc="Settings, Behavior: switch. Closing a tab selects the tab it was opened from, if the user hasn't switched tabs since.">
+    Closing a tab returns to the tab that opened it
+  </message>
+  <message name="IDS_OGANESSON_TAB_SELECT_MRU_ON_CLOSE" desc="Settings, Behavior: switch. When no rule above applies, closing a tab selects the most recently used tab instead of the tab on its right.">
+    Otherwise, closing a tab selects the most recently used tab, not the one on its right
+  </message>
+</grit-part>

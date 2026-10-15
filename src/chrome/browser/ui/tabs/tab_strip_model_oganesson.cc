@@ -6,12 +6,12 @@
 // browser/components/tabbrowser/Tabbrowser.sys.mjs: addTab,
 // #insertTabAtIndex, updateCurrentBrowser, _endRemoveTab, #handleTabMove and
 // _findTabToBlurTo, and an extension's tabs.create() with openerTabId from
-// browser/components/extensions/parent/ext-tabs.js. The Firefox prefs these
-// rules fix: browser.tabs.insertRelatedAfterCurrent true,
-// selectOwnerOnClose true, selectMRUOnClose false and
-// insertAfterCurrentExceptPinned false. Helium's "Open new tabs next to the
-// active tab" pref stands for browser.tabs.insertAfterCurrent. Chromium takes
-// the active tab as the opener of every tab that a link opens.
+// browser/components/extensions/parent/ext-tabs.js. Tab behavior's knobs
+// (chrome/common/oganesson_pref_names.h) stand for Firefox's prefs
+// browser.tabs.insertRelatedAfterCurrent, selectOwnerOnClose and
+// selectMRUOnClose, and Helium's "Open new tabs next to the active tab" for
+// browser.tabs.insertAfterCurrent; insertAfterCurrentExceptPinned is false.
+// Chromium takes the active tab as the opener of every tab that a link opens.
 
 #include "chrome/browser/ui/tabs/tab_strip_model_oganesson.h"
 
@@ -24,6 +24,7 @@
 #include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/common/oganesson_pref_names.h"
 #include "chrome/common/pref_names.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/browser/web_contents.h"
@@ -40,6 +41,35 @@ tabs::TabModel* Find(
              ? nullptr
              : static_cast<tabs::TabModel*>(it->second.Get());
 }
+
+// Tab behavior's knobs.
+struct Knobs {
+  explicit Knobs(const TabStripModel& model) {
+    const PrefService* const pref_service = model.profile()->GetPrefs();
+    const int links = pref_service->GetInteger(prefs::kTabLinkPosition);
+    // A hand-edited value outside the enum counts as the default.
+    link_position = links >= prefs::kTabLinksChromium &&
+                            links <= prefs::kTabLinksAtEnd
+                        ? links
+                        : prefs::kTabLinksAfterRelated;
+    next_to_active = pref_service->GetBoolean(prefs::kNewTabNextToActive);
+    select_related = pref_service->GetBoolean(prefs::kTabSelectRelatedOnClose);
+    select_owner = pref_service->GetBoolean(prefs::kTabSelectOwnerOnClose);
+    select_mru = pref_service->GetBoolean(prefs::kTabSelectMRUOnClose);
+  }
+
+  // The Chromium preset, which runs Chromium's code.
+  bool chromium() const {
+    return link_position == prefs::kTabLinksChromium && !next_to_active &&
+           select_related && select_owner && !select_mru;
+  }
+
+  int link_position;
+  bool next_to_active;
+  bool select_related;
+  bool select_owner;
+  bool select_mru;
+};
 
 }  // namespace
 
@@ -74,6 +104,10 @@ bool OganessonTabRules::PlaceNewTab(
     int* index,
     std::optional<tab_groups::TabGroupId>* group,
     bool* inherit_opener) {
+  const Knobs knobs(model);
+  if (knobs.chromium()) {
+    return false;
+  }
   OganessonTabRules& rules = Get(model);
   // Chromium's test for a tab opened from the active tab, see AddTab.
   const bool related = ui::PageTransitionTypeIncludingQualifiersIs(
@@ -108,24 +142,31 @@ bool OganessonTabRules::PlaceNewTab(
   }
   *index = model.count();
   if (!selected ||
-      !(opener || model.profile()->GetPrefs()->GetBoolean(
-                      prefs::kNewTabNextToActive))) {
+      !((opener && knobs.link_position != prefs::kTabLinksAtEnd) ||
+        knobs.next_to_active)) {
     return true;
   }
 
   tabs::TabModel* const last_related =
       opener ? Find(rules.last_related_, opener) : nullptr;
-  tabs::TabModel* const previous =
-      last_related ? last_related : (opener ? opener : selected);
-  if (!group->has_value()) {
-    // The opener has none: the group of the tab it goes after.
-    *group = previous->GetGroup();
-  }
-  // After a pinned tab too, which InsertTabAtImpl turns into the first
-  // unpinned position.
-  const int previous_index = model.GetIndexOfTab(previous);
-  if (!model.IsTabCollapsed(previous_index)) {
-    *index = previous_index + 1;
+  if (opener && knobs.link_position == prefs::kTabLinksChromium) {
+    *index = ChromiumLinkIndex(model, model.GetIndexOfTab(opener),
+                               add_types & ADD_ACTIVE);
+  } else {
+    tabs::TabModel* const previous =
+        knobs.link_position == prefs::kTabLinksAfterRelated && last_related
+            ? last_related
+            : (opener ? opener : selected);
+    if (!group->has_value()) {
+      // The opener has none: the group of the tab it goes after.
+      *group = previous->GetGroup();
+    }
+    // After a pinned tab too, which InsertTabAtImpl turns into the first
+    // unpinned position.
+    const int previous_index = model.GetIndexOfTab(previous);
+    if (!model.IsTabCollapsed(previous_index)) {
+      *index = previous_index + 1;
+    }
   }
 
   if (last_related) {
@@ -137,6 +178,29 @@ bool OganessonTabRules::PlaceNewTab(
     rules.last_related_[opener->GetHandle()] = tab->GetHandle();
   }
   return true;
+}
+
+// static
+int OganessonTabRules::ChromiumLinkIndex(const TabStripModel& model,
+                                         int opener_index,
+                                         bool foreground) {
+  if (foreground) {
+    return opener_index + 1;
+  }
+  const int last = model.GetIndexOfLastWebContentsOpenedBy(
+      model.GetWebContentsAt(opener_index), opener_index);
+  if (last == TabStripModel::kNoTab) {
+    return opener_index + 1;
+  }
+  // Before the first tab outside the opener's group.
+  const std::optional<tab_groups::TabGroupId> opener_group =
+      model.GetTabGroupForTab(opener_index);
+  for (int i = opener_index + 1; i <= last; ++i) {
+    if (model.GetTabGroupForTab(i) != opener_group) {
+      return i;
+    }
+  }
+  return last + 1;
 }
 
 void OganessonTabRules::OnTabStripModelChanged(
@@ -178,6 +242,10 @@ void OganessonTabRules::OnTabStripModelChanged(
 std::optional<int> OganessonTabRules::NewSelectedIndex(
     const TabStripModel& model,
     const gfx::Range& block_tabs) {
+  const Knobs knobs(model);
+  if (knobs.chromium()) {
+    return std::nullopt;
+  }
   auto outside_block = [&](int i) {
     return !block_tabs.Contains(gfx::Range(i, i + 1));
   };
@@ -201,12 +269,24 @@ std::optional<int> OganessonTabRules::NewSelectedIndex(
     return tabs.empty() ? std::nullopt : std::optional<int>(tabs.back());
   };
 
+  // Chromium's first choices: a tab the block opened, then one its opener
+  // opened.
+  if (knobs.select_related) {
+    for (const int related :
+         {model.GetIndexOfNextWebContentsOpenedBy(block_tabs),
+          model.GetIndexOfNextWebContentsOpenedByOpenerOf(block_tabs)}) {
+      if (related != TabStripModel::kNoTab && visible(related)) {
+        return after_closing(related);
+      }
+    }
+  }
+
   // browser.tabs.selectOwnerOnClose: the owner of the active tab, also when a
   // whole group or split closes.
   const int active = model.active_index();
   tabs::TabInterface* const owner =
-      model.oganesson_tab_rules_ && active != TabStripModel::kNoTab &&
-              !outside_block(active)
+      knobs.select_owner && model.oganesson_tab_rules_ &&
+              active != TabStripModel::kNoTab && !outside_block(active)
           ? model.oganesson_tab_rules_->Owner(model.GetTabModelAtIndex(active))
           : nullptr;
   const int owner_index =
@@ -225,6 +305,12 @@ std::optional<int> OganessonTabRules::NewSelectedIndex(
   // Discarded tabs are passed over while a loaded one remains.
   if (!std::ranges::all_of(remaining, discarded)) {
     std::erase_if(remaining, discarded);
+  }
+  // browser.tabs.selectMRUOnClose.
+  if (knobs.select_mru && !remaining.empty()) {
+    return after_closing(*std::ranges::max_element(remaining, {}, [&](int i) {
+      return model.GetWebContentsAt(i)->GetLastActiveTimeTicks();
+    }));
   }
   if (std::optional<int> tab = adjacent(remaining)) {
     return after_closing(tab);

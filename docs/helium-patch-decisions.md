@@ -9,12 +9,12 @@ Every other Helium patch is carried, also the ones earlier reviews called indiff
 
 ## Decisions that are not per patch
 
-- Firefox-style tab placement and selection after closing a tab is a must have, with selectable alternatives: Settings > Behavior > Tab behavior, a Chromium or Firefox preset over knobs, Helium's "next to the active tab" switch among them ([tab behavior](tab-behavior.md)).
+- Firefox-style tab placement and selection after closing a tab is a must have, and the default, with selectable alternatives: Settings > Behavior > Tab behavior, a Firefox or Chromium preset over knobs, Helium's "next to the active tab" switch among them ([tab behavior](tab-behavior.md)).
 - Helium's visual redesign patches (`helium/ui/*`, `helium/ui/layout/*`, `helium/settings/*`) are carried. We may want our own design later.
 - Memory Saver, infinite tab freezing and Back-to-opener stay off by default. The settings stay available; their default-on patches are dropped.
 - No Helium servers by default. Helium's services are off (`oganesson/core/no-helium-services`), and with them component updates, uBlock asset downloads, spellcheck dictionary downloads and the extension download proxy. The user can turn them on in Settings.
 - uBlock Origin: Helium's patch set. With Helium's services off, filter lists update from uBlock's own URLs (dubna's `ublock-assets-update`). Revisit if the WebExtensions uBlock Origin becomes reliable.
-- Extension installs from the Chrome Web Store and AMO stay supported. Helium's download proxy (`proxy-extension-downloads`) acts only with its services on.
+- Extension installs from the Chrome Web Store are supported. Installs from AMO were taken out for now and are to come back. Helium's download proxy (`proxy-extension-downloads`) acts only with its services on.
 - Firefox Sync replaces Helium's sync. Its patches (`helium/core/sync/*`) are carried, as later patches build on them, and stay inert: Helium sync needs Helium's services and its provider feature is off.
 - Onboarding (`helium/core/onboarding-page`) is carried but never shown: a first run opens a normal window. It may serve as the basis of our own.
 - Password manager stays enabled, so `hop/disable-password-manager` is dropped. Helium turns it off as insecure. Malware running as the user can read decrypted passwords from the browser's memory whatever the at-rest encryption, and full-disk encryption covers a stolen disk, so a separate password manager adds little. Maintainer's decision, 2026-10-14.

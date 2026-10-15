@@ -1,0 +1,24 @@
+--- a/chrome/browser/resources/settings/appearance_page/appearance_behavior_page.html
++++ b/chrome/browser/resources/settings/appearance_page/appearance_behavior_page.html
+@@ -1,10 +1,7 @@
+ <style include="cr-shared-style settings-shared"></style>
+ <settings-section page-title="$i18n{behaviorPageTitle}">
+ 
+-  <settings-toggle-button id="newTabNextToActive"
+-      pref-key="helium.browser.new_tab_next_to_active"
+-      label="$i18n{openNewTabNextToActive}">
+-  </settings-toggle-button>
++  <settings-tab-behavior></settings-tab-behavior>
+ 
+   <settings-toggle-button class="hr" id="tabCyclingMRU"
+       pref-key="helium.browser.mru_tab_cycling"
+--- a/chrome/browser/resources/settings/appearance_page/appearance_behavior_page.ts
++++ b/chrome/browser/resources/settings/appearance_page/appearance_behavior_page.ts
+@@ -4,6 +4,7 @@
+ 
+ import '../controls/settings_toggle_button.js';
+ import '../settings_page/settings_section.js';
++import './tab_behavior.js';
+ 
+ import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+ 

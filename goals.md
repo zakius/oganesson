@@ -6,4 +6,4 @@ Keep Chromium's existing extension support and Helium's Manifest V2/uBO maintena
 
 Firefox bookmark keywords and separators stay in the Sync store only: the browser does not show them, and Sync keeps them for Firefox. There is no separate search bar.
 
-Firefox tab rules are always on, with no setting, to keep the tab strip patch small. User data uses an isolated profile until migration has dedicated validation.
+Firefox tab rules are the default, with a Chromium preset and a few knobs in Settings; the tab strip patch stays small, with the logic in its own file. User data uses an isolated profile until migration has dedicated validation.

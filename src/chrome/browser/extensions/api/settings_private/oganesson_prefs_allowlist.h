@@ -23,6 +23,12 @@ inline void AddOganessonPrefsToAllowlist(PrefsUtil::TypedPrefMap& allowlist) {
   using api::settings_private::PrefType;
   allowlist[::prefs::kMouseGestures] = PrefType::kDictionary;
   allowlist[::prefs::kShowTabAudioIndicator] = PrefType::kBoolean;
+  allowlist[::prefs::kTabLinkPosition] = PrefType::kNumber;
+  for (const char* pref :
+       {::prefs::kTabSelectRelatedOnClose, ::prefs::kTabSelectOwnerOnClose,
+        ::prefs::kTabSelectMRUOnClose}) {
+    allowlist[pref] = PrefType::kBoolean;
+  }
   allowlist[::prefs::kSavingBrowserHistoryDisabled] = PrefType::kBoolean;
   allowlist[::prefs::kSavingDownloadHistoryDisabled] = PrefType::kBoolean;
   allowlist[::sessions::kKeepClosedTabsInMemory] = PrefType::kBoolean;

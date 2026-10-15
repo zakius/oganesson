@@ -19,11 +19,14 @@ class Range;
 }
 
 // Firefox's rules for where a new tab opens and which tab is selected when
-// the active one closes, always on (docs/tab-behavior.md). TabStripModel
-// calls the static functions from AddTab and DetermineNewSelectedIndex; the
-// rules observe the model from its first added tab on, which is when they
-// get state to drop. All other state lives here rather than in TabStripModel
-// or TabModel, which keeps the Chromium patch to a few lines.
+// the active one closes, with Settings > Behavior > Tab behavior's knobs as
+// their Firefox prefs (docs/tab-behavior.md). Under the Chromium preset the
+// hooks return "not handled" and Chromium's code runs unchanged.
+// TabStripModel calls the static functions from AddTab and
+// DetermineNewSelectedIndex; the rules observe the model from the first tab
+// they place on, which is when they get state to drop. All other state lives
+// here rather than in TabStripModel or TabModel, which keeps the Chromium
+// patch to a few lines.
 class OganessonTabRules : public TabStripModelObserver {
  public:
   // An extension's tabs.create({openerTabId}) names the opener of the tab
@@ -34,7 +37,8 @@ class OganessonTabRules : public TabStripModelObserver {
   }
 
   // Sets the index and group of a tab that AddTab adds, and whether the tab
-  // inherits its opener. Always returns true: Chromium's placement is skipped.
+  // inherits its opener, and returns true. Returns false under the Chromium
+  // preset, for Chromium's placement.
   static bool PlaceNewTab(TabStripModel& model,
                           tabs::TabModel* tab,
                           ui::PageTransition transition,
@@ -50,12 +54,17 @@ class OganessonTabRules : public TabStripModelObserver {
       const TabStripSelectionChange& selection) override;
 
   // The index to select after `block_tabs` close, or nullopt to let Chromium
-  // choose.
+  // choose, as it always does under the Chromium preset.
   static std::optional<int> NewSelectedIndex(const TabStripModel& model,
                                              const gfx::Range& block_tabs);
 
  private:
   static OganessonTabRules& Get(TabStripModel& model);
+
+  // Chromium's DetermineInsertionIndex for a link from any opener.
+  static int ChromiumLinkIndex(const TabStripModel& model,
+                               int opener_index,
+                               bool foreground);
 
   tabs::TabInterface* Owner(tabs::TabInterface* tab) const;
   void SetOwner(tabs::TabInterface* tab, tabs::TabInterface* owner);

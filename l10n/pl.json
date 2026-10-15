@@ -298,5 +298,45 @@
     "name": "IDS_SETTINGS_SITE_SETTINGS_AUTOPLAY_BLOCK_DEFAULT",
     "source": "Block audio and video (default)",
     "message": "Blokuj dźwięk i wideo (domyślnie)"
+  },
+  {
+    "name": "IDS_OGANESSON_TAB_BEHAVIOR",
+    "source": "Tab behavior",
+    "message": "Zachowanie kart"
+  },
+  {
+    "name": "IDS_OGANESSON_TAB_BEHAVIOR_CUSTOM",
+    "source": "Custom",
+    "message": "Własne"
+  },
+  {
+    "name": "IDS_OGANESSON_TAB_LINK_POSITION",
+    "source": "Open links in new tabs",
+    "message": "Otwieranie linków w nowych kartach"
+  },
+  {
+    "name": "IDS_OGANESSON_TAB_LINK_POSITION_AS_IN",
+    "source": "As in <ph name=\"BROWSER\">$1<ex>Firefox</ex></ph>",
+    "message": "Jak w przeglądarce <ph name=\"BROWSER\">$1<ex>Firefox</ex></ph>"
+  },
+  {
+    "name": "IDS_OGANESSON_TAB_LINK_POSITION_AT_END",
+    "source": "At the end",
+    "message": "Na końcu"
+  },
+  {
+    "name": "IDS_OGANESSON_TAB_SELECT_RELATED_ON_CLOSE",
+    "source": "Closing a tab first selects a tab it opened, or one opened from the same tab",
+    "message": "Zamknięcie karty najpierw wybiera kartę z niej otwartą lub otwartą z tej samej karty"
+  },
+  {
+    "name": "IDS_OGANESSON_TAB_SELECT_OWNER_ON_CLOSE",
+    "source": "Closing a tab returns to the tab that opened it",
+    "message": "Zamknięcie karty wraca do karty, z której ją otwarto"
+  },
+  {
+    "name": "IDS_OGANESSON_TAB_SELECT_MRU_ON_CLOSE",
+    "source": "Otherwise, closing a tab selects the most recently used tab, not the one on its right",
+    "message": "W innym wypadku zamknięcie karty wybiera ostatnio używaną kartę, a nie tę po jej prawej stronie"
   }
 ]

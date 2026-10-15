@@ -12,7 +12,7 @@ Where an extension does the job well, the job stays with the extension. Content 
 
 - Mouse gestures that work on every page, internal pages included.
 - A toolbar where every item moves and hides.
-- Firefox's tab placement and close selection.
+- Firefox's tab placement and close selection, with Chromium's as a preset and each rule a setting.
 - Firefox-compatible Sync for passwords, bookmarks, history, tabs, addresses and cards. It works best with a self-hosted sync server.
 - Installed web apps that open outside links in the default browser.
 - Switches that stop saving browsing and download history.

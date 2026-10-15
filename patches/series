@@ -24,6 +24,7 @@ oganesson/settings/shortcut-capture.patch
 oganesson/core/webstore-prodversion.patch
 oganesson/core/web-apps.patch
 oganesson/core/firefox-tab-behavior.patch
+oganesson/settings/tab-behavior-settings.patch
 oganesson/core/webrequest-extension-reload.patch
 oganesson/core/prefs-editor.patch
 oganesson/ui/menu-item-title-devtools.patch

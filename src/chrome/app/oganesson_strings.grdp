@@ -9,6 +9,7 @@
   <part file="oganesson_mouse_gestures_strings.grdp" />
   <part file="oganesson_omnibox_strings.grdp" />
   <part file="oganesson_shortcut_strings.grdp" />
+  <part file="oganesson_tab_strings.grdp" />
   <part file="oganesson_toolbar_strings.grdp" />
   <part file="oganesson_web_app_strings.grdp" />
 </grit-part>

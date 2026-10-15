@@ -15,6 +15,7 @@
 #include "chrome/grit/generated_resources.h"
 #include "content/public/browser/web_ui.h"
 #include "content/public/browser/web_ui_data_source.h"
+#include "ui/base/webui/web_ui_util.h"
 
 #if BUILDFLAG(IS_LINUX)
 #include "chrome/browser/ui/webui/settings/firefox_sync_handler.h"
@@ -32,8 +33,19 @@ void AddOganessonSettings(content::WebUI* web_ui,
   AddOmniboxSuggestionsStrings(html_source);
   web_ui->AddMessageHandler(std::make_unique<ShortcutsPageHandler>(
       profile, web_ui->GetWebContents()));
-  html_source->AddLocalizedString("showTabAudioIndicator",
-                                  IDS_OGANESSON_SHOW_TAB_AUDIO_INDICATOR);
+  static constexpr webui::LocalizedString kTabStrings[] = {
+      {"showTabAudioIndicator", IDS_OGANESSON_SHOW_TAB_AUDIO_INDICATOR},
+      // Settings > Behavior > Tab behavior.
+      {"tabBehavior", IDS_OGANESSON_TAB_BEHAVIOR},
+      {"tabBehaviorCustom", IDS_OGANESSON_TAB_BEHAVIOR_CUSTOM},
+      {"tabLinkPosition", IDS_OGANESSON_TAB_LINK_POSITION},
+      {"tabLinkPositionAsIn", IDS_OGANESSON_TAB_LINK_POSITION_AS_IN},
+      {"tabLinkPositionAtEnd", IDS_OGANESSON_TAB_LINK_POSITION_AT_END},
+      {"tabSelectRelatedOnClose", IDS_OGANESSON_TAB_SELECT_RELATED_ON_CLOSE},
+      {"tabSelectOwnerOnClose", IDS_OGANESSON_TAB_SELECT_OWNER_ON_CLOSE},
+      {"tabSelectMruOnClose", IDS_OGANESSON_TAB_SELECT_MRU_ON_CLOSE},
+  };
+  html_source->AddLocalizedStrings(kTabStrings);
 #if BUILDFLAG(IS_LINUX)
   web_ui->AddMessageHandler(std::make_unique<FirefoxSyncHandler>(profile));
   FirefoxSyncHandler::AddStrings(html_source);
