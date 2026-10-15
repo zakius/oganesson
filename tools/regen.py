@@ -29,6 +29,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 import oganesson  # pylint: disable=wrong-import-position
+if len(sys.argv) < 2 or sys.argv[1].startswith('-'):
+    sys.exit(__doc__)
 work = Path(sys.argv[1])
 src = work / 'src'
 state = work / '.regen-index'
