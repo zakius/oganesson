@@ -60,6 +60,9 @@ SCROLL_TO = """(() => {
 
 
 def capture(browser, out):
+    # The pointer starts over the first tab, where it would show hover effects.
+    browser.xdotool('mousemove', str(harness.WINDOW[0] - 10), str(harness.WINDOW[1] - 10))
+    time.sleep(0.5)
     png = subprocess.run(['import', '-display', browser.xvfb.display, '-window', 'root',
                           '-crop', f'{harness.WINDOW[0]}x{harness.WINDOW[1]}+0+0', 'png:-'],
                          check=True, capture_output=True).stdout
@@ -67,8 +70,11 @@ def capture(browser, out):
 
 
 def tabs(out):
-    """The default layout: Firefox-style tabs, every toolbar item where you put it."""
-    browser = harness.Browser(args=DARK)
+    """The classic layout with the tab close buttons hidden and uBlock Origin's
+    button moved to the left of the address bar."""
+    browser = harness.Browser(args=DARK + ['--hide-tab-close-buttons'], prefs={'oganesson': {
+        'toolbar': {'items': ['back', 'forward', 'reload', f'extension:{harness.UBO}',
+                              'location_bar', 'extensions', 'avatar', 'app_menu']}}})
     try:
         open_tabs(browser, TABS)
         capture(browser, out)
@@ -77,8 +83,9 @@ def tabs(out):
 
 
 def vertical(out):
-    """Helium's vertical layout, carried."""
-    browser = harness.Browser(args=DARK, prefs={'helium': {'browser': {'layout': 2}}})
+    """Helium's vertical layout, with the tabs on the right."""
+    browser = harness.Browser(args=DARK, prefs={'helium': {'browser': {
+        'layout': 2, 'vertical_right_aligned': True}}})
     try:
         open_tabs(browser, TABS)
         capture(browser, out)
@@ -86,6 +93,41 @@ def vertical(out):
         browser.stop()
 
 
+# Clicks the button labeled BUTTON in the settings row labeled ROW.
+CLICK_IN_ROW = """(() => {
+  const deep = (root, out = []) => {
+    for (const el of root.querySelectorAll('*')) {
+      out.push(el);
+      if (el.shadowRoot) deep(el.shadowRoot, out);
+    }
+    return out;
+  };
+  const label = deep(document).find(el => !el.children.length && el.textContent.trim() === %r);
+  for (let row = label; row; row = row.parentNode || row.host) {
+    if (!row.querySelectorAll) continue;
+    const button = deep(row).find(el => /BUTTON/.test(el.tagName) && el.textContent.trim() === %r);
+    if (button) { button.click(); return true; }
+  }
+  return false;
+})()"""
+# Focuses the first text field in an open settings dialog.
+FOCUS_DIALOG_INPUT = """(() => {
+  const deep = (root, out = []) => {
+    for (const el of root.querySelectorAll('*')) {
+      out.push(el);
+      if (el.shadowRoot) deep(el.shadowRoot, out);
+    }
+    return out;
+  };
+  const inDialog = (el) => {
+    for (; el; el = el.parentNode || el.host)
+      if ((el.tagName === 'DIALOG' || el.tagName === 'CR-DIALOG') && el.open) return true;
+    return false;
+  };
+  const input = deep(document).find(el => el.tagName === 'INPUT' && inDialog(el));
+  if (input) input.focus();
+  return !!input;
+})()"""
 # Settings focuses its search field on load; a screenshot shouldn't show it.
 BLUR = """(() => {
   let el = document.activeElement;
@@ -94,7 +136,7 @@ BLUR = """(() => {
 })()"""
 
 
-def settings_page(out, url, section=None, prefs=None):
+def settings_page(out, url, section=None, prefs=None, click=None, type_text=None):
     browser = harness.Browser(args=DARK, prefs=prefs)
     try:
         page = open_tabs(browser, [url])
@@ -102,6 +144,14 @@ def settings_page(out, url, section=None, prefs=None):
             sys.exit(f'screenshots: no {section!r} on {url}')
         time.sleep(1)
         page.eval(BLUR)
+        if click:
+            if not page.eval(CLICK_IN_ROW % click):
+                sys.exit(f'screenshots: no {click[1]!r} in {click[0]!r} on {url}')
+            time.sleep(1)
+            if type_text:
+                if not page.eval(FOCUS_DIALOG_INPUT):
+                    sys.exit(f'screenshots: no text field in the dialog on {url}')
+                browser.xdotool('type', '--delay', '80', type_text)
         time.sleep(0.5)
         capture(browser, out)
     finally:
@@ -113,7 +163,9 @@ SCENES = {
     'vertical': vertical,
     'tab-behavior': lambda out: settings_page(out, 'chrome://settings/appearance', 'Behavior'),
     'gestures': lambda out: settings_page(out, 'chrome://settings/system/shortcuts',
-                                          section='Back', prefs=GESTURES),
+                                          section='Back', prefs=GESTURES,
+                                          click=('Close other tabs', 'Add gesture'),
+                                          type_text='UR'),
 }
 
 
