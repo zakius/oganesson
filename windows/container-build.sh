@@ -136,6 +136,12 @@ jobs=()
 export SISO_PATH="${_src_dir}/third_party/siso/cipd/siso"
 build_ours
 python3 third_party/depot_tools/autoninja.py -C "$_out_dir" "${jobs[@]}" -k 0 chrome
+# The version folder's assembly manifest, <version>.manifest, stays in the out
+# folder after the next version's build, and the zip (FILES.cfg) and the
+# installer (chrome.release) take every *.manifest there.
+version="$(python3 /oganesson/helium/utils/helium_version.py --tree /oganesson/helium \
+    --platform-tree "$_root_dir" --print)"
+find "$_out_dir" -maxdepth 1 -name '*.manifest' ! -name "$version.manifest" -delete
 # Firefox Sync's Rust library, loaded by the browser from its folder, then the
 # installer, whose payload includes it, and the packages.
 bash /oganesson/windows/build-sync-lib.sh "$_src_dir" "$_out_dir"
