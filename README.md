@@ -83,6 +83,7 @@ A build takes the checkout's lock. To keep a build running after the terminal cl
 linux/pack.sh
 linux/publish-repo.sh
 ./oganesson.py build --windows          # packages in work/dl/windows
+windows/publish.sh                      # to dubna.zakius.xyz/windows, with SHA256SUMS
 ```
 
 [docs/packages.md](docs/packages.md) covers the repository. The version is Helium's version plus the commit time.

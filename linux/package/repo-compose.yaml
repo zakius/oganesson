@@ -12,3 +12,12 @@ services:
       - "traefik.http.routers.packages.rule=Host(`${REPO_DOMAIN:?}`)"
       - "traefik.http.routers.packages.entrypoints=websecure"
       - "traefik.http.services.packages.loadbalancer.server.port=80"
+      # HSTS for this host only, not its siblings under the same domain
+      - "traefik.http.routers.packages.middlewares=packages-hsts"
+      - "traefik.http.middlewares.packages-hsts.headers.stsSeconds=63072000"
+      # plain http, the F-Droid repository included, redirects to https
+      - "traefik.http.routers.packages-http.rule=Host(`${REPO_DOMAIN:?}`)"
+      - "traefik.http.routers.packages-http.entrypoints=web"
+      - "traefik.http.routers.packages-http.middlewares=packages-https"
+      - "traefik.http.middlewares.packages-https.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.packages-https.redirectscheme.permanent=true"
