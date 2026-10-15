@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Writes the placeholder "Og" branding into resources/.
 
-The file names match Helium's resources/, so container-build.sh can lay them
+The file names match Helium's resources/, so oganesson.py can lay them
 over Helium's and reuse its resource lists. Run on a host with
 Pillow and Noto Sans, then commit the output.
 """
