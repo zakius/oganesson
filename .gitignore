@@ -17,3 +17,5 @@ __pycache__/
 /work/
 /rust/oganesson_sync/target/
 /.gcs_entries
+# Where things are deployed: kept out of Git
+/.env

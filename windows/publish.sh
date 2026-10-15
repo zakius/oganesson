@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Publishes the newest Windows packages (./oganesson.py build --windows puts them
-# in work/dl/windows/VERSION/) to WINDOWS_TARGET (HOST:DIR, default
-# oracle:dubna/www/windows), where dubna's site lists them at
+# in work/dl/windows/VERSION/) to WINDOWS_TARGET (HOST:DIR, from the environment
+# or the repository's .env, which Git ignores), where dubna's site lists them at
 # https://dubna.zakius.xyz/windows/. The unversioned names the install page links
 # to become hard links to the newest version, and SHA256SUMS covers every file
 # there, under both names, so `sha256sum -c` works on whichever was downloaded.
@@ -9,7 +9,9 @@
 set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd -P)"
 dir="${1:-$(find "$root/work/dl/windows" -mindepth 1 -maxdepth 1 -type d -name '[0-9]*' | sort -V | tail -1)}"
-target="${WINDOWS_TARGET:-oracle:dubna/www/windows}"
+# shellcheck source=/dev/null
+[ -f "$root/.env" ] && . "$root/.env"
+target="${WINDOWS_TARGET:?set it in $root/.env, e.g. WINDOWS_TARGET=myserver:dubna/www/windows}"
 host="${target%%:*}"
 path="${target#*:}"
 zip="$(cd "$dir" && ls oganesson-*-windows-x64.zip)"
