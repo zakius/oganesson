@@ -1,33 +1,25 @@
-# oganesson's fixes to Helium's utils/, applied to the assembled tree (tools/helium_tree.py):
-# clone.py keeps out/ and lets gclient move nested checkouts, so a new Chromium version
-# rebuilds incrementally; install_cipd_deps.py fetches public buckets over https (the build
-# container has no gsutil); downloads.py checks the cache again before unpacking;
+# oganesson's fixes to Helium's utils/, applied to the assembled tree (oganesson.py's
+# helium_tree()):
+# clone.py moves an existing checkout to the pinned tag in place, keeping out/, so a new
+# Chromium version rebuilds incrementally; downloads.py checks the cache again before unpacking;
 # domain_substitution.py keeps file modes; name_substitution_utils.py gives every rewritten
 # .xtb translation its source message's new fingerprint. With their tests.
 --- a/utils/clone.py
 +++ b/utils/clone.py
-@@ -74,7 +74,10 @@
-             cwd=args.output,
-             check=True)
-         run(['git', 'reset', '--hard', 'FETCH_HEAD'], cwd=args.output, check=True)
--        run(['git', 'clean', '-ffdx', '-e', 'uc_staging'], cwd=args.output, check=True)
-+        # oganesson: one -f leaves the nested dependency checkouts for gclient sync to move,
-+        # and out/ stays, so a new Chromium version rebuilds incrementally.
-+        run(['git', 'clean', '-fdx', '-e', '/uc_staging', '-e', '/out'], cwd=args.output,
-+            check=True)
-     else:
-         run([
-             'git', 'clone', '-c', 'advice.detachedHead=false', '-b', chromium_version, '--depth=2',
-@@ -235,6 +238,9 @@
+@@ -136,8 +136,11 @@
+     args = parser.parse_args()
+     if args.output.resolve().name != 'src':
+         parser.error('the output directory must be named src for gclient hooks')
+-    if args.output.exists() and (not args.output.is_dir() or any(args.output.iterdir())):
+-        parser.error('source directory is not empty; move it aside or use a fresh src directory')
++    # oganesson: an existing checkout moves to the pinned tag in place, keeping out/, so a
++    # new Chromium version builds incrementally.
++    if args.output.exists() and (not args.output.is_dir() or (
++            any(args.output.iterdir()) and not (args.output / '.git').is_dir())):
++        parser.error('source directory is neither empty nor a checkout')
+     clone(args)
  
-     get_logger().info('Removing unneeded files')
-     for path in sorted(args.output.rglob('*'), key=lambda l: len(str(l)), reverse=True):
-+        # oganesson: not the build output folders
-+        if path.relative_to(args.output).parts[0] == 'out':
-+            continue
-         if not path.is_symlink() and '.git' not in path.parts:
-             if path.is_file() and (('out' in path.parts and 'node_modules' not in path.parts)
-                                    or path.name.startswith('ChangeLog')):
+ 
 --- a/utils/domain_substitution.py
 +++ b/utils/domain_substitution.py
 @@ -300,8 +300,13 @@
@@ -83,48 +75,6 @@
      unpack_downloads(info, args.cache, args.components, args.output, extractors)
  
  
---- a/utils/install_cipd_deps.py
-+++ b/utils/install_cipd_deps.py
-@@ -6,8 +6,10 @@
- import os
- from pathlib import Path, PurePosixPath
- import platform
-+import shutil
- import subprocess
- import sys
-+import urllib.request
- 
- HOST_OS = {"darwin": "mac", "linux": "linux", "win32": "win"}
- 
-@@ -56,9 +58,28 @@
-     sys.path.insert(0, str(src_dir / "third_party/depot_tools"))
-     import gclient_eval # pylint: disable=import-outside-toplevel,import-error
-     import gclient # pylint: disable=import-outside-toplevel,import-error
-+    import download_from_google_storage # pylint: disable=import-outside-toplevel,import-error
-+    download_from_google_storage.Gsutil.check_call = gsutil_over_https
-     return gclient_eval, gclient
- 
- 
-+def gsutil_over_https(_gsutil, command, url, output_file=None):
-+    """Stand in for depot_tools' gsutil.py on public buckets.
-+
-+    gsutil.py needs vpython3 and luci-auth, which the build container lacks,
-+    and domain substitution breaks its URLs. gclient still checks the
-+    archive's hash and size, and extracts it.
-+    """
-+    if command == "stat":
-+        # Only read for the executable bit, which an archive doesn't need.
-+        return 0, "", ""
-+    assert command == "cp" and url.startswith("gs://"), (command, url)
-+    with urllib.request.urlopen("https://storage.googleapis.com/" + url[len("gs://"):]) as response:
-+        with open(output_file, "wb") as output:
-+            shutil.copyfileobj(response, output)
-+    return 0, "", ""
-+
-+
- def load_deps(src_dir, gclient_eval):
-     """Load the DEPS entries used by this installer."""
-     deps_file = src_dir / "DEPS"
 --- a/utils/name_substitution_utils.py
 +++ b/utils/name_substitution_utils.py
 @@ -113,15 +113,16 @@

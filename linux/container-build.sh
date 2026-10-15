@@ -35,8 +35,7 @@ stamp="${_src_dir}/.oganesson-prepared"
 # The unchanged files' times across a re-prepare, see tools/keep_mtimes.py.
 _mtimes="${_src_dir}/../oganesson-mtimes.tsv"
 
-# The output folder's GN arguments, kept once written. setup_toolchain reads
-# them to decide whether to install the sysroot, which pruning removes.
+# The output folder's GN arguments, kept once written.
 write_args() {
     # Chromium 155 dropped this argument, which older dev trees still set.
     [ -f "${_out_dir}/args.gn" ] && sed -i '/^devtools_skip_typecheck/d' "${_out_dir}/args.gn"
@@ -51,43 +50,10 @@ write_args() {
     fi
 }
 
-# Fetched sources of another Chromium version than chromium_version.txt pins:
-# reset_tree undoes the patches in every checkout, then fetch_sources moves
-# the checkouts to the pin (clone.py fetches the new tag, gclient sync moves
-# the dependencies; out/ stays, so the build is incremental), and the whole
-# tree is prepared again. Git's HEAD holds the fetched version whatever the
-# patches do to the working tree.
-pin="$(cat "${_main_repo}/chromium_version.txt")"
-if [ -f "${_src_dir}/.downloaded.stamp" ]; then
-    fetched="$(git -C "$_src_dir" show HEAD:chrome/VERSION | cut -d= -f2 | paste -sd.)"
-    if [ "$fetched" != "$pin" ]; then
-        echo "The sources are Chromium ${fetched}; fetching ${pin}"
-        reset_tree
-        rm -f "${_src_dir}"/.downloaded.stamp "${_src_dir}"/.pruned.stamp \
-            "${_src_dir}"/.patched.stamp "${_src_dir}"/.domsub.stamp "$stamp" "$_namesubs_cache"
-    fi
-fi
-
-# The stamp's second field is the patch hash (oganesson.py's patch_hash, over
-# every preparation input); the first is informational. A fetched tree without
-# the stamp may be half patched from a failed build.
-if [ -f "${_src_dir}/.downloaded.stamp" ] &&
-    { [ ! -f "$stamp" ] || [ "$(cut -d' ' -f2 "$stamp")" != "$OGANESSON_PATCH_HASH" ]; }; then
-    reset_tree
-fi
-
+fetch_pinned linux
 if [ ! -f "$stamp" ]; then
-    # Clone mode (git checkout of the Chromium tag): release tarballs are
-    # often missing for new versions.
-    fetch_sources true false
     prepare_tree
-    write_args
-    setup_toolchain
-    echo "tree ${OGANESSON_PATCH_HASH}" > "$stamp"
-    if [ -f "$_mtimes" ]; then
-        python3 /oganesson/tools/keep_mtimes.py restore "$_src_dir" "$_mtimes"
-        rm -f "$_mtimes"
-    fi
+    mark_prepared
 fi
 
 write_args

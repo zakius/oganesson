@@ -69,15 +69,30 @@
  #endif  // BUILDFLAG(IS_LINUX)
 --- a/chrome/common/chrome_paths_linux.cc
 +++ b/chrome/common/chrome_paths_linux.cc
-@@ -90,7 +90,7 @@ bool GetDefaultUserDataDirectory(base::FilePath* result) {
+@@ -10,6 +10,7 @@
+ #include "base/base_paths.h"
+ #include "base/environment.h"
+ #include "base/files/file_path.h"
++#include "base/files/file_util.h"
+ #include "base/nix/xdg_util.h"
+ #include "base/path_service.h"
+ #include "base/strings/string_util.h"
+@@ -90,8 +91,14 @@
          GetXDGDirectory(env.get(), kXdgConfigHomeEnvVar, kDotConfigDir);
    }
  
 -  std::string data_dir_basename = "net.imput.helium";
-+  std::string data_dir_basename = "oganesson-focused";
++  std::string data_dir_basename = "oganesson";
    *result = config_dir.Append(data_dir_basename + GetChannelSuffixForDataDir());
++  // oganesson: the profile was in oganesson-focused until 2026-10; moved once.
++  base::FilePath old_dir =
++      config_dir.Append("oganesson-focused" + GetChannelSuffixForDataDir());
++  if (!base::PathExists(*result) && base::DirectoryExists(old_dir)) {
++    base::Move(old_dir, *result);
++  }
    return true;
  }
+ 
 --- a/chrome/installer/linux/BUILD.gn
 +++ b/chrome/installer/linux/BUILD.gn
 @@ -71,8 +71,8 @@ if (current_cpu == "x86") {

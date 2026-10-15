@@ -20,15 +20,15 @@
  MAC_TEAM_ID=S4Q33XPHB4
 --- a/components/extstore_fixups/chrome-webstore.js
 +++ b/components/extstore_fixups/chrome-webstore.js
-@@ -24,7 +24,7 @@
+@@ -20,7 +20,7 @@
+ 
+   const replaceDownloadButtonText = (el) => {
+     if (el.nodeType === Node.TEXT_NODE) {
+-      const replacement = el.nodeValue.replace(CHROME_NAME_REGEX, 'Helium');
++      const replacement = el.nodeValue.replace(CHROME_NAME_REGEX, 'oganesson');
+       if (replacement === el.nodeValue) {
          return false;
        }
- 
--      el.nodeValue = el.nodeValue.replace(/\b(Google\s)?Chrome\b/, 'Helium');
-+      el.nodeValue = el.nodeValue.replace(/\b(Google\s)?Chrome\b/, 'oganesson');
-       return true;
-     } else if (el.childNodes) {
-       for (const node of el.childNodes) {
 --- a/components/url_formatter/url_fixer.cc
 +++ b/components/url_formatter/url_fixer.cc
 @@ -39,7 +39,8 @@ namespace {

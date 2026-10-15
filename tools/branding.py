@@ -32,7 +32,7 @@ from name_substitution import get_substitutable_files
 
 NAME = 'oganesson'
 KEEP = re.compile(r'Helium (?:services|servers|Partner|open source project)'
-                  r'|The Helium Authors|development of Helium|verified by Helium')
+                  r'|development of Helium|verified by Helium')
 PATTERN = re.compile(rf'({KEEP.pattern})|\bHelium\b')
 # name_substitution.py protects &#36; the same way: ElementTree would decode
 # it into a bare $, which grit reads as a placeholder.

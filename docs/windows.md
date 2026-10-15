@@ -17,8 +17,8 @@ Both are unsigned, so SmartScreen warns about them until enough people run them.
 
 | Step | What |
 |---|---|
-| Tree | `work/helium-windows/build/src`, a copy of the Linux tree's fetched sources that shares their blocks on btrfs, plus Windows' own dependencies (gclient with `target_os` `win`). The Linux tree has to be fetched first. |
-| Patches | Helium's series, helium-windows' (minus `windows/helium-windows-drops.txt`, plus helium-linux's Node version check patch), ours, `late/`, then `windows/late/`. |
+| Tree | `work/helium-windows/build/src`, a Windows checkout: helium's `clone.py -p win64`, gclient with Windows' dependencies and the hooks that fetch the Linux-hosted build tools and Windows' PGO profile. |
+| Patches | Helium's series, helium-windows' (minus `windows/helium-windows-drops.txt`), ours, `late/`, then `windows/late/`. |
 | Toolchain | Chromium's Linux clang and lld. MSVC's headers and libraries and the Windows SDK come from Microsoft through [msvc-wine](https://github.com/mstorsjo/msvc-wine), whose use accepts Microsoft's license terms. `windows/make_toolchain.py` packs them the way Chromium's build expects, once per toolchain pin. |
 | Sync | `windows/build-sync-lib.sh`: the Rust library as `oganesson_sync.dll`, with NSS, NSPR and SQLite from MSYS2's UCRT64 packages next to it. |
 | Packages | `windows/package.sh`. |

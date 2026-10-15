@@ -2,13 +2,13 @@
 # Runs inside the Windows builder container (windows/Dockerfile, started by
 # oganesson.py build --windows): cross-compiles the Windows x64 release build
 # on Linux into work/helium-windows/build/src/out/Release.
-# The tree starts as a copy of the Linux tree's fetched sources (helium's
-# clone.py fetches the same sources for every platform; the copy shares their
-# blocks on btrfs), gets Windows' own dependencies once, then Helium's series,
-# helium-windows' platform patches and ours. The compiler is Chromium's Linux
-# clang; MSVC's headers and libraries and the Windows SDK are a toolchain
-# package made here once (windows/make_toolchain.py), mounted
-# case-insensitively by Chromium's build/vs_toolchain.py.
+# The tree is a Windows checkout (helium's clone.py -p win64: gclient with
+# Windows' dependencies and the hooks that fetch the build's Linux-hosted tools
+# and Windows' PGO profile), then Helium's series, helium-windows' platform
+# patches and ours. The compiler is Chromium's Linux clang; MSVC's headers and
+# libraries and the Windows SDK are a toolchain package made here once
+# (windows/make_toolchain.py), mounted case-insensitively by Chromium's
+# build/vs_toolchain.py.
 set -euo pipefail
 
 . /oganesson/linux/helium-linux/scripts/shared.sh
@@ -25,19 +25,6 @@ _out_dir="${_src_dir}/out/Release"
 _mtimes="${_src_dir}/../oganesson-mtimes.tsv"
 stamp="${_src_dir}/.oganesson-prepared"
 mkdir -p "$_dl_cache"
-
-# The Linux tree's fetched sources, without its build outputs, for a tree that
-# doesn't exist yet.
-windows_tree() {
-    [ -d "$_src_dir" ] && return
-    local linux=/oganesson/work/helium-linux/build
-    [ -f "$linux/src/.downloaded.stamp" ] ||
-        { echo "no fetched Linux tree to start from: build Linux first" >&2; exit 1; }
-    mkdir -p "$_src_dir"
-    find "$linux/src" -mindepth 1 -maxdepth 1 ! -name out \
-        -exec cp -a --reflink=auto {} "$_src_dir/" \;
-    cp -a --reflink=auto "$linux/download_cache/." "$_dl_cache/"
-}
 
 # MSVC and the Windows SDK at the versions Chromium's build/vs_toolchain.py
 # pins, from Microsoft through msvc-wine (whose use accepts Microsoft's license
@@ -64,15 +51,6 @@ windows_msvc() {
     echo "$pin_hash" > "$toolchain/pin"
 }
 
-# Runs a command in clone.py's environment, as its Google Storage downloads
-# need: its depot_tools (and their vpython3, on the system Python) first.
-with_depot_tools() {
-    local tools="${_src_dir}/uc_staging/depot_tools"
-    PATH="$tools:$PATH" PYTHONPATH="$tools" DEPOT_TOOLS_UPDATE=0 PYTHONDONTWRITEBYTECODE=1 \
-        PYTHONWARNINGS=ignore::SyntaxWarning \
-        VPYTHON_BYPASS='manually managed python not supported by chrome operations' "$@"
-}
-
 # helium-windows' series without windows/helium-windows-drops.txt: a folder of
 # links to its patches, with its own series.
 _platform_patches="${_build_dir}/helium-windows-patches"
@@ -85,11 +63,6 @@ platform_series() {
     done
     grep -vxF -f <(cut -f1 /oganesson/windows/helium-windows-drops.txt | grep -v '^#') \
         "$_root_dir/patches/series" > "$_platform_patches/series"
-    # The build runs the image's Node (22, as helium-linux's builds do) rather
-    # than the Node 24 Chromium checks for: helium-linux's patch dropping the check.
-    ln -s /oganesson/linux/helium-linux/patches/ungoogled-chromium/portablelinux/drop-nodejs-version-check.patch \
-        "$_platform_patches/drop-nodejs-version-check.patch"
-    echo drop-nodejs-version-check.patch >> "$_platform_patches/series"
 }
 
 # Chromium's pre-generated MIDL and message compiler outputs, which a Linux
@@ -104,25 +77,6 @@ restore_win_build_output() {
     done
 }
 
-# Windows' own dependencies (DirectX and WebAuthn headers, WTL, the LZMA SDK's
-# tools...): the clone's gclient config, with Windows added to its targets.
-windows_deps() {
-    [ -f "${_src_dir}/.windeps.stamp" ] && return
-    local staging="${_src_dir}/uc_staging"
-    # The copy's gclient state, and clone.py's patched gclient, name the Linux
-    # tree's paths: this tree's instead, or gclient would go through the Linux tree.
-    { grep -rlIZ /oganesson/work/helium-linux/build/src "$staging" || true; } |
-        xargs -0 -r sed -i "s|/oganesson/work/helium-linux/build/src|${_src_dir}|g"
-    sed -i "s|^target_os = .*|target_os = ['unix', 'win'];|" "$staging/.gclient"
-    if grep -rqI /oganesson/work/helium-linux "$staging"; then
-        echo "gclient state still names the Linux tree" >&2
-        exit 1
-    fi
-    (cd "$staging" &&
-        with_depot_tools python3 depot_tools/gclient.py sync --nohooks --no-history --shallow -j 8)
-    touch "${_src_dir}/.windeps.stamp"
-}
-
 # Helium's Windows icons, from our branding (work/helium-tree/resources).
 windows_resources() {
     local gen
@@ -134,25 +88,6 @@ windows_resources() {
     python3 "$_main_repo/utils/replace_resources.py" "$_root_dir/resources/platform_resources.txt" \
         "$gen" "$_src_dir"
     rm -rf "$gen"
-}
-
-# What a Windows checkout's DEPS hooks add on a Linux host: clang's Windows
-# runtime libraries, the resource compiler and the PGO profile.
-windows_build_deps() {
-    cd "$_src_dir"
-    python3 -c "import sys; sys.path.insert(0, 'tools/clang/scripts'); import update; \
-update.DownloadAndUnpackClangWinRuntime(update.LLVM_BUILD_DIR)"
-    # Both public on Google Storage, named by the files the tree pins them in.
-    local gcs=https://storage.googleapis.com rc=build/toolchain/win/rc/linux64/rc
-    curl -sfL -o "$rc" "$gcs/chromium-browser-clang/rc/$(cat "$rc.sha1")"
-    echo "$(cat "$rc.sha1")  $rc" | sha1sum -c --quiet
-    chmod +x "$rc"
-    local profile
-    profile="chrome/build/pgo_profiles/$(cat chrome/build/win64.pgo.txt)"
-    mkdir -p chrome/build/pgo_profiles
-    [ -f "$profile" ] || curl -sfL -o "$profile" \
-        "$gcs/chromium-optimization-profiles/pgo_profiles/${profile##*/}"
-    cd - >/dev/null
 }
 
 # Helium's and helium-windows' arguments, and ours: an official build for
@@ -171,34 +106,18 @@ write_windows_args() {
     fi
 }
 
-windows_tree
+# gclient's toolchain hook would fetch Google's own package: ours comes after.
+DEPOT_TOOLS_WIN_TOOLCHAIN=0 fetch_pinned win64
 windows_msvc
 export DEPOT_TOOLS_WIN_TOOLCHAIN=1 DEPOT_TOOLS_WIN_TOOLCHAIN_BASE_URL="$toolchain"
 export "GYP_MSVS_HASH_${pin_hash}=$(cat "$toolchain/hash")"
 write_windows_args
-
-# A tree prepared for other inputs (or the Linux tree it was copied from).
-echo "Inputs ${OGANESSON_PATCH_HASH}; the tree's: $(cut -d' ' -f2 "$stamp" 2>/dev/null)"
-if [ -f "${_src_dir}/.downloaded.stamp" ] &&
-    { [ ! -f "$stamp" ] || [ "$(cut -d' ' -f2 "$stamp")" != "$OGANESSON_PATCH_HASH" ]; }; then
-    reset_tree
-fi
-
 if [ ! -f "$stamp" ]; then
-    windows_deps
     platform_series
     prepare_tree
     restore_win_build_output
     windows_resources
-    # helium-linux's host tools (Linux clang and Rust, node, CIPD packages),
-    # then Windows' own.
-    setup_toolchain
-    windows_build_deps
-    echo "tree ${OGANESSON_PATCH_HASH}" > "$stamp"
-    if [ -f "$_mtimes" ]; then
-        python3 /oganesson/tools/keep_mtimes.py restore "$_src_dir" "$_mtimes"
-        rm -f "$_mtimes"
-    fi
+    mark_prepared
 fi
 
 # vs_toolchain mounts the toolchain package with ciopfs (unpacking it the first

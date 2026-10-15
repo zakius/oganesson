@@ -7,11 +7,12 @@
 # late series (linux/late).
 
 # helium-linux's step: Helium's series, then the platform's and ours. Pruning
-# runs once per tree, as it also removes the toolchains setup_toolchain installs.
+# keeps the build's tools that gclient fetched, and runs once per tree.
 apply_patches() {
     if [ ! -f "${_src_dir}/.patched.stamp" ]; then
         if [ ! -f "${_src_dir}/.pruned.stamp" ]; then
-            "${_main_repo}/utils/prune_binaries.py" "${_src_dir}" "${_main_repo}/pruning.list"
+            "${_main_repo}/utils/prune_binaries.py" --keep-build-dependencies "${_src_dir}" \
+                "${_main_repo}/pruning.list"
             touch "${_src_dir}/.pruned.stamp"
         fi
         # Zero fuzz, as check-patches applies them: a hunk whose context
@@ -37,8 +38,8 @@ reset_tree() {
         repo="${repo%/.git}"
         git -C "$repo" diff --name-only -z --diff-filter=M |
             (cd "$repo" && xargs -0 -r git checkout --)
-        git -C "$repo" clean -fdq -e /tools/gn -e /uc_staging -e /.downloaded.stamp
-    done < <(find . -path ./out -prune -o -path ./uc_staging -prune -o -name .git -print)
+        git -C "$repo" clean -fdq -e /.downloaded.stamp
+    done < <(find . -path ./out -prune -o -name .git -print)
     cd "$_src_dir"
     rm -f .patched.stamp .domsub.stamp "$stamp" "$_namesubs_cache"
     # Pruned files stay pruned: the reset doesn't bring back deleted files.
@@ -48,6 +49,50 @@ reset_tree() {
     "${_main_repo}/utils/downloads.py" retrieve -i "${_main_repo}/deps.ini" -c "${_dl_cache}"
     "${_main_repo}/utils/downloads.py" unpack -i "${_main_repo}/deps.ini" -c "${_dl_cache}" "${_src_dir}"
     cd - >/dev/null
+}
+
+# The sources at chromium_version.txt's pin, for PLATFORM (helium's clone.py
+# -p: linux or win64): clone.py checks out the tag and gclient, with its hooks,
+# the dependencies and the build's tools (clang, Rust, Node...), then Helium's
+# deps.ini. A tree of another Chromium version is reset and moved in place,
+# keeping out/, so the build stays incremental (Git's HEAD holds the fetched
+# version whatever the patches do). A tree prepared for other inputs, or half
+# prepared by a failed build, is reset; the stamp's second field is the inputs'
+# hash (oganesson.py's patch_hash), its first is informational. Without the
+# stamp after this, the tree needs preparing (prepare_tree, then mark_prepared).
+fetch_pinned() {
+    local pin fetched
+    pin="$(cat "${_main_repo}/chromium_version.txt")"
+    if [ -f "${_src_dir}/.downloaded.stamp" ]; then
+        fetched="$(git -C "$_src_dir" show HEAD:chrome/VERSION | cut -d= -f2 | paste -sd.)"
+        if [ "$fetched" != "$pin" ]; then
+            echo "The sources are Chromium ${fetched}; fetching ${pin}"
+            reset_tree
+            rm -f "${_src_dir}"/.downloaded.stamp "${_src_dir}"/.pruned.stamp "$stamp"
+        fi
+    fi
+    echo "Inputs ${OGANESSON_PATCH_HASH}; the tree's: $(cut -d' ' -f2 "$stamp" 2>/dev/null)"
+    if [ -f "${_src_dir}/.downloaded.stamp" ] &&
+        { [ ! -f "$stamp" ] || [ "$(cut -d' ' -f2 "$stamp")" != "$OGANESSON_PATCH_HASH" ]; }; then
+        reset_tree
+    fi
+    if [ ! -f "${_src_dir}/.downloaded.stamp" ]; then
+        "${_main_repo}/utils/clone.py" -o "$_src_dir" -p "$1"
+        "${_main_repo}/utils/downloads.py" retrieve -i "${_main_repo}/deps.ini" -c "${_dl_cache}"
+        "${_main_repo}/utils/downloads.py" unpack -i "${_main_repo}/deps.ini" -c "${_dl_cache}" \
+            "${_src_dir}"
+        touch "${_src_dir}/.downloaded.stamp"
+    fi
+}
+
+# The tree is prepared for these inputs; unchanged files get their times back
+# (tools/keep_mtimes.py), so only what changed rebuilds.
+mark_prepared() {
+    echo "tree ${OGANESSON_PATCH_HASH}" > "$stamp"
+    if [ -f "$_mtimes" ]; then
+        python3 /oganesson/tools/keep_mtimes.py restore "$_src_dir" "$_mtimes"
+        rm -f "$_mtimes"
+    fi
 }
 
 # Our files and patches, then Helium's steps that write over the tree.
@@ -72,7 +117,6 @@ prepare_tree() {
     python3 /oganesson/tools/grit_fixups.py "$_src_dir"
     helium_version
     helium_resources
-    fix_tool_downloading
 }
 
 # Our own files first, new and patched (dubna/tools/ours.py): after a Chromium

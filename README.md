@@ -31,7 +31,7 @@ tennessine is named after oganesson's neighbour, element 117. Both elements were
 
 Release builds are in a signed apt and dnf repository for x86-64-v2 machines. [docs/packages.md](docs/packages.md) shows how to add it.
 
-The browser keeps its own profile in `~/.config/oganesson-focused`, separate from Helium's and Chromium's.
+The browser keeps its own profile in `~/.config/oganesson`, separate from Helium's and Chromium's (on Windows, `%LOCALAPPDATA%\oganesson`). A profile in `~/.config/oganesson-focused`, its name before October 2026, moves there on the first start.
 
 ## Layout
 

@@ -23,7 +23,7 @@ helium/core/rbe-nativelink-config.patch	Do not want
 helium/core/replace-default-profile-name.patch	Do not want
 helium/core/spoof-chrome-ua-brand.patch	Do not want
 helium/core/unbreak-chromium-link.patch	Do not want
-helium/hop/disable-password-manager.patch	Do not want
+helium/core/disable-password-manager.patch	Do not want
 helium/settings/sync-setup-contract.patch	Do not want
 helium/ui/bangs-ui.patch	needs `add-native-bangs`
 helium/ui/helium-noise-page-info.patch	Do not want
