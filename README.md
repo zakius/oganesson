@@ -6,7 +6,7 @@ oganesson is a desktop Chromium browser built on [Helium](https://github.com/imp
 
 ## What it's for
 
-oganesson is meant to be complete for the way the maintainer uses it. It does not try to do everything. Vivaldi tries to do too much, and some of its features never work well.
+oganesson is meant to be complete for the way I use it. It does not try to do everything. Vivaldi tries to do too much, and some of its features never work well.
 
 Where an extension does the job well, the job stays with the extension. Content blocking is uBlock Origin, the state of the art, built in through Helium's work. The browser builds natively only what an extension can't do:
 
@@ -39,19 +39,19 @@ The browser keeps its own profile in `~/.config/oganesson`, separate from Helium
 
 | Path | What |
 |---|---|
-| `helium/` | Submodule at the Helium commit that helium-linux builds on. Its patch series applies as it is, minus `patches/helium-drops.txt`. Never edited: what we don't want from Helium is dropped there or turned off by our patches ([decisions](docs/helium-patch-decisions.md)). |
+| `helium/` | Submodule at the Helium commit that helium-linux builds on. Its patch series applies as it is, minus `patches/helium-drops.txt`. Never edited: what I don't want from Helium is dropped there or turned off by my patches ([decisions](docs/helium-patch-decisions.md)). |
 | `linux/` | The Linux build (`container-build.sh`), packaging and publishing, and the `helium-linux` submodule with its platform patches. |
 | `windows/` | The Windows build, cross-compiled on Linux: its container, toolchain, Sync library and packaging, and the `helium-windows` submodule with its platform patches ([docs/windows.md](docs/windows.md)). |
 | `dubna/` | Submodule: [dubna](https://github.com/zakius/dubna), the code, patches and translations shared with tennessine. |
-| `patches/` | Our patches (`series`), applied after Helium's and helium-linux's. Also `helium-drops.txt`, and `helium-utils.patch` with our fixes to Helium's build tools. |
+| `patches/` | My patches (`series`), applied after Helium's and helium-linux's. Also `helium-drops.txt`, and `helium-utils.patch` with my fixes to Helium's build tools. |
 | `late/` | Patches applied after the platform's: branding for every platform. Each platform's own renames of what its Helium repo sets are in `linux/late/` and `windows/late/`. |
-| `src/` | Our new files, copied over the Chromium tree after `dubna/src/`. |
-| `resources/` | Our branding, laid over Helium's resources. |
-| `l10n/` | Polish translations of our strings. |
+| `src/` | My new files, copied over the Chromium tree after `dubna/src/`. |
+| `resources/` | My branding, laid over Helium's resources. |
+| `l10n/` | Polish translations of my strings. |
 | `tools/` | Patch tools (`check_patches.py`, `regen.py`, `amend.py`, `update_helium.py`), the browser tests (`e2e/`), and job helpers. |
 | `oganesson.py` | Every command: `build`, `test`, `run`, `check-patches`, `stamp`, `shell`, `snapshot`. |
 
-`oganesson.py` assembles Helium's tree in `work/helium-tree` from the submodule, with `helium-utils.patch` applied, our branding added and the drops left out of its series. Builds and scratch files live in `work/`, which Git ignores.
+`oganesson.py` assembles Helium's tree in `work/helium-tree` from the submodule, with `helium-utils.patch` applied, my branding added and the drops left out of its series. Builds and scratch files live in `work/`, which Git ignores.
 
 ## Build and check
 
@@ -73,7 +73,7 @@ A build takes the checkout's lock. To keep a build running after the terminal cl
 
 ## Updating
 
-[docs/updating.md](docs/updating.md) has the full procedure. In short, `tools/update_helium.py` moves the `helium` and `linux/helium-linux` submodules to a helium-linux release and lists the patches Helium adds and removes. Then check the patches, fix ours, build and test. dubna's [update policy](https://github.com/zakius/dubna#update-policy) says when to update.
+[docs/updating.md](docs/updating.md) has the full procedure. In short, `tools/update_helium.py` moves the `helium` and `linux/helium-linux` submodules to a helium-linux release and lists the patches Helium adds and removes. Then check the patches, fix mine, build and test. dubna's [update policy](https://github.com/zakius/dubna#update-policy) says when to update.
 
 ## Releasing
 
@@ -93,4 +93,4 @@ linux/publish-repo.sh
 
 ## License
 
-GPL-3.0 (`LICENSE`). Preserve inherited licenses and copyright notices, including those of the projects whose patches we carry, in `helium/`.
+GPL-3.0 (`LICENSE`). Preserve inherited licenses and copyright notices, including those of the projects whose patches I carry, in `helium/`.
