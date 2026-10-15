@@ -86,7 +86,7 @@ linux/publish-repo.sh
 windows/publish.sh                      # to dubna.zakius.xyz/windows, with SHA256SUMS
 ```
 
-[docs/packages.md](docs/packages.md) covers the repository. The version is Helium's version plus the commit time.
+[docs/packages.md](docs/packages.md) covers the repository. The version is Chromium's, plus the commit time in the release field.
 
 ## Docs
 

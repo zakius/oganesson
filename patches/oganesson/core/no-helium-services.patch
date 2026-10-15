@@ -1,11 +1,12 @@
 # Helium's features oganesson carries but doesn't want, off by default (they stay available):
 # Helium's services, so no Helium server is contacted unless the user turns them on (with them
-# go component updates, the extension download proxy, spellcheck dictionary downloads and uBO's
-# asset mirror); bangs, whose list comes from those services; Helium's update checks (updates
+# go component updates, the extension download proxy, Helium's spellcheck dictionary mirror and
+# uBO's asset mirror); bangs, whose list comes from those services; Helium's update checks (updates
 # come from the package repository); onboarding (a first run opens a normal window);
 # fingerprint noise; and crash reports, which would go to Helium's crash server. Store extensions update through ExtensionDownloader, as update_client's
 # checks are blocked. Without Helium's extension proxy, Chrome Web Store installs, updates and
-# item data come from Google's own servers, as in Chromium, not from Helium's placeholder host.
+# item data come from Google's own servers, as in Chromium, not from Helium's placeholder host;
+# so do spellcheck dictionaries, unless the switch that stops their downloads is off.
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
 @@ -1618,7 +1618,8 @@ void ChromeContentBrowserClient::RegisterProfilePrefs(
@@ -100,6 +101,21 @@
      }
  
      return GetServicesBaseURL(prefs).Resolve(
+@@ -132,6 +138,14 @@
+ 
+ GURL GetSpellcheckURL(const PrefService& prefs) {
+     if (!ShouldAccessDictionaryService(prefs)) {
++        // oganesson: with Helium's services off, dictionaries download from
++        // Google's server, as in Chromium; the switch that stops dictionary
++        // downloads still stops them. The split literal keeps domain
++        // substitution from rewriting it.
++        if (prefs.GetBoolean(prefs::kHeliumSpellcheckEnabled) &&
++            !ShouldAccessServices(prefs)) {
++            return GURL("https://redirector.gvt1." "com/edgedl/chrome/dict/");
++        }
+         return GetDummyURL();
+     }
+ 
 --- a/extensions/browser/pending_extension_manager.cc
 +++ b/extensions/browser/pending_extension_manager.cc
 @@ -236,10 +236,10 @@
