@@ -11,8 +11,14 @@
 apply_patches() {
     if [ ! -f "${_src_dir}/.patched.stamp" ]; then
         if [ ! -f "${_src_dir}/.pruned.stamp" ]; then
-            "${_main_repo}/utils/prune_binaries.py" --keep-build-dependencies "${_src_dir}" \
-                "${_main_repo}/pruning.list"
+            # The listed files the checkout has: a Windows checkout lacks Linux's
+            # dependencies, which prune_binaries.py counts as failures.
+            local listed
+            listed="$(mktemp)"
+            (cd "$_src_dir" && while read -r f; do if [ -e "$f" ]; then echo "$f"; fi; done) \
+                < "${_main_repo}/pruning.list" > "$listed"
+            "${_main_repo}/utils/prune_binaries.py" --keep-build-dependencies "${_src_dir}" "$listed"
+            rm -f "$listed"
             touch "${_src_dir}/.pruned.stamp"
         fi
         # Zero fuzz, as check-patches applies them: a hunk whose context
