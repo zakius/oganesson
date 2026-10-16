@@ -9,4 +9,3 @@ helium/windows/updater/build-wiring.patch	No auto-updater: WinSparkle, which the
 helium/windows/updater/register.patch	No auto-updater: WinSparkle, which these build into the browser, is not fetched
 helium/windows/updater/helper.patch	No auto-updater: WinSparkle, which these build into the browser, is not fetched
 helium/windows/updater/update-notifications.patch	No auto-updater: WinSparkle, which these build into the browser, is not fetched
-ungoogled-chromium/windows/windows-disable-rcpy.patch	Replaces Chromium's rc (which cross builds use) with Microsoft's rc.exe, which only runs on Windows

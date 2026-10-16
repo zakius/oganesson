@@ -26,7 +26,6 @@ Both are unsigned, so SmartScreen warns about them until enough people run them.
 What the cross build changes, and why:
 
 - `windows/late/installer-host-7zip.patch`: the installer's payload is packed with the build host's 7-Zip. helium-windows looks for an installed 7-Zip in Windows' registry.
-- `windows-disable-rcpy.patch` is dropped: Chromium's own resource compiler runs on Linux, Microsoft's `rc.exe` doesn't.
 - `v8_use_metagen_instance_types=false`: V8's instance types come from Torque. Its metagen step runs libclang in clang-cl mode, which on Linux reads the absolute input path as an option.
 - The MIDL and message compiler outputs that ungoogled-chromium's pruning removes are restored from git: Chromium ships them pre-generated for hosts without Microsoft's tools.
 - The Sync library defines `VerifyCodeSigningCertificateChain`, which fails. Only Mozilla's own NSS builds have it, and nothing calls it.
