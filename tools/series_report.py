@@ -2,7 +2,8 @@
 """Apply every patch to an already prepared tree (see check_patches.py --keep), skipping failures.
 
 Lists every failing patch, as check_patches.py does, on a tree regen.py may have left patched.
-Usage: [FUZZ=N] tools/series_report.py WORKDIR   (WORKDIR holds src/ and cache/)
+--windows checks the Windows series on WORKDIR/src-windows.
+Usage: [FUZZ=N] tools/series_report.py WORKDIR [--windows]   (WORKDIR holds src/ and cache/)
 """
 import os, subprocess, sys
 from pathlib import Path
@@ -10,12 +11,15 @@ from pathlib import Path
 from check_patches import apply_series, oganesson, report
 
 ROOT = Path(__file__).resolve().parent.parent
-if len(sys.argv) != 2:
+if len(sys.argv) < 2 or sys.argv[2:] not in ([], ['--windows']):
     sys.exit(__doc__)
 work = Path(sys.argv[1])
-src = work / 'src'
+windows = sys.argv[2:] == ['--windows']
+src = work / ('src-windows' if windows else 'src')
+bases = oganesson.WINDOWS_SERIES if windows else oganesson.SERIES
 for repo in [src, *src.glob('third_party/*/src'), src / 'third_party/skia',
-             src / 'third_party/search_engines_data/resources']:
+             src / 'third_party/search_engines_data/resources', src / 'third_party/angle',
+             src / 'third_party/dawn']:
     if (repo / '.git').exists():
         # regen.py leaves a commit per patch on top of the checkout; go back to the checkout.
         root = subprocess.run(['git', '-C', str(repo), 'rev-list', '--max-parents=0', 'HEAD'],
@@ -27,4 +31,4 @@ for action, extra in (('unpack', [str(src)]),):
                     '-c', str(work / 'cache'), *extra, '--components', 'ublock_origin', 'onboarding'],
                    check=True, capture_output=True)
 oganesson.copy_new_files(src)
-report(apply_series(src, int(os.environ.get('FUZZ', '0'))))
+report(apply_series(src, int(os.environ.get('FUZZ', '0')), bases), bases)

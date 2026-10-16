@@ -7,8 +7,8 @@ the pinned commit of a checkout, its git objects are borrowed and nothing is dow
 otherwise only those files are fetched, which takes minutes.
 A failing patch doesn't stop the run: its hunks that fit are applied, so the patches after it see
 as much of it as they can, and the end lists each series' failing patches with the hunks patch
-reported. --keep DIR keeps the Linux tree in DIR/src, which regen.py works on, and the Windows
-tree in DIR/src-windows.
+reported. --keep DIR keeps the Linux tree in DIR/src and the Windows tree in DIR/src-windows,
+which regen.py and regen.py --windows work on.
 Usage: tools/check_patches.py [--chromium URL_OR_LOCAL_CLONE] [--keep DIR]
 """
 import argparse, re, shutil, subprocess, sys, tempfile
@@ -95,18 +95,26 @@ def report(failed, bases=BASES):
 
 
 def drops_still_used():
-    """Files a dropped Helium patch creates that a carried patch still names
-    (a build file listing it, an include): the build would fail on them."""
-    drops = oganesson.drops(oganesson.DROPS)
-    helium = oganesson.HELIUM / 'patches'
-    carried = [p.read_text(errors='replace') for b in BASES for e in series(b)
-               for p in [b / e] if not (b == oganesson.TREE / 'patches' and e in drops)]
-    added = '\n'.join(l for t in carried for l in t.splitlines() if l.startswith('+'))
-    return [f'{drop} creates {Path(f).name}, which a carried patch uses'
-            for drop in sorted(drops)
+    """Files a dropped Helium or helium-windows patch creates that a patch its build carries still
+    names (a build file listing it, an include): the build would fail on them. A file whose
+    name many folders have (BUILD.gn) is looked for by its folder."""
+    problems = []
+    for drops, patches, bases in ((oganesson.DROPS, oganesson.HELIUM / 'patches', BASES),
+                                  (oganesson.WINDOWS_DROPS, oganesson.HELIUM_WINDOWS / 'patches',
+                                   oganesson.WINDOWS_SERIES)):
+        added = '\n'.join(l for b in bases for e in series(b)
+                          for l in (b / e).read_text(errors='replace').splitlines()
+                          if l.startswith('+'))
+        for drop in sorted(oganesson.drops(drops)):
             for f in re.findall(r'(?m)^--- /dev/null\n\+\+\+ b/(\S+)',
-                                (helium / drop).read_text(errors='replace'))
-            if Path(f).name in added]
+                                (patches / drop).read_text(errors='replace')):
+                name = Path(f).name
+                if name in ('BUILD.gn', 'README.chromium', 'OWNERS', 'DIR_METADATA'):
+                    name = str(Path(f).parent)
+                if name in added:
+                    problems.append(f'{drops.relative_to(ROOT)}: {drop} creates {f}, which a '
+                                    'carried patch uses')
+    return problems
 
 
 def main():
@@ -172,7 +180,7 @@ def main():
         report(chain, bases)
         failed += chain
     for problem in drops_still_used():
-        print(f'FAILED patches/helium-drops.txt: {problem}')
+        print(f'FAILED {problem}')
         failed = failed or [problem]
     # dubna's update policy: both products build one milestone, except for an
     # exploit in the wild (dubna/README.md).

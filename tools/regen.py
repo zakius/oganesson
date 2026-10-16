@@ -20,8 +20,12 @@ To rework one patch, `regen.py WORKDIR --edit PATCH` (after a full run) puts the
 just before PATCH and applies it. Edit the tree, then `--resume`. For our patches
 (patches/oganesson), files the edit adds go to src/, not into the patch.
 
+--windows works the same way on the Windows series (oganesson.WINDOWS_SERIES) and its tree,
+WORKDIR/src-windows, with a state of its own. Our patches it rewrites are the Linux build's too:
+check both series again afterwards.
+
 Exits 1 when a patch needs a real edit.
-Usage: tools/regen.py WORKDIR [--dry-run | --resume | --retry | --edit PATCH]
+Usage: tools/regen.py WORKDIR [--windows] [--dry-run | --resume | --retry | --edit PATCH]
 """
 import os, re, shutil, subprocess, sys
 from pathlib import Path
@@ -29,11 +33,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 import oganesson  # pylint: disable=wrong-import-position
+from check_patches import series  # pylint: disable=wrong-import-position
 if len(sys.argv) < 2 or sys.argv[1].startswith('-'):
     sys.exit(__doc__)
 work = Path(sys.argv[1])
-src = work / 'src'
-state = work / '.regen-index'
+windows = '--windows' in sys.argv
+src = work / ('src-windows' if windows else 'src')
+state = work / ('.regen-index-windows' if windows else '.regen-index')
 # patch and git write temporary files; /tmp may be a small tmpfs.
 (work / 'tmp').mkdir(exist_ok=True)
 os.environ['TMPDIR'] = str(work / 'tmp')
@@ -50,15 +56,14 @@ def git(*args, check=True, repo=None):
 def repos():
     """The Chromium checkout and the nested dependency checkouts inside it."""
     return [r for r in [src, *src.glob('third_party/*/src'), src / 'third_party/skia',
-                        src / 'third_party/search_engines_data/resources'] if (r / '.git').exists()]
+                        src / 'third_party/search_engines_data/resources',
+                        src / 'third_party/angle', src / 'third_party/dawn']
+            if (r / '.git').exists()]
 
 
 oganesson.helium_tree()
-entries = []
-for base in oganesson.SERIES:
-    for line in (base / 'series').read_text().splitlines():
-        if line.strip() and not line.startswith('#'):
-            entries.append(base / line.strip())
+entries = [base / line for base in (oganesson.WINDOWS_SERIES if windows else oganesson.SERIES)
+           for line in series(base)]
 
 
 
