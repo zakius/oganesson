@@ -1,4 +1,9 @@
 # Our GN arguments for Linux only, after flags.gn.
+# On-device ML: TFLite's XNNPACK delegate and WebNN's TFLite and LiteRT backends run models from Google's downloads, which are off.
+# On Windows, WebNN's ONNX Runtime backend needs TFLite's fp16 headers, so they stay there.
+build_tflite_with_xnnpack=false
+webnn_use_tflite=false
+webnn_use_litert=false
 # Device bound session credentials protect Google sign-in cookies with a TPM key: no Google sign-in here.
 enable_device_bound_sessions=false
 enable_bound_session_credentials=false
