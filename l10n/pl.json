@@ -360,13 +360,8 @@
     "message": "W tym folderze nie znaleziono profilu przeglądarki"
   },
   {
-    "name": "IDS_OGANESSON_IMPORT_CHROMIUM_BASED",
-    "source": "Chromium-based browser (<ph name=\"FOLDER\">$1<ex>Brave-Origin</ex></ph>)",
-    "message": "Przeglądarka oparta na Chromium (<ph name=\"FOLDER\">$1<ex>Brave-Origin</ex></ph>)"
-  },
-  {
-    "name": "IDS_OGANESSON_IMPORT_FIREFOX_BASED",
-    "source": "Firefox-based browser (<ph name=\"FOLDER\">$1<ex>floorp</ex></ph>)",
-    "message": "Przeglądarka oparta na Firefoksie (<ph name=\"FOLDER\">$1<ex>floorp</ex></ph>)"
+    "name": "IDS_OGANESSON_IMPORT_BASED_ON",
+    "source": "<ph name=\"ENGINE\">$1<ex>Firefox</ex></ph>-based browser (<ph name=\"FOLDER\">$2<ex>floorp</ex></ph>)",
+    "message": "Przeglądarka typu <ph name=\"ENGINE\">$1<ex>Firefox</ex></ph> (<ph name=\"FOLDER\">$2<ex>floorp</ex></ph>)"
   }
 ]

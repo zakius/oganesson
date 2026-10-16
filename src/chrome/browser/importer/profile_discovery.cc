@@ -10,7 +10,6 @@
 #include <utility>
 
 #include "base/base_paths.h"
-#include "base/containers/contains.h"
 #include "base/files/file_enumerator.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
@@ -47,7 +46,7 @@ std::u16string FolderName(base::FilePath dir) {
     if (name.starts_with('.')) {
       name.erase(0, 1);
     }
-    if (!name.empty() && !base::Contains(kGenericFolderNames, name)) {
+    if (!name.empty() && !std::ranges::contains(kGenericFolderNames, name)) {
       return base::UTF8ToUTF16(name);
     }
   }
@@ -55,14 +54,15 @@ std::u16string FolderName(base::FilePath dir) {
 }
 
 // Profiles from the browsers ImporterList knows come first and keep their
-// names; these name the rest by kind and folder.
+// names; these name the rest by kind and folder. The engine names are
+// arguments because the build renames Chromium in every UI string.
 std::u16string ChromiumName(const base::FilePath& dir) {
-  return l10n_util::GetStringFUTF16(IDS_OGANESSON_IMPORT_CHROMIUM_BASED,
+  return l10n_util::GetStringFUTF16(IDS_OGANESSON_IMPORT_BASED_ON, u"Chromium",
                                     FolderName(dir));
 }
 
 std::u16string FirefoxName(const base::FilePath& dir) {
-  return l10n_util::GetStringFUTF16(IDS_OGANESSON_IMPORT_FIREFOX_BASED,
+  return l10n_util::GetStringFUTF16(IDS_OGANESSON_IMPORT_BASED_ON, u"Firefox",
                                     FolderName(dir));
 }
 

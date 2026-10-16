@@ -13,10 +13,7 @@
   <message name="IDS_OGANESSON_IMPORT_NO_PROFILE_FOUND" desc="Import bookmarks and settings dialog: shown when the folder the user picked holds no browser profile.">
     No browser profile found in that folder
   </message>
-  <message name="IDS_OGANESSON_IMPORT_CHROMIUM_BASED" desc="Import bookmarks and settings dialog: name of a browser the import found by its files, not one it knows by name. The folder name tells such browsers apart.">
-    Chromium-based browser (<ph name="FOLDER">$1<ex>Brave-Origin</ex></ph>)
-  </message>
-  <message name="IDS_OGANESSON_IMPORT_FIREFOX_BASED" desc="Import bookmarks and settings dialog: name of a browser the import found by its files, not one it knows by name. The folder name tells such browsers apart.">
-    Firefox-based browser (<ph name="FOLDER">$1<ex>floorp</ex></ph>)
+  <message name="IDS_OGANESSON_IMPORT_BASED_ON" desc="Import bookmarks and settings dialog: name of a browser the import found by its files, not one it knows by name. ENGINE is Chromium or Firefox, the browser it is based on; the folder name tells such browsers apart.">
+    <ph name="ENGINE">$1<ex>Firefox</ex></ph>-based browser (<ph name="FOLDER">$2<ex>floorp</ex></ph>)
   </message>
 </grit-part>
