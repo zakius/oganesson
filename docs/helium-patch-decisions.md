@@ -17,7 +17,7 @@ Every other Helium patch is carried, also the ones earlier reviews called indiff
 - Extension installs from the Chrome Web Store are supported. Installs from AMO were taken out for now and are to come back. Helium's download proxy (`proxy-extension-downloads`) acts only with its services on; without it, store installs, updates and item data go to Google's own servers, as in Chromium (`oganesson/core/no-helium-services`). Helium itself sends them to a placeholder host then, so they fail.
 - Firefox Sync replaces Helium's sync. Its patches (`helium/core/sync/*`) are carried, as later patches build on them, and stay inert: Helium sync needs Helium's services and its provider feature is off.
 - Onboarding (`helium/core/onboarding-page`) is carried but never shown: a first run opens a normal window. It may serve as the basis of my own.
-- Password manager stays enabled, so `hop/disable-password-manager` is dropped. Helium turns it off as insecure. Malware running as the user can read decrypted passwords from the browser's memory whatever the at-rest encryption, and full-disk encryption covers a stolen disk, so a separate password manager adds little. My decision, 2026-10-14.
+- Password manager stays enabled, so `helium/core/disable-password-manager` is dropped. Helium turns it off as insecure. Malware running as the user can read decrypted passwords from the browser's memory whatever the at-rest encryption, and full-disk encryption covers a stolen disk, so a separate password manager adds little. My decision, 2026-10-14.
 - The `ungoogled-chromium/add-flag-*` patches are carried.
 - A patch that only changes the default of an existing Chromium setting is dropped when I don't want that default. A patch that adds a new setting or flag is kept. Many `add-flag-*` patches add only a `chrome://flags` entry, not a Settings page option.
 - Credits and licensing: credit every project I take patches from and handle their licenses correctly. Keep `add-credits`, and adapt `helium/ui/licenses-in-credits` and `helium/core/update-credits` to my credits page.
@@ -38,7 +38,6 @@ Every other Helium patch is carried, also the ones earlier reviews called indiff
 | `helium/core/crash-reporting-prefs`, `helium/settings/crash-reporting-settings` | Crash reporting is off by default: reports would go to Helium's crash server. |
 | `helium/core/noise/*`, `helium/settings/helium-noise-settings` | Off by default; the setting stays. |
 | `helium/core/sync/*` | Inert: needs Helium's services, and its provider feature is off. |
-| `helium/hop/setup` | Inert: the one policy Helium ships with it (`hop/disable-password-manager`) is dropped. |
 | `helium/core/override-chrome-protocol` | Internal pages show as `oganesson://` instead of `helium://` (`late/branding`); `chrome://` still works. |
 | `helium/core/change-chromium-branding` | `late/branding` renames Helium to oganesson. |
 | `helium/core/flags-setup`, `add-low-power-framerate-flag`, `bookmark-open-all-confirmation-flag`, `helium/ui/hide-page-actions-flag`, the `ungoogled-chromium/add-flag-*` and `bromite/*-flags` patches | Only add `chrome://flags` entries, off by default. |
@@ -55,7 +54,7 @@ Every other Helium patch is carried, also the ones earlier reviews called indiff
 - `helium/ui/tab-search-in-toolbar`: tab search is a toolbar button, as Firefox's "List all tabs" is, and its bubble opens under it. My decision, 2026-10-04.
 - `helium/core/mute-tab-context-menu` (Helium 0.18.3, #2631): Mute tab / Unmute tab in the tab context menu, as Firefox's "Mute Tab". My decision, 2026-10-06.
 - `helium/settings/disable-safety-hub-page`: Safety Hub reports on services this build doesn't have (Safe Browsing, password leak check, updates). I reported it, 2026-10-06.
-- `helium/settings/remove-safety-hub-entry-points`: same reason; removes the settings entry points to Safety Hub. I reported it, 2026-10-06. The app menu's Safety Hub notification lives in the omitted `helium/ui/app-menu-model`, so `oganesson/ui/no-safety-hub-menu` drops it alone.
+- `helium/settings/remove-safety-hub-entry-points`: same reason; removes the settings entry points to Safety Hub. I reported it, 2026-10-06. The app menu's Safety Hub notification goes with `helium/ui/app-menu-model`.
 - `helium/core/open-new-tabs-next-to-active-tab-option`: kept for its pref and switch, one of Tab behavior's knobs: Firefox's `browser.tabs.insertAfterCurrent`. Turned on, it leaves the Chromium preset, so Firefox's rules place the tab and the patch's own placement in `AddTab` no longer runs; the patch stays whole to stay comparable with upstream.
 - `ungoogled-chromium/add-flag-to-close-window-with-last-tab`: Firefox's `browser.tabs.closeWindowWithLastTab`. My decision, 2026-10-11.
 - `helium/core/close-tabs-to-left`: "Close tabs to the left", as in Firefox's tab menu. My decision, 2026-10-11.
