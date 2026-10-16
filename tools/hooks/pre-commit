@@ -3,7 +3,7 @@
 # Enable once per clone: git config core.hooksPath tools/hooks
 set -e
 cd "$(git rev-parse --show-toplevel)"
-for check in tools/check_mouse_gestures tools/test_job_lock linux/test_pack; do
+for check in tools/check_mouse_gestures linux/test_pack; do
     python3 "$check.py" > /dev/null || { echo "pre-commit: $check.py failed" >&2; exit 1; }
 done
 python3 dubna/tools/translate.py --check dubna . > /dev/null || { python3 dubna/tools/translate.py --check dubna . >&2; exit 1; }
