@@ -9,7 +9,7 @@
      "profile_writer.cc",
    ]
  
-@@ -65,6 +67,7 @@
+@@ -65,12 +67,14 @@
      "//chrome/browser/profiles:profile",
      "//chrome/browser/search_engines",
      "//chrome/browser/webdata_services",
@@ -17,6 +17,13 @@
      "//chrome/common/importer:interfaces",
      "//components/bookmarks/browser",
      "//components/bookmarks/common",
+     "//components/favicon/core",
+     "//components/password_manager/core/browser:password_form",
+     "//components/password_manager/core/browser/password_store:password_store_interface",
++    "//sql",
+   ]
+ 
+   if (is_win) {
 --- a/chrome/browser/importer/importer_list.cc
 +++ b/chrome/browser/importer/importer_list.cc
 @@ -6,11 +6,14 @@

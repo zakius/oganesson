@@ -1,7 +1,9 @@
 """Settings → Import bookmarks and settings: besides the browsers it knows by
 name, the dialog lists the profiles it finds by their files under the test's
-HOME, named by kind and folder, and leaves out Thunderbird's. Importing from
-such a profile brings its bookmarks and their favicons.
+HOME, named by kind and folder, and leaves out Thunderbird's and the Firefox
+profiles without a visit or a bookmark of their own. Entries that would
+read the same show their profile folders. Importing from such a profile brings its bookmarks
+and their favicons.
 
 The "Choose a profile folder…" entry opens the native folder picker, which
 these tests can't drive; they check only that it is listed.
@@ -43,9 +45,25 @@ def chromium_profile(user_data, name, bookmarks=()):
     return profile
 
 
-def firefox_root(root, profile_dir):
+DAY = 86400 * 10**6  # Firefox's times are in microseconds
+FIRST_RUN = 1_700_000_000 * 10**6
+
+
+def firefox_root(root, profile_dir, bookmark_after=None, visits=1):
+    """A profile with Firefox's default bookmarks, a user bookmark added
+    bookmark_after microseconds after them, and visits."""
     (root / profile_dir).mkdir(parents=True)
-    (root / profile_dir / 'places.sqlite').write_bytes(b'')
+    with sqlite3.connect(root / profile_dir / 'places.sqlite') as db:
+        db.execute('CREATE TABLE moz_bookmarks (id INTEGER PRIMARY KEY, type INTEGER,'
+                   ' dateAdded INTEGER)')
+        db.execute('CREATE TABLE moz_historyvisits (id INTEGER PRIMARY KEY, visit_date INTEGER)')
+        db.executemany('INSERT INTO moz_bookmarks (type, dateAdded) VALUES (?, ?)',
+                       [(2, FIRST_RUN), (1, FIRST_RUN + 1000)])
+        if bookmark_after is not None:
+            db.execute('INSERT INTO moz_bookmarks (type, dateAdded) VALUES (1, ?)',
+                       (FIRST_RUN + bookmark_after,))
+        db.executemany('INSERT INTO moz_historyvisits (visit_date) VALUES (?)',
+                       [(FIRST_RUN + n,) for n in range(visits)])
     (root / 'profiles.ini').write_text(
         f'[Profile0]\nName=default\nIsRelative=1\nPath={profile_dir}\n')
     return root / profile_dir
@@ -72,6 +90,12 @@ class ImporterTest(BrowserTest):
                        (png((200, 30, 30)),))
             db.execute('INSERT INTO icon_mapping VALUES (1, ?, 1)', (PAGE_URL,))
         firefox_root(home / '.somefox', 'abc.default')
+        # History off, but bookmarks of its own.
+        firefox_root(home / '.nohistoryfox', 'a.default', bookmark_after=DAY, visits=0)
+        firefox_root(home / '.unusedfox', 'b.default', visits=0)
+        # The same browser twice, as a native and a Flatpak install.
+        firefox_root(home / '.floorp', 'one.default')
+        firefox_root(home / '.var/app/one.ablaze.floorp/.floorp', 'two.default')
         (firefox_root(home / '.thunderbird', 'mail.default') / 'Mail').mkdir()
 
     def open_dialog(self):
@@ -89,6 +113,10 @@ class ImporterTest(BrowserTest):
         self.assertIn('Firefox-based browser (somefox)', names)
         self.assertIn('Choose a profile folder…', names)
         self.assertFalse([n for n in names if 'thunderbird' in n.lower()], names)
+        self.assertIn('Firefox-based browser (nohistoryfox)', names)
+        self.assertFalse([n for n in names if 'unusedfox' in n], names)
+        self.assertIn('Firefox-based browser (floorp) - one.default', names)
+        self.assertIn('Firefox-based browser (floorp) - two.default', names)
         self.assertEqual(1, sum('vivaldi' in n.lower() for n in names), names)
 
     def test_imports_bookmarks_and_favicons(self):

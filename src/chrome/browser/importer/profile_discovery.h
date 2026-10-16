@@ -25,7 +25,9 @@ std::vector<user_data_importer::SourceProfile> FindProfilesInFolder(
     const base::FilePath& dir);
 
 // Adds the profiles under the usual application data folders that `profiles`
-// doesn't hold yet. Leaves out this browser's own.
+// doesn't hold yet. Leaves out this browser's own, and Firefox profiles,
+// found here or not, without a visit or a bookmark of their own.
+// Entries that would read the same get their folder's name.
 void AddDiscoveredProfiles(
     std::vector<user_data_importer::SourceProfile>* profiles);
 

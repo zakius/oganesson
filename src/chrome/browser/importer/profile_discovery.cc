@@ -5,6 +5,7 @@
 #include "chrome/browser/importer/profile_discovery.h"
 
 #include <algorithm>
+#include <set>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -22,6 +23,8 @@
 #include "chrome/common/importer/firefox_importer_utils.h"
 #include "chrome/common/ini_parser.h"
 #include "chrome/grit/generated_resources.h"
+#include "sql/database.h"
+#include "sql/statement.h"
 #include "ui/base/l10n/l10n_util.h"
 
 #if BUILDFLAG(IS_LINUX)
@@ -167,6 +170,23 @@ void Walk(const base::FilePath& dir,
   }
 }
 
+// Whether a Firefox profile holds something to import: a visit, or a
+// bookmark added after Firefox's default set (a minute after the places root).
+// Each Firefox install makes its own profile, and the first run a legacy one,
+// which hold only the default bookmarks. A profile Firefox holds locked counts.
+bool HasUserData(const base::FilePath& dir) {
+  sql::Database db(sql::DatabaseOptions().set_read_only(true),
+                   "FirefoxImporter");
+  if (!db.Open(dir.AppendASCII("places.sqlite"))) {
+    return true;
+  }
+  sql::Statement found(db.GetUniqueStatement(
+      "SELECT 1 FROM moz_historyvisits UNION ALL "
+      "SELECT 1 FROM moz_bookmarks WHERE type = 1 AND dateAdded > "
+      "(SELECT MIN(dateAdded) FROM moz_bookmarks) + 60000000 LIMIT 1"));
+  return found.Step() || !found.Succeeded();
+}
+
 base::FilePath OwnUserData() {
   base::FilePath dir;
   base::PathService::Get(chrome::DIR_USER_DATA, &dir);
@@ -238,6 +258,26 @@ void AddDiscoveredProfiles(std::vector<SourceProfile>* profiles) {
         });
     if (!known) {
       profiles->push_back(std::move(profile));
+    }
+  }
+  std::erase_if(*profiles, [](const SourceProfile& profile) {
+    return profile.importer_type == user_data_importer::TYPE_FIREFOX &&
+           !HasUserData(profile.source_path);
+  });
+  // Entries that would still read the same get their folder's name.
+  std::set<std::pair<std::u16string, std::u16string>> seen, clashing;
+  for (const SourceProfile& profile : *profiles) {
+    if (!seen.emplace(profile.importer_name, profile.profile).second) {
+      clashing.emplace(profile.importer_name, profile.profile);
+    }
+  }
+  for (SourceProfile& profile : *profiles) {
+    if (clashing.contains({profile.importer_name, profile.profile})) {
+      const std::u16string folder =
+          profile.source_path.BaseName().AsUTF16Unsafe();
+      profile.profile = profile.profile.empty()
+                            ? folder
+                            : profile.profile + u" (" + folder + u")";
     }
   }
 }
