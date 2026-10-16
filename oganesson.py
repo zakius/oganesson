@@ -14,8 +14,8 @@ stamp:    marks work/ as prepared for the current patches, after the same edit
           when a patch or new file changed since the last stamp isn't in
           the tree, or a removed one still is.
 shell:    opens a shell in the builder container.
-check-patches: applies the whole series to a sparse checkout, zero fuzz, and
-               lists every patch that fails.
+check-patches: applies the Linux and the Windows series to a sparse checkout,
+               zero fuzz, and lists every patch that fails in each.
 """
 import argparse
 import fcntl
@@ -39,14 +39,20 @@ SRC = WORK / 'helium-linux/build/src'
 # without the patches in DROPS.
 HELIUM = ROOT / 'helium'
 HELIUM_LINUX = ROOT / 'linux/helium-linux'
+HELIUM_WINDOWS = ROOT / 'windows/helium-windows'
 TREE = WORK / 'helium-tree'
 DROPS = ROOT / 'patches/helium-drops.txt'
+WINDOWS_DROPS = ROOT / 'windows/helium-windows-drops.txt'
 UTILS_PATCH = ROOT / 'patches/helium-utils.patch'
 # Applied in this order: Helium's, helium-linux's, ours (with dubna's), and the
 # late ones: late/ for every platform, then linux/late, which renames what
 # helium-linux's patches set.
 SERIES = (TREE / 'patches', HELIUM_LINUX / 'patches', ROOT / 'patches', ROOT / 'late',
           ROOT / 'linux/late')
+# The Windows build's (windows/container-build.sh): helium-windows' patches,
+# without WINDOWS_DROPS, for helium-linux's, and windows/late for linux/late.
+WINDOWS_SERIES = (TREE / 'patches', HELIUM_WINDOWS / 'patches', ROOT / 'patches', ROOT / 'late',
+                  ROOT / 'windows/late')
 # Our new files, copied over the tree before the patches: dubna's, which
 # tennessine shares, then ours.
 SOURCES = ('dubna/src', 'src')
@@ -72,6 +78,12 @@ def fail(message):
     sys.exit(f'oganesson: {message}')
 
 
+def drops(path):
+    """The patches a drops file names: the first field of each line."""
+    return {line.split('\t')[0] for line in path.read_text().splitlines()
+            if line.strip() and not line.startswith('#')}
+
+
 def helium_tree():
     """Assembles TREE from the helium submodule's checkout, once per change of
     its inputs: the submodule's commit, UTILS_PATCH, DROPS and our resources/."""
@@ -91,15 +103,14 @@ def helium_tree():
     subprocess.run(['patch', '-p1', '-s', '--fuzz=0', '--no-backup-if-mismatch', '-d', str(TREE),
                     '-i', str(UTILS_PATCH)], check=True)
     shutil.copytree(ROOT / 'resources', TREE / 'resources', dirs_exist_ok=True)
-    drops = {line.split('\t')[0] for line in DROPS.read_text().splitlines()
-             if line.strip() and not line.startswith('#')}
+    dropped = drops(DROPS)
     series = (TREE / 'patches/series').read_text().splitlines()
-    missing = drops - {line.strip() for line in series}
+    missing = dropped - {line.strip() for line in series}
     if missing:
         fail('patches/helium-drops.txt names patches Helium\'s series no longer has:\n  '
              + '\n  '.join(sorted(missing)))
     (TREE / 'patches/series').write_text(
-        ''.join(line + '\n' for line in series if line.strip() not in drops))
+        ''.join(line + '\n' for line in series if line.strip() not in dropped))
     stamp.write_text(digest.hexdigest())
     return TREE
 
