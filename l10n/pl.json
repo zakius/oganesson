@@ -338,5 +338,35 @@
     "name": "IDS_OGANESSON_TAB_SELECT_MRU_ON_CLOSE",
     "source": "Otherwise, closing a tab selects the most recently used tab, not the one on its right",
     "message": "W innym wypadku zamknięcie karty wybiera ostatnio używaną kartę, a nie tę po jej prawej stronie"
+  },
+  {
+    "name": "IDS_OGANESSON_IMPORT_FROM_PROFILE_FOLDER",
+    "source": "Choose a profile folder…",
+    "message": "Wybierz folder profilu…"
+  },
+  {
+    "name": "IDS_OGANESSON_IMPORT_CHOOSE_FOLDER",
+    "source": "Choose folder",
+    "message": "Wybierz folder"
+  },
+  {
+    "name": "IDS_OGANESSON_IMPORT_PROFILE_FOLDER_DESCRIPTION",
+    "source": "Choose a browser's profile folder, or a folder up to three levels above it. Browsers based on Chromium or Firefox are recognized.",
+    "message": "Wybierz folder profilu przeglądarki albo folder do trzech poziomów nad nim. Rozpoznawane są przeglądarki oparte na Chromium lub Firefoksie."
+  },
+  {
+    "name": "IDS_OGANESSON_IMPORT_NO_PROFILE_FOUND",
+    "source": "No browser profile found in that folder",
+    "message": "W tym folderze nie znaleziono profilu przeglądarki"
+  },
+  {
+    "name": "IDS_OGANESSON_IMPORT_CHROMIUM_BASED",
+    "source": "Chromium-based browser (<ph name=\"FOLDER\">$1<ex>Brave-Origin</ex></ph>)",
+    "message": "Przeglądarka oparta na Chromium (<ph name=\"FOLDER\">$1<ex>Brave-Origin</ex></ph>)"
+  },
+  {
+    "name": "IDS_OGANESSON_IMPORT_FIREFOX_BASED",
+    "source": "Firefox-based browser (<ph name=\"FOLDER\">$1<ex>floorp</ex></ph>)",
+    "message": "Przeglądarka oparta na Firefoksie (<ph name=\"FOLDER\">$1<ex>floorp</ex></ph>)"
   }
 ]

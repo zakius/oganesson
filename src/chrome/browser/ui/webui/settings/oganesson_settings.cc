@@ -46,6 +46,13 @@ void AddOganessonSettings(content::WebUI* web_ui,
       {"tabSelectMruOnClose", IDS_OGANESSON_TAB_SELECT_MRU_ON_CLOSE},
   };
   html_source->AddLocalizedStrings(kTabStrings);
+  static constexpr webui::LocalizedString kImportStrings[] = {
+      {"importChooseFolder", IDS_OGANESSON_IMPORT_CHOOSE_FOLDER},
+      {"importProfileFolderDescription",
+       IDS_OGANESSON_IMPORT_PROFILE_FOLDER_DESCRIPTION},
+      {"importNoProfileFound", IDS_OGANESSON_IMPORT_NO_PROFILE_FOUND},
+  };
+  html_source->AddLocalizedStrings(kImportStrings);
 #if BUILDFLAG(IS_LINUX)
   web_ui->AddMessageHandler(std::make_unique<FirefoxSyncHandler>(profile));
   FirefoxSyncHandler::AddStrings(html_source);

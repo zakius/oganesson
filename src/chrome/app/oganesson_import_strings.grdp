@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright 2026 The oganesson Authors. GPL-3.0, see the LICENSE file. -->
+<grit-part>
+  <message name="IDS_OGANESSON_IMPORT_FROM_PROFILE_FOLDER" desc="Import bookmarks and settings dialog: the entry in the list of browser profiles that lets the user pick a profile folder that isn't listed.">
+    Choose a profile folder…
+  </message>
+  <message name="IDS_OGANESSON_IMPORT_CHOOSE_FOLDER" desc="Import bookmarks and settings dialog: button that opens a folder picker to choose a browser profile folder.">
+    Choose folder
+  </message>
+  <message name="IDS_OGANESSON_IMPORT_PROFILE_FOLDER_DESCRIPTION" desc="Import bookmarks and settings dialog: explanation shown when the user is about to pick a profile folder.">
+    Choose a browser's profile folder, or a folder up to three levels above it. Browsers based on Chromium or Firefox are recognized.
+  </message>
+  <message name="IDS_OGANESSON_IMPORT_NO_PROFILE_FOUND" desc="Import bookmarks and settings dialog: shown when the folder the user picked holds no browser profile.">
+    No browser profile found in that folder
+  </message>
+  <message name="IDS_OGANESSON_IMPORT_CHROMIUM_BASED" desc="Import bookmarks and settings dialog: name of a browser the import found by its files, not one it knows by name. The folder name tells such browsers apart.">
+    Chromium-based browser (<ph name="FOLDER">$1<ex>Brave-Origin</ex></ph>)
+  </message>
+  <message name="IDS_OGANESSON_IMPORT_FIREFOX_BASED" desc="Import bookmarks and settings dialog: name of a browser the import found by its files, not one it knows by name. The folder name tells such browsers apart.">
+    Firefox-based browser (<ph name="FOLDER">$1<ex>floorp</ex></ph>)
+  </message>
+</grit-part>
