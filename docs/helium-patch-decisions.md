@@ -49,7 +49,7 @@ Every other Helium patch is carried, also the ones earlier reviews called indiff
 
 - `helium/core/ridiculous-google-compat-exceptions` (Helium 0.19.2): keeps Google sign-in, session cookies and security-key enrollment working under domain substitution. My decision, 2026-10-09.
 - `upstream-fixes/tab-restore-live-tabs` (Helium 0.19.1): kept, vendored before `helium/core/lazy-session-restore`. My decision, 2026-10-08.
-- `helium/core/disable-annoying-infobars` (Helium 0.19.1): kept; its kPdfInfoBar change covers `helium/core/disable-pdf-infobar`. My decision, 2026-10-08.
+- `helium/core/disable-annoying-infobars` (Helium 0.19.1): kept, and it also hides the PDF infobar. My decision, 2026-10-08.
 - `helium/core/prioritize-platform-policy-loading` (Helium 0.18.2): uBlock Origin reads its managed settings at startup in milliseconds, not seconds. My decision, 2026-10-02.
 - `helium/ui/tab-search-in-toolbar`: tab search is a toolbar button, as Firefox's "List all tabs" is, and its bubble opens under it. My decision, 2026-10-04.
 - `helium/core/mute-tab-context-menu` (Helium 0.18.3, #2631): Mute tab / Unmute tab in the tab context menu, as Firefox's "Mute Tab". My decision, 2026-10-06.
