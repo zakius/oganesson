@@ -64,16 +64,17 @@ class SplitViewDropTest(BrowserTest):
 
     def drag_to_left_edge(self):
         """Drags the link next to the page's left edge and holds the pointer
-        still until the drop target is there. Returns the pointer position and
-        the drop target."""
+        still until the drop target is there at its full width. Returns the
+        pointer position and the drop target."""
         start, bounds = self.start_drag()
-        # Inside both the first narrow panel and the full one.
+        # Inside both the nudge and the full panel.
         edge = (bounds['x'] + 40, start[1])
         self.move(start, edge)
-        target = wait_for(self.drop_target, timeout=10, what='the drop target')
-        # Its slide-in animation ends.
-        time.sleep(1)
-        return edge, self.drop_target() or target
+        # A link drag first shows a nudge (5% of the page, here 80 px), which
+        # widens to the full panel (at least 120 px) once it takes the drag;
+        # each step slides in over 300 ms.
+        return edge, self.browser.wait_view('MultiContentsDropTargetView', timeout=10,
+                                            match=lambda v: v.bounds['width'] >= 120)
 
     def assert_split(self):
         wait_for(lambda: len(self.contents()) == 2, what='a split with two pages')
