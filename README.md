@@ -73,7 +73,7 @@ A build takes the checkout's lock. To keep a build running after the terminal cl
 
 ## Updating
 
-[docs/updating.md](docs/updating.md) has the full procedure. In short, `tools/update_helium.py` moves the `helium` and `linux/helium-linux` submodules to a helium-linux release and lists the patches Helium adds and removes. Then check the patches, fix mine, build and test. dubna's [update policy](https://github.com/zakius/dubna#update-policy) says when to update.
+[docs/updating.md](docs/updating.md) has the full procedure. In short, `tools/update_helium.py` moves the `helium`, `linux/helium-linux` and `windows/helium-windows` submodules to a helium-linux release and the matching helium-windows one, and lists the patches Helium and helium-windows add and remove. Then check the patches, fix mine, build and test. dubna's [update policy](https://github.com/zakius/dubna#update-policy) says when to update.
 
 ## Releasing
 
