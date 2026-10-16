@@ -102,7 +102,9 @@ if want deb; then
     mv "$stage"/deb/DEBS/*/*.deb "$packages/oganesson_${version}-${target}_amd64.deb"
 fi
 if want rpm; then
-    spec rpmbuild "$stage/rpm" --define "dist %{nil}" --target x86_64
+    # Fedora's own payload compression: Debian's rpmbuild otherwise falls back to gzip -9.
+    spec rpmbuild "$stage/rpm" --define "dist %{nil}" --define "_binary_payload w19.zstdio" \
+        --target x86_64
     mv "$stage"/rpm/RPMS/*/*.rpm "$packages/oganesson-${version}-${target}.x86_64.rpm"
 fi
 ls -l "$packages"
