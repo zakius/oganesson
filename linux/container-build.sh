@@ -35,10 +35,20 @@ stamp="${_src_dir}/.oganesson-prepared"
 # The unchanged files' times across a re-prepare, see tools/keep_mtimes.py.
 _mtimes="${_src_dir}/../oganesson-mtimes.tsv"
 
+# Release builds use Chromium's PGO profile, as helium-windows' do
+# (chrome_pgo_phase=2 over Helium's 0): helium-linux's --pgo switch, which
+# write_gn_args reads. clone.py fetches the profile (checkout_pgo_profiles).
+[ "$mode" = release ] && _has_pgo=true
+
 # The output folder's GN arguments, kept once written.
 write_args() {
     # Chromium 155 dropped this argument, which older dev trees still set.
     [ -f "${_out_dir}/args.gn" ] && sed -i '/^devtools_skip_typecheck/d' "${_out_dir}/args.gn"
+    # Release arguments written before PGO.
+    if [ "$_has_pgo" = true ] && [ -f "${_out_dir}/args.gn" ] &&
+        ! grep -q '^chrome_pgo_phase = 2' "${_out_dir}/args.gn"; then
+        echo 'chrome_pgo_phase = 2' >> "${_out_dir}/args.gn"
+    fi
     [ -f "${_out_dir}/args.gn" ] && return
     write_gn_args
     if [ "$mode" = dev ]; then
