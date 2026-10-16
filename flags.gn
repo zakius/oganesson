@@ -1,0 +1,9 @@
+# Our GN arguments for every platform, after Helium's and the platform's.
+# On-device ML: TFLite's XNNPACK delegate and WebNN's TFLite and LiteRT backends run models from Google's downloads, which are off.
+build_tflite_with_xnnpack=false
+webnn_use_tflite=false
+webnn_use_litert=false
+# Telomere reporting sends to Google's Chrome Enterprise servers.
+enterprise_telomere_reporting=false
+# Chromium 155 can't turn off Compose, supervised users, Lens or Enterprise client certificates:
+# other targets depend on them unconditionally, or assert them.

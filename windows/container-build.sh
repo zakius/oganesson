@@ -94,7 +94,8 @@ platform_resources() {
     rm -rf "$gen"
 }
 
-# build.py's arguments: Helium's, helium-windows', is_official_build. And the
+# build.py's arguments: Helium's, helium-windows', is_official_build. Ours
+# (flags.gn) after them. And the
 # cross build's: target_os, and V8's instance types from Torque (its metagen
 # alternative runs libclang in clang-cl mode, which on Linux reads its absolute
 # input path as an option). Written when they change; the build then reruns gn
@@ -103,7 +104,8 @@ write_windows_args() {
     mkdir -p "$_out_dir"
     { cat "${_main_repo}/flags.gn"; echo; cat "${_root_dir}/flags.windows.gn"
       printf '%s\n' 'target_os="win"' 'v8_use_metagen_instance_types=false' \
-          'is_official_build=true'; } > "${_out_dir}/args.gn.new"
+          'is_official_build=true'
+      cat /oganesson/flags.gn; } > "${_out_dir}/args.gn.new"
     if cmp -s "${_out_dir}/args.gn.new" "${_out_dir}/args.gn"; then
         rm "${_out_dir}/args.gn.new"
     else

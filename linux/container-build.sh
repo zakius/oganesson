@@ -40,23 +40,25 @@ _mtimes="${_src_dir}/../oganesson-mtimes.tsv"
 # write_gn_args reads. clone.py fetches the profile (checkout_pgo_profiles).
 [ "$mode" = release ] && _has_pgo=true
 
-# The output folder's GN arguments, kept once written.
+# The output folder's GN arguments: helium-linux's, then ours (flags.gn,
+# linux/flags.gn). Rewritten each build; unchanged, the old file and its time
+# stay, so gn doesn't run again.
 write_args() {
-    # Chromium 155 dropped this argument, which older dev trees still set.
-    [ -f "${_out_dir}/args.gn" ] && sed -i '/^devtools_skip_typecheck/d' "${_out_dir}/args.gn"
-    # Release arguments written before PGO.
-    if [ "$_has_pgo" = true ] && [ -f "${_out_dir}/args.gn" ] &&
-        ! grep -q '^chrome_pgo_phase = 2' "${_out_dir}/args.gn"; then
-        echo 'chrome_pgo_phase = 2' >> "${_out_dir}/args.gn"
-    fi
-    [ -f "${_out_dir}/args.gn" ] && return
-    write_gn_args
+    local args="${_out_dir}/args.gn"
+    [ -f "$args" ] && mv "$args" "$args.old"
+    write_gn_args >/dev/null
+    cat /oganesson/flags.gn /oganesson/linux/flags.gn >> "$args"
     if [ "$mode" = dev ]; then
         # Same tweaks as helium-linux's dev.sh: component build for fast
         # incremental rebuilds.
-        sed -i s/is_official_build/is_component_build/ "${_out_dir}/args.gn"
+        sed -i s/is_official_build/is_component_build/ "$args"
     else
-        echo 'oganesson_x86_64_level = "x86-64-v2"' >> "${_out_dir}/args.gn"
+        echo 'oganesson_x86_64_level = "x86-64-v2"' >> "$args"
+    fi
+    if cmp -s "$args" "$args.old"; then
+        mv "$args.old" "$args"
+    else
+        rm -f "$args.old"
     fi
 }
 

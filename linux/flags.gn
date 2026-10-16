@@ -1,0 +1,6 @@
+# Our GN arguments for Linux only, after flags.gn.
+# Device bound session credentials protect Google sign-in cookies with a TPM key: no Google sign-in here.
+enable_device_bound_sessions=false
+enable_bound_session_credentials=false
+# WebXR: no XR runtime Chromium uses on Linux.
+enable_vr=false
