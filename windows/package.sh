@@ -15,7 +15,8 @@ src="$(realpath "$out/../..")"
 helium_windows=/oganesson/windows/helium-windows
 # Chromium's version, as patches/helium-utils.patch makes the build's.
 version="$(cat /oganesson/helium/chromium_version.txt)"
-release="1.$(TZ=UTC0 git -C /oganesson log -1 --format=%cd --date=format-local:%Y%m%d%H%M%S)"
+# The commit time, from oganesson.py: a worktree's git folder isn't in the container.
+release="1.${OGANESSON_COMMIT_TIME:?}"
 dir="$dest/$version-$release"
 mkdir -p "$dir"
 name="oganesson-$version-windows-x64"

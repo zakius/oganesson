@@ -451,7 +451,11 @@ def build_windows(args):
     """The Windows release build and its packages, cross-compiled
     (windows/container-build.sh). FUSE for the case-insensitive toolchain mount
     Chromium makes."""
-    env = [('OGANESSON_PATCH_HASH', patch_hash(WINDOWS_INPUTS))]
+    env = [('OGANESSON_PATCH_HASH', patch_hash(WINDOWS_INPUTS)),
+           ('OGANESSON_COMMIT_TIME', subprocess.run(
+               ['git', '-C', str(ROOT), 'log', '-1', '--format=%cd',
+                '--date=format-local:%Y%m%d%H%M%S'], env=dict(os.environ, TZ='UTC0'),
+               capture_output=True, text=True, check=True).stdout.strip())]
     if args.jobs:
         env.append(('OGANESSON_JOBS', str(args.jobs)))
     code = docker_run(['bash', f'{MOUNT}/windows/container-build.sh'], env, nice=args.nice,
