@@ -137,7 +137,7 @@ prepare_tree() {
 # them, and after a prepare they may still be the last tree's.
 build_ours() {
     local -a ours
-    ./buildtools/linux64/gn gen "$_out_dir" >/dev/null
+    ./buildtools/linux64/gn gen "$_out_dir"
     mapfile -t ours < <(python3 /oganesson/dubna/tools/ours.py "$_out_dir" \
         /oganesson/dubna/src /oganesson/src \
         $(for d in /oganesson/patches /oganesson/late ${_platform_late:-}; do sed "/^#/d;/^$/d;s|^|$d/|" "$d/series"; done))
