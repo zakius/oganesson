@@ -15,19 +15,27 @@ Both are unsigned, so SmartScreen warns about them until enough people run them.
 
 ## How it builds
 
+`windows/container-build.sh` follows helium-windows' `build.py`: the same steps, in the same order, with the same GN arguments and Chromium's own toolchain.
+
 | Step | What |
 |---|---|
-| Tree | `work/helium-windows/build/src`, a Windows checkout: helium's `clone.py -p win64`, gclient with Windows' dependencies and the hooks that fetch the Linux-hosted build tools and Windows' PGO profile. |
-| Patches | Helium's series, helium-windows' (minus `windows/helium-windows-drops.txt`), mine, `late/`, then `windows/late/`. |
-| Toolchain | Chromium's Linux clang and lld. MSVC's headers and libraries and the Windows SDK come from Microsoft through [msvc-wine](https://github.com/mstorsjo/msvc-wine), whose use accepts Microsoft's license terms. `windows/make_toolchain.py` packs them the way Chromium's build expects, once per toolchain pin. |
-| Sync | `windows/build-sync-lib.sh`: the Rust library as `oganesson_sync.dll`, with NSS, NSPR and SQLite from MSYS2's UCRT64 packages next to it. |
+| Tree | `work/helium-windows/build/src`, from helium's `clone.py -p win64`, as `build.py --clone`: gclient with Windows' dependencies and the hooks that fetch the build's tools, Linux-hosted here, and Windows' PGO profile. Then Helium's `deps.ini`, and the pruning. |
+| Patches | Helium's series, helium-windows' (minus `windows/helium-windows-drops.txt`), mine, `late/`, then `windows/late/`. Then domain and name substitution, translations, the version, helium-windows' resources and Helium's. |
+| Toolchain | Chromium's Linux clang, lld and Rust. MSVC's headers and libraries and the Windows SDK come from Microsoft through [msvc-wine](https://github.com/mstorsjo/msvc-wine), whose use accepts Microsoft's license terms. `windows/make_toolchain.py` packs them the way Chromium's build expects, once per toolchain pin. |
+| Arguments | Helium's `flags.gn`, helium-windows' `flags.windows.gn` and `is_official_build=true`, as `build.py` writes them, and the two below. |
+| Build | Mine first (`dubna/tools/ours.py`), then `build.py`'s targets: `chrome chromedriver setup mini_installer`. |
+| Sync | `windows/build-sync-lib.sh`, before `build.py`'s targets, as the installer carries it: the Rust library as `oganesson_sync.dll`, with NSS, NSPR and SQLite from MSYS2's UCRT64 packages next to it. |
 | Packages | `windows/package.sh`. |
 
-What the cross build changes, and why:
+Where the cross build differs from `build.py`, and why:
 
-- `windows/late/installer-host-7zip.patch`: the installer's payload is packed with the build host's 7-Zip. helium-windows looks for an installed 7-Zip in Windows' registry.
+- Sources: `build.py` defaults to the prepared `win-x64` archive from imput's chromium-tarballs. Its tools run on Windows only, so this uses `build.py --clone`'s path.
+- `downloads.ini` isn't fetched. It has NSIS, WinSparkle and Git for Windows (for its `patch.exe`): the image has NSIS and `patch`, and the updater is left out.
+- MSVC and the SDK: `build.py` takes them from the installed Visual Studio (`DEPOT_TOOLS_WIN_TOOLCHAIN=0`). Here they are a toolchain package at Chromium's pin (`DEPOT_TOOLS_WIN_TOOLCHAIN=1`).
+- `target_os="win"`, which a Windows host doesn't need.
 - `v8_use_metagen_instance_types=false`: V8's instance types come from Torque. Its metagen step runs libclang in clang-cl mode, which on Linux reads the absolute input path as an option.
-- The MIDL and message compiler outputs that ungoogled-chromium's pruning removes are restored from git: Chromium ships them pre-generated for hosts without Microsoft's tools.
+- The MIDL and message compiler outputs that ungoogled-chromium's pruning removes are restored from git: on Windows, `midl.exe` and `mc.exe` make them again.
+- `windows/late/installer-host-7zip.patch`: the installer's payload is packed with the build host's 7-Zip. helium-windows looks for an installed 7-Zip in Windows' registry.
 - The Sync library defines `VerifyCodeSigningCertificateChain`, which fails. Only Mozilla's own NSS builds have it, and nothing calls it.
 
 ## Licenses

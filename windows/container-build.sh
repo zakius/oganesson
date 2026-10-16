@@ -2,11 +2,14 @@
 # Runs inside the Windows builder container (windows/Dockerfile, started by
 # oganesson.py build --windows): cross-compiles the Windows x64 release build
 # on Linux into work/helium-windows/build/src/out/Release.
-# The tree is a Windows checkout (helium's clone.py -p win64: gclient with
-# Windows' dependencies and the hooks that fetch the build's Linux-hosted tools
-# and Windows' PGO profile), then Helium's series, helium-windows' platform
-# patches and ours. The compiler is Chromium's Linux clang; MSVC's headers and
-# libraries and the Windows SDK are a toolchain package made here once
+# The steps are helium-windows' build.py's, in its order, with its --clone
+# sources: helium's clone.py -p win64 (gclient with Windows' dependencies and
+# the hooks that fetch the build's tools, Linux-hosted here, and Windows' PGO
+# profile). Its default, the prepared win-x64 archive, holds Windows-hosted
+# tools. Then Helium's series, helium-windows' platform patches and ours. The
+# toolchain is Chromium's own, as there: its clang, lld and Rust. MSVC's
+# headers and libraries and the Windows SDK, which build.py takes from the
+# installed Visual Studio, are a toolchain package made here once
 # (windows/make_toolchain.py), mounted case-insensitively by Chromium's
 # build/vs_toolchain.py.
 set -euo pipefail
@@ -77,8 +80,9 @@ restore_win_build_output() {
     done
 }
 
-# Helium's Windows icons, from our branding (work/helium-tree/resources).
-windows_resources() {
+# helium-windows' resources, from our branding (work/helium-tree/resources):
+# prepare_tree copies them before Helium's.
+platform_resources() {
     local gen
     gen="$(mktemp -d)"
     sed "s|^\.\./helium-chromium/|${_main_repo}/|" "$_root_dir/resources/generate_resources.txt" \
@@ -90,15 +94,16 @@ windows_resources() {
     rm -rf "$gen"
 }
 
-# Helium's and helium-windows' arguments, and ours: an official build for
-# Windows, with V8's instance types from Torque (its metagen alternative runs
-# libclang in clang-cl mode, which on Linux reads its absolute input path as an
-# option). Written when they change; the build then reruns gn itself.
+# build.py's arguments: Helium's, helium-windows', is_official_build. And the
+# cross build's: target_os, and V8's instance types from Torque (its metagen
+# alternative runs libclang in clang-cl mode, which on Linux reads its absolute
+# input path as an option). Written when they change; the build then reruns gn
+# itself.
 write_windows_args() {
     mkdir -p "$_out_dir"
-    { cat "${_main_repo}/flags.gn" "${_root_dir}/flags.windows.gn"
-      printf '%s\n' 'target_os="win"' 'is_official_build=true' \
-          'v8_use_metagen_instance_types=false'; } > "${_out_dir}/args.gn.new"
+    { cat "${_main_repo}/flags.gn"; echo; cat "${_root_dir}/flags.windows.gn"
+      printf '%s\n' 'target_os="win"' 'v8_use_metagen_instance_types=false' \
+          'is_official_build=true'; } > "${_out_dir}/args.gn.new"
     if cmp -s "${_out_dir}/args.gn.new" "${_out_dir}/args.gn"; then
         rm "${_out_dir}/args.gn.new"
     else
@@ -116,7 +121,6 @@ if [ ! -f "$stamp" ]; then
     platform_series
     prepare_tree
     restore_win_build_output
-    windows_resources
     mark_prepared
 fi
 
@@ -131,14 +135,14 @@ jobs=()
 [ -n "${OGANESSON_JOBS:-}" ] && jobs=(-j "$OGANESSON_JOBS")
 export SISO_PATH="${_src_dir}/third_party/siso/cipd/siso"
 build_ours
-python3 third_party/depot_tools/autoninja.py -C "$_out_dir" "${jobs[@]}" -k 0 chrome
 # The version folder's assembly manifest, <version>.manifest, stays in the out
 # folder after the next version's build, and the zip (FILES.cfg) and the
 # installer (chrome.release) take every *.manifest there.
 version="$(cat /oganesson/helium/chromium_version.txt)"
 find "$_out_dir" -maxdepth 1 -name '*.manifest' ! -name "$version.manifest" -delete
-# Firefox Sync's Rust library, loaded by the browser from its folder, then the
-# installer, whose payload includes it, and the packages.
+# Firefox Sync's Rust library, loaded by the browser from its folder: before
+# build.py's targets, as the installer's payload includes it.
 bash /oganesson/windows/build-sync-lib.sh "$_src_dir" "$_out_dir"
-python3 third_party/depot_tools/autoninja.py -C "$_out_dir" "${jobs[@]}" setup mini_installer
+python3 third_party/depot_tools/autoninja.py -C "$_out_dir" "${jobs[@]}" \
+    chrome chromedriver setup mini_installer
 bash /oganesson/windows/package.sh "$_out_dir" /oganesson/work/dl/windows

@@ -124,6 +124,9 @@ prepare_tree() {
     # that adds them has run.
     python3 /oganesson/tools/grit_fixups.py "$_src_dir"
     helium_version
+    # The platform's own resources (a platform_resources function) first, then
+    # Helium's, as helium-windows' build.py copies them.
+    ! declare -F platform_resources >/dev/null || platform_resources
     helium_resources
 }
 
