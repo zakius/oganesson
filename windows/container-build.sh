@@ -120,10 +120,6 @@ if [ ! -f "$stamp" ]; then
     mark_prepared
 fi
 
-# Blink's code generators run gperf from where a Linux checkout's CIPD package
-# puts it; a Windows checkout has only gperf.exe: the image's.
-mkdir -p "$_src_dir/third_party/gperf/cipd/bin"
-ln -sf "$(command -v gperf)" "$_src_dir/third_party/gperf/cipd/bin/gperf"
 # vs_toolchain mounts the toolchain package with ciopfs (unpacking it the first
 # time); the mount ends with the container.
 (cd "$_src_dir" && python3 build/vs_toolchain.py update --force)

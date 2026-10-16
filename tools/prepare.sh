@@ -33,7 +33,9 @@ apply_patches() {
 # series): back to the fetched sources, keeping downloads, toolchains and out/
 # so the build stays incremental. Only files git knows as modified go back,
 # and only untracked files git doesn't ignore go: the fetch leaves out test
-# data, which stays out.
+# data, which stays out. A repo's cipd/ stays too: in a Windows checkout,
+# gclient puts the Linux host's gperf in third_party/gperf/cipd, inside
+# gperf's own repo.
 reset_tree() {
     echo "Resetting the source tree to the fetched sources"
     # A manifest left by a prepare that failed is from the last tree that built.
@@ -44,7 +46,7 @@ reset_tree() {
         repo="${repo%/.git}"
         git -C "$repo" diff --name-only -z --diff-filter=M |
             (cd "$repo" && xargs -0 -r git checkout --)
-        git -C "$repo" clean -fdq -e /.downloaded.stamp
+        git -C "$repo" clean -fdq -e /.downloaded.stamp -e /cipd/
     done < <(find . -path ./out -prune -o -name .git -print)
     cd "$_src_dir"
     rm -f .patched.stamp .domsub.stamp "$stamp" "$_namesubs_cache"
