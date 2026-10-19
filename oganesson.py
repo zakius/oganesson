@@ -388,6 +388,10 @@ def docker_run(command, env=(), nice=0, cpu_shares=None, image=IMAGE, options=()
     # PID 1 would ignore it, and the container would outlive the checkout lock).
     cmd = ['docker', 'run', '--rm', '--init', '-i', *tty, '-u', f'{os.getuid()}:{os.getgid()}',
            '-v', f'{ROOT}:{MOUNT}', '-w', MOUNT, *options]
+    if WORK.is_symlink():
+        # A worktree links the main checkout's work/: mount the target at its own path
+        # so the link resolves in the container too.
+        cmd += ['-v', f'{WORK.resolve()}:{WORK.resolve()}']
     if cpu_shares:
         cmd += ['--cpu-shares', str(cpu_shares)]
     for key, value in env:
