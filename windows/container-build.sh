@@ -17,10 +17,10 @@ set -euo pipefail
 . /oganesson/linux/helium-linux/scripts/shared.sh
 . /oganesson/tools/prepare.sh
 setup_environment
-_main_repo=/oganesson/work/helium-tree
+_main_repo=/work/helium-tree
 _root_dir=/oganesson/windows/helium-windows
 _platform_late=/oganesson/windows/late
-_build_dir=/oganesson/work/helium-windows/build
+_build_dir=/work/helium-windows/build
 _dl_cache="${_build_dir}/download_cache"
 _src_dir="${_build_dir}/src"
 _namesubs_cache="${_build_dir}/namesubs.tar"
@@ -34,11 +34,11 @@ mkdir -p "$_dl_cache"
 # terms), packed as Chromium's toolchain package. Made again when Chromium
 # moves its pin (TOOLCHAIN_HASH); MSVC_VERSION is then the toolset its new
 # Visual Studio has.
-toolchain=/oganesson/work/win/toolchain
+toolchain=/work/win/toolchain
 MSVC_VERSION=14.51
 msvc_wine_commit=514f8ea
 windows_msvc() {
-    local vs="$_src_dir/build/vs_toolchain.py" win=/oganesson/work/win
+    local vs="$_src_dir/build/vs_toolchain.py" win=/work/win
     pin_hash="$(sed -n "s/^TOOLCHAIN_HASH = '\(.*\)'/\1/p" "$vs")"
     [ "$(cat "$toolchain/pin" 2>/dev/null)" = "$pin_hash" ] && return
     local sdk
@@ -162,4 +162,4 @@ find "$_out_dir" -maxdepth 1 -name '*.manifest' ! -name "$version.manifest" -del
 bash /oganesson/windows/build-sync-lib.sh "$_src_dir" "$_out_dir"
 python3 third_party/depot_tools/autoninja.py -C "$_out_dir" "${jobs[@]}" \
     chrome chromedriver setup mini_installer
-bash /oganesson/windows/package.sh "$_out_dir" /oganesson/work/dl/windows
+bash /oganesson/windows/package.sh "$_out_dir" /work/dl/windows

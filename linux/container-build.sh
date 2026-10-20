@@ -15,12 +15,12 @@ mode="$1"            # dev or release
 . /oganesson/linux/helium-linux/scripts/shared.sh
 . /oganesson/tools/prepare.sh
 setup_environment
-_main_repo=/oganesson/work/helium-tree
+_main_repo=/work/helium-tree
 _root_dir=/oganesson/linux/helium-linux
 _platform_late=/oganesson/linux/late
 # The tree stays where the shared base tree has it (see oganesson.py
 # snapshot): Siso's cache records absolute paths.
-_build_dir=/oganesson/work/helium-linux/build
+_build_dir=/work/helium-linux/build
 _dl_cache="${_build_dir}/download_cache"
 _src_dir="${_build_dir}/src"
 _namesubs_cache="${_build_dir}/namesubs.tar"

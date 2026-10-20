@@ -71,6 +71,7 @@ PREP_SKIP = {'__pycache__', 'tests', 'generated', '.git', 'helium-chromium'}
 IMAGE = 'oganesson-builder'
 WINDOWS_IMAGE = 'oganesson-windows-builder'
 MOUNT = '/oganesson'
+WORK_MOUNT = '/work'
 
 
 def fail(message):
@@ -385,20 +386,12 @@ def docker_run(command, env=(), nice=0, cpu_shares=None, image=IMAGE, options=()
     tty = ['-t'] if sys.stdin.isatty() else []
     # --init: a stop signal the docker CLI forwards ends the build (bash as
     # PID 1 would ignore it, and the container would outlive the checkout lock).
+    # work/ at WORK_MOUNT, a fixed path whichever checkout runs the build: siso's state records the
+    # build folder's absolute path, and another one makes it rebuild everything. A worktree's
+    # work/ is a link to the main checkout's, so its target is what gets mounted.
+    WORK.mkdir(exist_ok=True)
     cmd = ['docker', 'run', '--rm', '--init', '-i', *tty, '-u', f'{os.getuid()}:{os.getgid()}',
-           '-w', MOUNT, *options]
-    if WORK.is_symlink():
-        # A worktree links the main checkout's work/. The build sees it at MOUNT/work, as from
-        # the main checkout: siso's state records the build folder's absolute path, and a
-        # different one makes it rebuild everything. So the worktree's entries are mounted
-        # one by one, around its link, on a writable MOUNT (gclient writes .gcs_entries there).
-        cmd += ['--mount', f'type=tmpfs,destination={MOUNT},tmpfs-mode=1777']
-        for entry in sorted(ROOT.iterdir()):
-            if entry.name != WORK.name:
-                cmd += ['-v', f'{entry}:{MOUNT}/{entry.name}']
-        cmd += ['-v', f'{WORK.resolve()}:{MOUNT}/{WORK.name}']
-    else:
-        cmd += ['-v', f'{ROOT}:{MOUNT}']
+           '-v', f'{ROOT}:{MOUNT}', '-v', f'{WORK.resolve()}:{WORK_MOUNT}', '-w', MOUNT, *options]
     if cpu_shares:
         cmd += ['--cpu-shares', str(cpu_shares)]
     for key, value in env:

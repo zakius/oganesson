@@ -12,7 +12,7 @@ src="$(realpath "$1")"  # the Chromium tree
 out="$2"                # the browser's output folder
 crate=/oganesson/dubna/rust/oganesson_sync
 target="$out/oganesson_sync"
-cache=/oganesson/work/win/msys2
+cache=/work/win/msys2
 
 # MSYS2's NSS and what it loads (NSPR, and SQLite for softokn3). Its DLLs import
 # nothing else but Windows'.
@@ -45,7 +45,7 @@ for lib in nssckbi c++; do
     "$llvm/llvm-ar" rc "$nss/lib/$lib.lib"
 done
 
-winsysroot="$src/third_party/depot_tools/win_toolchain/vs_files/$(cat /oganesson/work/win/toolchain/hash)"
+winsysroot="$src/third_party/depot_tools/win_toolchain/vs_files/$(cat /work/win/toolchain/hash)"
 mkdir -p "$src/../cargo-home"
 export CARGO_HOME="$(realpath "$src/../cargo-home")"
 export CARGO_TARGET_DIR="$target"
