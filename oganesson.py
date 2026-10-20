@@ -386,11 +386,19 @@ def docker_run(command, env=(), nice=0, cpu_shares=None, image=IMAGE, options=()
     # --init: a stop signal the docker CLI forwards ends the build (bash as
     # PID 1 would ignore it, and the container would outlive the checkout lock).
     cmd = ['docker', 'run', '--rm', '--init', '-i', *tty, '-u', f'{os.getuid()}:{os.getgid()}',
-           '-v', f'{ROOT}:{MOUNT}', '-w', MOUNT, *options]
+           '-w', MOUNT, *options]
     if WORK.is_symlink():
-        # A worktree links the main checkout's work/: mount the target at its own path
-        # so the link resolves in the container too.
-        cmd += ['-v', f'{WORK.resolve()}:{WORK.resolve()}']
+        # A worktree links the main checkout's work/. The build sees it at MOUNT/work, as from
+        # the main checkout: siso's state records the build folder's absolute path, and a
+        # different one makes it rebuild everything. So the worktree's entries are mounted
+        # one by one, around its link, on a writable MOUNT (gclient writes .gcs_entries there).
+        cmd += ['--mount', f'type=tmpfs,destination={MOUNT},tmpfs-mode=1777']
+        for entry in sorted(ROOT.iterdir()):
+            if entry.name != WORK.name:
+                cmd += ['-v', f'{entry}:{MOUNT}/{entry.name}']
+        cmd += ['-v', f'{WORK.resolve()}:{MOUNT}/{WORK.name}']
+    else:
+        cmd += ['-v', f'{ROOT}:{MOUNT}']
     if cpu_shares:
         cmd += ['--cpu-shares', str(cpu_shares)]
     for key, value in env:
