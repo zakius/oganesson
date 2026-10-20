@@ -1,0 +1,66 @@
+# Releases oganesson when a push to main changes the browser, or by hand: builds, tests and
+# publishes Linux and Windows as README "Releasing" does, then posts a GitHub release with the
+# packages and notes from the commits since the previous one. It runs on the project's own build
+# machine (runner label "oganesson"), in the main checkout, which has the build tree and the
+# publish settings. Pull requests start nothing: a runner on this machine must never run their code.
+name: Release
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['docs/**', '**.md', '.github/**', 'tools/e2e/**', 'tools/hooks/**', 'windows/vm/**']
+  workflow_dispatch:
+concurrency:
+  group: release
+  cancel-in-progress: false
+permissions:
+  contents: write
+env:
+  MAIN: /home/zakius/dev/oganesson
+  # One browser build at a time on the machine, whichever repo's release starts it.
+  BUILDS_LOCK: /home/zakius/dev/.builds.lock
+jobs:
+  release:
+    runs-on: [self-hosted, oganesson]
+    timeout-minutes: 1440
+    steps:
+      - name: Main checkout at this commit
+        run: |
+          cd "$MAIN"
+          git fetch -q origin --tags
+          git merge -q --ff-only "$GITHUB_SHA"
+          git submodule update --init -q
+      - name: Linux build and browser tests
+        run: cd "$MAIN" && flock "$BUILDS_LOCK" sh -c './oganesson.py build --release && ./oganesson.py test --release'
+      - name: Linux packages, to the repository
+        run: cd "$MAIN" && linux/pack.sh && linux/publish-repo.sh
+      - name: Windows build and publish
+        id: windows
+        # A Windows failure (helium-windows behind, say) doesn't hold back Linux's release.
+        continue-on-error: true
+        run: cd "$MAIN" && flock "$BUILDS_LOCK" ./oganesson.py build --windows && windows/publish.sh
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WINDOWS: ${{ steps.windows.outcome }}
+        run: |
+          cd "$MAIN"
+          version="$(cat helium/chromium_version.txt)"
+          release="1.$(TZ=UTC0 git log -1 --format=%cd --date=format-local:%Y%m%d%H%M%S)"
+          tag="v$version-$release"
+          linux="work/dl/$version-$release"
+          assets=("$linux"/*.deb "$linux"/*.rpm "$linux"/oganesson-"$version"-*_linux.tar.xz)
+          if [ "$WINDOWS" = success ]; then
+            win="work/dl/windows/$version-$release"
+            assets+=("$win"/*-installer.exe "$win"/*-windows-x64.zip)
+          fi
+          notes="$(mktemp)"
+          dubna/tools/release_notes.py . --skip docs/ '*.md' .github/ tools/ oganesson.py \
+              linux/container-build.sh linux/pack.sh linux/publish-repo.sh windows/container-build.sh \
+              windows/build-sync-lib.sh windows/make_toolchain.py windows/publish.sh windows/Dockerfile \
+              windows/vm/ > "$notes"
+          [ "$WINDOWS" = success ] || printf '\nThe Windows build failed; this release has the Linux packages only.\n' >> "$notes"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" "${assets[@]}" --clobber
+          else
+            gh release create "$tag" "${assets[@]}" --target "$GITHUB_SHA" --title "oganesson $version ($release)" --notes-file "$notes"
+          fi
