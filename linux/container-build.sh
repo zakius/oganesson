@@ -53,7 +53,8 @@ write_args() {
         # incremental rebuilds.
         sed -i s/is_official_build/is_component_build/ "$args"
     else
-        echo 'oganesson_x86_64_level = "x86-64-v2"' >> "$args"
+        printf '%s\n' 'oganesson_x86_64_level = "x86-64-v2"' \
+            'mojom_message_id_salt_path = "//chrome/MOJOM_SALT"' >> "$args"
     fi
     if cmp -s "$args" "$args.old"; then
         mv "$args.old" "$args"

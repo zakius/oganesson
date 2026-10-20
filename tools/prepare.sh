@@ -127,6 +127,12 @@ prepare_tree() {
     # that adds them has run.
     python3 /oganesson/tools/grit_fixups.py "$_src_dir"
     helium_version
+    # Mojo's message ID salt (mojom_message_id_salt_path, set by the platforms'
+    # official builds): the Chromium milestone, not all of chrome/VERSION, so the
+    # IDs change once a milestone and a patch release or rebuild doesn't
+    # regenerate every mojom header (about 4,400 of 5,150 build steps).
+    # keep_mtimes.py keeps the file's time while its content stays.
+    grep '^MAJOR=' "$_src_dir/chrome/VERSION" > "$_src_dir/chrome/MOJOM_SALT"
     # The platform's own resources (a platform_resources function) first, then
     # Helium's, as helium-windows' build.py copies them.
     ! declare -F platform_resources >/dev/null || platform_resources

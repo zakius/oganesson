@@ -104,7 +104,7 @@ write_windows_args() {
     mkdir -p "$_out_dir"
     { cat "${_main_repo}/flags.gn"; echo; cat "${_root_dir}/flags.windows.gn"
       printf '%s\n' 'target_os="win"' 'v8_use_metagen_instance_types=false' \
-          'is_official_build=true'
+          'is_official_build=true' 'mojom_message_id_salt_path="//chrome/MOJOM_SALT"'
       cat /oganesson/flags.gn; } > "${_out_dir}/args.gn.new"
     if cmp -s "${_out_dir}/args.gn.new" "${_out_dir}/args.gn"; then
         rm "${_out_dir}/args.gn.new"
