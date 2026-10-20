@@ -10,9 +10,9 @@ Keep feature patches separate. Hooks that every feature needs are in `patches/og
 
 Initial extraction: oganesson-core (since deleted) at `f0b39417cd03c7adf13518027a3f0269af99ec60`, inspected 2026-10-09. The inherited baseline pins Helium to `8309d0e93a7c728e8cbc06f3f112bc457c235793` and helium-linux to `0.19.1.2`. The pins are now the `helium` and `linux/helium-linux` submodules (Chromium's version is `helium/chromium_version.txt`). Since 2026-10-14 oganesson carries Helium's whole series, minus the patches in `patches/helium-drops.txt`, instead of a hand-picked subset that needed 21 of Helium's patches edited to apply.
 
-uBO comes from the pinned Chromium package in `deps.ini`. It is full uBO, not uBO Lite, and not the Firefox XPI. Firefox-only response-filtering APIs are not part of this scope.
+uBO comes from the pinned Chromium package in `deps.ini`. It is full uBO, not uBO Lite, and not the Firefox XPI. Running the Firefox XPI instead is parked ([goals](../goals.md#parked)).
 
-Firefox Sync keeps the separate Rust library using Mozilla application-services and native C++ store adapters. General Firefox extension compatibility is not a prerequisite for that protocol integration. The containers engine is excluded.
+Firefox Sync keeps the separate Rust library using Mozilla application-services and native C++ store adapters. General Firefox extension compatibility is not a prerequisite for that protocol integration. Sync has no containers engine: containers are parked, and their sync would come from Multi-Account Containers' `storage.sync`.
 
 Firefox bookmark keywords and separators stay in the Sync store only. Mouse gestures retain browser commands and standard Chromium extension actions, without Firefox page-action emulation. Tab selection retains Chromium extension opener handling, without Firefox hidden-tab APIs.
 
