@@ -54,6 +54,9 @@ reset_tree() {
     touch .pruned.stamp
     rm -rf third_party/ublock components/helium_onboarding \
         third_party/search_engines_data/resources_internal
+    # The onboarding page's build adds to its dist/ in out/ and its .grd lists every file there,
+    # so a new page's hashed files would come on top of the old page's.
+    rm -rf out/*/gen/components/helium_onboarding
     "${_main_repo}/utils/downloads.py" retrieve -i "${_main_repo}/deps.ini" -c "${_dl_cache}"
     "${_main_repo}/utils/downloads.py" unpack -i "${_main_repo}/deps.ini" -c "${_dl_cache}" "${_src_dir}"
     cd - >/dev/null
