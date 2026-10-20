@@ -172,6 +172,11 @@ def main():
     windows = work / 'src-windows'
     shutil.rmtree(windows, ignore_errors=True)
     shutil.copytree(src, windows, symlinks=True)
+    # WinSparkle, which helium-windows' updater patches change (windows/container-build.sh).
+    for action, extra in (('retrieve', []), ('unpack', [str(windows)])):
+        subprocess.run([str(tree_dir / 'utils/downloads.py'), action, '-i',
+                        str(oganesson.HELIUM_WINDOWS / 'downloads.ini'), '-c', str(cache), *extra,
+                        '--components', 'winsparkle'], check=True)
     failed = []
     for name, tree, bases in (('Linux', src, BASES),
                               ('Windows', windows, oganesson.WINDOWS_SERIES)):

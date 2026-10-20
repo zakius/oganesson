@@ -31,7 +31,7 @@ tennessine is named after oganesson's neighbour, element 117. Both elements were
 
 Release builds are in a signed apt and dnf repository for x86-64-v2 machines. [docs/packages.md](docs/packages.md) shows how to add it.
 
-On Windows, an installer and a zip to unpack anywhere are on the [site](https://dubna.zakius.xyz/install.html#windows). They are unsigned and don't update themselves ([docs/windows.md](docs/windows.md)).
+On Windows, an installer and a zip to unpack anywhere are on the [site](https://dubna.zakius.xyz/install.html#windows). They have no Authenticode signature. A per-user install updates itself; an all-users install updates by hand ([docs/windows.md](docs/windows.md)).
 
 The browser keeps its own profile in `~/.config/oganesson`, separate from Helium's and Chromium's (on Windows, `%LOCALAPPDATA%\oganesson`). A profile in `~/.config/oganesson-focused`, its name before October 2026, moves there on the first start.
 

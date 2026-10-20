@@ -6,7 +6,10 @@
 #                                                   anywhere (Chromium's FILES.cfg)
 #   oganesson-<version>-windows-x64-installer.exe  helium-windows' NSIS installer
 #                                                   around Chromium's setup.exe
-# Unsigned: Windows SmartScreen warns about both until enough people run them.
+#   oganesson-<version>-windows-x64-update.exe     Chromium's mini_installer, which
+#                                                   the browser's updater runs
+# No Authenticode signature: Windows SmartScreen warns about the first two until
+# enough people run them. windows/publish.sh signs the update for the updater.
 # Runs inside the Windows build container. Usage: windows/package.sh OUT DEST
 set -euo pipefail
 out="$(realpath "$1")"
@@ -55,4 +58,7 @@ makensis -V2 -NOCD -DVERSION="$version" -DARCH=x64 -DSETUP_EXE="$out/setup.exe" 
     -DHELIUM_7Z="$out/oganesson.packed.7z" \
     -DICON_FILE="$src/chrome/app/theme/chromium/win/chromium.ico" \
     -DOUTPUT_FILE="$dir/$name-installer.exe" -DLICENSE_FILE=/oganesson/LICENSE "$nsi"
+
+# The update: the browser's updater runs it with --do-not-launch-chrome.
+cp "$out/mini_installer.exe" "$dir/$name-update.exe"
 ls -l "$dir"

@@ -1,3 +1,4 @@
 branding.patch
 sync-library-files.patch
 installer-host-7zip.patch
+updater.patch

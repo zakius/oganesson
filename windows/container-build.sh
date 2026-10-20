@@ -94,7 +94,14 @@ platform_resources() {
     rm -rf "$gen"
 }
 
-# build.py's arguments: Helium's, helium-windows', is_official_build. Ours
+# The updater's public key, windows/update-key.pem, as WinSparkle takes it: the
+# raw 32 bytes in base64, the end of the key's DER form.
+update_key() {
+    openssl pkey -pubin -in /oganesson/windows/update-key.pem -outform DER | tail -c 32 | base64
+}
+
+# build.py's arguments: Helium's, helium-windows', is_official_build and, as
+# build.py writes them when the updater has its key, the updater's. Ours
 # (flags.gn) after them. And the
 # cross build's: target_os, and V8's instance types from Torque (its metagen
 # alternative runs libclang in clang-cl mode, which on Linux reads its absolute
@@ -104,7 +111,8 @@ write_windows_args() {
     mkdir -p "$_out_dir"
     { cat "${_main_repo}/flags.gn"; echo; cat "${_root_dir}/flags.windows.gn"
       printf '%s\n' 'target_os="win"' 'v8_use_metagen_instance_types=false' \
-          'is_official_build=true' 'mojom_message_id_salt_path="//chrome/MOJOM_SALT"'
+          'is_official_build=true' 'mojom_message_id_salt_path="//chrome/MOJOM_SALT"' \
+          'enable_winsparkle=true' "winsparkle_ed_key=\"$(update_key)\""
       cat /oganesson/flags.gn; } > "${_out_dir}/args.gn.new"
     if cmp -s "${_out_dir}/args.gn.new" "${_out_dir}/args.gn"; then
         rm "${_out_dir}/args.gn.new"
@@ -121,6 +129,13 @@ export "GYP_MSVS_HASH_${pin_hash}=$(cat "$toolchain/hash")"
 write_windows_args
 if [ ! -f "$stamp" ]; then
     platform_series
+    # WinSparkle's source, which helium-windows' updater patches change and
+    # build in: build.py fetches it with the rest of downloads.ini.
+    rm -rf "${_src_dir}/third_party/winsparkle"
+    "${_main_repo}/utils/downloads.py" retrieve -i "$_root_dir/downloads.ini" -c "$_dl_cache" \
+        --components winsparkle
+    "${_main_repo}/utils/downloads.py" unpack -i "$_root_dir/downloads.ini" -c "$_dl_cache" \
+        "$_src_dir" --components winsparkle
     prepare_tree
     restore_win_build_output
     mark_prepared

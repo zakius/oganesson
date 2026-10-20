@@ -1,0 +1,99 @@
+# The Windows updater (helium-windows' WinSparkle patches) for oganesson: its feed is
+# https://dubna.zakius.xyz/windows/appcast.xml, which windows/publish.sh writes, and it is on by
+# default and doesn't need Helium's services. Updates are checked with the ed25519 key the build
+# gets from windows/update-key.pem. Only per-user installs update: an all-users install's update
+# would need helium-windows' elevated helper, which requires an Authenticode signature
+# (windows/helium-windows-drops.txt). WinSparkle keeps its settings under oganesson's name.
+# The switch for updates moves out of Helium's services, which are off by default.
+--- a/chrome/browser/ui/browser_ui_prefs.cc
++++ b/chrome/browser/ui/browser_ui_prefs.cc
+@@ -267,8 +267,9 @@
+     // oganesson: no onboarding; a first run opens a normal window.
+     registry->RegisterBooleanPref(prefs::kHeliumDidOnboarding, true);
+     registry->RegisterBooleanPref(prefs::kHeliumServicesConsented, false);
+-    // oganesson: updates come from the package repository, not Helium's.
+-    registry->RegisterBooleanPref(prefs::kHeliumUpdateFetchingEnabled, false);
++    // oganesson: on Windows, updates come from its own feed. Helium's component
++    // updates still need Helium's services.
++    registry->RegisterBooleanPref(prefs::kHeliumUpdateFetchingEnabled, true);
+     registry->RegisterBooleanPref(prefs::kHeliumUBlockAssetsEnabled, true);
+   }
+ 
+--- a/chrome/browser/win/winsparkle_glue.cc
++++ b/chrome/browser/win/winsparkle_glue.cc
+@@ -71,7 +71,10 @@
+ bool IsSupportedInstallation() {
+   base::FilePath exe;
+   base::FilePath module_dir;
+-  return base::PathService::Get(base::FILE_EXE, &exe) &&
++  // oganesson: all-users installs update by hand. Their elevated updater
++  // requires an Authenticode signature, which oganesson's packages lack.
++  return !install_static::IsSystemInstall() &&
++         base::PathService::Get(base::FILE_EXE, &exe) &&
+          base::PathService::Get(base::DIR_MODULE, &module_dir) &&
+          installer::CanUpdateInstallation(
+              exe, module_dir,
+@@ -477,7 +480,7 @@
+ 
+       const std::wstring version =
+           base::UTF8ToWide(std::string(version_info::GetHeliumVersionNumber()));
+-      win_sparkle_set_app_details(L"Helium", L"Helium", version.c_str());
++      win_sparkle_set_app_details(L"oganesson", L"oganesson", version.c_str());
+       win_sparkle_set_eddsa_public_key(BUILDFLAG(WINSPARKLE_ED_KEY));
+       RegisterWinSparkleCallbacks();
+       win_sparkle_set_update_check_interval(
+--- a/components/helium_services/helium_services_helpers.cc
++++ b/components/helium_services/helium_services_helpers.cc
+@@ -28,12 +28,13 @@
+ #endif
+ 
+ #if defined(UPDATES_SUPPORTED)
+-constexpr std::string_view kUpdateBaseUrl = "https://updates.helium.computer/";
++// oganesson: its own feed, from windows/publish.sh.
++constexpr std::string_view kUpdateBaseUrl = "https://dubna.zakius.xyz/";
+ constexpr const char kUpdatePath[] =
+ #if BUILDFLAG(IS_MAC)
+     "mac/appcast-" CPU_ARCH_STR ".xml";
+ #elif BUILDFLAG(IS_WIN)
+-    "win/appcast.xml";
++    "windows/appcast.xml";
+ #endif
+ 
+ // Duplicated from helium_flag_choices.h to avoid importing it.
+@@ -98,8 +99,8 @@
+ }
+ 
+ bool ShouldAccessUpdateService(const PrefService& prefs) {
+-  return ShouldAccessServices(prefs) &&
+-         prefs.GetBoolean(prefs::kHeliumUpdateFetchingEnabled);
++  // oganesson: the feed is its own server, not Helium's services.
++  return prefs.GetBoolean(prefs::kHeliumUpdateFetchingEnabled);
+ }
+ 
+ bool ShouldAccessComponentUpdateService(const PrefService& prefs) {
+--- a/chrome/browser/resources/settings/privacy_page/services_page.html
++++ b/chrome/browser/resources/settings/privacy_page/services_page.html
+@@ -80,6 +80,11 @@
+         label="$i18n{heliumServicesToggle}"
+         sub-label="$i18n{heliumServicesToggleDescription}">
+     </settings-toggle-button>
++    <settings-toggle-button id="updatesToggleButton"
++        pref="{{prefs.helium.services.browser_updates}}"
++        label="$i18n{heliumUpdatesToggle}"
++        sub-label="$i18n{heliumUpdatesToggleDescription}">
++    </settings-toggle-button>
+     <div class="cr-col">
+         <cr-collapse id="servicesCollapse" opened="[[prefs.helium.services.enabled.value]]">
+             <settings-toggle-button id="extProxyToggleButton"
+@@ -99,11 +104,6 @@
+                     sub-label="$i18n{heliumSpellcheckToggleDescription}">
+                 </settings-toggle-button>
+             </if>
+-            <settings-toggle-button id="updatesToggleButton"
+-                pref="{{prefs.helium.services.browser_updates}}"
+-                label="$i18n{heliumUpdatesToggle}"
+-                sub-label="$i18n{heliumUpdatesToggleDescription}">
+-            </settings-toggle-button>
+             <settings-toggle-button id="filterlistToggleButton"
+                 pref="{{prefs.helium.services.ublock_assets}}"
+                 label="$i18n{heliumUboToggle}"
