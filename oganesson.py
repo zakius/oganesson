@@ -27,7 +27,6 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -413,20 +412,13 @@ def build_image():
                    check=True)
 
 
-# Builds started on a weekday from 2:00 to 15:00, while the machine is in
-# use, default to these limits; others get every CPU at normal priority.
-QUIET_JOBS, QUIET_NICE = 24, 19
-
-
-def quiet_hours(now):
-    return now.weekday() < 5 and 2 <= now.hour < 15
-
-
 def build(args):
     lock = hold_checkout('build')  # noqa: F841 (held until exit)
-    if args.jobs is None and args.nice is None and quiet_hours(datetime.now()):
-        args.jobs, args.nice = QUIET_JOBS, QUIET_NICE
-        print(f'oganesson: weekday daytime build: -j {QUIET_JOBS}, nice {QUIET_NICE}', file=sys.stderr)
+    # One job per CPU of the machine, not of the container: the system limits
+    # the containers' CPUs by the time of day (docker.slice), and a build that
+    # starts under the daytime limit then still fills every CPU at night.
+    if args.jobs is None:
+        args.jobs = os.cpu_count()
     build_image()
     if args.windows:
         subprocess.run(['docker', 'build', '-t', WINDOWS_IMAGE, '-f', str(ROOT / 'windows/Dockerfile'),
@@ -593,7 +585,7 @@ def main():
     build_parser.add_argument('--windows', action='store_true',
                               help='the Windows x64 release build, cross-compiled (see windows/)')
     build_parser.add_argument('-j', '--jobs', type=int,
-                              help='parallel compile jobs (weekdays 2:00-15:00 default: 24, with --nice 19)')
+                              help="parallel compile jobs (default: the machine's CPUs)")
     build_parser.add_argument('--nice', type=int, metavar='N',
                               help='run at nice level N with idle-ish disk priority, so the '
                                    'machine stays responsive (e.g. 10)')
