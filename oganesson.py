@@ -89,8 +89,10 @@ def helium_tree():
     its inputs: the submodule's commit, UTILS_PATCH, DROPS and our resources/."""
     digest = hashlib.sha256(subprocess.run(['git', '-C', str(HELIUM), 'rev-parse', 'HEAD'],
                                            capture_output=True, check=True).stdout)
+    # resources/generated is what preparation makes of resources/, not an input: a checkout
+    # that hasn't prepared a tree lacks it, and the tree would otherwise differ by checkout.
     for path in [UTILS_PATCH, DROPS, *sorted((ROOT / 'resources').rglob('*'))]:
-        if path.is_file():
+        if path.is_file() and 'generated' not in path.relative_to(ROOT).parts:
             digest.update(str(path.relative_to(ROOT)).encode() + path.read_bytes())
     stamp = TREE / '.oganesson-tree'
     if stamp.is_file() and stamp.read_text() == digest.hexdigest():
@@ -102,7 +104,8 @@ def helium_tree():
     subprocess.run(['tar', '-x', '-C', str(TREE)], input=archive, check=True)
     subprocess.run(['patch', '-p1', '-s', '--fuzz=0', '--no-backup-if-mismatch', '-d', str(TREE),
                     '-i', str(UTILS_PATCH)], check=True)
-    shutil.copytree(ROOT / 'resources', TREE / 'resources', dirs_exist_ok=True)
+    shutil.copytree(ROOT / 'resources', TREE / 'resources', dirs_exist_ok=True,
+                    ignore=shutil.ignore_patterns('generated'))
     dropped = drops(DROPS)
     series = (TREE / 'patches/series').read_text().splitlines()
     missing = dropped - {line.strip() for line in series}
@@ -388,10 +391,14 @@ def docker_run(command, env=(), nice=0, cpu_shares=None, image=IMAGE, options=()
     # PID 1 would ignore it, and the container would outlive the checkout lock).
     # work/ at WORK_MOUNT, a fixed path whichever checkout runs the build: siso's state records the
     # build folder's absolute path, and another one makes it rebuild everything. A worktree's
-    # work/ is a link to the main checkout's, so its target is what gets mounted.
+    # work/ is a link to the main checkout's, so its target is what gets mounted, and also at its
+    # own path, where the link points: paths relative to the checkout (tools/branding.py finds
+    # Helium's utils so) then resolve too.
     WORK.mkdir(exist_ok=True)
     cmd = ['docker', 'run', '--rm', '--init', '-i', *tty, '-u', f'{os.getuid()}:{os.getgid()}',
            '-v', f'{ROOT}:{MOUNT}', '-v', f'{WORK.resolve()}:{WORK_MOUNT}', '-w', MOUNT, *options]
+    if WORK.is_symlink():
+        cmd += ['-v', f'{WORK.resolve()}:{WORK.resolve()}']
     if cpu_shares:
         cmd += ['--cpu-shares', str(cpu_shares)]
     for key, value in env:
