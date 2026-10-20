@@ -51,3 +51,7 @@ sudo dnf install oganesson
 The dnf repository checks the signature on its metadata, which holds each package's checksum. The packages themselves are not signed, so the repository file sets `gpgcheck=0`.
 
 New builds then arrive with the system's updates: Discover, GNOME Software, `apt upgrade` or `dnf upgrade`. To install them without asking, turn on automatic updates in Discover or GNOME Software, or use `unattended-upgrades` with the origin `oganesson` or `dnf5-automatic`.
+
+## After an upgrade
+
+A running browser keeps the old version until it restarts, and new helper processes would read the new version's files. Within seconds of an upgrade, the app menu button shows "Update", and "Relaunch to update" in the app menu restarts the browser with its windows, tabs and back history (`patches/oganesson/core/update-prompt.patch`). Chromium's update poller watches the install folder (`enable_update_notifications` in `linux/flags.gn`). The patch makes it count a new file at the binary's path as an update, because a rebuild on the same Chromium version doesn't change the version the binary reports. `tools/e2e/test_update_prompt.py` covers it.

@@ -9,3 +9,6 @@ enable_device_bound_sessions=false
 enable_bound_session_credentials=false
 # WebXR: no XR runtime Chromium uses on Linux.
 enable_vr=false
+# The update prompt: Chromium's poller notices a package upgrade and offers to relaunch, keeping
+# the session (patches/oganesson/core/update-prompt.patch). Chromium turns it on only for Chrome.
+enable_update_notifications=true

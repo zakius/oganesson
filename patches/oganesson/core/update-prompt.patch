@@ -1,0 +1,101 @@
+# The update prompt as soon as an update is installed, on both platforms: the "Update" chip and
+# "Relaunch to update" show at once, not after two days (the update is already on disk and the
+# running browser is the old one). On Linux, an update is a new file at the binary's path, which
+# catches every apt or dnf upgrade, also a rebuild on the same Chromium version; linux/flags.gn
+# turns the poller on (enable_update_notifications). Windows' poller is helium-windows'.
+--- a/chrome/browser/upgrade_detector/get_installed_version_linux.cc
++++ b/chrome/browser/upgrade_detector/get_installed_version_linux.cc
+@@ -4,40 +4,55 @@
+ 
+ #include "chrome/browser/upgrade_detector/get_installed_version.h"
+ 
++#include <sys/stat.h>
++
+ #include <string>
++#include <string_view>
+ #include <utility>
++#include <vector>
+ 
+-#include "base/command_line.h"
++#include "base/base_paths.h"
++#include "base/files/file_path.h"
+ #include "base/functional/bind.h"
+ #include "base/functional/callback.h"
+ #include "base/location.h"
+-#include "base/logging.h"
+-#include "base/process/launch.h"
++#include "base/path_service.h"
+ #include "base/strings/string_util.h"
+ #include "base/task/task_traits.h"
+ #include "base/task/thread_pool.h"
+-#include "chrome/common/chrome_switches.h"
++#include "base/version.h"
++#include "base/version_info/version_info.h"
+ 
+ namespace {
+ 
+-// On Linux, the Chrome binary may have been replaced by an update. Ask it to
+-// report its version.
++// oganesson: apt and dnf put a new file at the binary's path on every
++// upgrade, also a rebuild on the same Chromium version, which the binary's
++// --product-version can't tell from the running one. A binary at the
++// browser's path that isn't the running file is an update, reported as the
++// running version plus one (as helium-windows' get_installed_version_win.cc).
++// A binary that is gone (uninstalled) is none.
+ InstalledAndCriticalVersion GetInstalledVersionSynchronous() {
+-  base::CommandLine command_line(*base::CommandLine::ForCurrentProcess());
+-  command_line.AppendSwitch(switches::kProductVersion);
+-  base::Version installed_version;
+-  std::string reply;
+-  if (base::GetAppOutput(command_line, &reply)) {
+-    installed_version =
+-        base::Version(base::TrimWhitespaceASCII(reply, base::TRIM_ALL));
++  base::Version running = version_info::GetVersion();
++  base::FilePath exe;
++  if (!base::PathService::Get(base::FILE_EXE, &exe)) {
++    return InstalledAndCriticalVersion(std::move(running));
+   }
+-  // Failure may be a result of invoking a Chrome that predates the introduction
+-  // of the --product-version switch in https://crrev.com/48795 (6.0.424.0).
+-  DLOG_IF(ERROR, !installed_version.IsValid())
+-      << "Failed to get current file version; child process replied with: "
+-      << reply;
+-
+-  return InstalledAndCriticalVersion(std::move(installed_version));
++  // FILE_EXE reads /proc/self/exe, which names a replaced binary so.
++  std::string path = exe.value();
++  constexpr std::string_view kDeleted = " (deleted)";
++  if (base::EndsWith(path, kDeleted)) {
++    path.resize(path.size() - kDeleted.size());
++  }
++  struct stat on_disk;
++  struct stat current;
++  if (stat(path.c_str(), &on_disk) == 0 &&
++      stat("/proc/self/exe", &current) == 0 &&
++      (on_disk.st_ino != current.st_ino || on_disk.st_dev != current.st_dev)) {
++    std::vector<uint32_t> components = running.components();
++    components.back() += 1;
++    return InstalledAndCriticalVersion(base::Version(std::move(components)));
++  }
++  return InstalledAndCriticalVersion(std::move(running));
+ }
+ 
+ }  // namespace
+--- a/chrome/browser/upgrade_detector/upgrade_detector_impl.cc
++++ b/chrome/browser/upgrade_detector/upgrade_detector_impl.cc
+@@ -47,9 +47,12 @@
+ 
+ namespace {
+ 
+-// The default thresholds for reaching annoyance levels.
+-constexpr auto kDefaultVeryLowThreshold = base::Hours(1);
+-constexpr auto kDefaultLowThreshold = base::Days(2);
++// The default thresholds for reaching annoyance levels. oganesson: the update
++// chip and "Relaunch to update" show as soon as an update is installed, not
++// after two days: the update is already on disk, and the running browser is
++// the old one.
++constexpr auto kDefaultVeryLowThreshold = base::TimeDelta();
++constexpr auto kDefaultLowThreshold = base::TimeDelta();
+ constexpr auto kDefaultElevatedThreshold = base::Days(4);
+ constexpr auto kDefaultHighThreshold = base::Days(7);
+ constexpr auto kDefaultGraceThreshold = kDefaultHighThreshold - base::Hours(1);
