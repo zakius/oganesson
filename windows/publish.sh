@@ -5,6 +5,7 @@
 # https://dubna.zakius.xyz/windows/. The unversioned names the install page links
 # to become hard links to the newest version, and SHA256SUMS covers every file
 # there, under both names, so `sha256sum -c` works on whichever was downloaded.
+# The host keeps the newest 3 versions, and work/dl/windows the newest 3 (linux/pack.sh --prune).
 # Usage: windows/publish.sh [VERSION_DIR]
 set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd -P)"
@@ -25,5 +26,8 @@ rsync -a --partial "$dir/$zip" "$dir/$name-installer.exe" "$target/"
 ssh "$host" "cd $path &&
     ln -f $name.zip oganesson-windows-x64.zip &&
     ln -f $name-installer.exe oganesson-windows-x64-installer.exe &&
+    ls oganesson-*-windows-x64.zip | grep -v '^oganesson-windows-' | sort -V | head -n -3 |
+        while read -r old; do rm -f \"\$old\" \"\${old%.zip}-installer.exe\"; done &&
     sha256sum oganesson-*.exe oganesson-*.zip > SHA256SUMS.new && mv SHA256SUMS.new SHA256SUMS &&
     cat SHA256SUMS"
+"$root/linux/pack.sh" --prune "$root/work/dl/windows" "$(basename "$dir")"
