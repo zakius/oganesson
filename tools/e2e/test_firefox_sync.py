@@ -266,6 +266,9 @@ class FirefoxSyncTest(BrowserTest):
         # Quit well within the 30 s until the deletion's sync.
         self.browser.quit()
         self.browser.start()
+        # Sync now rather than at the startup sync, 20 s in: both send the
+        # deletions saved in the profile.
+        self.sync_now(self.settings('/people', 'settings-people-page'))
         wait_for(lambda: self.firefox_history()[guid].get('deleted'), timeout=90,
                  what='the deletion to reach Firefox')
 
@@ -398,8 +401,12 @@ class FirefoxSyncTest(BrowserTest):
         page.eval("chrome.send('firefoxSyncSignIn')")
         wait_for(self.fake.held.is_set, timeout=30, what='the held sign-in')
         page.eval("chrome.send('firefoxSyncSignOut')")
+        destroyed = self.fake.log.count('POST /auth/v1/account/device/destroy')
         self.fake.let_go()
-        time.sleep(5)  # for the sign-in's reply
+        # The library signs out after the sign-in, whose reply is then
+        # already queued.
+        wait_for(lambda: self.fake.log.count('POST /auth/v1/account/device/destroy') > destroyed,
+                 timeout=30, what="the sign-out's device removal")
         self.assertFalse(self.status(page).get('signedIn'))
         self.assertEqual(self.status(page).get('email'), '')
 

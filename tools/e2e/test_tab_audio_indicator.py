@@ -101,15 +101,24 @@ class TabAudioIndicatorTest(BrowserTest):
         self.browser.click_view(item)
         wait_for(lambda: not self.browser.menus(), what='the menu to close')
 
-    def test_no_sound_icon_by_default(self):
+    def test_switch_shows_sound_icon_in_open_tabs(self):
         self.assert_no_indicator()
-
-    def test_setting_shows_sound_icon_in_open_tabs(self):
-        self.assert_no_indicator()
-        self.set_pref(True)
-        wait_for(self.indicators, what='the sound icon')
-        self.set_pref(False)
-        wait_for(lambda: not self.indicators(), what='the sound icon to go')
+        page = self.browser.new_tab('chrome://settings/appearance')
+        try:
+            toggle = (f"({FIND})('settings-appearance-page')?.shadowRoot"
+                      "?.querySelector('#showTabAudioIndicator')")
+            wait_for(lambda: page.eval(f'!!{toggle}'), what='the switch')
+            self.assertEqual(page.eval(f'{toggle}.label'), 'Show sound icon on tabs')
+            get = f'chrome.settingsPrivate.getPref({json.dumps(PREF)}).then(p => p.value)'
+            self.assertIs(page.eval(f'{toggle}.checked'), False)
+            page.eval(f'{toggle}.click()')
+            wait_for(lambda: page.eval(get) is True, what='the pref on')
+            wait_for(self.indicators, what='the sound icon')
+            page.eval(f'{toggle}.click()')
+            wait_for(lambda: page.eval(get) is False, what='the pref off')
+            wait_for(lambda: not self.indicators(), what='the sound icon to go')
+        finally:
+            self.browser.close_target(page)
 
     def test_muted_icon_shows_with_setting_off(self):
         self.assert_no_indicator()
@@ -121,22 +130,6 @@ class TabAudioIndicatorTest(BrowserTest):
             self.mute_from_context_menu('Unmute site')
         wait_for(lambda: not self.indicators(), what='the muted icon to go')
         self.assert_no_indicator()
-
-
-class SettingsPageTest(BrowserTest):
-
-    def test_appearance_switch_sets_the_pref(self):
-        page = self.browser.new_tab('chrome://settings/appearance')
-        toggle = f"({FIND})('settings-appearance-page')?.shadowRoot?.querySelector('#showTabAudioIndicator')"
-        wait_for(lambda: page.eval(f'!!{toggle}'), what='the switch')
-        self.assertEqual(page.eval(f'{toggle}.label'), 'Show sound icon on tabs')
-        get = f'chrome.settingsPrivate.getPref({json.dumps(PREF)}).then(p => p.value)'
-        self.assertIs(page.eval(f'{toggle}.checked'), False)
-        self.assertIs(page.eval(get), False)
-        page.eval(f'{toggle}.click()')
-        wait_for(lambda: page.eval(get) is True, what='the pref on')
-        page.eval(f'{toggle}.click()')
-        wait_for(lambda: page.eval(get) is False, what='the pref off')
 
 
 class VerticalTabsTest(TabAudioIndicatorTest):

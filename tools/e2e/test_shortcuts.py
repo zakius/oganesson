@@ -5,7 +5,6 @@ of the window that recorded closes, and Ctrl+Tab and Ctrl+Shift+Tab
 removed there staying off, also after a restart.
 """
 
-import time
 import unittest
 
 from harness import BrowserTest, wait_for
@@ -126,10 +125,14 @@ class ShortcutsTest(BrowserTest):
         self.browser.key('ctrl+t')
         wait_for(lambda: len(self.pages()) == pages + 1, what='Ctrl+T to open a tab')
 
-    def no_switch(self, keys, active):
+    def no_switch(self, keys, active, then):
+        """`keys` leave the tab `active` in front: Ctrl+PgDown after them,
+        handled in order, selects the other tab `then`, not `active` again."""
         self.browser.key(keys)
-        time.sleep(1)
-        self.assertEqual(self.active(), active, f'{keys} switched tabs')
+        self.browser.key('ctrl+Next')
+        wait_for(lambda: self.active() == then, what=f'{then} after {keys} and Ctrl+PgDown')
+        self.browser.key('ctrl+Prior')
+        wait_for(lambda: self.active() == active, what=f'{active} again')
 
     def test_3_removed_ctrl_tab_stays_off(self):
         settings = self.browser.new_tab('chrome://settings/system/shortcuts')
@@ -144,11 +147,9 @@ class ShortcutsTest(BrowserTest):
                 self.browser.quit()
                 self.browser.start()
             self.only_tabs('D', 'E')
-            self.no_switch('ctrl+Tab', 'E')
-            self.no_switch('ctrl+shift+Tab', 'E')
             # Next tab keeps its other shortcut.
-            self.browser.key('ctrl+Next')
-            wait_for(lambda: self.active() == 'D', what='Ctrl+PgDown to switch tabs')
+            self.no_switch('ctrl+Tab', 'E', 'D')
+            self.no_switch('ctrl+shift+Tab', 'E', 'D')
 
 
 
