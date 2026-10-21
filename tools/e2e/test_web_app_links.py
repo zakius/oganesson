@@ -430,21 +430,13 @@ class WebAppLinksTest(WebAppTest):
         self.assert_excluded_opened(app)
         self.assertIn('/app/to-excluded', self.server.requests)
 
-    def test_default_browser_opens_excluded_page_in_tab(self):
+    def test_default_browser_still_gets_excluded_page(self):
+        # The app hands it to the system, whichever browser that is.
         self.set_rules(RULES)
         self.make_default_browser()
         app = self.launch_app()
         app.click('#push')
-        # The app window shows the excluded URL until it goes back.
-        wait_for(lambda: app.eval('location.href') == self.server.url('/app/index.html'),
-                 what='the app window back')
-        tab = Page(wait_for(lambda: next((t for t in self.browser.targets() if t['id'] != app.id
-                                          and '/app/excluded.html' in t['url']), None),
-                            what='the excluded page in a tab'))
-        self.addCleanup(self.browser.close_target, tab)
-        wait_for(lambda: tab.eval('document.body?.textContent') == 'excluded', what='the page')
-        self.assertTrue(tab.eval('matchMedia("(display-mode: browser)").matches'))
-        self.assertEqual(self.opened(), [])
+        self.assert_excluded_opened(app)
 
     def test_in_scope_push_stays_in_app(self):
         self.set_rules(RULES)
@@ -638,30 +630,19 @@ class WebAppLinksTest(WebAppTest):
         self.assertEqual(self.opened(), [])
         self.browser.close_target(tab)
 
-    def test_default_browser_keeps_links_in_oganesson(self):
+    def test_default_browser_still_gets_links(self):
+        # oganesson as the default browser opens them in a browser window.
         self.make_default_browser()
         app = self.launch_app()
-        app.click('#blank')
-        tab = self.browser.page('/out.html?blank')
-        self.addCleanup(self.browser.close_target, tab)
-        wait_for(lambda: tab.eval('document.body?.textContent') == 'out', what='the page')
-        self.assertEqual(self.out_tabs(), [self.server.url('/out.html?blank')])
         app.click('#plain')
-        wait_for(lambda: app.eval('location.href') == self.server.url('/out.html?plain'),
-                 what='the link in the app window')
-        self.assertEqual(self.opened(), [])
-
-    def test_default_browser_window_open_keeps_opener(self):
-        self.make_default_browser()
-        app = self.launch_app()
+        wait_for(self.opened, what='xdg-open')
+        app.click('#blank')
         app.eval('void window.open("/out.html?open")')
-        tab = self.browser.page('/out.html?open')
-        self.addCleanup(self.browser.close_target, tab)
-        wait_for(lambda: tab.eval('document.body?.textContent') == 'out', what='the page')
-        self.assertEqual(tab.eval('opener.location.href'), self.server.url('/app/index.html'))
-        # A tab of a regular window, not an app window.
-        self.assertTrue(tab.eval('matchMedia("(display-mode: browser)").matches'))
-        self.assertEqual(self.opened(), [])
+        wait_for(lambda: len(self.opened()) == 3, what='xdg-open thrice')
+        self.assertEqual(self.opened(), [self.server.url(p) for p in
+                                         ('/out.html?plain', '/out.html?blank', '/out.html?open')])
+        self.assertEqual(app.eval('location.href'), self.server.url('/app/index.html'))
+        self.assertEqual(self.out_tabs(), [])
 
     def test_menu_opens_link_in_default_browser(self):
         # also a link in the app's scope, which a click keeps in the app.
@@ -680,32 +661,12 @@ class WebAppLinksTest(WebAppTest):
         self.assertEqual(app.eval('location.href'), self.server.url('/app/index.html'))
         self.assertEqual(self.out_tabs(), [])
 
-    def test_default_browser_hides_menu_items(self):
-        app = self.launch_app()
-        shown = len(self.link_menu(app, '#plain'))
-        self.close_menus()
+    def test_default_browser_keeps_menu_items(self):
         self.make_default_browser()
-
-        # Each menu checks again, and shows the last answer.
-        def hidden():
-            items = len(self.link_menu(app, '#plain'))
-            self.close_menus()
-            return items == shown - 2
-        wait_for(hidden, what='the menu without the default browser items')
-        self.assertEqual(self.opened(), [])
-
-    def test_default_browser_change_updates_open_menu(self):
-        # The window's first check found another browser the default; the
-        # menu's own check hides the items in the menu already open.
         app = self.launch_app()
-        shown = len(self.link_menu(app, '#plain'))
-        self.close_menus()
-        self.make_default_browser()
-        app.click('#plain', button='right')
-        wait_for(lambda: len((self.browser.menus() or [[[]]])[0][0]) == shown - 2,
-                 what='the open menu without the default browser items')
-        self.close_menus()
-        self.assertEqual(self.opened(), [])
+        self.browser.click_view(self.link_menu(app, '#plain')[1])
+        wait_for(self.opened, what='xdg-open')
+        self.assertEqual(self.opened(), [self.server.url('/out.html?plain')])
 
     def test_menu_names_default_browser(self):
         app = self.launch_app()
@@ -728,33 +689,6 @@ class WebAppLinksTest(WebAppTest):
         short = 'Browser ' * 3 + 'Browser\u2026'
         self.wait_link_menu_titles(app, '#plain', [f'Open link in {short}',
                                                    f'Open link in {short} in background'])
-
-    def test_restored_app_window_knows_default_browser(self):
-        # A restored app window's page doesn't load through Navigate(); its
-        # first window.open still finds oganesson the default browser.
-        self.make_default_browser()
-        self.launch_app(close=False)
-        self.browser.quit()
-        # Chromium reopens app windows only after chrome://restart, which
-        # leaves this flag for the next start.
-        local_state = self.browser.profile / 'Local State'
-        state = json.loads(local_state.read_text())
-        state.setdefault('was', {})['restarted'] = True
-        local_state.write_text(json.dumps(state))
-        self.browser.start()
-        app = Page(wait_for(lambda: next((t for t in self.browser.targets()
-                                          if t['url'] == self.server.url('/app/index.html')), None),
-                            what='the restored app window'))
-        self.addCleanup(self.browser.close_target, app)
-        # The regular window opens over it, so it stays hidden.
-        wait_for(lambda: app.eval('document.readyState === "complete"'),
-                 what='the restored app page')
-        app.eval('void window.open("/out.html?restored")')
-        tab = self.browser.page('/out.html?restored')
-        self.addCleanup(self.browser.close_target, tab)
-        wait_for(lambda: tab.eval('document.body?.textContent') == 'out', what='the page')
-        self.assertEqual(tab.eval('opener.location.href'), self.server.url('/app/index.html'))
-        self.assertEqual(self.opened(), [])
 
 
 class BrowserTabTest(WebAppTest):

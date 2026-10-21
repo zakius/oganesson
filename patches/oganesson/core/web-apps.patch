@@ -70,20 +70,16 @@
      case IDC_CONTENT_CONTEXT_PROTOCOL_HANDLER_SETTINGS:
      case IDC_CONTENT_CONTEXT_GENERATEPASSWORD:
      case IDC_CONTENT_CONTEXT_SHOWALLSAVEDPASSWORDS:
-@@ -3808,6 +3821,17 @@ void RenderViewContextMenu::ExecuteCommand(int id, int event_flags) {
+@@ -3808,6 +3821,13 @@ void RenderViewContextMenu::ExecuteCommand(int id, int event_flags) {
    }
  
    switch (id) {
 +    case IDC_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER:
 +    case IDC_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER_BACKGROUND:
-+      if (web_app::OpenInDefaultBrowser(
-+              params_.link_url,
-+              id == IDC_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER_BACKGROUND)) {
-+        break;
-+      }
-+      // oganesson became the default browser while the menu was open: the
-+      // link opens as "Open link in new tab" opens it.
-+      [[fallthrough]];
++      web_app::OpenInDefaultBrowser(
++          params_.link_url,
++          id == IDC_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER_BACKGROUND);
++      break;
 +
      case IDC_CONTENT_CONTEXT_OPENLINKNEWTAB: {
        WindowOpenDisposition new_tab_disposition =

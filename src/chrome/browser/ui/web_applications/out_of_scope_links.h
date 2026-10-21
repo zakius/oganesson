@@ -33,25 +33,9 @@ namespace web_app {
 bool IsWebAppOwnWindow(BrowserWindowInterface* window);
 
 // For Navigate(): a new tab or window that a web app's window opens on a URL
-// out of the app's scope goes to the system default browser, unless that is
-// oganesson. Returns true when it took the navigation, which the caller then
-// drops.
+// out of the app's scope goes to the system default browser. Returns true
+// when it took the navigation, which the caller then drops.
 bool MaybeOpenNewContentsOutsideApp(NavigateParams& params);
-
-// Whether the last default-browser check found oganesson the system default
-// browser, which would hand a link given to it back to us. False until a
-// check has answered.
-bool IsDefaultBrowser();
-
-// Checks again in the background, then runs `done`, after the answer updates
-// IsDefaultBrowser() and DefaultBrowserLinkLabel(), or after a newer check's
-// answer did.
-void RefreshIsDefaultBrowser(base::OnceClosure done = {});
-
-// The label of the link context menu item that opens a link in the system
-// default browser, `background` or not: named after the browser's desktop
-// entry when the last check found one.
-std::u16string DefaultBrowserLinkLabel(bool background);
 
 // The link context menu's update of one item: (command id, enabled, hidden,
 // label), as RenderViewContextMenuBase::UpdateMenuItem.
@@ -59,18 +43,18 @@ using UpdateMenuItemCallback =
     base::RepeatingCallback<void(int, bool, bool, const std::u16string&)>;
 
 // Adds "Open link in default browser" and its background twin to `model` for
-// an http(s) `url` in a `window` that sends out-of-scope links out. They are
-// hidden while oganesson is the default browser, set from the last check,
-// and `update_item` updates them in the open menu after the next.
+// an http(s) `url` in a `window` that sends out-of-scope links out, labeled
+// from the last lookup of the browser's name; `update_item` relabels them in
+// the open menu after the next.
 void AppendDefaultBrowserLinkItems(const GURL& url,
                                    BrowserWindowInterface* window,
                                    ui::SimpleMenuModel& model,
                                    UpdateMenuItemCallback update_item);
 
-// Opens `url` in the system default browser; with `background`, without
-// letting the browser take focus, where the platform can. Returns false,
-// opening nothing, while oganesson is the default browser.
-bool OpenInDefaultBrowser(const GURL& url, bool background);
+// Opens `url` in the system default browser, whichever it is: oganesson opens
+// it in a browser window. With `background`, without letting the browser take
+// focus, where the platform can.
+void OpenInDefaultBrowser(const GURL& url, bool background);
 
 // A link clicked in a web app's window that leaves the app's scope, which
 // would load in the window, goes to the system default browser instead; so
