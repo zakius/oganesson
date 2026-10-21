@@ -12,9 +12,9 @@ Every other Helium patch is carried, also the ones earlier reviews called indiff
 - Firefox-style tab placement and selection after closing a tab is a must have, and the default, with selectable alternatives: Settings > Behavior > Tab behavior, a Firefox or Chromium preset over knobs, Helium's "next to the active tab" switch among them ([tab behavior](tab-behavior.md)).
 - Helium's visual redesign patches (`helium/ui/*`, `helium/ui/layout/*`, `helium/settings/*`) are carried. I may want my own design later.
 - Memory Saver, infinite tab freezing and Back-to-opener stay off by default. The settings stay available; their default-on patches are dropped.
-- No Helium servers by default. Helium's services are off (`oganesson/core/no-helium-services`), and with them component updates, uBlock asset downloads, Helium's spellcheck dictionary mirror and the extension download proxy. The user can turn them on in Settings. Without them, spellcheck dictionaries download from Google's server, as in Chromium, unless the dictionary download switch is off.
-- uBlock Origin: Helium's patch set. With Helium's services off, filter lists update from uBlock's own URLs (dubna's `ublock-assets-update`). Revisit if the WebExtensions uBlock Origin becomes reliable.
-- Extension installs from the Chrome Web Store are supported. Installs from AMO were taken out for now and are to come back. Helium's download proxy (`proxy-extension-downloads`) acts only with its services on; without it, store installs, updates and item data go to Google's own servers, as in Chromium (`oganesson/core/no-helium-services`). Helium itself sends them to a placeholder host then, so they fail.
+- Never Helium's own servers. What the browser downloads by itself is browser traffic (below): each kind goes direct to its source, or through the user's own helium-services server, never to Helium's host.
+- uBlock Origin: Helium's patch set. Going direct, filter lists update from uBlock's own URLs (oganesson's own `oganesson/core/ublock-assets-update`). Revisit if the WebExtensions uBlock Origin becomes reliable.
+- Extension installs from the Chrome Web Store are supported. Installs from AMO were taken out for now and are to come back. Helium's download proxy (`proxy-extension-downloads`) is browser traffic's Extensions row going through the user's server; going direct, store installs, updates and item data go to Google's own servers, as in Chromium. Helium itself sends them to a placeholder host without its services, so they fail.
 - Firefox Sync replaces Helium's sync. Its patches (`helium/core/sync/*`) are carried, as later patches build on them, and stay inert: Helium sync needs Helium's services and its provider feature is off.
 - Onboarding (`helium/core/onboarding-page`) is carried but never shown: a first run opens a normal window. It may serve as the basis of my own.
 - Password manager stays enabled, so `helium/core/disable-password-manager` is dropped. Helium turns it off as insecure. Malware running as the user can read decrypted passwords from the browser's memory whatever the at-rest encryption, and full-disk encryption covers a stolen disk, so a separate password manager adds little. My decision, 2026-10-14.
@@ -31,8 +31,8 @@ Every other Helium patch is carried, also the ones earlier reviews called indiff
 
 | Patches | How |
 |---|---|
-| `helium/core/services-prefs`, `services-schema-nag`, `component-updates`, `fixups-component-setup`, `proxy-extension-downloads`, `reenable-spellcheck-downloads`, `ublock-helium-services` | Helium's services are off by default (`oganesson/core/no-helium-services`), and these act only with them. uBlock Origin's filter lists update from uBlock's own URLs (dubna's `ublock-assets-update`). Spellcheck dictionaries download only with the services on. |
-| `helium/core/add-native-bangs` | Off by default: the bang list comes from Helium's services. On again once I have my own bang source. |
+| `helium/core/services-prefs`, `services-schema-nag`, `component-updates`, `fixups-component-setup`, `proxy-extension-downloads`, `reenable-spellcheck-downloads`, `ublock-helium-services` | Their helpers defer to browser traffic (`oganesson/core/browser-traffic`); their prefs stay registered, derived from it. Going direct, uBlock Origin's filter lists update from uBlock's own URLs (oganesson's own `oganesson/core/ublock-assets-update`), and spellcheck dictionaries download from Google's server, as in Chromium. Helium's services page is replaced by Browser traffic. |
+| `helium/core/add-native-bangs` | The bang list comes only through the user's server: without one, bangs are off. |
 | `helium/core/reenable-update-checks`, `add-updater-preference`, `add-update-channel-flag`, `add-helium-versioning` | Helium's update checks are off by default: oganesson updates from its package repository. |
 | `helium/core/onboarding-page` | Marked as done by default: never shown. |
 | `helium/core/crash-reporting-prefs`, `helium/settings/crash-reporting-settings` | Crash reporting is off by default: reports would go to Helium's crash server. |
@@ -44,6 +44,34 @@ Every other Helium patch is carried, also the ones earlier reviews called indiff
 | `helium/core/update-default-browser-prefs`, `add-default-browser-reject-button`, `remove-dead-toolbar-actions`, `scan-chrome-native-messaging-hosts` | Neutral as they are. |
 
 - Search engines: Helium's whole search group is carried, with ungoogled-chromium's `prepopulated-search-engines` (`restore-google` renames Google's engine and `engine-defaults` updates the regional lists to match, so they go together). New profiles get one engine list everywhere, DuckDuckGo first, and the EU search engine choice screen (`force-eu-search-features`); engines' favicons aren't fetched (`break-favicons`). Decided 2026-10-14.
+
+## Browser traffic
+
+Decided 2026-10-21. On 2026-10-17 the Chrome Root Program used CRLSet to block six compromised eMudhra intermediate CAs. oganesson got no CRLSet: Helium's services were off, and component updates with them. Helium's `component-updates` lets only CRLSet and Widevine register, and the Chrome Root Store and the CT log list never updated. The six keys are also compiled in (`oganesson/core/emudhra-spki-block`).
+
+The model is my own code in dubna (`components/browser_traffic`), not a copy of Helium's: dubna is GPL-2.0-only OR GPL-3.0-only, and tennessine builds no GPL-3.0 code. Helium's server URL paths are an interface it targets. `oganesson/core/browser-traffic` makes Helium's `ShouldAccess*` and `Get*URL` defer to it; Helium's prefs stay registered, derived, so its later patches keep compiling. The settings are in Local State, one set for each OS user.
+
+| Row | Covers | Direct | Proxy |
+|---|---|---|---|
+| Certificate security | CRLSet, Chrome Root Store, CT log list | Google | `/com` |
+| DRM | Widevine | Google | `/com` |
+| Extensions | installs, item info, updates | Google | `/ext` |
+| Content-blocker lists | uBlock Origin | as before | `/ubo` |
+| Spellcheck dictionaries | | Google | `/dict` |
+| Bangs | | none | proxy only |
+| Browser updates | | WinSparkle | none |
+
+- Each row has Download, Automatic or On request (no "Never"), and Route, Direct or Proxy, where both exist. A row offers only the routes it has.
+- The Chrome Root Store and the CT log list (the PKI Metadata component) join the component allowlist. Direct component update checks go to update.googleapis.com, a narrow exception past ungoogled-chromium's request blocking and domain substitution; components send no pings.
+- A proxy-only row never makes a server required: bangs stay off without one, and the row says so.
+- Browser updates are a row only on a Windows per-user install. An all-users install shows it read-only; Linux shows a note that the package manager updates the browser.
+- Presets, as in Tab behavior: Direct (all Automatic and Direct, the default), Through my server (all Automatic and Proxy) and Shut in (all On request, routes untouched). The preset is derived from the rows, never stored; Custom shows when they match none.
+- One server for the whole browser: any helium-services server, https or http on localhost. It never falls back to direct or to Helium's host. With an invalid or no server, proxied rows stay idle.
+- Health check, shown when a row uses the server: Periodically is an hourly `/connectivitycheck`; On request is Check now plus the results of real fetches. Through my server sets Periodically, Shut in On request.
+- When automatic certificate data is more than 24 hours old, for any reason, the app menu gets a badge and an item that opens the page. Rows set to On request never badge.
+- On request means: Certificate security, an Update now button; DRM, a prompt when a site needs Widevine (to come); Extensions, store installs and the extensions page's Update; uBlock Origin, its own Update now, as its managed storage turns its autoUpdate off; dictionaries, adding a spellcheck language; bangs, Update now; WinSparkle, Check for updates only.
+- When Certificate security isn't Automatic, the page shows a red warning: revocations arrive only with a release.
+- The page, Settings > Privacy and security > Browser traffic (`settings/updates`), replaces Helium's services page.
 
 ## Notes on carried patches
 

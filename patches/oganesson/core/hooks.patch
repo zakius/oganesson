@@ -46,13 +46,14 @@
    RegisterSafetyHubProfilePrefs(registry);
 --- a/chrome/browser/resources/settings/BUILD.gn
 +++ b/chrome/browser/resources/settings/BUILD.gn
-@@ -501,6 +501,19 @@ build_webui("build") {
+@@ -501,6 +501,20 @@ build_webui("build") {
      ts_files += [ "autofill_page/passwords/passkeys_browser_proxy.ts" ]
    }
  
 +  ts_files += [
 +    "appearance_page/tab_behavior.ts",
 +    "autofill_page/firefox_sync.ts",
++    "privacy_page/browser_traffic_page.ts",
 +    "privacy_page/history_saving.ts",
 +    "search_page/omnibox_suggestions.html.ts",
 +    "search_page/omnibox_suggestions.ts",
@@ -68,12 +69,14 @@
    icons_html_files = [ "privacy_page/security/fingerprint_icons.html" ]
 --- a/chrome/browser/ui/webui/settings/BUILD.gn
 +++ b/chrome/browser/ui/webui/settings/BUILD.gn
-@@ -157,6 +157,22 @@ source_set("impl") {
+@@ -157,6 +157,24 @@ source_set("impl") {
      "brave_importer_observer.cc",
      "browser_lifetime_handler.cc",
      "browser_shortcuts_handler.cc",
 +    "autoplay_settings.cc",
 +    "autoplay_settings.h",
++    "browser_traffic_handler.cc",
++    "browser_traffic_handler.h",
 +    "firefox_sync_handler.cc",
 +    "firefox_sync_handler.h",
 +    "history_saving_settings.cc",

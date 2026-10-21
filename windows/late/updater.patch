@@ -4,7 +4,8 @@
 # gets from windows/update-key.pem. Only per-user installs update: an all-users install's update
 # would need helium-windows' elevated helper, which requires an Authenticode signature
 # (windows/helium-windows-drops.txt). WinSparkle keeps its settings under oganesson's name.
-# The switch for updates moves out of Helium's services, which are off by default.
+# Whether WinSparkle checks by itself is browser traffic's Browser updates row (Settings > Privacy and
+# security > Browser traffic); Check for updates always works. Helium's services page isn't shown.
 --- a/chrome/browser/ui/browser_ui_prefs.cc
 +++ b/chrome/browser/ui/browser_ui_prefs.cc
 @@ -267,8 +267,9 @@
@@ -33,7 +34,7 @@
           base::PathService::Get(base::DIR_MODULE, &module_dir) &&
           installer::CanUpdateInstallation(
               exe, module_dir,
-@@ -477,7 +480,7 @@
+@@ -477,13 +480,19 @@
  
        const std::wstring version =
            base::UTF8ToWide(std::string(version_info::GetHeliumVersionNumber()));
@@ -42,6 +43,32 @@
        win_sparkle_set_eddsa_public_key(BUILDFLAG(WINSPARKLE_ED_KEY));
        RegisterWinSparkleCallbacks();
        win_sparkle_set_update_check_interval(
+           BUILDFLAG(WINSPARKLE_CHECK_INTERVAL));
++      // oganesson: hourly checks only while browser traffic's Browser
++      // updates row is Automatic; Check for updates works either way.
+       win_sparkle_set_automatic_check_for_updates(
+-          BUILDFLAG(WINSPARKLE_AUTOMATIC_CHECKS));
++          browser_traffic::FetchesAutomatically(
++              *g_browser_process->local_state(),
++              browser_traffic::Row::kBrowserUpdates)
++              ? BUILDFLAG(WINSPARKLE_AUTOMATIC_CHECKS)
++              : 0);
+ 
+       ApplyAppcastUrl(prefs);
+       win_sparkle_init();
+@@ -493,7 +502,11 @@
+     // Already running: reflect the current consent live (no re-init).
+     ApplyAppcastUrl(prefs);
+     win_sparkle_set_automatic_check_for_updates(
+-        consented ? BUILDFLAG(WINSPARKLE_AUTOMATIC_CHECKS) : 0);
++        consented && browser_traffic::FetchesAutomatically(
++                         *g_browser_process->local_state(),
++                         browser_traffic::Row::kBrowserUpdates)
++            ? BUILDFLAG(WINSPARKLE_AUTOMATIC_CHECKS)
++            : 0);
+   }
+ 
+   raw_ptr<Profile> profile_ = nullptr;
 --- a/components/helium_services/helium_services_helpers.cc
 +++ b/components/helium_services/helium_services_helpers.cc
 @@ -28,12 +28,13 @@
@@ -60,14 +87,16 @@
  #endif
  
  // Duplicated from helium_flag_choices.h to avoid importing it.
-@@ -98,8 +99,8 @@
+@@ -98,8 +99,10 @@
  }
  
  bool ShouldAccessUpdateService(const PrefService& prefs) {
 -  return ShouldAccessServices(prefs) &&
 -         prefs.GetBoolean(prefs::kHeliumUpdateFetchingEnabled);
-+  // oganesson: the feed is its own server, not Helium's services.
-+  return prefs.GetBoolean(prefs::kHeliumUpdateFetchingEnabled);
++  // oganesson: the feed is its own server, not Helium's services. Check
++  // for updates always works; whether WinSparkle checks by itself is
++  // browser traffic's Browser updates row (winsparkle_glue.cc).
++  return true;
  }
  
  bool ShouldAccessComponentUpdateService(const PrefService& prefs) {

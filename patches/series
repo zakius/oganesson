@@ -44,3 +44,5 @@ oganesson/core/importer-profile-discovery.patch
 oganesson/core/update-prompt.patch
 oganesson/core/emudhra-spki-block.patch
 oganesson/core/policy-path.patch
+oganesson/core/browser-traffic.patch
+oganesson/settings/browser-traffic-settings.patch

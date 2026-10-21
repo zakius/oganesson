@@ -363,5 +363,350 @@
     "name": "IDS_OGANESSON_IMPORT_BASED_ON",
     "source": "<ph name=\"ENGINE\">$1<ex>Firefox</ex></ph>-based browser (<ph name=\"FOLDER\">$2<ex>floorp</ex></ph>)",
     "message": "Przeglądarka typu <ph name=\"ENGINE\">$1<ex>Firefox</ex></ph> (<ph name=\"FOLDER\">$2<ex>floorp</ex></ph>)"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_TITLE",
+    "source": "Browser traffic",
+    "message": "Ruch przeglądarki"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_DESCRIPTION",
+    "source": "What the browser downloads by itself, and which way it goes. Websites and your downloads are not affected.",
+    "message": "Co przeglądarka pobiera sama i którędy. Nie dotyczy to stron internetowych ani Twoich pobrań."
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_SERVER",
+    "source": "Helium services server",
+    "message": "Serwer usług Helium"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_SERVER_DESCRIPTION",
+    "source": "For the rows set to Proxy. Any server running <ph name=\"SOFTWARE\">$1<ex>helium-services</ex></ph>. https, or http on localhost. Nothing falls back to direct: if it's unreachable, those downloads wait.",
+    "message": "Dla wierszy ustawionych na Pośrednik. Dowolny serwer z <ph name=\"SOFTWARE\">$1<ex>helium-services</ex></ph>. https albo http na localhost. Nic nie przechodzi na połączenie bezpośrednie: gdy serwer nie odpowiada, te pobrania czekają."
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_SERVER_NOT_SET",
+    "source": "Not set",
+    "message": "Nie ustawiono"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_SERVER_INVALID",
+    "source": "Use https, or http only on localhost.",
+    "message": "Użyj https albo http tylko na localhost."
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_TEST",
+    "source": "Test",
+    "message": "Sprawdź"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_TESTING",
+    "source": "Checking <ph name=\"URL\">$1<ex>https://services.example.org/connectivitycheck</ex></ph>…",
+    "message": "Sprawdzanie <ph name=\"URL\">$1<ex>https://services.example.org/connectivitycheck</ex></ph>…"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_SERVER_ANSWERED",
+    "source": "Server answered.",
+    "message": "Serwer odpowiedział."
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_SERVER_NO_ANSWER",
+    "source": "No answer. The address must be https, or http on localhost, and reachable.",
+    "message": "Brak odpowiedzi. Adres musi używać https albo http na localhost i być osiągalny."
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_TEST_TO_CONTINUE",
+    "source": "Test the server to continue",
+    "message": "Sprawdź serwer, aby przejść dalej"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_STATUS_REACHABLE",
+    "source": "Reachable, certificate data updated <ph name=\"WHEN\">$1<ex>12 minutes ago</ex></ph>",
+    "message": "Osiągalny, dane certyfikatów zaktualizowane <ph name=\"WHEN\">$1<ex>12 minutes ago</ex></ph>"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_STATUS_UNREACHABLE",
+    "source": "Unreachable, last answer at <ph name=\"TIME\">$1<ex>14:02</ex></ph>",
+    "message": "Nieosiągalny, ostatnia odpowiedź o <ph name=\"TIME\">$1<ex>14:02</ex></ph>"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_STATUS_NEVER_ANSWERED",
+    "source": "Unreachable",
+    "message": "Nieosiągalny"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_STATUS_UNCHECKED",
+    "source": "Not checked yet",
+    "message": "Jeszcze nie sprawdzono"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_SERVER_DOWN_TITLE",
+    "source": "Your server hasn't answered since <ph name=\"TIME\">$1<ex>14:02</ex></ph>.",
+    "message": "Twój serwer nie odpowiada od <ph name=\"TIME\">$1<ex>14:02</ex></ph>."
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_SERVER_DOWN",
+    "source": "Certificate data was last updated <ph name=\"WHEN\">$1<ex>6 hours ago</ex></ph>. Nothing was fetched directly instead.",
+    "message": "Dane certyfikatów zaktualizowano ostatnio <ph name=\"WHEN\">$1<ex>6 hours ago</ex></ph>. Niczego nie pobrano zamiast tego bezpośrednio."
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_CHECK_NOW",
+    "source": "Check now",
+    "message": "Sprawdź teraz"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_HEALTH_CHECK",
+    "source": "Check the server's health",
+    "message": "Sprawdzaj działanie serwera"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_HEALTH_CHECK_DESCRIPTION",
+    "source": "Periodically: once an hour. On request: only when something needs it, or you press Check now.",
+    "message": "Okresowo: raz na godzinę. Na żądanie: tylko gdy coś tego potrzebuje albo gdy naciśniesz Sprawdź teraz."
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_PERIODICALLY",
+    "source": "Periodically",
+    "message": "Okresowo"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_PRESET",
+    "source": "Preset",
+    "message": "Ustawienie wstępne"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_PRESET_DIRECT",
+    "source": "Direct",
+    "message": "Bezpośrednio"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_PRESET_DIRECT_DESCRIPTION",
+    "source": "Everything stays current, straight from each source.",
+    "message": "Wszystko jest aktualne, prosto z każdego źródła."
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_PRESET_SERVER",
+    "source": "Through my server",
+    "message": "Przez mój serwer"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_PRESET_SERVER_DESCRIPTION",
+    "source": "Everything stays current, all through your Helium services server.",
+    "message": "Wszystko jest aktualne, w całości przez Twój serwer usług Helium."
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_PRESET_SHUT_IN",
+    "source": "Shut in",
+    "message": "Zamknięty"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_PRESET_SHUT_IN_DESCRIPTION",
+    "source": "Nothing is downloaded unless you ask. Routes stay as you set them below.",
+    "message": "Nic nie jest pobierane, dopóki nie poprosisz. Trasy zostają takie, jak ustawisz poniżej."
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_PRESET_CUSTOM",
+    "source": "Custom",
+    "message": "Własne"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_PRESET_CUSTOM_DESCRIPTION",
+    "source": "Your own mix. Change any row below.",
+    "message": "Twoje własne połączenie. Zmień dowolny wiersz poniżej."
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_WHAT",
+    "source": "What",
+    "message": "Co"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_DOWNLOAD",
+    "source": "Download",
+    "message": "Pobieranie"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_ROUTE",
+    "source": "Route",
+    "message": "Trasa"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_AUTOMATIC",
+    "source": "Automatic",
+    "message": "Automatycznie"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_ON_REQUEST",
+    "source": "On request",
+    "message": "Na żądanie"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_DIRECT",
+    "source": "Direct",
+    "message": "Bezpośrednio"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_PROXY",
+    "source": "Proxy",
+    "message": "Pośrednik"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_PROXY_ONLY",
+    "source": "Proxy only",
+    "message": "Tylko przez pośrednika"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_DIRECT_ONLY",
+    "source": "Direct only",
+    "message": "Tylko bezpośrednio"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_NO_DIRECT_SOURCE",
+    "source": "No direct source",
+    "message": "Brak źródła bezpośredniego"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_OFF_WITHOUT_SERVER",
+    "source": "Off until you set a server",
+    "message": "Wyłączone, dopóki nie ustawisz serwera"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_SERVER_CANT_SERVE",
+    "source": "Your server can't serve it",
+    "message": "Twój serwer nie może tego dostarczyć"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_IDLE",
+    "source": "Idle until a server is set",
+    "message": "Wstrzymane, dopóki nie ustawisz serwera"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_FROM",
+    "source": "from <ph name=\"SOURCE\">$1<ex>Google</ex></ph>",
+    "message": "z: <ph name=\"SOURCE\">$1<ex>Google</ex></ph>"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_FROM_LIST_AUTHORS",
+    "source": "from the list authors",
+    "message": "od autorów list"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_CERTIFICATES",
+    "source": "Certificate security",
+    "message": "Bezpieczeństwo certyfikatów"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_CERTIFICATES_DESCRIPTION",
+    "source": "Revoked certificates (CRLSet), trusted roots, Certificate Transparency logs",
+    "message": "Unieważnione certyfikaty (CRLSet), zaufane certyfikaty główne, dzienniki Certificate Transparency"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_DRM",
+    "source": "DRM (Widevine)",
+    "message": "DRM (Widevine)"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_DRM_DESCRIPTION",
+    "source": "Needed by Netflix, Spotify and similar",
+    "message": "Potrzebne dla Netflixa, Spotify i podobnych"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_EXTENSIONS",
+    "source": "Extensions",
+    "message": "Rozszerzenia"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_EXTENSIONS_DESCRIPTION",
+    "source": "Store installs, item info, updates",
+    "message": "Instalacje ze sklepu, informacje o pozycjach, aktualizacje"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_CONTENT_BLOCKER",
+    "source": "Content-blocker lists",
+    "message": "Listy blokowania treści"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_CONTENT_BLOCKER_DESCRIPTION",
+    "source": "uBlock Origin's filter lists",
+    "message": "Listy filtrów uBlock Origin"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_DICTIONARIES",
+    "source": "Spellcheck dictionaries",
+    "message": "Słowniki sprawdzania pisowni"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_DICTIONARIES_DESCRIPTION",
+    "source": "Dictionary files for your languages",
+    "message": "Pliki słowników dla Twoich języków"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_BANGS",
+    "source": "Bangs",
+    "message": "Bangi"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_BANGS_DESCRIPTION",
+    "source": "The !bang shortcut list",
+    "message": "Lista skrótów !bang"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_BROWSER_UPDATES",
+    "source": "Browser updates",
+    "message": "Aktualizacje przeglądarki"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_BROWSER_UPDATES_DESCRIPTION",
+    "source": "Checks for a new oganesson release",
+    "message": "Sprawdza, czy jest nowe wydanie oganesson"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_BROWSER_UPDATES_MANAGED",
+    "source": "Managed for all users by whoever installed oganesson",
+    "message": "Zarządzane dla wszystkich użytkowników przez osobę, która zainstalowała oganesson"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_PACKAGE_MANAGER",
+    "source": "Browser updates come from your package manager.",
+    "message": "Aktualizacje przeglądarki dostarcza menedżer pakietów."
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_UPDATE_NOW",
+    "source": "Update now",
+    "message": "Aktualizuj teraz"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_UPDATED",
+    "source": "Updated <ph name=\"WHEN\">$1<ex>3 hours ago</ex></ph>",
+    "message": "Zaktualizowano <ph name=\"WHEN\">$1<ex>3 hours ago</ex></ph>"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_REVOCATION_WARNING_TITLE",
+    "source": "Revoked certificates won't be blocked in time.",
+    "message": "Unieważnione certyfikaty nie zostaną zablokowane na czas."
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_REVOCATION_WARNING",
+    "source": "When a certificate authority is compromised, <ph name=\"CHROME\">$1<ex>Chrome</ex></ph> blocks it within hours (100 minutes for eMudhra on Oct 17, 2026). With this setting, oganesson learns of it only with its next release, days or weeks later. Until then, a stolen certificate for any site is trusted.",
+    "message": "Gdy urząd certyfikacji zostaje przejęty, <ph name=\"CHROME\">$1<ex>Chrome</ex></ph> blokuje go w ciągu kilku godzin (100 minut w przypadku eMudhra 17 października 2026). Przy tym ustawieniu oganesson dowie się o tym dopiero z następnym wydaniem, po dniach lub tygodniach. Do tego czasu skradziony certyfikat dowolnej witryny jest zaufany."
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_STALE_MENU_ITEM",
+    "source": "Certificate data is out of date",
+    "message": "Dane certyfikatów są nieaktualne"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_STALE_BUTTON",
+    "source": "Out of date",
+    "message": "Nieaktualne"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_STALE_TOOLTIP",
+    "source": "Certificate data hasn't updated for more than a day",
+    "message": "Dane certyfikatów nie były aktualizowane od ponad doby"
+  },
+  {
+    "name": "IDS_COMPONENTS_SVC_STATUS_ERROR_HELIUM_SERVICES",
+    "source": "Component updates are idle. See Browser traffic in settings.",
+    "message": "Aktualizacje komponentów są wstrzymane. Zobacz Ruch przeglądarki w ustawieniach."
   }
 ]
