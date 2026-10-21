@@ -228,13 +228,19 @@ class GesturesTest(BrowserTest):
         menu = wait_for(lambda: self.browser.menus(), what='the link menu')[0]
         # The first group: new tab, new window, split view, incognito.
         self.browser.click_view(menu[0][2])
+        last = {}
+
         def split_panes():
-            # The window with two visible contents views; others may be open.
+            # The window with two visible contents views (others may be
+            # open), once their bounds stop changing.
             by_window = {}
             for view in self.browser.views('ContentsWebView'):
                 if view.visible:
                     by_window.setdefault(view.widget, []).append(view)
-            return next((v for v in by_window.values() if len(v) == 2), None)
+            panes = next((v for v in by_window.values() if len(v) == 2), None)
+            bounds = panes and sorted(str(p.bounds) for p in panes)
+            previous, last['bounds'] = last.get('bounds'), bounds
+            return panes if bounds and bounds == previous else None
 
         panes = wait_for(split_panes, what='two panes')
         right = wait_for(lambda: next((t for t in self.browser.targets()
@@ -245,9 +251,9 @@ class GesturesTest(BrowserTest):
         wait_for(lambda: right.eval('location.href') == self.server.url('/b'), what='/b loaded')
         x, y = min(panes, key=lambda p: p.bounds['x']).center
         self.browser.xdotool('mousemove', str(x), str(y), 'click', '1')
-        wait_for(lambda: any(v.widget == panes[0].widget and v['Text'].endswith('/split')
-                             for v in self.browser.views('OmniboxViewViews')),
-                 what='the left pane to take focus')
+        # Not the omnibox's widget: UI DevTools numbers nodes anew on each
+        # query, so a menu closing in between renumbers the window.
+        wait_for(lambda: left.eval('document.hasFocus()'), what='the left pane to take focus')
         self.browser.xdotool('mousedown', '3')
         for step in range(1, 21):
             self.browser.xdotool('mousemove', str(x - step * 8), str(y))

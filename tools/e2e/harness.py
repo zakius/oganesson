@@ -284,7 +284,9 @@ class Page(Session):
 
 class View:
     """A browser view from UI DevTools, with its properties at query time.
-    `widget` is the node id of the widget (window, menu, bubble) it is in."""
+    `widget` is the node id of the widget (window, menu, bubble) it is in.
+    Node ids are numbered anew on each query, so compare them only within
+    one `views()` result."""
 
     def __init__(self, cls, props, bounds, widget=None):
         self.cls = cls
