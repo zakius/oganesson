@@ -9,6 +9,9 @@ on:
     branches: [main]
     paths-ignore: ['docs/**', '**.md', '.github/**', 'tools/e2e/**', 'tools/hooks/**', 'windows/vm/**']
   workflow_dispatch:
+# One run at a time, and GitHub keeps only the newest waiting run. A run whose commit is no longer
+# main's tip skips its build and publish too (see "Still main's tip"), so merges in quick succession
+# release once, from the last of them.
 concurrency:
   group: release
   cancel-in-progress: false
@@ -20,25 +23,50 @@ env:
   BUILDS_LOCK: /home/zakius/dev/.builds.lock
 jobs:
   release:
+    # While the RELEASE_HOLD repository variable lists unfinished tasks, a push starts nothing: the
+    # last task to land runs tools/release-hold.sh, which empties it and starts the release by hand.
+    if: github.event_name == 'workflow_dispatch' || vars.RELEASE_HOLD == ''
     runs-on: [self-hosted, oganesson]
     timeout-minutes: 1440
     steps:
+      - name: Still main's tip
+        run: |
+          cd "$MAIN"
+          git fetch -q origin main
+          if [ "$(git rev-parse origin/main)" != "$GITHUB_SHA" ]; then
+            echo "::notice::main moved past $GITHUB_SHA; the run for the newer commit releases"
+            echo SUPERSEDED=1 >> "$GITHUB_ENV"
+          fi
       - name: Main checkout at this commit
+        if: env.SUPERSEDED != '1'
         run: |
           cd "$MAIN"
           git fetch -q origin --tags
           git merge -q --ff-only "$GITHUB_SHA"
           git submodule update --init -q
       - name: Linux build and browser tests
+        if: env.SUPERSEDED != '1'
         run: cd "$MAIN" && flock "$BUILDS_LOCK" sh -c './oganesson.py build --release && ./oganesson.py test --release'
+      - name: Still main's tip, before publishing
+        if: env.SUPERSEDED != '1'
+        run: |
+          cd "$MAIN"
+          git fetch -q origin main
+          if [ "$(git rev-parse origin/main)" != "$GITHUB_SHA" ]; then
+            echo "::notice::main moved past $GITHUB_SHA; the run for the newer commit releases"
+            echo SUPERSEDED=1 >> "$GITHUB_ENV"
+          fi
       - name: Linux packages, to the repository
+        if: env.SUPERSEDED != '1'
         run: cd "$MAIN" && linux/pack.sh && linux/publish-repo.sh
       - name: Windows build and publish
         id: windows
+        if: env.SUPERSEDED != '1'
         # A Windows failure (helium-windows behind, say) doesn't hold back Linux's release.
         continue-on-error: true
         run: cd "$MAIN" && flock "$BUILDS_LOCK" ./oganesson.py build --windows && windows/publish.sh
       - name: GitHub release
+        if: env.SUPERSEDED != '1'
         env:
           GH_TOKEN: ${{ github.token }}
           WINDOWS: ${{ steps.windows.outcome }}

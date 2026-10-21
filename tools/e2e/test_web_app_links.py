@@ -80,6 +80,20 @@ def png(size):
             + chunk(b'IDAT', zlib.compress(rows)) + chunk(b'IEND', b''))
 
 
+def app_id_of(manifest_id):
+    """GenerateAppIdFromManifestId: a crx-style ID of the manifest ID's hash."""
+    return hashlib.sha256(hashlib.sha256(manifest_id.encode()).digest()).hexdigest()[:32].translate(
+        str.maketrans('0123456789abcdef', 'abcdefghijklmnop'))
+
+
+def install_app(browser, manifest_id, url):
+    """Installs the app at `url` and sets it to open in its own window."""
+    browser.pipe_call('PWA.install', manifestId=manifest_id, installUrlOrBundleUrl=url)
+    # Installed this way, an app opens in a tab until set to its own window.
+    browser.pipe_call('PWA.changeAppUserSettings', manifestId=manifest_id,
+                      displayMode='standalone')
+
+
 class WebAppTest(BrowserTest):
     """The app installed and the stubs on PATH; tests in the classes below."""
 
@@ -117,7 +131,7 @@ class WebAppTest(BrowserTest):
         cls.browser_env = {'PATH': f'{cls.stubs / "bin"}:{os.environ["PATH"]}',
                            'XDG_DATA_HOME': str(cls.stubs / 'data')}
         super().setUpClass()
-        cls.server = Server(ipv6=cls.app_host == '[::1]', routes={
+        cls.server = Server(routes={
             '/app/index.html': (200, {'Content-Type': 'text/html'}, cls.app_page),
             '/app/inside.html': (200, {'Content-Type': 'text/html'}, b'inside'),
             '/app/popup.html': (200, {'Content-Type': 'text/html'},
@@ -146,17 +160,11 @@ class WebAppTest(BrowserTest):
         cls.server.routes['/bounce'] = (302, {'Location': cls.server.url('/app/start.html', cls.app_host)}, b'')
         cls.manifest_id = cls.server.url(cls.manifest_path, cls.app_host)
         cls.install()
-        # GenerateAppIdFromManifestId: a crx-style ID of the manifest ID's hash.
-        cls.app_id = hashlib.sha256(hashlib.sha256(cls.manifest_id.encode()).digest()).hexdigest()[:32].translate(
-            str.maketrans('0123456789abcdef', 'abcdefghijklmnop'))
+        cls.app_id = app_id_of(cls.manifest_id)
 
     @classmethod
     def install(cls):
-        cls.browser.pipe_call('PWA.install', manifestId=cls.manifest_id,
-                              installUrlOrBundleUrl=cls.server.url('/app/index.html', cls.app_host))
-        # Installed this way, an app opens in a tab until set to its own window.
-        cls.browser.pipe_call('PWA.changeAppUserSettings', manifestId=cls.manifest_id,
-                              displayMode='standalone')
+        install_app(cls.browser, cls.manifest_id, cls.server.url('/app/index.html', cls.app_host))
 
     @classmethod
     def tearDownClass(cls):
@@ -941,10 +949,20 @@ class IsolatedWebAppTest(WebAppTest):
         self.assertEqual([t for t in titles if 'default browser' in t], [])
 
 
-class IdnHostTest(WebAppTest):
-    """An app on a host with a non-ASCII name; *.localhost needs no resolver."""
+class OtherHostsTest(WebAppTest):
+    """The app on a host with a non-ASCII name (*.localhost needs no
+    resolver), and on a literal IPv6 host."""
 
     app_host = 'xn--bcher-kva.localhost'
+
+    def use_ipv6_host(self):
+        """Installs the app from [::1] as well, and has the test use that."""
+        self.server = Server(type(self).server.routes, ipv6=True)
+        self.addCleanup(self.server.stop)
+        self.app_host = '[::1]'
+        self.manifest_id = self.server.url(self.manifest_path, self.app_host)
+        install_app(self.browser, self.manifest_id, self.server.url('/app/index.html', self.app_host))
+        self.app_id = app_id_of(self.manifest_id)
 
     def test_unicode_rule_on_app_site_narrows_scope(self):
         # The rule spells the host in Unicode; the app's URLs in punycode.
@@ -954,13 +972,8 @@ class IdnHostTest(WebAppTest):
         wait_for(self.opened, what='xdg-open')
         self.assertEqual(self.opened(), [self.server.url('/app/inside.html', self.app_host)])
 
-
-class Ipv6HostTest(WebAppTest):
-    """An app on a literal IPv6 host."""
-
-    app_host = '[::1]'
-
     def test_ipv6_rule_on_app_site_narrows_scope(self):
+        self.use_ipv6_host()
         # A pattern's colons start named groups unless escaped.
         self.set_rules(r'http://[\:\:1]:*/app/mail/*')
         app = self.launch_app()

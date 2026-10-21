@@ -17,6 +17,8 @@ from pathlib import Path
 from harness import WAYLAND, BrowserTest, Page, Server, wait_for
 
 IDC_BACK, IDC_FORWARD, IDC_SELECT_NEXT_TAB = 33000, 33001, 34016
+# The PDF viewer extension.
+PDF = 'mhjfbmdgcfjbbpaeojofohoefgiehjai'
 
 def tiny_pdf():
     """A one-page PDF, with a correct xref table."""
@@ -34,7 +36,9 @@ def tiny_pdf():
         len(objects) + 1, xref)
 
 
-PAGE = '<!doctype html><title>{0}</title><body style="height:2000px">{0}{1}</body>'
+# Every page counts the wheel events it gets, for handled().
+PAGE = ('<!doctype html><title>{0}</title><body style="height:2000px">{0}{1}'
+        '<script>self.wheels = 0; addEventListener("wheel", () => wheels++);</script></body>')
 # Swallows every mouse, pointer and context menu event it sees.
 CANCEL = ('<script>for (const t of ["mousedown", "mouseup", "mousemove", "pointerdown",'
           ' "pointerup", "contextmenu", "auxclick"]) addEventListener(t, e => {'
@@ -70,7 +74,10 @@ class GesturesTest(BrowserTest):
                              '/split': page('Split', '<p><a id="link" href="/b" '
                                                      'style="font-size: 40px">b</a>'),
                              '/lock': page('Lock', '<script>onclick = () =>'
-                                                   ' document.body.requestPointerLock()</script>'),
+                                                   ' document.body.requestPointerLock();'
+                                                   ' onmouseup = e => self.released ||= e.button == 2;'
+                                                   ' oncontextmenu = e => e.preventDefault()'
+                                                   '</script>'),
                              '/record': page('Record', RECORD),
                              '/record2': page('Record2', RECORD)})
         cls.server.routes['/frame'] = page('Frame', (
@@ -103,6 +110,15 @@ class GesturesTest(BrowserTest):
     def painted(page):
         # A new document takes input once it has painted.
         page.eval('new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))')
+
+    def handled(self, page):
+        """Waits until `page` gets a wheel up sent now. The browser handles
+        input in order, so all input before it is handled, a stroke's release
+        and any events it replays to the page included. With no button held,
+        and the page at its top, the wheel does nothing else."""
+        before = page.eval('wheels')
+        self.browser.xdotool('click', '4')
+        wait_for(lambda: page.eval('wheels') > before, what='the wheel up in the page')
 
     def center(self):
         return self.browser.wait_view('ContentsWebView').center
@@ -145,7 +161,14 @@ class GesturesTest(BrowserTest):
 
     def test_pdf(self):
         page = self.visit(self.server.url('/a'), self.server.url('/doc.pdf'))
-        time.sleep(1)  # the viewer loads after the document
+        # The viewer, an extension's frame, loads after the document.
+        viewer = Page(wait_for(lambda: next((t for t in self.browser.targets()
+                                             if t['type'] == 'iframe'
+                                             and t['url'].startswith(f'chrome-extension://{PDF}/')),
+                                            None), what='the PDF viewer'))
+        wait_for(lambda: viewer.eval('document.readyState') == 'complete', what='the viewer')
+        self.painted(viewer)
+        viewer.close()
         self.stroke_left()
         wait_for(lambda: page.eval('location.href') == self.server.url('/a'), what='back to /a')
 
@@ -168,11 +191,12 @@ class GesturesTest(BrowserTest):
         self.assertEqual(page.eval('location.href'), self.server.url('/b'))
 
     def test_ctrl_bypasses(self):
-        page = self.visit(self.server.url('/a'), self.server.url('/b'))
+        # The page gets the right button's events, and opens no menu.
+        page = self.visit(self.server.url('/a'), self.server.url('/record'))
         self.stroke_left('ctrl')
-        time.sleep(1)
-        self.browser.key('Escape')  # a context menu the bypassed press may open
-        self.assertEqual(page.eval('location.href'), self.server.url('/b'))
+        self.handled(page)
+        self.assertIn('mouseup old', page.eval('seen'))
+        self.assertEqual(page.eval('location.href'), self.server.url('/record'))
 
     def test_rocker(self):
         # Each left click with right held runs the command again.
@@ -198,7 +222,8 @@ class GesturesTest(BrowserTest):
         self.browser.xdotool('mousemove', str(x), str(y), 'click', '1')
         wait_for(lambda: page.eval('!!document.pointerLockElement'), what='the pointer lock')
         self.stroke_left()
-        time.sleep(1)
+        self.handled(page)
+        self.assertTrue(page.eval('self.released'), 'the page got the release')
         self.assertEqual(page.eval('location.href'), self.server.url('/lock'))
         page.eval('document.exitPointerLock()')
 
@@ -212,8 +237,9 @@ class GesturesTest(BrowserTest):
         wait_for(lambda: second.eval('location.href') == self.server.url('/a') and
                  second.eval('document.readyState') == 'complete', what='window 2')
         second.call('Page.navigate', url=self.server.url('/cancel'))
-        wait_for(lambda: second.eval('document.title') == 'Cancel', what='/cancel')
-        time.sleep(1)
+        wait_for(lambda: second.eval('document.title') == 'Cancel' and
+                 second.eval('document.readyState') == 'complete', what='/cancel')
+        self.painted(second)
         self.stroke_left()
         wait_for(lambda: second.eval('location.href') == self.server.url('/a'),
                  what='back in window 2')
@@ -236,7 +262,7 @@ class GesturesTest(BrowserTest):
                     by_window.setdefault(view.widget, []).append(view)
             return next((v for v in by_window.values() if len(v) == 2), None)
 
-        panes = wait_for(split_panes, what='two panes')
+        panes = self.browser.wait_settled(split_panes, what='two panes')
         right = wait_for(lambda: next((t for t in self.browser.targets()
                                        if t['id'] not in before and
                                        t['url'] == self.server.url('/b')), None),
@@ -245,9 +271,9 @@ class GesturesTest(BrowserTest):
         wait_for(lambda: right.eval('location.href') == self.server.url('/b'), what='/b loaded')
         x, y = min(panes, key=lambda p: p.bounds['x']).center
         self.browser.xdotool('mousemove', str(x), str(y), 'click', '1')
-        wait_for(lambda: any(v.widget == panes[0].widget and v['Text'].endswith('/split')
-                             for v in self.browser.views('OmniboxViewViews')),
-                 what='the left pane to take focus')
+        # Not the omnibox's widget: UI DevTools numbers nodes anew on each
+        # query, so a menu closing in between renumbers the window.
+        wait_for(lambda: left.eval('document.hasFocus()'), what='the left pane to take focus')
         self.browser.xdotool('mousedown', '3')
         for step in range(1, 21):
             self.browser.xdotool('mousemove', str(x - step * 8), str(y))
@@ -272,8 +298,9 @@ class GesturesTest(BrowserTest):
         # The press opens no tab menu, and the release selects no other tab.
         page = self.visit(self.server.url('/a'), self.server.url('/b'))
         before = self.active()['id']
-        tab = max((v for v in self.browser.views('Tab') if v.visible),
-                  key=lambda v: v.bounds['x'])
+        tab = self.browser.wait_settled(
+            lambda: max((v for v in self.browser.views('Tab') if v.visible),
+                        key=lambda v: v.bounds['x'], default=None), what='the last tab')
         self.stroke_left(start=tab.center)
         wait_for(lambda: page.eval('location.href') == self.server.url('/a'), what='back to /a')
         self.assertEqual(self.active()['id'], before)
@@ -321,8 +348,8 @@ class GesturesTest(BrowserTest):
         interrupt()
         self.drag(x, y, -80, 0)
         self.browser.xdotool('mouseup', '3')
-        time.sleep(1)
         then()
+        self.handled(page)
         self.assertEqual(self.browser.menus(), [])
         self.assertEqual(page.eval('location.href'), record)
         self.assertEqual(page.eval('seen'), [])
@@ -336,12 +363,18 @@ class GesturesTest(BrowserTest):
         opened = []
 
         def open_window():
+            page = Page(next(t for t in self.browser.targets() if t['type'] == 'page'))
             opened.append(self.browser.browser_call(
                 'Target.createTarget', url='about:blank', newWindow=True)['targetId'])
-            time.sleep(1)
+            wait_for(lambda: not page.eval('document.hasFocus()'), what='the page to lose focus')
+            page.close()
 
-        self.assert_cancelled(open_window, lambda: self.browser.browser_call(
-            'Target.closeTarget', targetId=opened[0]))
+        def close_window():
+            self.browser.browser_call('Target.closeTarget', targetId=opened[0])
+            wait_for(lambda: all(t['id'] != opened[0] for t in self.browser.targets()),
+                     what='the window to close')
+
+        self.assert_cancelled(open_window, close_window)
 
     def test_capture_theft_cancels(self):
         # The app menu (Alt+F) takes the pointer.
@@ -399,10 +432,10 @@ class GesturesTest(BrowserTest):
     def test_shift_right_click_through_replay(self):
         # Helium's Shift+right-click shows the browser's menu on a page that
         # cancels contextmenu; the replayed press keeps Shift.
-        self.visit(self.server.url('/a'), self.server.url('/cancel'))
+        page = self.visit(self.server.url('/a'), self.server.url('/cancel'))
         x, y = self.center()
         self.browser.xdotool('mousemove', str(x), str(y), 'click', '3')
-        time.sleep(1)
+        self.handled(page)
         self.assertEqual(self.browser.menus(), [])
         self.browser.xdotool('keydown', 'shift', 'click', '3', 'keyup', 'shift')
         wait_for(lambda: self.browser.menus(), what='the context menu')
@@ -416,9 +449,7 @@ class GesturesTest(BrowserTest):
         self.browser.xdotool('mousemove', str(x), str(y), 'mousedown', '3')
         page.eval('old.outerHTML = \'<div id="new" style="position:fixed;inset:0"></div>\'')
         self.browser.xdotool('mouseup', '3')
-        wait_for(lambda: any(e.startswith('mouseup') for e in page.eval('seen')),
-                 what='the replayed click')
-        time.sleep(0.3)
+        self.handled(page)
         self.assertEqual(page.eval('seen'), ['mousedown new', 'contextmenu new', 'mouseup new',
                                              'auxclick new'])
 
@@ -433,9 +464,7 @@ class GesturesTest(BrowserTest):
                  page.eval('document.readyState') == 'complete', what='/record2')
         self.painted(page)
         self.browser.xdotool('mouseup', '3')
-        wait_for(lambda: any(e.startswith('mouseup') for e in page.eval('seen')),
-                 what='the replayed click')
-        time.sleep(0.3)
+        self.handled(page)
         self.assertEqual(page.eval('seen'), ['mousedown old', 'contextmenu old', 'mouseup old',
                                              'auxclick old'])
         self.assertEqual(page.eval('Object.keys(localStorage)'), ['/record2'])

@@ -2,7 +2,7 @@
 dnf put a new file at the binary's path, also for a rebuild on the same Chromium version; within
 seconds the app menu button shows "Update", and its "Relaunch to update" restarts the browser on
 the new file with its windows, tabs and back history, also with every switch that stops saving
-history on (UpdatePromptNoHistoryTest).
+history on (step 2, after a second upgrade).
 
 The browser runs from a folder of links to the build's files, with its binary hard-linked, so the
 test can replace the binary as a package upgrade does without touching the build.
@@ -72,19 +72,42 @@ class UpdatePromptTest(BrowserTest):
                 if v.visible and 'Update' in v.props.values()]
 
     def test_1_relaunch_after_upgrade(self):
-        a, b, c = (self.server.url(p) for p in ('/a', '/b', '/c'))
+        self.relaunch_after_upgrade('?1')
+
+    def test_2_relaunch_with_history_off(self):
+        """The session that relaunch restores isn't history: it comes back
+        with browsing and download history not saved and closed tabs not
+        kept."""
+        switches = {'history.saving_disabled': True, 'oganesson.downloads.saving_disabled': True,
+                    'oganesson.history.keep_closed_tabs': False}
+        settings = self.browser.new_tab('chrome://settings/privacy')
+        wait_for(lambda: settings.eval('!!chrome.settingsPrivate'), what='settingsPrivate')
+        for name, value in switches.items():
+            settings.eval(f'chrome.settingsPrivate.setPref({json.dumps(name)}, {json.dumps(value)})')
+        self.browser.close_target(settings)
+        self.relaunch_after_upgrade('?2')
+        # The switches were on in the profile the relaunched browser runs on.
+        prefs = json.loads((self.browser.profile / 'Default/Preferences').read_text())
+        self.assertTrue(prefs['history']['saving_disabled'])
+        self.assertTrue(prefs['oganesson']['downloads']['saving_disabled'])
+        self.assertFalse(prefs['oganesson']['history']['keep_closed_tabs'])
+
+    def relaunch_after_upgrade(self, query):
+        """Pages a, then b in one tab, c in a second window, all with `query`;
+        an upgrade, then Relaunch to update brings them back."""
+        a, b, c = (self.server.url(p + query) for p in ('/a', '/b', '/c'))
         tab = self.browser.new_tab(a)
         wait_for(lambda: tab.eval('document.title') == 'a', what='page a')
         tab.eval(f'location.href = {b!r}')
-        wait_for(lambda: self.browser.page('/b'), what='page b')
+        wait_for(lambda: self.browser.page(b), what='page b')
         self.browser.browser_call('Target.createTarget', url=c, newWindow=True)
-        wait_for(lambda: self.browser.page('/c'), what='page c in a new window')
+        wait_for(lambda: self.browser.page(c), what='page c in a new window')
         self.assertEqual(self.update_chips(), [], 'an update chip before any upgrade')
 
         upgrade(self.browser.binary)
         # The poller looks ten seconds after the install folder changes.
-        chip = wait_for(lambda: next(iter(self.update_chips()), None), timeout=60,
-                        what='the Update chip')
+        chip = self.browser.wait_settled(lambda: next(iter(self.update_chips()), None),
+                                         timeout=60, what='the Update chip')
         self.browser.click_view(chip)
         item = wait_for(lambda: next((v for menu in self.browser.menus() for group in menu
                                       for v in group
@@ -95,8 +118,8 @@ class UpdatePromptTest(BrowserTest):
 
         # Both windows, the tab's back history, and no chip: the new process
         # runs the new file.
-        restored = self.browser.page('/b', timeout=30)
-        self.browser.page('/c', timeout=30)
+        restored = self.browser.page(b, timeout=30)
+        self.browser.page(c, timeout=30)
         windows = {self.browser.browser_call('Browser.getWindowForTarget',
                                              targetId=t['id'])['windowId']
                    for t in self.browser.targets()
@@ -105,17 +128,3 @@ class UpdatePromptTest(BrowserTest):
         restored.eval('history.back()')
         wait_for(lambda: restored.eval('location.href') == a, what='back to page a')
         self.assertEqual(self.update_chips(), [], 'an update chip after the relaunch')
-        if self.prefs:
-            # The switches were on in the profile the relaunched browser runs on.
-            prefs = json.loads((self.browser.profile / 'Default/Preferences').read_text())
-            self.assertTrue(prefs['history']['saving_disabled'])
-            self.assertTrue(prefs['oganesson']['downloads']['saving_disabled'])
-            self.assertFalse(prefs['oganesson']['history']['keep_closed_tabs'])
-
-
-class UpdatePromptNoHistoryTest(UpdatePromptTest):
-    """The same with browsing and download history not saved and closed tabs not kept: the
-    session that relaunch restores isn't history."""
-    prefs = {'history': {'saving_disabled': True},
-             'oganesson': {'downloads': {'saving_disabled': True},
-                           'history': {'keep_closed_tabs': False}}}
