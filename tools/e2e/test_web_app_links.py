@@ -569,6 +569,23 @@ class WebAppLinksTest(WebAppTest):
         self.assertEqual(self.opened(), [self.server.url('/out.html?open')])
         self.assertEqual(self.out_tabs(), [])
 
+    def test_handed_back_link_opens_in_tab(self):
+        # oganesson as the default browser gets the app window's link from
+        # xdg-open: a second process passes it on while the app window is the
+        # last active one. It opens in a tab of the tabbed window.
+        tabbed = next(t for t in self.browser.targets() if t['type'] == 'page')
+        app = self.launch_app()
+        url = self.server.url('/out.html?handed')
+        subprocess.run([str(self.browser.binary), f'--user-data-dir={self.browser.profile}',
+                        f'--ozone-platform={"wayland" if self.browser.labwc else "x11"}', url],
+                       env=self.browser.env(), timeout=60, check=True)
+        tab = self.browser.page('/out.html?handed')
+        self.addCleanup(self.browser.close_target, tab)
+        window = lambda t: self.browser.browser_call('Browser.getWindowForTarget',
+                                                     targetId=t)['windowId']
+        self.assertEqual(window(tab.id), window(tabbed['id']))
+        self.assertNotEqual(window(tab.id), window(app.id))
+
     def test_popup_link_stays_in_popup(self):
         # A sign-in popup: its links stay in it, opener and all.
         app = self.launch_app()

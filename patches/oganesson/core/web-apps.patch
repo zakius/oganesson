@@ -167,6 +167,27 @@
    int singleton_index = -1;
  
    std::unique_ptr<web_app::NavigationCapturingProcess> app_navigation =
+--- a/chrome/browser/ui/startup/startup_browser_creator_impl.cc
++++ b/chrome/browser/ui/startup/startup_browser_creator_impl.cc
+@@ -217,6 +217,18 @@ BrowserWindowInterface* GetExistingBrows
+   }
+ #endif  // BUILDFLAG(IS_LINUX)
+ 
++  // oganesson: a web app's window hands its links to the default browser, so
++  // the last active window can be one; its links go to a tab of the last
++  // active tabbed window, also where the workspace is unknown (Wayland).
++  if (workspace_browser && workspace_browser->GetType() !=
++                               BrowserWindowInterface::Type::TYPE_NORMAL) {
++    if (BrowserWindowInterface* tabbed =
++            ProfileBrowserCollection::GetForProfile(profile)
++                ->FindTabbedBrowser()) {
++      workspace_browser = tabbed;
++    }
++  }
++
+   return workspace_browser;
+ }
+ 
 --- a/chrome/browser/ui/web_applications/BUILD.gn
 +++ b/chrome/browser/ui/web_applications/BUILD.gn
 @@ -151,6 +151,7 @@ source_set("impl") {
