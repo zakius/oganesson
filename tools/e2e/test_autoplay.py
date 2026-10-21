@@ -15,22 +15,20 @@ play() start, also after a same-document (SPA) navigation once the click's
 transient activation has expired. Block audio is Chromium's policy: muted
 plays, sound doesn't. Allow audio and video plays. An allow exception for
 one site overrides the default. The settings page's three choices set the
-default.
+default. Tests of another choice or an exception set it as the settings page
+does, for the pages they load next, and set it back.
 """
 
 import io
 import json
 import shutil
 import tempfile
-import time
 import unittest
 import wave
 from pathlib import Path
 
 from harness import BrowserTest, Page, Server, wait_for
 from test_firefox_sync import FIND
-
-ALLOW, BLOCK, ASK = 1, 2, 3  # ContentSetting values in Preferences
 
 
 def silence(seconds=10):
@@ -87,11 +85,8 @@ ROUTES = {
 
 
 class AutoplayTest(BrowserTest):
-    """A browser with the Autoplay setting given by `setting` (None: the
-    default) and `exceptions` (pattern: setting)."""
+    """A browser with the default Autoplay setting."""
 
-    setting = None
-    exceptions = {}
     # The harness's wait for uBlock Origin evaluates script in its background
     # page with a user gesture, which its messages then pass on to new pages,
     # and that mustn't count as input there.
@@ -103,13 +98,6 @@ class AutoplayTest(BrowserTest):
     @classmethod
     def setUpClass(cls):
         cls.server = Server(ROUTES)
-        content = {}
-        if cls.setting:
-            content['default_content_setting_values'] = {'autoplay': cls.setting}
-        if cls.exceptions:
-            content['content_settings'] = {'exceptions': {'autoplay': {
-                f'{pattern},*': {'setting': value} for pattern, value in cls.exceptions.items()}}}
-        cls.prefs = {'profile': content}
         super().setUpClass()
 
     @classmethod
@@ -166,9 +154,38 @@ class AutoplayTest(BrowserTest):
             page.call('Input.dispatchKeyEvent', type=kind, key='a', code='KeyA', text='a',
                       windowsVirtualKeyCode=65)
 
+    @staticmethod
+    def default(page):
+        """The default setting, from a settings page: 'allow', 'ask' or 'block'."""
+        return page.eval("import('chrome://resources/js/cr.js').then(cr => cr.sendWithPromise("
+                         "'getDefaultValueForContentType', 'autoplay')).then(v => v.setting)")
+
+    def set_autoplay(self, value, pattern=None):
+        """Sets the default to `value` ('allow', 'ask' or 'block'), or with
+        `pattern` adds an exception, through the settings page's handler; the
+        test's cleanup sets the default back or removes the exception."""
+        def send(*message):
+            page = self.browser.new_tab('chrome://settings/content/autoplay')
+            try:
+                wait_for(lambda: page.eval('typeof chrome.send') == 'function',
+                         what='the settings page')
+                page.eval(f'chrome.send({json.dumps(message[0])}, {json.dumps(message[1:])})')
+                # The handler takes messages in order: once it answers this,
+                # it has stored the setting.
+                self.default(page)
+            finally:
+                self.browser.close_target(page)
+        if pattern:
+            send('setCategoryPermissionForPattern', pattern, '', 'autoplay', value, False)
+            self.addCleanup(send, 'resetCategoryPermissionForPattern', pattern, '', 'autoplay',
+                            False)
+        else:
+            send('setDefaultValueForContentType', 'autoplay', value)
+            self.addCleanup(send, 'setDefaultValueForContentType', 'autoplay', 'block')
+
 
 class BlockAudioAndVideoTest(AutoplayTest):
-    """The default."""
+    """The default, and the other choices set by a test."""
 
     def test_autoplay_on_load_blocked(self):
         page = self.open('/autoplay.html')
@@ -220,15 +237,30 @@ class BlockAudioAndVideoTest(AutoplayTest):
         self.assertEqual(page.eval('playNew()', gesture=False), 'NotAllowedError')
         self.click(page)
         self.assertTrue(page.eval('location.search', gesture=False), 'the URL changed')
-        # Past the 5 s of transient activation: only the document's sticky
-        # activation is left.
-        time.sleep(6)
+        # The click's transient activation used up, as by a popup, rather
+        # than waited out (5 s): only the document's sticky activation is left.
+        page.eval('open("about:blank", "", "popup").close()', gesture=False)
         self.assertFalse(page.eval('navigator.userActivation.isActive', gesture=False))
         self.assertEqual(page.eval('playNew()', gesture=False), 'played')
 
-    def default(self, page):
-        return page.eval("import('chrome://resources/js/cr.js').then(cr => cr.sendWithPromise("
-                         "'getDefaultValueForContentType', 'autoplay')).then(v => v.setting)")
+    def test_block_audio_blocks_unmuted_autoplay(self):
+        self.set_autoplay('ask')
+        self.assert_blocked(self.open('/autoplay.html'))
+
+    def test_block_audio_plays_muted_autoplay(self):
+        self.set_autoplay('ask')
+        self.assert_plays(self.open('/muted.html'))
+
+    def test_allow_plays_autoplay(self):
+        self.set_autoplay('allow')
+        page = self.open('/autoplay.html')
+        self.assert_plays(page)
+        self.assertEqual(page.eval('audioState()', gesture=False), 'running')
+
+    def test_allow_exception_plays_on_its_site_only(self):
+        self.set_autoplay('allow', pattern='[*.]localhost')
+        self.assert_plays(self.open('/autoplay.html', host='localhost'))
+        self.assert_blocked(self.open('/autoplay.html'))
 
     def test_site_settings_row(self):
         page = self.browser.new_tab('chrome://settings/content')
@@ -321,35 +353,6 @@ class ExtensionScriptTest(AutoplayTest):
         wait_for(lambda: page.eval('document.visibilityState', gesture=False) == 'visible',
                  what='the tab to show')
         self.assert_blocked(page)
-
-
-class BlockAudioTest(AutoplayTest):
-    setting = ASK
-
-    def test_unmuted_autoplay_blocked(self):
-        self.assert_blocked(self.open('/autoplay.html'))
-
-    def test_muted_autoplay_plays(self):
-        self.assert_plays(self.open('/muted.html'))
-
-
-class AllowTest(AutoplayTest):
-    setting = ALLOW
-
-    def test_autoplay_plays(self):
-        page = self.open('/autoplay.html')
-        self.assert_plays(page)
-        self.assertEqual(page.eval('audioState()', gesture=False), 'running')
-
-
-class ExceptionTest(AutoplayTest):
-    exceptions = {'[*.]localhost': ALLOW}
-
-    def test_allowed_site_plays(self):
-        self.assert_plays(self.open('/autoplay.html', host='localhost'))
-
-    def test_other_site_blocked(self):
-        self.assert_blocked(self.open('/autoplay.html'))
 
 
 if __name__ == '__main__':
