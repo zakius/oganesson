@@ -23,6 +23,9 @@ env:
   BUILDS_LOCK: /home/zakius/dev/.builds.lock
 jobs:
   release:
+    # While the RELEASE_HOLD repository variable lists unfinished tasks, a push starts nothing: the
+    # last task to land runs tools/release-hold.sh, which empties it and starts the release by hand.
+    if: github.event_name == 'workflow_dispatch' || vars.RELEASE_HOLD == ''
     runs-on: [self-hosted, oganesson]
     timeout-minutes: 1440
     steps:

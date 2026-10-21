@@ -77,7 +77,7 @@ A build takes the checkout's lock. To keep a build running after the terminal cl
 
 ## Releasing
 
-A push to main that changes the browser releases it: `.github/workflows/release.yml` runs these steps on the build machine's runner, then posts a [GitHub release](https://github.com/zakius/oganesson/releases) with the packages and notes from the commits (dubna's [Releases](https://github.com/zakius/dubna#releases)). It can also be started by hand. The steps:
+A push to main that changes the browser releases it: `.github/workflows/release.yml` runs these steps on the build machine's runner, then posts a [GitHub release](https://github.com/zakius/oganesson/releases) with the packages and notes from the commits (dubna's [Releases](https://github.com/zakius/dubna#releases)). It can also be started by hand. When several tasks are landing at once, `tools/release-hold.sh add NAME...` holds push releases until each runs `tools/release-hold.sh done NAME` after landing; the last one starts the release. A run whose commit main has already moved past skips its build and publish. The steps:
 
 ```sh
 ./oganesson.py build --release
