@@ -311,18 +311,23 @@ class View:
 
 
 class Xvfb:
-    """A private X display. Picks a free number, so parallel runs don't collide."""
+    """A private X display. Xvfb picks a free number itself (-displayfd), so
+    parallel runs don't collide, and writes it once it takes clients."""
 
     def __init__(self):
-        for number in range(90, 200):
-            if not (Path(f'/tmp/.X11-unix/X{number}').exists() or
-                    Path(f'/tmp/.X{number}-lock').exists()):
-                break
-        self.display = f':{number}'
+        reader, writer = os.pipe()
         self.proc = subprocess.Popen(
-            ['Xvfb', self.display, '-screen', '0', '1400x900x24', '-nolisten', 'tcp'],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, preexec_fn=die_with_harness)
-        wait_for(lambda: Path(f'/tmp/.X11-unix/X{number}').exists(), what='Xvfb')
+            ['Xvfb', '-displayfd', str(writer), '-screen', '0', '1400x900x24', '-nolisten', 'tcp'],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, pass_fds=(writer,),
+            preexec_fn=die_with_harness)
+        os.close(writer)
+        with os.fdopen(reader) as numbers:
+            if not select.select([numbers], [], [], 15)[0]:
+                raise AssertionError('timed out after 15s waiting for Xvfb')
+            number = numbers.readline().strip()
+        if not number:
+            raise AssertionError(f'Xvfb exited with {self.proc.wait()}')
+        self.display = f':{number}'
 
     def stop(self):
         self.proc.terminate()
