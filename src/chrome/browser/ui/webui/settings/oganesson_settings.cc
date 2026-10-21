@@ -8,6 +8,7 @@
 
 #include "build/build_config.h"
 #include "chrome/browser/ui/webui/settings/autoplay_settings.h"
+#include "chrome/browser/ui/webui/settings/browser_traffic_handler.h"
 #include "chrome/browser/ui/webui/settings/history_saving_settings.h"
 #include "chrome/browser/ui/webui/settings/mouse_gestures_settings.h"
 #include "chrome/browser/ui/webui/settings/omnibox_suggestions_settings.h"
@@ -27,6 +28,9 @@ void AddOganessonSettings(content::WebUI* web_ui,
                           content::WebUIDataSource* html_source,
                           Profile* profile) {
   AddAutoplayStrings(html_source);
+  // Privacy and security > Browser traffic, in place of Helium's services.
+  web_ui->AddMessageHandler(std::make_unique<BrowserTrafficHandler>(profile));
+  BrowserTrafficHandler::AddStrings(html_source);
   AddHistorySavingStrings(html_source);
   // Renames the shortcuts page.
   AddMouseGestureStrings(html_source);

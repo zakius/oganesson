@@ -1,0 +1,880 @@
+# Browser traffic (dubna's components/browser_traffic) decides what the browser downloads by itself
+# and which way it goes: direct to its source, or through the user's helium-services server. Its
+# settings are in Local State. Helium's helpers defer to it: ShouldAccess* and the Get*URL helpers
+# read the rows and the server, and never fall back to Helium's host or to a direct source when a
+# proxied row has no valid server. The profile's helium.services.* prefs stay registered; the
+# monitor (src/chrome/browser/browser_traffic) bumps their schema version on every change, so
+# Helium's observers re-read. Component updates check the CRLSet, the PKI metadata (Chrome Root
+# Store, CT log list) and Widevine, one update check per row, each with its row's route, and send
+# no pings. Extensions, uBO's lists (through its managed storage's autoUpdate) and spellcheck
+# dictionaries update by themselves only while their row is Automatic. Bangs get an Update now.
+# The app menu badge for Helium's schema notice shows when automatic certificate data is more than
+# a day old, and its item opens the Browser traffic page.
+--- a/chrome/app/generated_resources.grd
++++ b/chrome/app/generated_resources.grd
+@@ -7025,7 +7025,7 @@
+         Update error
+       </message>
+       <message name="IDS_COMPONENTS_SVC_STATUS_ERROR_HELIUM_SERVICES" desc="Service Status">
+-        Component updates are disabled. See Helium services in settings.
++        Component updates are idle. See Browser traffic in settings.
+       </message>
+       <message name="IDS_COMPONENTS_UNKNOWN" desc="Service Status">
+         Unknown
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -844,6 +844,8 @@
+     "firefox_about_urls.cc",
+     "firefox_about_urls.h",
+     "browser_process_impl.cc",
++    "browser_traffic/browser_traffic_monitor.cc",
++    "browser_traffic/browser_traffic_monitor.h",
+     "chrome_browser_field_trials.cc",
+     "chrome_browser_interface_binders.cc",
+     "chrome_browser_interface_binders.h",
+@@ -1127,6 +1129,7 @@
+     "//components/blocked_content",
+     "//components/breadcrumbs/core",
+     "//components/breadcrumbs/core:status",
++    "//components/browser_traffic",
+     "//components/browser_actuator/public",
+     "//components/browser_apis/tab_drag/sessions",
+     "//components/browser_apis/tab_drag/sessions:impl",
+--- a/chrome/browser/chrome_browser_main.cc
++++ b/chrome/browser/chrome_browser_main.cc
+@@ -34,6 +34,7 @@
+ #include "chrome/browser/browser_features.h"
+ #include "chrome/browser/browser_process.h"
+ #include "chrome/browser/browser_process_impl.h"
++#include "chrome/browser/browser_traffic/browser_traffic_monitor.h"
+ #include "chrome/browser/chrome_browser_main_extra_parts.h"
+ #include "chrome/browser/component_updater/registration.h"
+ #include "chrome/browser/crash_upload_list/helium_crash_reporting.h"
+@@ -1310,6 +1311,7 @@
+   }
+ 
+   helium::InitializeCrashReportingMode();
++  browser_traffic::SetLocalState(local_state);
+ 
+ #if !BUILDFLAG(IS_CHROMEOS)
+   std::optional<std::string> managed_by =
+@@ -1741,6 +1743,7 @@
+   }
+ 
+   browser_process_->browser_policy_connector()->OnBrowserStarted();
++  browser_traffic::StartMonitor();
+ 
+ #if BUILDFLAG(ENABLE_PROCESS_SINGLETON)
+   // Allow ProcessSingleton to process messages.
+@@ -2260,6 +2263,8 @@
+   synthetic_trial_syncer_.reset();
+ 
+   restart_mode_ = browser_shutdown::ShutdownPreThreadsStop();
++  // Before the component updater and the profiles go.
++  browser_traffic::StopMonitor();
+   browser_process_->StartTearDown();
+ 
+   publisher_host_factory_resetter_.reset();
+@@ -2303,6 +2308,7 @@
+   // Since we use |browser_process_|'s local state for this call, it must be
+   // done before |browser_process_| is released.
+   metrics::Shutdown(browser_process_->local_state());
++  browser_traffic::SetLocalState(nullptr);
+ 
+   profile_init_manager_.reset();
+ 
+--- a/chrome/browser/component_updater/chrome_component_updater_configurator.cc
++++ b/chrome/browser/component_updater/chrome_component_updater_configurator.cc
+@@ -62,26 +62,6 @@
+ namespace component_updater {
+ namespace {
+ 
+-PrefService* GetProfilePrefs() {
+-  // Browser process and profile manager are usually
+-  // not null, but they may be during tests.
+-  if (!g_browser_process) {
+-    return nullptr;
+-  }
+-
+-  ProfileManager* pm = g_browser_process->profile_manager();
+-  if (!pm) {
+-    return nullptr;
+-  }
+-
+-  Profile* profile = pm->GetLastUsedProfileIfLoaded();
+-  if (!profile) {
+-    return nullptr;
+-  }
+-
+-  return profile->GetPrefs();
+-}
+-
+ class ChromeConfigurator : public update_client::Configurator {
+  public:
+   ChromeConfigurator(const base::CommandLine* cmdline,
+@@ -94,6 +74,8 @@
+   base::TimeDelta UpdateDelay() const override;
+   std::vector<GURL> UpdateUrl() const override;
+   std::vector<GURL> PingUrl() const override;
++  std::vector<GURL> UpdateUrlFor(
++      const std::vector<std::string>& ids) const override;
+   std::string GetProdId() const override;
+   base::Version GetBrowserVersion() const override;
+   std::string GetChannel() const override;
+@@ -182,14 +164,44 @@
+   return configurator_impl_.UpdateDelay();
+ }
+ 
++// oganesson: by component, UpdateUrlFor().
+ std::vector<GURL> ChromeConfigurator::UpdateUrl() const {
+   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+-  return {helium::GetComponentUpdateURL(GetProfilePrefs())};
++  return {};
+ }
+ 
++// oganesson: no pings, on either route.
+ std::vector<GURL> ChromeConfigurator::PingUrl() const {
+   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+-  return {helium::GetComponentUpdateURL(GetProfilePrefs())};
++  return {};
++}
++
++// oganesson: the components' row of browser traffic decides: Google's update
++// server, the user's server, or nothing while that is unset. Only component
++// update checks go direct to update.googleapis.com: the split literal keeps
++// domain substitution from rewriting it, and component_updater_url_constants
++// stays blocked (trk:). CrxUpdateService checks each row on its own.
++std::vector<GURL> ChromeConfigurator::UpdateUrlFor(
++    const std::vector<std::string>& ids) const {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  const PrefService* local_state = browser_traffic::GetLocalState();
++  const std::optional<browser_traffic::Row> row =
++      ids.empty() ? std::nullopt : browser_traffic::RowForComponent(ids[0]);
++  if (!local_state || !row ||
++      std::ranges::any_of(ids, [&](const std::string& id) {
++        return browser_traffic::RowForComponent(id) != row;
++      })) {
++    return {};
++  }
++  if (browser_traffic::GetRoute(*local_state, *row) ==
++      browser_traffic::Route::kDirect) {
++    return {GURL("https://update.googleapis." "com/service/update2/json")};
++  }
++  if (std::optional<GURL> url =
++          browser_traffic::GetProxyURL(*local_state, *row, "com")) {
++    return {*url};
++  }
++  return {};
+ }
+ 
+ std::string ChromeConfigurator::GetProdId() const {
+--- a/chrome/browser/extensions/extension_service.cc
++++ b/chrome/browser/extensions/extension_service.cc
+@@ -149,6 +149,24 @@
+ // Wait this long after an extensions becomes idle before updating it.
+ constexpr base::TimeDelta kUpdateIdleDelay = base::Seconds(5);
+ 
++// oganesson: what uBO's managed storage holds of browser traffic
++// (storage_frontend.cc): uBO reads it when it starts, so a change reloads it.
++std::string UBlockManagedState(const PrefService& prefs) {
++  const PrefService* local_state = browser_traffic::GetLocalState();
++  if (!local_state) {
++    return std::string();
++  }
++  const browser_traffic::Row row = browser_traffic::Row::kContentBlocker;
++  return base::StrCat(
++      {browser_traffic::GetRoute(*local_state, row) ==
++               browser_traffic::Route::kProxy
++           ? helium::GetUBlockAssetsURL(prefs).spec()
++           : "direct",
++       browser_traffic::FetchesAutomatically(*local_state, row)
++           ? " automatic"
++           : " on request"});
++}
++
+ // IDs of component extensions that have been obsoleted and need to be
+ // uninstalled.
+ // Note: We preserve at least one entry here for continued testing coverage.
+@@ -217,7 +235,7 @@
+       ready_(ready),
+       updater_(ExtensionUpdater::Get(profile)),
+       component_loader_(ComponentLoader::Get(profile_)),
+-      can_access_ublock_assets_(helium::ShouldAccessUBlockAssets(*profile_->GetPrefs())),
++      ublock_managed_state_(UBlockManagedState(*profile_->GetPrefs())),
+       error_controller_(error_controller),
+       external_install_manager_(ExternalInstallManager::Get(profile)),
+       extension_registrar_delegate_(
+@@ -311,12 +329,12 @@
+     return;
+   }
+ 
+-  bool has_permission_now = helium::ShouldAccessUBlockAssets(*profile_->GetPrefs());
+-  if (can_access_ublock_assets_ == has_permission_now) {
++  std::string state = UBlockManagedState(*profile_->GetPrefs());
++  if (ublock_managed_state_ == state) {
+     return;
+   }
+ 
+-  can_access_ublock_assets_ = has_permission_now;
++  ublock_managed_state_ = std::move(state);
+ 
+   for (int seconds : {0, 5}) {
+     content::GetUIThreadTaskRunner({base::TaskPriority::BEST_EFFORT})->PostDelayedTask(
+--- a/chrome/browser/extensions/extension_service.h
++++ b/chrome/browser/extensions/extension_service.h
+@@ -363,7 +363,8 @@
+   // Used in test to ensure the service's shutdown method has been called.
+   bool is_shut_down_executed_ = false;
+ 
+-  bool can_access_ublock_assets_;
++  // oganesson: UBlockManagedState() in extension_service.cc.
++  std::string ublock_managed_state_;
+ 
+   // The controller for the UI that alerts the user about any blocklisted
+   // extensions. Not owned.
+--- a/chrome/browser/extensions/updater/extension_updater.cc
++++ b/chrome/browser/extensions/updater/extension_updater.cc
+@@ -93,6 +93,15 @@
+ 
+ bool g_skip_scheduled_checks_for_tests = false;
+ 
++// oganesson: browser traffic's Extensions row. On request, only installs and
++// Update on the extensions page check.
++bool ChecksAutomatically() {
++  const PrefService* local_state = browser_traffic::GetLocalState();
++  return !local_state ||
++         browser_traffic::FetchesAutomatically(
++             *local_state, browser_traffic::Row::kExtensions);
++}
++
+ bool g_force_use_update_service_for_tests = false;
+ 
+ // When we've computed a days value, we want to make sure we don't send a
+@@ -232,7 +241,9 @@
+   alive_ = true;
+   // Check soon, and set up the first delayed check.
+   if (!g_skip_scheduled_checks_for_tests) {
+-    CheckSoon();
++    if (ChecksAutomatically()) {
++      CheckSoon();
++    }
+     ScheduleNextCheck();
+   }
+ 
+@@ -241,7 +252,11 @@
+   helium::ConfigurePrefChangeRegistrarFor(
+     prefs::kHeliumExtProxyEnabled, pref_change_registrar_,
+     base::BindRepeating(
+-        &ExtensionUpdater::CheckSoon,
++        [](ExtensionUpdater* updater) {
++          if (ChecksAutomatically()) {
++            updater->CheckSoon();
++          }
++        },
+         base::Unretained(this))
+   );
+ }
+@@ -282,7 +297,9 @@
+   if (!alive_) {
+     return;
+   }
+-  CheckNow(CheckParams());
++  if (ChecksAutomatically()) {
++    CheckNow(CheckParams());
++  }
+   ScheduleNextCheck();
+ }
+ 
+--- a/chrome/browser/prefs/browser_prefs.cc
++++ b/chrome/browser/prefs/browser_prefs.cc
+@@ -64,6 +64,7 @@
+ #include "chrome/browser/prefs/chrome_pref_service_factory.h"
+ #include "chrome/browser/prefs/incognito_mode_prefs.h"
+ #include "chrome/browser/prefs/oganesson_prefs.h"
++#include "components/browser_traffic/browser_traffic.h"
+ #include "chrome/browser/prefs/session_startup_pref.h"
+ #include "chrome/browser/preloading/prefetch/prefetch_service/prefetch_origin_decider.h"
+ #include "chrome/browser/preloading/prefetch/search_prefetch/search_prefetch_service.h"
+@@ -1431,6 +1432,7 @@
+   registry->RegisterIntegerPref(
+       prefs::kHeliumCrashReportingMode,
+       static_cast<int>(helium::CrashReportingMode::kDisabled));
++  browser_traffic::RegisterLocalStatePrefs(registry);
+   ChromeContentBrowserClient::RegisterLocalStatePrefs(registry);
+ #if BUILDFLAG(CHROME_FOR_TESTING)
+   chrome_for_testing::RegisterPrefs(registry);
+--- a/chrome/browser/spellchecker/spellcheck_hunspell_dictionary.cc
++++ b/chrome/browser/spellchecker/spellcheck_hunspell_dictionary.cc
+@@ -435,7 +435,14 @@
+       browser_context_ = nullptr;
+     }
+ 
+-    if (browser_context_) {
++    // oganesson: browser traffic's Dictionaries row. On request, a missing
++    // dictionary downloads only for a language change, or on Retry in
++    // Settings (RetryDownloadDictionary).
++    const PrefService* local_state = browser_traffic::GetLocalState();
++    if (browser_context_ &&
++        (spellcheck_service_->user_changed_dictionaries() || !local_state ||
++         browser_traffic::FetchesAutomatically(
++             *local_state, browser_traffic::Row::kDictionaries))) {
+       // Download from the UI thread to check that |browser_context_| is
+       // still valid.
+       DownloadDictionary(GetDictionaryURL());
+--- a/chrome/browser/spellchecker/spellcheck_service.cc
++++ b/chrome/browser/spellchecker/spellcheck_service.cc
+@@ -970,6 +970,7 @@
+ }
+ 
+ void SpellcheckService::OnSpellCheckDictionariesChanged() {
++  user_changed_dictionaries_ = true;
+   // If there are hunspell dictionaries, then fire off notifications to the
+   // renderers after the dictionaries are finished loading.
+   LoadDictionaries();
+--- a/chrome/browser/spellchecker/spellcheck_service.h
++++ b/chrome/browser/spellchecker/spellcheck_service.h
+@@ -127,6 +127,11 @@
+   // Returns the instance of the custom dictionary.
+   SpellcheckCustomDictionary* GetCustomDictionary();
+ 
++  // oganesson: the user changed the spellcheck languages since startup, so
++  // missing dictionaries download whatever browser traffic's Dictionaries
++  // row says.
++  bool user_changed_dictionaries() const { return user_changed_dictionaries_; }
++
+   // Returns the instance of the vector of Hunspell dictionaries.
+   const std::vector<std::unique_ptr<SpellcheckHunspellDictionary>>&
+   GetHunspellDictionaries();
+@@ -308,6 +313,8 @@
+   // A pointer to the BrowserContext which this service refers to.
+   raw_ptr<content::BrowserContext> context_;
+ 
++  bool user_changed_dictionaries_ = false;
++
+   std::unique_ptr<SpellCheckHostMetrics> metrics_;
+ 
+   std::unique_ptr<SpellcheckCustomDictionary> custom_dictionary_;
+--- a/chrome/browser/ui/chrome_pages.cc
++++ b/chrome/browser/ui/chrome_pages.cc
+@@ -624,7 +624,7 @@
+ 
+ void ShowHeliumServices(BrowserWindowInterface* browser) {
+   ShowSingletonTabIgnorePathOverwriteNTP(
+-      browser, GURL("chrome://settings/privacy/services"));
++      browser, GURL("chrome://settings/updates"));
+ }
+ 
+ void ShowSearchEngineSettings(BrowserWindowInterface* browser) {
+--- a/chrome/browser/ui/toolbar/app_menu_icon_controller.cc
++++ b/chrome/browser/ui/toolbar/app_menu_icon_controller.cc
+@@ -144,8 +144,9 @@
+ 
+   if (auto* prefs = profile->GetPrefs()) {
+     registrar_.Init(prefs);
++    // oganesson: browser traffic keeps it derived: no stale certificate data.
+     registrar_.Add(
+-        prefs::kHeliumSchemaVersion,
++        prefs::kHeliumDisableSchemaAlerts,
+         base::BindRepeating(&AppMenuIconController::OnGlobalErrorsChanged,
+                             base::Unretained(this)));
+   }
+@@ -247,7 +248,7 @@
+ #endif
+   } else if (type == IconType::kHeliumServicesUpdate) {
+     return l10n_util::GetStringUTF16(
+-        IDS_APP_MENU_BUTTON_HELIUM_SERVICES_UPDATE);
++        IDS_BROWSER_TRAFFIC_STALE_BUTTON);
+   } else {
+     const int text_id = severity == Severity::kLow
+                             ? IDS_APP_MENU_BUTTON_ACTION_REQUIRED
+@@ -282,7 +283,7 @@
+ #endif
+     return l10n_util::GetStringUTF16(IDS_APPMENU_TOOLTIP_UPDATE_AVAILABLE);
+   } else if (type == IconType::kHeliumServicesUpdate) {
+-    return l10n_util::GetStringUTF16(IDS_APPMENU_TOOLTIP_HELIUM_SERVICES_UPDATE);
++    return l10n_util::GetStringUTF16(IDS_BROWSER_TRAFFIC_STALE_TOOLTIP);
+   } else {
+     return l10n_util::GetStringUTF16(IDS_APPMENU_TOOLTIP_ALERT);
+   }
+--- a/chrome/browser/ui/toolbar/app_menu_model.cc
++++ b/chrome/browser/ui/toolbar/app_menu_model.cc
+@@ -2146,7 +2146,7 @@
+       omnibox::kProductChromeRefreshOldIcon, ui::kColorMenuIcon, kDefaultIconSize);
+   AddItemWithIcon(
+       IDC_HELIUM_SERVICES_OPEN,
+-      l10n_util::GetStringUTF16(IDS_HELIUM_SERVICES_SCHEMA_MENU_ITEM),
++      l10n_util::GetStringUTF16(IDS_BROWSER_TRAFFIC_STALE_MENU_ITEM),
+       update_icon);
+ 
+   return true;
+--- a/components/component_updater/BUILD.gn
++++ b/components/component_updater/BUILD.gn
+@@ -53,6 +53,7 @@
+   deps = [
+     "//base",
+     "//build:branding_buildflags",
++    "//components/browser_traffic",
+     "//components/crx_file",
+     "//components/prefs",
+     "//components/update_client",
+--- a/components/component_updater/component_installer.cc
++++ b/components/component_updater/component_installer.cc
+@@ -113,6 +113,8 @@
+       base::MakeFixedFlatSet<std::string_view>(
+           base::sorted_unique,
+           {
++              // oganesson: the Chrome Root Store and the CT log list.
++              "efniojlnjndmcbiieegkicadnoecjjef",  // PKI Metadata
+               "hfnkpimlhhgieaddgfemjhofmfblmnib",  // CRLSet
+               "oimompecagnajdejgnnjijobebaeigek",  // WidevineCdm
+           });
+--- a/components/component_updater/component_updater_service.cc
++++ b/components/component_updater/component_updater_service.cc
+@@ -15,6 +15,7 @@
+ #include "base/check.h"
+ #include "base/files/file_path.h"
+ #include "base/functional/bind.h"
++#include "base/barrier_closure.h"
+ #include "base/functional/callback.h"
+ #include "base/functional/callback_helpers.h"
+ #include "base/logging.h"
+@@ -26,6 +27,7 @@
+ #include "base/task/sequenced_task_runner.h"
+ #include "base/time/time.h"
+ #include "base/timer/timer.h"
++#include "components/browser_traffic/browser_traffic.h"
+ #include "components/component_updater/component_installer.h"
+ #include "components/component_updater/component_updater_service_internal.h"
+ #include "components/component_updater/component_updater_utils.h"
+@@ -446,22 +448,44 @@
+     return true;
+   }
+ 
+-  config_->GetCrxCache()->RemoveIfNot(
+-      components_order_,
+-      base::BindOnce(
+-          &UpdateClient::Update, update_client_, components_order_,
+-          base::BindOnce(&CrxUpdateService::GetCrxComponents,
+-                         weak_ptr_factory_.GetWeakPtr()),
+-          base::DoNothing(), false,
+-          base::BindOnce(&CrxUpdateService::OnUpdateComplete,
+-                         weak_ptr_factory_.GetWeakPtr(),
+-                         base::BindOnce(
+-                             [](UpdateScheduler::OnFinishedCallback on_finished,
+-                                update_client::Error /*error*/) {
+-                               std::move(on_finished).Run();
+-                             },
+-                             std::move(on_finished)),
+-                         base::TimeTicks::Now())));
++  // oganesson: one check for each row of browser traffic, as each row has its
++  // own route (ChromeConfigurator::UpdateUrlFor). Rows set to On request and
++  // idle ones are left out: their user updates them.
++  std::map<browser_traffic::Row, std::vector<std::string>> checks;
++  if (const PrefService* local_state = browser_traffic::GetLocalState()) {
++    for (const std::string& id : components_order_) {
++      const std::optional<browser_traffic::Row> row =
++          browser_traffic::RowForComponent(id);
++      if (row && browser_traffic::FetchesAutomatically(*local_state, *row)) {
++        checks[*row].push_back(id);
++      }
++    }
++  }
++  if (checks.empty()) {
++    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
++        FROM_HERE, std::move(on_finished));
++    return true;
++  }
++  base::RepeatingClosure finished =
++      base::BarrierClosure(checks.size(), std::move(on_finished));
++  for (const auto& [row, ids] : checks) {
++    config_->GetCrxCache()->RemoveIfNot(
++        components_order_,
++        base::BindOnce(
++            &UpdateClient::Update, update_client_, ids,
++            base::BindOnce(&CrxUpdateService::GetCrxComponents,
++                           weak_ptr_factory_.GetWeakPtr()),
++            base::DoNothing(), false,
++            base::BindOnce(&CrxUpdateService::OnUpdateComplete,
++                           weak_ptr_factory_.GetWeakPtr(),
++                           base::BindOnce(
++                               [](base::RepeatingClosure finished,
++                                  update_client::Error /*error*/) {
++                                 finished.Run();
++                               },
++                               finished),
++                           base::TimeTicks::Now())));
++  }
+   return true;
+ }
+ 
+--- a/components/component_updater/component_updater_service.h
++++ b/components/component_updater/component_updater_service.h
+@@ -24,6 +24,10 @@
+ class ComponentsHandler;
+ class PluginObserver;
+ 
++namespace browser_traffic {
++void UpdateCertificatesNow();
++}
++
+ namespace ash {
+ class SmartDimComponentIntegrationTest;
+ }
+@@ -247,6 +251,8 @@
+   friend class PlatformRuntimeComponentInstallerPolicy;
+   friend void UpdateAIEmbeddingsComponentOnDemand(Priority priority,
+                                                   Callback callback);
++  // oganesson: browser traffic's Update now.
++  friend void ::browser_traffic::UpdateCertificatesNow();
+ 
+   // Triggers an update check for a component. |id| is a value
+   // returned by GetCrxComponentID(). If an update for this component is already
+--- a/components/helium_services/BUILD.gn
++++ b/components/helium_services/BUILD.gn
+@@ -13,6 +13,7 @@
+ 
+   public_deps = [
+     "//base",
++    "//components/browser_traffic",
+     "//components/prefs",
+     "//url",
+     "//net",
+--- a/components/helium_services/helium_services_helpers.cc
++++ b/components/helium_services/helium_services_helpers.cc
+@@ -64,37 +64,55 @@
+     );
+ }
+ 
++// oganesson: Helium's services are browser traffic's server, set in Local
++// State (components/browser_traffic); the profile's helium.services.* prefs
++// are derived from it. Without a valid server nothing goes to Helium's host:
++// the placeholder fails every request.
+ GURL GetServicesBaseURL(const PrefService& prefs) {
+-    std::optional<GURL> user_url = GetValidUserOverridenURL(prefs);
+-    if (user_url) {
+-        return *user_url;
+-    }
++    const PrefService* local_state = browser_traffic::GetLocalState();
++    std::optional<GURL> server =
++        local_state ? browser_traffic::GetServer(*local_state) : std::nullopt;
++    return server ? *server : GetDummyURL();
++}
++
++namespace {
+ 
+-    return GURL(kHeliumDefaultOrigin);
++// A row goes through the server, which is valid.
++bool Proxied(browser_traffic::Row row) {
++    const PrefService* local_state = browser_traffic::GetLocalState();
++    return local_state &&
++           browser_traffic::GetProxyURL(*local_state, row, "").has_value();
+ }
+ 
++bool Direct(browser_traffic::Row row) {
++    const PrefService* local_state = browser_traffic::GetLocalState();
++    return local_state && browser_traffic::GetRoute(*local_state, row) ==
++                              browser_traffic::Route::kDirect;
++}
++
++}  // namespace
++
+ GURL GetDummyURL() {
+     return GURL(kHeliumDummyOrigin);
+ }
+ 
+ bool ShouldAccessServices(const PrefService& prefs) {
+-    return prefs.GetBoolean(prefs::kHeliumServicesEnabled) &&
+-           prefs.GetBoolean(prefs::kHeliumServicesConsented);
++    const PrefService* local_state = browser_traffic::GetLocalState();
++    return local_state && browser_traffic::GetServer(*local_state);
+ }
+ 
+ bool ShouldAccessExtensionService(const PrefService& prefs) {
+-    return ShouldAccessServices(prefs) &&
+-            prefs.GetBoolean(prefs::kHeliumExtProxyEnabled);
++    return Proxied(browser_traffic::Row::kExtensions);
+ }
+ 
+ bool ShouldAccessDictionaryService(const PrefService& prefs) {
+-    return ShouldAccessServices(prefs) &&
+-            prefs.GetBoolean(prefs::kHeliumSpellcheckEnabled);
++    return Proxied(browser_traffic::Row::kDictionaries);
+ }
+ 
+ bool ShouldFetchBangs(const PrefService& prefs) {
+-    return ShouldAccessServices(prefs) &&
+-            prefs.GetBoolean(prefs::kHeliumBangsEnabled);
++    const PrefService* local_state = browser_traffic::GetLocalState();
++    return local_state && browser_traffic::FetchesAutomatically(
++                              *local_state, browser_traffic::Row::kBangs);
+ }
+ 
+ bool ShouldAccessUpdateService(const PrefService& prefs) {
+@@ -103,21 +121,25 @@
+ }
+ 
+ bool ShouldAccessComponentUpdateService(const PrefService& prefs) {
+-    return ShouldAccessServices(prefs) &&
+-            HasAcceptedSchema(prefs, 1) &&
+-            prefs.GetBoolean(prefs::kHeliumUpdateFetchingEnabled);
++    // oganesson: components go where their rows of browser traffic say
++    // (ChromeConfigurator::UpdateUrlFor); none of them is idle.
++    const PrefService* local_state = browser_traffic::GetLocalState();
++    return local_state &&
++           !browser_traffic::IsIdle(*local_state,
++                                    browser_traffic::Row::kCertificates) &&
++           !browser_traffic::IsIdle(*local_state, browser_traffic::Row::kDrm);
+ }
+ 
+ bool ShouldAccessUBlockAssets(const PrefService& prefs) {
+-    return ShouldAccessServices(prefs) &&
+-            prefs.GetBoolean(prefs::kHeliumUBlockAssetsEnabled);
++    return Proxied(browser_traffic::Row::kContentBlocker);
+ }
+ 
+ GURL GetExtensionUpdateURL(const PrefService& prefs) {
+-    if (!ShouldAccessExtensionService(prefs)) {
+-        // oganesson: without Helium's proxy, Chrome Web Store installs and
+-        // updates go to Google's own update server, as in Chromium. The split
+-        // literal keeps domain substitution from rewriting it.
++    if (Direct(browser_traffic::Row::kExtensions)) {
++        // oganesson: going direct, Chrome Web Store installs and updates go
++        // to Google's own update server, as in Chromium. The split literal
++        // keeps domain substitution from rewriting it. Through a server
++        // that isn't set, they go to the placeholder.
+         return GURL("https://clients2.google." "com/service/update2/crx");
+     }
+ 
+@@ -125,7 +147,7 @@
+ }
+ 
+ GURL GetWebstoreSnippetURL(const PrefService& prefs, std::string_view id) {
+-    if (!ShouldAccessExtensionService(prefs)) {
++    if (Direct(browser_traffic::Row::kExtensions)) {
+         // oganesson: the store's own item data, as in Chromium.
+         return GURL("https://chromewebstore.googleapis." "com/")
+             .Resolve(base::StringPrintf("v2/items/%s:fetchItemSnippet",
+@@ -138,12 +160,10 @@
+ 
+ GURL GetSpellcheckURL(const PrefService& prefs) {
+     if (!ShouldAccessDictionaryService(prefs)) {
+-        // oganesson: with Helium's services off, dictionaries download from
+-        // Google's server, as in Chromium; the switch that stops dictionary
+-        // downloads still stops them. The split literal keeps domain
++        // oganesson: going direct, dictionaries download from Google's
++        // server, as in Chromium. The split literal keeps domain
+         // substitution from rewriting it.
+-        if (prefs.GetBoolean(prefs::kHeliumSpellcheckEnabled) &&
+-            !ShouldAccessServices(prefs)) {
++        if (Direct(browser_traffic::Row::kDictionaries)) {
+             return GURL("https://redirector.gvt1." "com/edgedl/chrome/dict/");
+         }
+         return GetDummyURL();
+--- a/components/helium_services/helium_services_helpers.h
++++ b/components/helium_services/helium_services_helpers.h
+@@ -6,6 +6,8 @@
+ #define COMPONENTS_HELIUM_SERVICES_HELIUM_SERVICES_HELPERS_H_
+ 
+ #include "base/functional/bind.h"
++// oganesson: the helpers defer to browser traffic.
++#include "components/browser_traffic/browser_traffic.h"
+ #include "components/prefs/pref_change_registrar.h"
+ #include "components/prefs/pref_service.h"
+ #include "url/gurl.h"
+--- a/components/helium_services/schema.cc
++++ b/components/helium_services/schema.cc
+@@ -19,9 +19,12 @@
+   prefs.SetInteger(prefs::kHeliumSchemaVersion, kHeliumCurrentSchemaVersion);
+ }
+ 
++// oganesson: the app menu's notice is browser traffic's: automatic
++// certificate data more than a day old.
+ bool ShouldShowSchemaNotification(const PrefService& prefs) {
+-  return ShouldAccessServices(prefs) &&
+-         !HasAcceptedSchema(prefs, kHeliumCurrentSchemaVersion);
++  const PrefService* local_state = browser_traffic::GetLocalState();
++  return local_state &&
++         browser_traffic::CertificatesStale(*local_state, base::Time::Now());
+ }
+ 
+ ServicesChangelog& GetChangelog() {
+--- a/components/search_engines/template_url_bang_manager.cc
++++ b/components/search_engines/template_url_bang_manager.cc
+@@ -83,6 +83,19 @@
+     callbacks_.push_back(std::move(callback));
+ }
+ 
++void BangManager::Refresh(
++    scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
++    PrefService& prefs,
++    base::OnceClosure callback) {
++    callbacks_.push_back(std::move(callback));
++    if (load_pending_) {
++        return;
++    }
++    load_pending_ = true;
++    refresh_ = true;
++    DoStartFileFetch(url_loader_factory, prefs);
++}
++
+ void BangManager::DoStartFileFetch(
+     scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
+     PrefService& prefs
+@@ -90,9 +103,11 @@
+     auto request = std::make_unique<network::ResourceRequest>();
+     request->url = helium::GetServicesBaseURL(prefs).Resolve(kBangsPrefix);
+ 
+-    request->load_flags = helium::ShouldFetchBangs(prefs)
++    request->load_flags = refresh_ ? net::LOAD_BYPASS_CACHE
++                          : helium::ShouldFetchBangs(prefs)
+                             ? net::LOAD_NORMAL
+                             : net::LOAD_ONLY_FROM_CACHE;
++    refresh_ = false;
+ 
+     request->credentials_mode = network::mojom::CredentialsMode::kOmit;
+     request->headers.SetHeader("Accept", "application/json");
+@@ -162,6 +177,9 @@
+     }
+ 
+     auto list = std::move(*parsed).TakeList();
++    // oganesson: a refreshed list replaces the old one.
++    bangs_.clear();
++    category_map_.clear();
+     bangs_.reserve(list.size());
+ 
+     size_t index = 0;
+--- a/components/search_engines/template_url_bang_manager.h
++++ b/components/search_engines/template_url_bang_manager.h
+@@ -49,6 +49,13 @@
+             base::OnceClosure callback
+         );
+         const std::vector<Bang>& GetBangs();
++        // oganesson: fetches the list again, past the cache, whatever
++        // browser traffic's Bangs row says (its Update now).
++        void Refresh(
++            scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
++            PrefService& prefs,
++            base::OnceClosure callback
++        );
+ 
+     private:
+         void DoStartFileFetch(
+@@ -64,6 +71,7 @@
+ 
+         std::vector<Bang> bangs_;
+         bool load_pending_ = false;
++        bool refresh_ = false;
+         std::vector<base::OnceClosure> callbacks_;
+         std::map<size_t, BangCategory> category_map_;
+ 
+--- a/components/search_engines/template_url_service.cc
++++ b/components/search_engines/template_url_service.cc
+@@ -1734,6 +1734,13 @@
+                      weak_ptr_factory_.GetWeakPtr()));
+ }
+ 
++void TemplateURLService::RefreshBangs() {
++  bang_manager_->Refresh(
++      url_loader_factory_, prefs_.get(),
++      base::BindOnce(&TemplateURLService::BangsLoadedCallback,
++                     weak_ptr_factory_.GetWeakPtr()));
++}
++
+ void TemplateURLService::BangsLoadedCallback() {
+   VLOG(2) << "BangsLoadedCallback() called";
+ 
+--- a/components/search_engines/template_url_service.h
++++ b/components/search_engines/template_url_service.h
+@@ -575,6 +575,8 @@
+   void Load();
+ 
+   void LoadBangs();
++  // oganesson: fetches the bang list again (browser traffic's Update now).
++  void RefreshBangs();
+ 
+   // Registers a callback to be called when the service has loaded.
+   //
+--- a/components/update_client/configurator.h
++++ b/components/update_client/configurator.h
+@@ -17,8 +17,8 @@
+ #include "base/memory/ref_counted.h"
+ #include "base/time/time.h"
+ #include "build/branding_buildflags.h"
++#include "url/gurl.h"
+ 
+-class GURL;
+ class PrefService;
+ 
+ namespace base {
+@@ -65,6 +65,13 @@
+   // disabled. Similarly, these URLs have a fall back behavior too.
+   virtual std::vector<GURL> PingUrl() const = 0;
+ 
++  // oganesson: the URLs for an update check of `ids`, which may depend on the
++  // components (components/browser_traffic).
++  virtual std::vector<GURL> UpdateUrlFor(
++      const std::vector<std::string>& ids) const {
++    return UpdateUrl();
++  }
++
+   // The ProdId is used as a prefix in some of the version strings which appear
+   // in the protocol requests. Possible values include "chrome", "chromecrx",
+   // "chromiumcrx", and "unknown".
+--- a/components/update_client/update_checker.cc
++++ b/components/update_client/update_checker.cc
+@@ -112,7 +112,8 @@
+ 
+   auto check_for_updates_invoker = base::BindOnce(
+       &UpdateCheckerImpl::CheckForUpdatesHelper, weak_factory_.GetWeakPtr(),
+-      context, config_->UpdateUrl(), additional_attributes);
++      context, config_->UpdateUrlFor(context->components_to_check_for_updates),
++      additional_attributes);
+ 
+   context->config->GetCrxCache()->ListHashesByAppId(base::BindOnce(
+       [](base::OnceCallback<void(const std::multimap<std::string, std::string>&,
+--- a/extensions/browser/api/storage/storage_frontend.cc
++++ b/extensions/browser/api/storage/storage_frontend.cc
+@@ -286,9 +286,22 @@
+ 
+     Profile* profile_ = Profile::FromBrowserContext(browser_context_);
+ 
++    // oganesson: uBO starts from the copy of its managed storage it kept at
++    // its last start (vAPI.adminStorage), so a changed browser traffic row
++    // would reach it a start late. Without the copy it reads the managed
++    // storage itself.
+     if (Manifest::IsUBlockComponent(extension_id)
+-        && storage_area == StorageAreaNamespace::kManaged
+-        && helium::ShouldAccessUBlockAssets(*profile_->GetPrefs())) {
++        && storage_area == StorageAreaNamespace::kLocal) {
++      get_result.data->Remove("cachedManagedStorage");
++    }
++
++    // oganesson: browser traffic's content-blocker row. Through the server
++    // the catalog of lists comes from it, and through one that isn't set
++    // from the placeholder, which fails. uBO updates lists by itself only
++    // while the row is Automatic and not idle; its Update now still works.
++    const PrefService* local_state = browser_traffic::GetLocalState();
++    if (Manifest::IsUBlockComponent(extension_id)
++        && storage_area == StorageAreaNamespace::kManaged && local_state) {
+ 
+       if (!get_result.data->FindDict("adminSettings")) {
+         get_result.data->Set("adminSettings", base::DictValue());
+@@ -296,10 +309,17 @@
+ 
+       base::DictValue* adminSettings = get_result.data->FindDict("adminSettings");
+ 
+-      if (!adminSettings->Find("assetsBootstrapLocation")) {
++      if (browser_traffic::GetRoute(*local_state,
++                                    browser_traffic::Row::kContentBlocker) ==
++              browser_traffic::Route::kProxy &&
++          !adminSettings->Find("assetsBootstrapLocation")) {
+         adminSettings->Set("assetsBootstrapLocation",
+           base::Value(helium::GetUBlockAssetsURL(*profile_->GetPrefs()).spec()));
+       }
++      adminSettings->EnsureDict("userSettings")
++          ->Set("autoUpdate",
++                browser_traffic::FetchesAutomatically(
++                    *local_state, browser_traffic::Row::kContentBlocker));
+     }
+   }
+ 

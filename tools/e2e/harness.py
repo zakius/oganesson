@@ -816,7 +816,7 @@ class Server:
     (certificate, key) pair of files, it speaks HTTPS; with `ipv6`, it listens
     on ::1 instead of 127.0.0.1. `requests` lists the paths it was asked for, in order; `headers` maps a
     path to the headers of its last request, and `bodies` to the body of its
-    last POST."""
+    last POST; `posts` lists every POST's body, in order."""
 
     def __init__(self, routes, tls=None, ipv6=False):
         self.routes = routes
@@ -824,14 +824,16 @@ class Server:
         self.requests = []
         self.headers = {}
         self.bodies = {}
+        self.posts = []
         routes_ref, requests_ref, headers_ref = self.routes, self.requests, self.headers
-        bodies_ref = self.bodies
+        bodies_ref, posts_ref = self.bodies, self.posts
 
         class Handler(http.server.BaseHTTPRequestHandler):
 
             def do_POST(self):
                 body = self.rfile.read(int(self.headers.get('Content-Length', 0)))
                 bodies_ref[urllib.parse.urlparse(self.path).path] = body
+                posts_ref.append(body)
                 self.do_GET()
 
             def do_GET(self):

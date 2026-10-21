@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright 2026 The oganesson Authors. GPL-3.0, see the LICENSE file. -->
+<grit-part>
+  <message name="IDS_BROWSER_TRAFFIC_TITLE" desc="Settings, Privacy and security: name of the page that controls what the browser downloads by itself (certificate data, extensions, filter lists) and whether it goes direct or through the user's server.">
+    Browser traffic
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_DESCRIPTION" desc="Settings, Browser traffic: explanation at the top of the page.">
+    What the browser downloads by itself, and which way it goes. Websites and your downloads are not affected.
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_SERVER" desc="Settings, Browser traffic: heading of the field for the address of the user's own server running Helium's helium-services software.">
+    Helium services server
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_SERVER_DESCRIPTION" desc="Settings, Browser traffic: explanation of the server field. helium-services is the name of a program and stays as it is.">
+    For the rows set to Proxy. Any server running <ph name="SOFTWARE">$1<ex>helium-services</ex></ph>. https, or http on localhost. Nothing falls back to direct: if it's unreachable, those downloads wait.
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_SERVER_NOT_SET" desc="Settings, Browser traffic: placeholder of the empty server field, and the server status when there is none.">
+    Not set
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_SERVER_INVALID" desc="Settings, Browser traffic: error under the server field when the address can't be used.">
+    Use https, or http only on localhost.
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_TEST" desc="Settings, Browser traffic: button that checks whether the server in the field answers.">
+    Test
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_TESTING" desc="Settings, Browser traffic: shown while the server is being checked. The placeholder is the address being checked.">
+    Checking <ph name="URL">$1<ex>https://services.example.org/connectivitycheck</ex></ph>…
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_SERVER_ANSWERED" desc="Settings, Browser traffic: result of a server check that succeeded.">
+    Server answered.
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_SERVER_NO_ANSWER" desc="Settings, Browser traffic: result of a server check that failed.">
+    No answer. The address must be https, or http on localhost, and reachable.
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_TEST_TO_CONTINUE" desc="Setup, Browser traffic step: shown next to the disabled Next button while the server isn't tested.">
+    Test the server to continue
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_STATUS_REACHABLE" desc="Settings, Browser traffic: status of the server when its last answer came. The placeholder is a relative time, as '12 minutes ago'.">
+    Reachable, certificate data updated <ph name="WHEN">$1<ex>12 minutes ago</ex></ph>
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_STATUS_UNREACHABLE" desc="Settings, Browser traffic: status of the server when it stopped answering. The placeholder is a time of day.">
+    Unreachable, last answer at <ph name="TIME">$1<ex>14:02</ex></ph>
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_STATUS_NEVER_ANSWERED" desc="Settings, Browser traffic: status of a server that never answered.">
+    Unreachable
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_STATUS_UNCHECKED" desc="Settings, Browser traffic: status of a server that wasn't checked or used yet.">
+    Not checked yet
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_SERVER_DOWN_TITLE" desc="Settings, Browser traffic: bold start of the warning shown when the server stopped answering. The placeholder is a time of day.">
+    Your server hasn't answered since <ph name="TIME">$1<ex>14:02</ex></ph>.
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_SERVER_DOWN" desc="Settings, Browser traffic: rest of the warning shown when the server stopped answering. The placeholder is a relative time, as '6 hours ago'.">
+    Certificate data was last updated <ph name="WHEN">$1<ex>6 hours ago</ex></ph>. Nothing was fetched directly instead.
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_CHECK_NOW" desc="Settings, Browser traffic: button that checks the server now.">
+    Check now
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_HEALTH_CHECK" desc="Settings, Browser traffic: name of the setting for how often the browser checks that the server answers.">
+    Check the server's health
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_HEALTH_CHECK_DESCRIPTION" desc="Settings, Browser traffic: what the health check choices do.">
+    Periodically: once an hour. On request: only when something needs it, or you press Check now.
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_PERIODICALLY" desc="Settings, Browser traffic: health check choice, once an hour.">
+    Periodically
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_PRESET" desc="Settings, Browser traffic: name of the dropdown that sets every row at once.">
+    Preset
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_PRESET_DIRECT" desc="Settings, Browser traffic: preset where everything updates automatically from its own source.">
+    Direct
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_PRESET_DIRECT_DESCRIPTION" desc="Settings, Browser traffic: what the Direct preset does.">
+    Everything stays current, straight from each source.
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_PRESET_SERVER" desc="Settings, Browser traffic: preset where everything updates automatically through the user's server.">
+    Through my server
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_PRESET_SERVER_DESCRIPTION" desc="Settings, Browser traffic: what the Through my server preset does.">
+    Everything stays current, all through your Helium services server.
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_PRESET_SHUT_IN" desc="Settings, Browser traffic: preset where nothing downloads unless the user asks.">
+    Shut in
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_PRESET_SHUT_IN_DESCRIPTION" desc="Settings, Browser traffic: what the Shut in preset does.">
+    Nothing is downloaded unless you ask. Routes stay as you set them below.
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_PRESET_CUSTOM" desc="Settings, Browser traffic: shown as the preset when the rows match none.">
+    Custom
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_PRESET_CUSTOM_DESCRIPTION" desc="Settings, Browser traffic: what Custom means.">
+    Your own mix. Change any row below.
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_WHAT" desc="Settings, Browser traffic: table column heading of the kinds of downloads.">
+    What
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_DOWNLOAD" desc="Settings, Browser traffic: table column heading: when a kind of data is downloaded.">
+    Download
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_ROUTE" desc="Settings, Browser traffic: table column heading: which way a download goes.">
+    Route
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_AUTOMATIC" desc="Settings, Browser traffic: download choice: the browser downloads by itself.">
+    Automatic
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_ON_REQUEST" desc="Settings, Browser traffic: download or health check choice: only when the user asks.">
+    On request
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_DIRECT" desc="Settings, Browser traffic: route choice: straight to the data's own source.">
+    Direct
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_PROXY" desc="Settings, Browser traffic: route choice: through the user's server.">
+    Proxy
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_PROXY_ONLY" desc="Settings, Browser traffic: shown instead of route choices for a row that can only go through the user's server.">
+    Proxy only
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_DIRECT_ONLY" desc="Settings, Browser traffic: shown instead of route choices for a row that can only go direct.">
+    Direct only
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_NO_DIRECT_SOURCE" desc="Settings, Browser traffic: why the bangs row can only go through the server.">
+    No direct source
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_OFF_WITHOUT_SERVER" desc="Settings, Browser traffic: the bangs row's state while no server is set.">
+    Off until you set a server
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_SERVER_CANT_SERVE" desc="Settings, Browser traffic: why browser updates can only go direct.">
+    Your server can't serve it
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_IDLE" desc="Settings, Browser traffic: a row set to Proxy while no valid server is set.">
+    Idle until a server is set
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_FROM" desc="Settings, Browser traffic: where a direct download comes from. The placeholder is a company, store or host name.">
+    from <ph name="SOURCE">$1<ex>Google</ex></ph>
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_FROM_LIST_AUTHORS" desc="Settings, Browser traffic: where filter lists come from when they go direct.">
+    from the list authors
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_CERTIFICATES" desc="Settings, Browser traffic: row of the certificate data: revoked certificates, trusted root certificates, Certificate Transparency logs.">
+    Certificate security
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_CERTIFICATES_DESCRIPTION" desc="Settings, Browser traffic: what the certificate security row covers.">
+    Revoked certificates (CRLSet), trusted roots, Certificate Transparency logs
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_DRM" desc="Settings, Browser traffic: row of the Widevine DRM module. Widevine is a product name.">
+    DRM (Widevine)
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_DRM_DESCRIPTION" desc="Settings, Browser traffic: what the DRM row is for. Netflix and Spotify are names of services.">
+    Needed by Netflix, Spotify and similar
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_EXTENSIONS" desc="Settings, Browser traffic: row of extension downloads.">
+    Extensions
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_EXTENSIONS_DESCRIPTION" desc="Settings, Browser traffic: what the extensions row covers.">
+    Store installs, item info, updates
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_CONTENT_BLOCKER" desc="Settings, Browser traffic: row of the filter lists of the content blocker.">
+    Content-blocker lists
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_CONTENT_BLOCKER_DESCRIPTION" desc="Settings, Browser traffic: what the content-blocker row covers. uBlock Origin is a product name.">
+    uBlock Origin's filter lists
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_DICTIONARIES" desc="Settings, Browser traffic: row of spellcheck dictionary downloads.">
+    Spellcheck dictionaries
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_DICTIONARIES_DESCRIPTION" desc="Settings, Browser traffic: what the dictionaries row covers.">
+    Dictionary files for your languages
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_BANGS" desc="Settings, Browser traffic: row of the bang list, the shortcuts like !w that search a site from the address bar.">
+    Bangs
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_BANGS_DESCRIPTION" desc="Settings, Browser traffic: what the bangs row covers.">
+    The !bang shortcut list
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_BROWSER_UPDATES" desc="Settings, Browser traffic: row of the browser's own updates.">
+    Browser updates
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_BROWSER_UPDATES_DESCRIPTION" desc="Settings, Browser traffic: what the browser updates row covers.">
+    Checks for a new oganesson release
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_BROWSER_UPDATES_MANAGED" desc="Settings, Browser traffic: shown for browser updates on a Windows install for all users, which the user can't change.">
+    Managed for all users by whoever installed oganesson
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_PACKAGE_MANAGER" desc="Settings, Browser traffic: note on Linux, where the system's package manager installs browser updates.">
+    Browser updates come from your package manager.
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_UPDATE_NOW" desc="Settings, Browser traffic: button that downloads a row's data now.">
+    Update now
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_UPDATED" desc="Settings, Browser traffic: when the certificate data was last found current. The placeholder is a relative time, as '3 hours ago'.">
+    Updated <ph name="WHEN">$1<ex>3 hours ago</ex></ph>
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_REVOCATION_WARNING_TITLE" desc="Settings, Browser traffic: bold start of the warning shown when certificate data doesn't update automatically.">
+    Revoked certificates won't be blocked in time.
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_REVOCATION_WARNING" desc="Settings, Browser traffic: rest of the warning shown when certificate data doesn't update automatically. eMudhra is a certificate authority whose keys were stolen; the placeholder is the name of Google's browser, Chrome.">
+    When a certificate authority is compromised, <ph name="CHROME">$1<ex>Chrome</ex></ph> blocks it within hours (100 minutes for eMudhra on Oct 17, 2026). With this setting, oganesson learns of it only with its next release, days or weeks later. Until then, a stolen certificate for any site is trusted.
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_STALE_MENU_ITEM" desc="App menu: item shown when the certificate data the browser updates automatically is more than a day old. Opens Settings, Browser traffic.">
+    Certificate data is out of date
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_STALE_BUTTON" desc="Short label next to the app menu button when the certificate data is more than a day old.">
+    Out of date
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_STALE_TOOLTIP" desc="Tooltip of the app menu button when the certificate data is more than a day old.">
+    Certificate data hasn't updated for more than a day
+  </message>
+</grit-part>
