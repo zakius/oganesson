@@ -29,7 +29,7 @@ jobs:
     steps:
       - name: Still main's tip
         run: |
-          : "${MAIN:?is set in the runner's .env}" "${BUILDS_LOCK:?is set in the runner's .env}"
+          : "${MAIN:?must be set in the .env of the runner}" "${BUILDS_LOCK:?must be set in the .env of the runner}"
           cd "$MAIN"
           git fetch -q origin main
           if [ "$(git rev-parse origin/main)" != "$GITHUB_SHA" ]; then
