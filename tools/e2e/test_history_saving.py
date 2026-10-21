@@ -109,7 +109,7 @@ class HistorySavingTest(BrowserTest):
 
     def run_js(self, body):
         page = self.browser.page('background.js')
-        wait_for(lambda: page.eval('typeof chrome.sessions') == 'object', what='the extension APIs')
+        wait_for(lambda: page.eval('typeof self.chrome?.sessions') == 'object', what='the extension APIs')
         return page.eval(f'(async () => {{ {body} }})()')
 
     def close_and_reopen(self):

@@ -70,6 +70,8 @@ class TabAudioIndicatorTest(BrowserTest):
                      **cls.extra_prefs}
         super().setUpClass()
         cls.extension = cls.browser.page('_generated_background_page.html')
+        wait_for(lambda: cls.extension.eval('typeof self.chrome?.tabs') == 'object',
+                 what='the extension APIs')
 
     @classmethod
     def tearDownClass(cls):
