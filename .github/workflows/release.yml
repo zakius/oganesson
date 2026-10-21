@@ -55,39 +55,56 @@ jobs:
             echo "::notice::main moved past $GITHUB_SHA; the run for the newer commit releases"
             echo SUPERSEDED=1 >> "$GITHUB_ENV"
           fi
+      - name: Linux packages
+        if: env.SUPERSEDED != '1'
+        run: |
+          cd "$MAIN" && linux/pack.sh
+          version="$(cat helium/chromium_version.txt)"
+          release="1.$(TZ=UTC0 git log -1 --format=%cd --date=format-local:%Y%m%d%H%M%S)"
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          echo "RELEASE=$release" >> "$GITHUB_ENV"
+          echo "TAG=v$version-$release" >> "$GITHUB_ENV"
+      # The GitHub release comes first: it holds the files, and the repository and the site point
+      # at them.
+      - name: GitHub release, with the Linux packages
+        if: env.SUPERSEDED != '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd "$MAIN"
+          linux="work/dl/$VERSION-$RELEASE"
+          assets=("$linux"/*.deb "$linux"/*.rpm "$linux"/oganesson-"$VERSION"-*_linux.tar.xz)
+          dubna/tools/release_notes.py . --skip docs/ '*.md' .github/ tools/ oganesson.py \
+              linux/container-build.sh linux/pack.sh linux/publish-repo.sh windows/container-build.sh \
+              windows/build-sync-lib.sh windows/make_toolchain.py windows/publish.sh windows/Dockerfile \
+              windows/vm/ > work/release-notes.md
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${assets[@]}" --clobber
+          else
+            gh release create "$TAG" "${assets[@]}" --target "$GITHUB_SHA" \
+                --title "oganesson $VERSION ($RELEASE)" --notes-file work/release-notes.md
+          fi
       - name: Linux packages, to the repository
         if: env.SUPERSEDED != '1'
-        run: cd "$MAIN" && linux/pack.sh && linux/publish-repo.sh
-      - name: Windows build and publish
+        run: cd "$MAIN" && linux/publish-repo.sh
+      - name: Windows build, to the GitHub release and the site
         id: windows
         if: env.SUPERSEDED != '1'
         # A Windows failure (helium-windows behind, say) doesn't hold back Linux's release.
         continue-on-error: true
-        run: cd "$MAIN" && flock "$BUILDS_LOCK" ./oganesson.py build --windows && windows/publish.sh
-      - name: GitHub release
-        if: env.SUPERSEDED != '1'
         env:
           GH_TOKEN: ${{ github.token }}
-          WINDOWS: ${{ steps.windows.outcome }}
         run: |
           cd "$MAIN"
-          version="$(cat helium/chromium_version.txt)"
-          release="1.$(TZ=UTC0 git log -1 --format=%cd --date=format-local:%Y%m%d%H%M%S)"
-          tag="v$version-$release"
-          linux="work/dl/$version-$release"
-          assets=("$linux"/*.deb "$linux"/*.rpm "$linux"/oganesson-"$version"-*_linux.tar.xz)
-          if [ "$WINDOWS" = success ]; then
-            win="work/dl/windows/$version-$release"
-            assets+=("$win"/*-installer.exe "$win"/*-windows-x64.zip)
-          fi
-          notes="$(mktemp)"
-          dubna/tools/release_notes.py . --skip docs/ '*.md' .github/ tools/ oganesson.py \
-              linux/container-build.sh linux/pack.sh linux/publish-repo.sh windows/container-build.sh \
-              windows/build-sync-lib.sh windows/make_toolchain.py windows/publish.sh windows/Dockerfile \
-              windows/vm/ > "$notes"
-          [ "$WINDOWS" = success ] || printf '\nThe Windows build failed; this release has the Linux packages only.\n' >> "$notes"
-          if gh release view "$tag" >/dev/null 2>&1; then
-            gh release upload "$tag" "${assets[@]}" --clobber
-          else
-            gh release create "$tag" "${assets[@]}" --target "$GITHUB_SHA" --title "oganesson $version ($release)" --notes-file "$notes"
-          fi
+          flock "$BUILDS_LOCK" ./oganesson.py build --windows
+          win="work/dl/windows/$VERSION-$RELEASE"
+          gh release upload "$TAG" "$win"/*-installer.exe "$win"/*-windows-x64.zip --clobber
+          windows/publish.sh
+      - name: GitHub release, noting a failed Windows build
+        if: env.SUPERSEDED != '1' && steps.windows.outcome != 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd "$MAIN"
+          printf '\nThe Windows build failed; this release has the Linux packages only.\n' >> work/release-notes.md
+          gh release edit "$TAG" --notes-file work/release-notes.md
