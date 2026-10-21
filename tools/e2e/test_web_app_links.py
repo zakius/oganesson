@@ -196,9 +196,18 @@ class WebAppTest(BrowserTest):
         if close:
             self.addCleanup(self.browser.close_target, app)
         # An eval while the page is still provisional fails a DCHECK in its
-        # renderer (crbug.com/897816); the browser knows once it commits.
-        wait_for(lambda: (lambda h: h['entries'][h['currentIndex']]['url'] == start)(
-            app.call('Page.getNavigationHistory')), what='the start page committed')
+        # renderer (crbug.com/897816); the browser knows once it commits. A
+        # target that has only just appeared may not have its page attached yet.
+        def committed():
+            try:
+                history = app.call('Page.getNavigationHistory')
+            except RuntimeError as error:
+                if 'Not attached to an active page' in str(error):
+                    return False
+                raise
+            return history['entries'][history['currentIndex']]['url'] == start
+
+        wait_for(committed, what='the start page committed')
         if url:
             wait_for(lambda: app.eval('document.readyState === "complete"'), what='the start page')
             return app
