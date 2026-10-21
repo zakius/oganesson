@@ -31,7 +31,7 @@ What's here:
   both return only once the bundled uBlock Origin filters; pages with
   `page(url_part)`, `new_tab(url)`, `close_target(page)`, `targets()`,
   `browser_call(method)`, `pipe_call(method)` (PWA); views with `views(cls, **props)`,
-  `wait_view(cls, **props)`, `menus()`, `ubo_background()`, `wait_ubo_menu()`; real input with `click_view(view)`,
+  `wait_view(cls, **props)`, `wait_settled(find)`, `menus()`, `ubo_background()`, `wait_ubo_menu()`; real input with `click_view(view)`,
   `click_element(page, selector, button, repeat)`, `key(*keys)`, `xdotool(...)`;
   `root`, `profile`, `home` and `log_path` for files.
 - Page: `eval(js)` (awaits promises; a user gesture unless `gesture=False`),
@@ -130,7 +130,7 @@ for number in (signal.SIGTERM, signal.SIGHUP):
 atexit.register(lambda: [browser.stop(failed=True) for browser in list(BROWSERS)])
 
 
-def wait_for(check, timeout=15, interval=0.2, what='condition'):
+def wait_for(check, timeout=15, interval=0.05, what='condition'):
     """Polls `check` until it returns something truthy, and returns it."""
     deadline = time.monotonic() + timeout
     while True:
@@ -611,20 +611,27 @@ class Browser:
                     raise
                 time.sleep(0.2)
 
-    def wait_view(self, cls, timeout=15, match=None, **props):
-        """Waits for a visible view of class `cls` with `props` (and for which
-        `match(view)` holds) to stop moving, and returns it. Toolbar buttons
-        and dialogs animate into place, and a click must land on the button.
+    def wait_settled(self, find, timeout=15, what='views'):
+        """Polls `find()`, which returns a view, a list of views or nothing,
+        until what it returns stops moving, and returns that. Tabs, toolbar
+        buttons and dialogs animate into place, and a click must land on them.
         """
         last = {}
 
         def settled():
-            view = next((v for v in self.views(cls, **props)
-                         if v.visible and (match is None or match(v))), None)
-            previous, last['bounds'] = last.get('bounds'), view and view.bounds
-            return view if view and view.bounds == previous else None
+            found = find()
+            bounds = found and [v.bounds for v in (found if isinstance(found, list) else [found])]
+            previous, last['bounds'] = last.get('bounds'), bounds
+            return found if bounds and bounds == previous else None
 
-        return wait_for(settled, timeout=timeout, what=f'a visible {cls} with {props}')
+        return wait_for(settled, timeout=timeout, what=what)
+
+    def wait_view(self, cls, timeout=15, match=None, **props):
+        """Waits for a visible view of class `cls` with `props` (and for which
+        `match(view)` holds) to stop moving, and returns it."""
+        return self.wait_settled(lambda: next((v for v in self.views(cls, **props)
+                                               if v.visible and (match is None or match(v))), None),
+                                 timeout=timeout, what=f'a visible {cls} with {props}')
 
     def menus(self):
         """Open menus, in the order they opened. Each is a list of its item

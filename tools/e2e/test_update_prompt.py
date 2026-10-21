@@ -106,8 +106,8 @@ class UpdatePromptTest(BrowserTest):
 
         upgrade(self.browser.binary)
         # The poller looks ten seconds after the install folder changes.
-        chip = wait_for(lambda: next(iter(self.update_chips()), None), timeout=60,
-                        what='the Update chip')
+        chip = self.browser.wait_settled(lambda: next(iter(self.update_chips()), None),
+                                         timeout=60, what='the Update chip')
         self.browser.click_view(chip)
         item = wait_for(lambda: next((v for menu in self.browser.menus() for group in menu
                                       for v in group

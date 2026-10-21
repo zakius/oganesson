@@ -254,21 +254,15 @@ class GesturesTest(BrowserTest):
         menu = wait_for(lambda: self.browser.menus(), what='the link menu')[0]
         # The first group: new tab, new window, split view, incognito.
         self.browser.click_view(menu[0][2])
-        last = {}
-
         def split_panes():
-            # The window with two visible contents views (others may be
-            # open), once their bounds stop changing.
+            # The window with two visible contents views; others may be open.
             by_window = {}
             for view in self.browser.views('ContentsWebView'):
                 if view.visible:
                     by_window.setdefault(view.widget, []).append(view)
-            panes = next((v for v in by_window.values() if len(v) == 2), None)
-            bounds = panes and sorted(str(p.bounds) for p in panes)
-            previous, last['bounds'] = last.get('bounds'), bounds
-            return panes if bounds and bounds == previous else None
+            return next((v for v in by_window.values() if len(v) == 2), None)
 
-        panes = wait_for(split_panes, what='two panes')
+        panes = self.browser.wait_settled(split_panes, what='two panes')
         right = wait_for(lambda: next((t for t in self.browser.targets()
                                        if t['id'] not in before and
                                        t['url'] == self.server.url('/b')), None),
@@ -304,8 +298,9 @@ class GesturesTest(BrowserTest):
         # The press opens no tab menu, and the release selects no other tab.
         page = self.visit(self.server.url('/a'), self.server.url('/b'))
         before = self.active()['id']
-        tab = max((v for v in self.browser.views('Tab') if v.visible),
-                  key=lambda v: v.bounds['x'])
+        tab = self.browser.wait_settled(
+            lambda: max((v for v in self.browser.views('Tab') if v.visible),
+                        key=lambda v: v.bounds['x'], default=None), what='the last tab')
         self.stroke_left(start=tab.center)
         wait_for(lambda: page.eval('location.href') == self.server.url('/a'), what='back to /a')
         self.assertEqual(self.active()['id'], before)

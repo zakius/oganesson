@@ -116,8 +116,10 @@ class TabAudioIndicatorTest(BrowserTest):
 
     def mute_from_context_menu(self, label):
         """Clicks `label` in the context menu of the sound tab, the last one."""
-        tab = max((v for v in self.browser.views(self.tab_class) if v.visible),
-                  key=lambda v: (v.bounds['y'], v.bounds['x']))
+        tab = self.browser.wait_settled(
+            lambda: max((v for v in self.browser.views(self.tab_class) if v.visible),
+                        key=lambda v: (v.bounds['y'], v.bounds['x']), default=None),
+            what='the sound tab in place')
         self.browser.click_view(tab, button=3)
         item = wait_for(lambda: next((i for menu in self.browser.menus() for group in menu
                                       for i in group if i['Title'] == label), None),

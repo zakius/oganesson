@@ -19,8 +19,9 @@ class VerticalTabsTest(BrowserTest):
         last = self.browser.new_tab('data:text/html,<title>last</title>')
         wait_for(lambda: last.eval('document.visibilityState') == 'visible',
                  what='the new tab in front')
-        tabs = wait_for(lambda: sorted((v for v in self.browser.views('TabView') if v.visible),
-                                       key=lambda v: v.bounds['y'])[:1], what='the tabs')
+        tabs = self.browser.wait_settled(
+            lambda: sorted((v for v in self.browser.views('TabView') if v.visible),
+                           key=lambda v: v.bounds['y'])[:1], what='the tabs')
         x = self.region().bounds['x']
         # The first pixel column: the strip's padding, left of the top tab.
         self.assertLess(x + 1, tabs[0].bounds['x'])
