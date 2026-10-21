@@ -200,11 +200,13 @@ class WebAppTest(BrowserTest):
     @staticmethod
     def wait_on_screen(app):
         # The first app window shows a while after its page loads; a click
-        # before its first frame misses the link.
+        # before its first frame misses the link. Without a gesture, which
+        # would leave the page user activation for its next few seconds.
         wait_for(lambda: app.eval('!!document.getElementById("plain") && innerWidth > 0'
-                                  ' && document.visibilityState === "visible"'),
+                                  ' && document.visibilityState === "visible"', gesture=False),
                  what='the app page on screen')
-        app.eval('new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))')
+        app.eval('new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))',
+                 gesture=False)
 
     def opened(self):
         return self.opened_file.read_text().splitlines() if self.opened_file.exists() else []
@@ -463,7 +465,7 @@ class WebAppLinksTest(WebAppTest):
 
     def test_out_of_scope_push_without_gesture_stays_in_app(self):
         app = self.launch_app()
-        app.eval('history.pushState(null, "", "/out.html?script")')
+        app.eval('history.pushState(null, "", "/out.html?script")', gesture=False)
         self.assertEqual(app.eval('location.href'), self.server.url('/out.html?script'))
         self.assertEqual(self.opened(), [])
 
