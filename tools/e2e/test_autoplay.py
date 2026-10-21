@@ -141,8 +141,9 @@ class AutoplayTest(BrowserTest):
 
     def assert_blocked(self, page):
         wait_for(lambda: self.results(page), what='a play() result')
-        # Long enough for the media to load and an allowed autoplay to start.
-        time.sleep(2)
+        # An allowed autoplay starts as the media gets enough data.
+        wait_for(lambda: page.eval('v.readyState === HTMLMediaElement.HAVE_ENOUGH_DATA',
+                                   gesture=False), what='the media to load')
         self.assertNotIn('played', self.results(page))
         self.assertIn('NotAllowedError', self.results(page))
         self.assertTrue(self.paused(page))
@@ -223,6 +224,40 @@ class BlockAudioAndVideoTest(AutoplayTest):
         time.sleep(6)
         self.assertFalse(page.eval('navigator.userActivation.isActive', gesture=False))
         self.assertEqual(page.eval('playNew()', gesture=False), 'played')
+
+    def default(self, page):
+        return page.eval("import('chrome://resources/js/cr.js').then(cr => cr.sendWithPromise("
+                         "'getDefaultValueForContentType', 'autoplay')).then(v => v.setting)")
+
+    def test_site_settings_row(self):
+        page = self.browser.new_tab('chrome://settings/content')
+        # The row in whichever of the page's lists has it.
+        row = (f"(({FIND})('settings-site-settings-page')?.shadowRoot"
+               "?.querySelectorAll('settings-site-settings-list') ?? []).values()"
+               ".map(list => list.shadowRoot?.querySelector('#autoplay')).find(Boolean)")
+        wait_for(lambda: page.eval(f'!!{row}'), what='the Autoplay row')
+        wait_for(lambda: 'Block audio and video' in page.eval(f'{row}.subLabel || ""'),
+                 what='the default in the row')
+
+    def test_three_choices(self):
+        page = self.browser.new_tab('chrome://settings/content/autoplay')
+        group = f"({FIND})('settings-category-default-radio-group')"
+        wait_for(lambda: page.eval(f'!!{group}?.shadowRoot'), what='the choices')
+        wait_for(lambda: page.eval(f"{group}.shadowRoot.querySelector('#blockRadioOption')"
+                                   '.checked'), what='Block audio and video selected')
+        self.assertEqual(self.default(page), 'block')
+
+        def block_again():
+            # The class's other tests run with the default.
+            page.eval(f"{group}.shadowRoot.querySelector('#blockRadioOption').click()")
+            wait_for(lambda: self.default(page) == 'block', what='block again')
+        self.addCleanup(block_again)
+        for option, value in (('allowRadioOption', 'allow'), ('askRadioOption', 'ask'),
+                              ('blockRadioOption', 'block'), ('allowRadioOption', 'allow')):
+            page.eval(f"{group}.shadowRoot.querySelector('#{option}').click()")
+            wait_for(lambda: self.default(page) == value, what=value)
+        # The choice applies to the next page loaded.
+        self.assert_plays(self.open('/autoplay.html'))
 
 
 class ExtensionScriptTest(AutoplayTest):
@@ -314,37 +349,6 @@ class ExceptionTest(AutoplayTest):
 
     def test_other_site_blocked(self):
         self.assert_blocked(self.open('/autoplay.html'))
-
-
-class SettingsPageTest(AutoplayTest):
-
-    def default(self, page):
-        return page.eval("import('chrome://resources/js/cr.js').then(cr => cr.sendWithPromise("
-                         "'getDefaultValueForContentType', 'autoplay')).then(v => v.setting)")
-
-    def test_site_settings_row(self):
-        page = self.browser.new_tab('chrome://settings/content')
-        # The row in whichever of the page's lists has it.
-        row = (f"(({FIND})('settings-site-settings-page')?.shadowRoot"
-               "?.querySelectorAll('settings-site-settings-list') ?? []).values()"
-               ".map(list => list.shadowRoot?.querySelector('#autoplay')).find(Boolean)")
-        wait_for(lambda: page.eval(f'!!{row}'), what='the Autoplay row')
-        wait_for(lambda: 'Block audio and video' in page.eval(f'{row}.subLabel || ""'),
-                 what='the default in the row')
-
-    def test_three_choices(self):
-        page = self.browser.new_tab('chrome://settings/content/autoplay')
-        group = f"({FIND})('settings-category-default-radio-group')"
-        wait_for(lambda: page.eval(f'!!{group}?.shadowRoot'), what='the choices')
-        wait_for(lambda: page.eval(f"{group}.shadowRoot.querySelector('#blockRadioOption')"
-                                   '.checked'), what='Block audio and video selected')
-        self.assertEqual(self.default(page), 'block')
-        for option, value in (('allowRadioOption', 'allow'), ('askRadioOption', 'ask'),
-                              ('blockRadioOption', 'block'), ('allowRadioOption', 'allow')):
-            page.eval(f"{group}.shadowRoot.querySelector('#{option}').click()")
-            wait_for(lambda: self.default(page) == value, what=value)
-        # The choice applies to the next page loaded.
-        self.assert_plays(self.open('/autoplay.html'))
 
 
 if __name__ == '__main__':

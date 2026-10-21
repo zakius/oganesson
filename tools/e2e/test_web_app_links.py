@@ -430,14 +430,6 @@ class WebAppLinksTest(WebAppTest):
         self.assert_excluded_opened(app)
         self.assertIn('/app/to-excluded', self.server.requests)
 
-    def test_default_browser_still_gets_excluded_page(self):
-        # The app hands it to the system, whichever browser that is.
-        self.set_rules(RULES)
-        self.make_default_browser()
-        app = self.launch_app()
-        app.click('#push')
-        self.assert_excluded_opened(app)
-
     def test_in_scope_push_stays_in_app(self):
         self.set_rules(RULES)
         app = self.launch_app()
@@ -648,7 +640,10 @@ class WebAppLinksTest(WebAppTest):
         self.browser.close_target(tab)
 
     def test_default_browser_still_gets_links(self):
-        # oganesson as the default browser opens them in a browser window.
+        # oganesson as the default browser opens them in a browser window: the
+        # app hands every link out of it to the system, whichever browser that
+        # is, from a click, a new window, the link menu and an exclusion.
+        self.set_rules(RULES)
         self.make_default_browser()
         app = self.launch_app()
         app.click('#plain')
@@ -656,9 +651,15 @@ class WebAppLinksTest(WebAppTest):
         app.click('#blank')
         app.eval('void window.open("/out.html?open")')
         wait_for(lambda: len(self.opened()) == 3, what='xdg-open thrice')
+        self.browser.click_view(self.link_menu(app, '#plain')[1])
+        wait_for(lambda: len(self.opened()) == 4, what='xdg-open from the menu')
+        app.click('#push')
+        wait_for(lambda: len(self.opened()) == 5, what='xdg-open for the excluded page')
         self.assertEqual(self.opened(), [self.server.url(p) for p in
-                                         ('/out.html?plain', '/out.html?blank', '/out.html?open')])
-        self.assertEqual(app.eval('location.href'), self.server.url('/app/index.html'))
+                                         ('/out.html?plain', '/out.html?blank', '/out.html?open',
+                                          '/out.html?plain', '/app/excluded.html')])
+        wait_for(lambda: app.eval('location.href') == self.server.url('/app/index.html'),
+                 what='the app window back')
         self.assertEqual(self.out_tabs(), [])
 
     def test_menu_opens_link_in_default_browser(self):
@@ -677,13 +678,6 @@ class WebAppLinksTest(WebAppTest):
         self.assertEqual(self.opened(), [self.server.url('/out.html?plain')])
         self.assertEqual(app.eval('location.href'), self.server.url('/app/index.html'))
         self.assertEqual(self.out_tabs(), [])
-
-    def test_default_browser_keeps_menu_items(self):
-        self.make_default_browser()
-        app = self.launch_app()
-        self.browser.click_view(self.link_menu(app, '#plain')[1])
-        wait_for(self.opened, what='xdg-open')
-        self.assertEqual(self.opened(), [self.server.url('/out.html?plain')])
 
     def test_menu_names_default_browser(self):
         app = self.launch_app()

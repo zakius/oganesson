@@ -21,8 +21,9 @@ view bounds line up with the screen.
 What's here:
 
 - BrowserTest: one Browser per test class (`browser_args`, `first_run`,
-  `prefs`, `browser_env`, `debugging_pipe`, `wayland` to run on Wayland
-  whatever OGANESSON_E2E_WAYLAND says); each test also fails on a crash or FATAL line.
+  `prefs`, `local_state`, `browser_env`, `debugging_pipe`, `wayland` to run
+  on Wayland whatever OGANESSON_E2E_WAYLAND says); each test also fails on a
+  crash or FATAL line.
 - Browser: `start()` (restart on the same profile), `stop()` (also ends what
   the browser started under its root; the harness stops every browser left
   when it exits, also on SIGTERM or SIGHUP),
@@ -352,7 +353,7 @@ class Browser:
     """The oganesson binary on an Xvfb display, with a throwaway profile and HOME."""
 
     def __init__(self, args=(), first_run=False, prefs=None, env=None, pipe=False,
-                 wayland=WAYLAND):
+                 wayland=WAYLAND, local_state=None):
         if not BINARY.is_file():
             raise unittest.SkipTest(f'no browser binary at {BINARY!s}; run ./oganesson.py build')
         # A test may start another copy of the browser on the profile.
@@ -366,6 +367,9 @@ class Browser:
         if prefs:
             (self.profile / 'Default').mkdir(parents=True)
             (self.profile / 'Default/Preferences').write_text(json.dumps(prefs))
+        if local_state:
+            self.profile.mkdir(parents=True, exist_ok=True)
+            (self.profile / 'Local State').write_text(json.dumps(local_state))
         self.xvfb = Xvfb()
         self.labwc = Labwc(self.xvfb, self.root) if wayland else None
         self.args = list(args) + ([] if first_run else ['--no-first-run'])
@@ -871,6 +875,7 @@ class BrowserTest(unittest.TestCase):
     browser_args = ()
     first_run = False
     prefs = None
+    local_state = None
     browser_env = None
     debugging_pipe = False
     wayland = WAYLAND
@@ -879,7 +884,7 @@ class BrowserTest(unittest.TestCase):
     def setUpClass(cls):
         cls.browser = Browser(cls.browser_args, first_run=cls.first_run, prefs=cls.prefs,
                               env=cls.browser_env, pipe=cls.debugging_pipe,
-                              wayland=cls.wayland)
+                              wayland=cls.wayland, local_state=cls.local_state)
         cls.failed = False
 
     @classmethod

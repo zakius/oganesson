@@ -96,8 +96,13 @@ class GesturesTest(BrowserTest):
         page.call('Page.navigate', url=second)
         wait_for(lambda: page.eval('location.href') == second and
                  page.eval('document.readyState') == 'complete', what=second)
-        time.sleep(0.3)
+        self.painted(page)
         return page
+
+    @staticmethod
+    def painted(page):
+        # A new document takes input once it has painted.
+        page.eval('new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))')
 
     def center(self):
         return self.browser.wait_view('ContentsWebView').center
@@ -177,7 +182,7 @@ class GesturesTest(BrowserTest):
         wait_for(lambda: page.eval('document.title') == 'Split', what=c)
         page.eval('history.go(-2)')
         wait_for(lambda: page.eval('location.href') == a, what='back to /a')
-        time.sleep(0.3)
+        self.painted(page)
         x, y = self.center()
         self.browser.xdotool('mousemove', str(x), str(y), 'mousedown', '3', 'click', '1')
         wait_for(lambda: page.eval('location.href') == b, what='forward to /b')
@@ -358,7 +363,7 @@ class GesturesTest(BrowserTest):
         page = self.visit(a, b)
         page.eval('history.back()')
         wait_for(lambda: page.eval('location.href') == a, what='back to /a')
-        time.sleep(0.3)
+        self.painted(page)
         x, y = self.center()
         self.browser.xdotool('mousemove', str(x), str(y), 'mousedown', '3')
         self.drag(x, y, 1360 - x, 0)  # the window is 1300 wide, the screen 1400
@@ -384,7 +389,7 @@ class GesturesTest(BrowserTest):
                 page.call('Page.navigate', url=url)
                 wait_for(lambda: page.eval('location.href') == url and
                          page.eval('document.readyState') == 'complete', what=url)
-            time.sleep(0.3)
+            self.painted(page)
             self.stroke_left()
             wait_for(lambda: page.eval('location.href') == self.server.url('/a'),
                      what='back to /a')
@@ -426,8 +431,7 @@ class GesturesTest(BrowserTest):
         page.call('Page.navigate', url=self.server.url('/record2'))
         wait_for(lambda: page.eval('document.title') == 'Record2' and
                  page.eval('document.readyState') == 'complete', what='/record2')
-        # A new document takes input once it has painted.
-        page.eval('new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))')
+        self.painted(page)
         self.browser.xdotool('mouseup', '3')
         wait_for(lambda: any(e.startswith('mouseup') for e in page.eval('seen')),
                  what='the replayed click')

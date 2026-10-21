@@ -84,13 +84,9 @@ class OmniboxSuggestionsTest(BrowserTest):
                          'short_name': 'Local', 'keyword': 'local',
                          'synced_guid': 'b6b2d6c2-1b2a-4d55-9b3e-0e5f1c0a7a01',
                          'url': cls.server.url('/search?q={searchTerms}')}}}
-        super().setUpClass()
         # chrome://omnibox is an internal debugging page, off by default.
-        cls.browser.quit()
-        local_state = cls.browser.profile / 'Local State'
-        state = json.loads(local_state.read_text())
-        local_state.write_text(json.dumps(state | {'internal_only_uis_enabled': True}))
-        cls.browser.start()
+        cls.local_state = {'internal_only_uis_enabled': True}
+        super().setUpClass()
         cls.zebra = f'zebra.localhost:{cls.server.port}'
         cls.twit = f'twittest.localhost:{cls.server.port}'
         cls.seed()
