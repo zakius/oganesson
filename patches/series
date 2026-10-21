@@ -42,3 +42,4 @@ oganesson/settings/tab-audio-indicator-settings.patch
 oganesson/ui/wayland-drag-resting-pointer.patch
 oganesson/core/importer-profile-discovery.patch
 oganesson/core/update-prompt.patch
+oganesson/core/emudhra-spki-block.patch
