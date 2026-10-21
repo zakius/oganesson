@@ -1,0 +1,226 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright 2026 The oganesson Authors. GPL-3.0, see the LICENSE file. -->
+<grit-part>
+  <message name="IDS_SETUP_STEP_WELCOME" desc="Setup: name of the first step in the list of steps.">
+    Welcome
+  </message>
+  <message name="IDS_SETUP_STEP_IMPORT" desc="Setup: name of the step that imports data from other browsers.">
+    Import
+  </message>
+  <message name="IDS_SETUP_STEP_SYNC" desc="Setup: name of the step that signs in to Firefox Sync. Firefox Sync is a product name.">
+    Firefox Sync
+  </message>
+  <message name="IDS_SETUP_STEP_SEARCH" desc="Setup: name of the step that picks the search engine.">
+    Search
+  </message>
+  <message name="IDS_SETUP_STEP_TABS" desc="Setup: name of the step that picks how tabs behave.">
+    Tabs
+  </message>
+  <message name="IDS_SETUP_STEP_PASSWORDS" desc="Setup: name of the step about saving passwords.">
+    Passwords
+  </message>
+  <message name="IDS_SETUP_STEP_PRIVACY" desc="Setup: name of the step with crash reports and fingerprint noise.">
+    Privacy extras
+  </message>
+  <message name="IDS_SETUP_STEP_DEFAULT_BROWSER" desc="Setup: name of the step that makes the browser the default one.">
+    Default browser
+  </message>
+  <message name="IDS_SETUP_STEP_DONE" desc="Setup: name of the last step, a summary.">
+    Done
+  </message>
+  <message name="IDS_SETUP_BACK" desc="Setup: button that goes to the previous step.">
+    Back
+  </message>
+  <message name="IDS_SETUP_SKIP" desc="Setup: button that leaves a step as it is and goes to the next.">
+    Skip
+  </message>
+  <message name="IDS_SETUP_NEXT" desc="Setup: button that goes to the next step.">
+    Next
+  </message>
+  <message name="IDS_SETUP_GET_STARTED" desc="Setup: button on the first step.">
+    Get started
+  </message>
+  <message name="IDS_SETUP_START_BROWSING" desc="Setup: button on the last step, which closes setup.">
+    Start browsing
+  </message>
+  <message name="IDS_SETUP_WELCOME_TITLE" desc="Setup, first step, first run: heading.">
+    Welcome to oganesson
+  </message>
+  <message name="IDS_SETUP_WELCOME_LEAD" desc="Setup, first step, first run: text under the heading.">
+    A few choices and you're browsing. Every one of them can be changed later in Settings. Skipping a step keeps the default shown.
+  </message>
+  <message name="IDS_SETUP_WELCOME_NOTE" desc="Setup, first step, first run: note about the project. The placeholder is Helium, the browser oganesson is built on.">
+    oganesson is a personal project built on <ph name="HELIUM">$1<ex>Helium</ex></ph>. It changes without notice and development may stop at any moment.
+  </message>
+  <message name="IDS_SETUP_NEW_CHOICE_TITLE" desc="Setup, first step, for a user who already used the browser: heading.">
+    One new choice
+  </message>
+  <message name="IDS_SETUP_NEW_CHOICE_LEAD" desc="Setup, first step, for a user who already used the browser: text under the heading.">
+    This version lets you decide how oganesson downloads its own data: certificate revocations, extensions, filter lists. It takes a minute.
+  </message>
+  <message name="IDS_SETUP_NEW_CHOICE_NOTE" desc="Setup, first step, for a user who already used the browser: why the default applies meanwhile. eMudhra is a certificate authority whose keys were stolen.">
+    Until you finish, certificate data updates from Google (the Direct preset), because a compromised certificate authority was blocked on Oct 17 and oganesson hadn't been receiving such blocks.
+  </message>
+  <message name="IDS_SETUP_IMPORT_TITLE" desc="Setup, Import step: heading.">
+    Bring your data
+  </message>
+  <message name="IDS_SETUP_IMPORT_FOUND" desc="Setup, Import step: heading of the list of browsers found.">
+    Found on this computer:
+  </message>
+  <message name="IDS_SETUP_IMPORT_NONE" desc="Setup, Import step: shown when no other browser was found.">
+    No other browser was found.
+  </message>
+  <message name="IDS_SETUP_IMPORT_WHAT" desc="Setup, Import step: heading of the kinds of data to import.">
+    What to bring:
+  </message>
+  <message name="IDS_SETUP_IMPORT_BOOKMARKS" desc="Setup, Import step: kind of data.">
+    Bookmarks
+  </message>
+  <message name="IDS_SETUP_IMPORT_HISTORY" desc="Setup, Import step: kind of data.">
+    History
+  </message>
+  <message name="IDS_SETUP_IMPORT_PASSWORDS" desc="Setup, Import step: kind of data.">
+    Saved passwords
+  </message>
+  <message name="IDS_SETUP_IMPORT_PASSWORDS_NOTE" desc="Setup, Import step: note on importing passwords. Firefox is a browser.">
+    Firefox needs your primary password if you set one
+  </message>
+  <message name="IDS_SETUP_IMPORT_EXTENSIONS" desc="Setup, Import step: kind of data.">
+    Extensions
+  </message>
+  <message name="IDS_SETUP_IMPORT_EXTENSIONS_NOTE" desc="Setup, Import step: note on importing extensions. The placeholder is the name of Google's extension store, Chrome Web Store.">
+    Reinstalled from the <ph name="STORE">$1<ex>Chrome Web Store</ex></ph>, so they follow your Extensions row in the next steps
+  </message>
+  <message name="IDS_SETUP_SYNC_TITLE" desc="Setup, Firefox Sync step: heading.">
+    Sync with Firefox
+  </message>
+  <message name="IDS_SETUP_SYNC_LEAD" desc="Setup, Firefox Sync step: text under the heading. The placeholder is Helium, the browser oganesson is built on.">
+    oganesson syncs bookmarks, history, passwords and open tabs with Firefox through your Mozilla account. Nothing goes to Google or <ph name="HELIUM">$1<ex>Helium</ex></ph>.
+  </message>
+  <message name="IDS_SETUP_SYNC_NOW" desc="Setup, Firefox Sync step: choice that signs in now.">
+    Sign in now
+  </message>
+  <message name="IDS_SETUP_SYNC_NOW_DESCRIPTION" desc="Setup, Firefox Sync step: what Sign in now does.">
+    Opens the Mozilla account page.
+  </message>
+  <message name="IDS_SETUP_NOT_NOW" desc="Setup: choice that leaves something for later.">
+    Not now
+  </message>
+  <message name="IDS_SETUP_SYNC_LATER_DESCRIPTION" desc="Setup, Firefox Sync step: where to sign in later.">
+    Settings › Sync, any time.
+  </message>
+  <message name="IDS_SETUP_TRAFFIC_TITLE" desc="Setup, Browser traffic step: heading.">
+    How should oganesson keep itself up to date?
+  </message>
+  <message name="IDS_SETUP_TRAFFIC_LEAD" desc="Setup, Browser traffic step: text under the heading.">
+    The browser's own traffic: certificate data, extensions, filter lists and so on. Websites and your downloads are not affected.
+  </message>
+  <message name="IDS_SETUP_SEARCH_TITLE" desc="Setup, Search step: heading.">
+    Search engine
+  </message>
+  <message name="IDS_SETUP_SEARCH_LEAD" desc="Setup, Search step: text under the heading.">
+    Used by the address bar. Search suggestions stay off unless you turn them on.
+  </message>
+  <message name="IDS_SETUP_BANGS_ON" desc="Setup, Search step: note when bangs come from the user's server.">
+    !bangs work in any engine: they come from your server.
+  </message>
+  <message name="IDS_SETUP_BANGS_OFF" desc="Setup, Search step: note when there is no server for bangs.">
+    !bangs need a Helium services server (Browser traffic step). Without one, they are off.
+  </message>
+  <message name="IDS_SETUP_TABS_TITLE" desc="Setup, Tabs step: heading.">
+    How tabs behave
+  </message>
+  <message name="IDS_SETUP_TABS_LEAD" desc="Setup, Tabs step: text under the heading.">
+    Where new tabs open and which tab you land on when you close one.
+  </message>
+  <message name="IDS_SETUP_TABS_FIREFOX" desc="Setup, Tabs step: what Firefox's tab rules do.">
+    Links open after the current tab and its related tabs. Closing returns to the tab that opened it.
+  </message>
+  <message name="IDS_SETUP_TABS_CHROMIUM" desc="Setup, Tabs step: what Chromium's tab rules are. The placeholder is the name Chromium.">
+    <ph name="CHROMIUM">$1<ex>Chromium</ex></ph>'s own rules.
+  </message>
+  <message name="IDS_SETUP_TABS_NOTE" desc="Setup, Tabs step: where the details are in Settings.">
+    Settings › Behavior › Tab behavior has the five knobs behind these.
+  </message>
+  <message name="IDS_SETUP_PASSWORDS_LEAD" desc="Setup, Passwords step: the question.">
+    Should oganesson offer to save the passwords you type?
+  </message>
+  <message name="IDS_SETUP_PASSWORDS_SAVE" desc="Setup, Passwords step: choice that saves passwords in the browser.">
+    Save in oganesson
+  </message>
+  <message name="IDS_SETUP_PASSWORDS_SAVE_DESCRIPTION" desc="Setup, Passwords step: what saving in the browser means.">
+    Synced with Firefox Sync if you signed in.
+  </message>
+  <message name="IDS_SETUP_PASSWORDS_DONT_SAVE" desc="Setup, Passwords step: choice that never offers to save passwords.">
+    Don't save
+  </message>
+  <message name="IDS_SETUP_PASSWORDS_DONT_SAVE_DESCRIPTION" desc="Setup, Passwords step: what Don't save means.">
+    Never offer to save, for example because you use or will install a password manager extension.
+  </message>
+  <message name="IDS_SETUP_CRASH_REPORTS" desc="Setup, Privacy extras step: name of the crash reports setting.">
+    Crash reports
+  </message>
+  <message name="IDS_SETUP_CRASH_REPORTS_DESCRIPTION" desc="Setup, Privacy extras step: where crash reports go. The placeholder is Helium, the browser oganesson is built on.">
+    Sent to <ph name="HELIUM">$1<ex>Helium</ex></ph>'s crash server, only if you allow it.
+  </message>
+  <message name="IDS_SETUP_OFF" desc="Setup: a setting's Off choice or state.">
+    Off
+  </message>
+  <message name="IDS_SETUP_ON" desc="Setup, summary: a setting's On state.">
+    On
+  </message>
+  <message name="IDS_SETUP_ASK_EACH_TIME" desc="Setup, Privacy extras step: crash reports choice.">
+    Ask each time
+  </message>
+  <message name="IDS_SETUP_NOISE" desc="Setup, Privacy extras step: name of the fingerprint noise setting.">
+    Fingerprint noise
+  </message>
+  <message name="IDS_SETUP_NOISE_DESCRIPTION" desc="Setup, Privacy extras step: what fingerprint noise does.">
+    Adds noise to canvas, audio and similar so sites find you harder to recognise. Some sites break.
+  </message>
+  <message name="IDS_SETUP_DEFAULT_TITLE" desc="Setup, Default browser step: heading.">
+    Make oganesson your default browser?
+  </message>
+  <message name="IDS_SETUP_DEFAULT_LEAD" desc="Setup, Default browser step: what it means.">
+    Links from other apps open here.
+  </message>
+  <message name="IDS_SETUP_DEFAULT_LINUX" desc="Setup, Default browser step on Linux: how it is set. xdg-settings is a program name.">
+    Sets it through xdg-settings.
+  </message>
+  <message name="IDS_SETUP_DEFAULT_WINDOWS" desc="Setup, Default browser step on Windows: what happens.">
+    Opens Windows' Default apps page.
+  </message>
+  <message name="IDS_SETUP_MAKE_DEFAULT" desc="Setup, Default browser step: choice that makes the browser the default one.">
+    Make default
+  </message>
+  <message name="IDS_SETUP_DONE_TITLE" desc="Setup, last step: heading.">
+    You're set
+  </message>
+  <message name="IDS_SETUP_DONE_LEAD" desc="Setup, last step: text under the heading.">
+    Everything here is in Settings. You can also run this again from Settings › About › Run setup again.
+  </message>
+  <message name="IDS_SETUP_NOTHING" desc="Setup, summary: nothing was imported.">
+    Nothing
+  </message>
+  <message name="IDS_SETUP_SIGNING_IN" desc="Setup, summary: Firefox Sync is signing in.">
+    Signing in
+  </message>
+  <message name="IDS_SETUP_TRAFFIC_SERVER" desc="Setup, summary: the browser traffic preset and the server. The first placeholder is the preset's name, the second the server's address or 'not set'.">
+    <ph name="PRESET">$1<ex>Through my server</ex></ph> · server <ph name="SERVER">$2<ex>https://services.example.org/</ex></ph>
+  </message>
+  <message name="IDS_SETUP_NOT_SET" desc="Setup, summary: no server is set.">
+    not set
+  </message>
+  <message name="IDS_SETUP_SAVED_IN_BROWSER" desc="Setup, summary: passwords are saved in the browser.">
+    Saved in oganesson
+  </message>
+  <message name="IDS_SETUP_NOT_SAVED" desc="Setup, summary: passwords are not saved.">
+    Not saved
+  </message>
+  <message name="IDS_SETUP_YES" desc="Setup, summary: the browser was made the default one.">
+    Yes
+  </message>
+  <message name="IDS_SETUP_RUN_AGAIN" desc="Settings, About: link that opens setup again.">
+    Run setup again
+  </message>
+</grit-part>

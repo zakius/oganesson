@@ -22,7 +22,7 @@ import {loadTimeData} from '../i18n_setup.js';
 
 // The presets, as values of the knobs' prefs (oganesson_pref_names.h).
 // oganesson.tabs.link_position: 0 Chromium's, 1 Firefox's, 2 at the end.
-const PRESETS: Record<string, Record<string, boolean|number>> = {
+export const TAB_PRESETS: Record<string, Record<string, boolean|number>> = {
   chromium: {
     'oganesson.tabs.link_position': 0,
     'helium.browser.new_tab_next_to_active': false,
@@ -99,7 +99,7 @@ export class SettingsTabBehaviorElement extends SettingsTabBehaviorElementBase {
 
   static get properties() {
     return {
-      // A key of PRESETS, or 'custom'.
+      // A key of TAB_PRESETS, or 'custom'.
       preset_: String,
 
       // oganesson.tabs.link_position's values, in order.
@@ -120,7 +120,7 @@ export class SettingsTabBehaviorElement extends SettingsTabBehaviorElementBase {
 
   override connectedCallback() {
     super.connectedCallback();
-    for (const key of Object.keys(PRESETS['firefox'])) {
+    for (const key of Object.keys(TAB_PRESETS['firefox'])) {
       this.addPrefObserver<boolean|number>(key, pref => {
         this.knobs_[key] = pref.value;
         this.preset_ = this.matchingPreset_();
@@ -129,14 +129,14 @@ export class SettingsTabBehaviorElement extends SettingsTabBehaviorElementBase {
   }
 
   private matchingPreset_(): string {
-    return Object.keys(PRESETS).find(preset => {
-      return Object.entries(PRESETS[preset])
+    return Object.keys(TAB_PRESETS).find(preset => {
+      return Object.entries(TAB_PRESETS[preset])
           .every(([knob, value]) => this.knobs_[knob] === value);
     }) ?? 'custom';
   }
 
   private onPresetChange_(e: Event) {
-    const preset = PRESETS[(e.target as HTMLSelectElement).value];
+    const preset = TAB_PRESETS[(e.target as HTMLSelectElement).value];
     for (const [knob, value] of Object.entries(preset ?? {})) {
       PrefService.getInstance().setPrefValue(knob, value);
     }

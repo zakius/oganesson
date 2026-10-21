@@ -242,7 +242,7 @@ export class BrowserTrafficElement extends BrowserTrafficElementBase {
           <template is="dom-repeat" items="[[presetCards_]]" as="preset">
             <div class="card" role="radio" tabindex$="[[cardTabIndex_(preset)]]"
                 aria-checked$="[[isPreset_(preset, state_)]]"
-                aria-disabled$="[[isCustom_(preset)]]"
+                aria-disabled$="[[ariaDisabled_(preset)]]"
                 on-click="onPresetCard_" on-keydown="onPresetCardKey_">
               <b>[[presetName_(preset)]]</b>
               <div class="secondary">[[presetDescriptionOf_(preset)]]</div>
@@ -425,8 +425,14 @@ export class BrowserTrafficElement extends BrowserTrafficElementBase {
     return this.i18n(`browserTrafficPreset${capitalized(preset)}Description`);
   }
 
-  private isPreset_(preset: string, state: BrowserTrafficState): boolean {
-    return preset === state.preset;
+  // ARIA wants "true" or "false"; Polymer writes a boolean as an empty
+  // attribute or none.
+  private isPreset_(preset: string, state: BrowserTrafficState): string {
+    return String(preset === state.preset);
+  }
+
+  private ariaDisabled_(preset: string): string {
+    return String(this.isCustom_(preset));
   }
 
   private isCustom_(preset: string): boolean {

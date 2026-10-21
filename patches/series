@@ -45,3 +45,4 @@ oganesson/core/update-prompt.patch
 oganesson/core/emudhra-spki-block.patch
 oganesson/core/browser-traffic.patch
 oganesson/settings/browser-traffic-settings.patch
+oganesson/settings/setup-page.patch

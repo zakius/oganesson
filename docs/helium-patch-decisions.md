@@ -16,7 +16,7 @@ Every other Helium patch is carried, also the ones earlier reviews called indiff
 - uBlock Origin: Helium's patch set. Going direct, filter lists update from uBlock's own URLs (oganesson's own `oganesson/core/ublock-assets-update`). Revisit if the WebExtensions uBlock Origin becomes reliable.
 - Extension installs from the Chrome Web Store are supported. Installs from AMO were taken out for now and are to come back. Helium's download proxy (`proxy-extension-downloads`) is browser traffic's Extensions row going through the user's server; going direct, store installs, updates and item data go to Google's own servers, as in Chromium. Helium itself sends them to a placeholder host without its services, so they fail.
 - Firefox Sync replaces Helium's sync. Its patches (`helium/core/sync/*`) are carried, as later patches build on them, and stay inert: Helium sync needs Helium's services and its provider feature is off.
-- Onboarding (`helium/core/onboarding-page`) is carried but never shown: a first run opens a normal window. It may serve as the basis of my own.
+- Onboarding is my own setup (`oganesson/settings/setup-page`, `chrome://settings/setup`), with steps Welcome, Import, Firefox Sync, Browser traffic, Search, Tabs, Passwords, Privacy extras, Default browser and Done. A first start opens it. A profile that had the browser before gets it once, with only Welcome ("One new choice"), Browser traffic and Done; the Direct preset applies until the user chooses. Every step but Welcome and Browser traffic can be skipped, and Settings > About runs it again. On the Browser traffic step, Next waits for a proxied row's server to answer the test. Helium's onboarding (`helium/core/onboarding-page`) is carried but never shown, and `chrome://setup` opens mine. Decided 2026-10-21.
 - Password manager stays enabled, so `helium/core/disable-password-manager` is dropped. Helium turns it off as insecure. Malware running as the user can read decrypted passwords from the browser's memory whatever the at-rest encryption, and full-disk encryption covers a stolen disk, so a separate password manager adds little. My decision, 2026-10-14.
 - The `ungoogled-chromium/add-flag-*` patches are carried.
 - A patch that only changes the default of an existing Chromium setting is dropped when I don't want that default. A patch that adds a new setting or flag is kept. Many `add-flag-*` patches add only a `chrome://flags` entry, not a Settings page option.
@@ -34,7 +34,7 @@ Every other Helium patch is carried, also the ones earlier reviews called indiff
 | `helium/core/services-prefs`, `services-schema-nag`, `component-updates`, `fixups-component-setup`, `proxy-extension-downloads`, `reenable-spellcheck-downloads`, `ublock-helium-services` | Their helpers defer to browser traffic (`oganesson/core/browser-traffic`); their prefs stay registered, derived from it. Going direct, uBlock Origin's filter lists update from uBlock's own URLs (oganesson's own `oganesson/core/ublock-assets-update`), and spellcheck dictionaries download from Google's server, as in Chromium. Helium's services page is replaced by Browser traffic. |
 | `helium/core/add-native-bangs` | The bang list comes only through the user's server: without one, bangs are off. |
 | `helium/core/reenable-update-checks`, `add-updater-preference`, `add-update-channel-flag`, `add-helium-versioning` | Helium's update checks are off by default: oganesson updates from its package repository. |
-| `helium/core/onboarding-page` | Marked as done by default: never shown. |
+| `helium/core/onboarding-page` | Marked as done by default: never shown. My setup takes its place. |
 | `helium/core/crash-reporting-prefs`, `helium/settings/crash-reporting-settings` | Crash reporting is off by default: reports would go to Helium's crash server. |
 | `helium/core/noise/*`, `helium/settings/helium-noise-settings` | Off by default; the setting stays. |
 | `helium/core/sync/*` | Inert: needs Helium's services, and its provider feature is off. |
@@ -71,7 +71,7 @@ The model is my own code in dubna (`components/browser_traffic`), not a copy of 
 - When automatic certificate data is more than 24 hours old, for any reason, the app menu gets a badge and an item that opens the page. Rows set to On request never badge.
 - On request means: Certificate security, an Update now button; DRM, a prompt when a site needs Widevine (to come); Extensions, store installs and the extensions page's Update; uBlock Origin, its own Update now, as its managed storage turns its autoUpdate off; dictionaries, adding a spellcheck language; bangs, Update now; WinSparkle, Check for updates only.
 - When Certificate security isn't Automatic, the page shows a red warning: revocations arrive only with a release.
-- The page, Settings > Privacy and security > Browser traffic (`settings/updates`), replaces Helium's services page.
+- The page, Settings > Privacy and security > Browser traffic (`settings/updates`), replaces Helium's services page, and is a step of setup (above).
 
 ## Notes on carried patches
 

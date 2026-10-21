@@ -1,0 +1,149 @@
+# oganesson's setup (src/.../setup_page/setup_page.ts) at chrome://settings/setup, a full page over
+# Settings. Startup opens it until this OS user has chosen browser traffic: with every step on a
+# first run, and with only Welcome, Browser traffic and Done (?existing) for a profile that had the
+# browser before. --no-first-run skips it, as it skips Helium's onboarding. Settings > About runs it
+# again. Helium's chrome://setup opens it too (firefox_about_urls.cc).
+--- a/chrome/browser/resources/settings/about_page/about_page.html.ts
++++ b/chrome/browser/resources/settings/about_page/about_page.html.ts
+@@ -86,6 +86,8 @@
+       @click="${this.onPrivacyPolicyClick_}" label="$i18n{aboutPrivacyPolicy}"
+       external></cr-link-row>
+ </if>
++  <cr-link-row class="hr" id="runSetup" @click="${this.onRunSetupClick_}"
++      label="$i18n{setupRunAgain}"></cr-link-row>
+   <cr-link-row class="hr" @click="${this.onManagementPageClick_}"
+       start-icon="${this.managedByIcon_}" label="$i18n{managementPage}"
+       role-description="$i18n{subpageArrowRoleDescription}"
+--- a/chrome/browser/resources/settings/about_page/about_page.ts
++++ b/chrome/browser/resources/settings/about_page/about_page.ts
+@@ -30,6 +30,8 @@
+ import type {PropertyValues} from 'chrome://resources/lit/v3_0/lit.rollup.js';
+ 
+ import {loadTimeData} from '../i18n_setup.js';
++import {routes} from '../route.js';
++import {Router} from '../router.js';
+ import {RelaunchMixinLit, RestartType} from '../relaunch_mixin_lit.js';
+ import type {SettingsPlugin} from '../settings_main/settings_plugin.js';
+ 
+@@ -336,6 +338,11 @@
+         });
+   }
+ 
++  // oganesson: setup, from the start.
++  protected onRunSetupClick_() {
++    Router.getInstance().navigateTo(routes.SETUP);
++  }
++
+   // <if expr="_google_chrome">
+   protected onReportIssueClick_() {
+     this.aboutBrowserProxy_.openFeedbackDialog();
+--- a/chrome/browser/resources/settings/lazy_load.ts
++++ b/chrome/browser/resources/settings/lazy_load.ts
+@@ -34,6 +34,7 @@
+ import './privacy_page/security/security_page_v2.js';
+ import './privacy_page/security/security_page.js';
+ import './privacy_page/browser_traffic_page.js';
++import './setup_page/setup_page.js';
+ import './privacy_page/services_page.js';
+ import './safety_hub/safety_hub_entry_point.js';
+ import './safety_hub/safety_hub_page.js';
+--- a/chrome/browser/resources/settings/router.ts
++++ b/chrome/browser/resources/settings/router.ts
+@@ -60,6 +60,7 @@
+   SEARCH_ENGINES: Route;
+   SECURITY: Route;
+   SECURITY_KEYS: Route;
++  SETUP: Route;
+   SHOPPING: Route;
+   SITE_SETTINGS: Route;
+   SITE_SETTINGS_ADS: Route;
+--- a/chrome/browser/resources/settings/route.ts
++++ b/chrome/browser/resources/settings/route.ts
+@@ -153,6 +153,8 @@
+ 
+   r.ABOUT = r.BASIC.createSection(
+       '/help', 'about', loadTimeData.getString('aboutPageTitle'));
++  // oganesson: setup, a full page over Settings (settings_ui.html).
++  r.SETUP = r.ABOUT.createChild('/setup');
+ 
+   // Search page.
+   r.SEARCH = r.BASIC.createSection(
+--- a/chrome/browser/resources/settings/settings_ui/settings_ui.html
++++ b/chrome/browser/resources/settings/settings_ui/settings_ui.html
+@@ -75,7 +75,7 @@
+       }
+     </style>
+     <settings-prefs id="prefs" prefs="{{prefs}}"></settings-prefs>
+-    <cr-toolbar id="toolbar"
++    <cr-toolbar id="toolbar" hidden$="[[setup_]]"
+         page-name="$i18n{settings}"
+         clear-label="$i18n{clearSearch}"
+         autofocus
+@@ -98,7 +98,12 @@
+         </template>
+       </div>
+     </cr-drawer>
+-    <div id="container" class="no-outline cr-scrollable">
++    <template is="dom-if" if="[[setup_]]" restamp>
++      <settings-setup-page class="cr-scrollable" prefs="{{prefs}}"
++          style="flex: 1; overflow: auto">
++      </settings-setup-page>
++    </template>
++    <div id="container" class="no-outline cr-scrollable" hidden$="[[setup_]]">
+       <div id="scrollableShadow" class="cr-scrollable-top-shadow"></div>
+       <div id="left" hidden$="[[narrow_]]">
+         <settings-menu id="leftMenu" on-iron-activate="onIronActivate_">
+--- a/chrome/browser/resources/settings/settings_ui/settings_ui.ts
++++ b/chrome/browser/resources/settings/settings_ui/settings_ui.ts
+@@ -90,6 +90,9 @@
+         value: false,
+       },
+ 
++      // oganesson: setup's page shows instead of Settings.
++      setup_: Boolean,
++
+       narrow_: {
+         type: Boolean,
+         observer: 'onNarrowChanged_',
+@@ -104,6 +107,7 @@
+ 
+   declare prefs: Record<string, unknown>;
+   declare private toolbarSpinnerActive_: boolean;
++  declare private setup_: boolean;
+   declare private narrow_: boolean;
+   declare private lastSearchQuery_: string;
+ 
+@@ -192,6 +196,7 @@
+   }
+ 
+   override currentRouteChanged(route: Route) {
++    this.setup_ = route === routes.SETUP;
+     this.$.scrollableShadow.classList.toggle(
+         'force-on', route === routes.PRIVACY_GUIDE || route.depth > 1);
+ 
+--- a/chrome/browser/ui/startup/startup_browser_creator_impl.cc
++++ b/chrome/browser/ui/startup/startup_browser_creator_impl.cc
+@@ -66,6 +66,7 @@
+ #include "chrome/common/pref_names.h"
+ #include "chrome/common/webui_url_constants.h"
+ #include "components/custom_handlers/protocol_handler_registry.h"
++#include "components/browser_traffic/browser_traffic.h"
+ #include "components/helium_services/pref_names.h"
+ #include "components/prefs/pref_service.h"
+ #include "components/sessions/core/serialized_navigation_entry.h"
+@@ -661,8 +662,13 @@
+   bool no_first_run =
+       base::CommandLine::ForCurrentProcess()->HasSwitch(switches::kNoFirstRun);
+   if (!is_incognito_or_guest && !no_first_run) {
+-    if (!profile_->GetPrefs()->GetBoolean(prefs::kHeliumDidOnboarding)) {
+-      UrlsToTabs({GURL(chrome::kHeliumSetupURL)}, &tabs);
++    // oganesson: its own setup, in Settings, until this OS user chose browser
++    // traffic: every step on a first run, and later only the new choice.
++    if (!browser_traffic::HasChosen(*g_browser_process->local_state())) {
++      UrlsToTabs({GURL(first_run::IsChromeFirstRun()
++                           ? "chrome://settings/setup"
++                           : "chrome://settings/setup?existing")},
++                 &tabs);
+       return {tabs, LaunchResult::kWithGivenUrls};
+     }
+   }
