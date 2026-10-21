@@ -92,6 +92,10 @@ class AutoplayTest(BrowserTest):
 
     setting = None
     exceptions = {}
+    # The harness's wait for uBlock Origin evaluates script in its background
+    # page with a user gesture, which its messages then pass on to new pages,
+    # and that mustn't count as input there.
+    wait_ubo = True
     # A fake audio output: opening the machine's ALSA device can stall
     # playback, and the load event with it.
     browser_args = ('--disable-audio-output',)
@@ -105,9 +109,6 @@ class AutoplayTest(BrowserTest):
         if cls.exceptions:
             content['content_settings'] = {'exceptions': {'autoplay': {
                 f'{pattern},*': {'setting': value} for pattern, value in cls.exceptions.items()}}}
-        # uBlock Origin stays on: the harness's wait for it evaluates script in
-        # its background page with a user gesture, which its messages then
-        # pass on to new pages, and that mustn't count as input there.
         cls.prefs = {'profile': content}
         super().setUpClass()
 

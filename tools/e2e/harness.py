@@ -22,13 +22,13 @@ What's here:
 
 - BrowserTest: one Browser per test class (`browser_args`, `first_run`,
   `prefs`, `local_state`, `browser_env`, `debugging_pipe`, `wayland` to run
-  on Wayland whatever OGANESSON_E2E_WAYLAND says); each test also fails on a
-  crash or FATAL line.
+  on Wayland whatever OGANESSON_E2E_WAYLAND says, `wait_ubo`); each test also
+  fails on a crash or FATAL line.
 - Browser: `start()` (restart on the same profile), `stop()` (also ends what
   the browser started under its root; the harness stops every browser left
   when it exits, also on SIGTERM or SIGHUP),
-  `follow_relaunch()` (after the browser restarted itself); both return once
-  the bundled uBlock Origin filters, unless the profile disables it; pages with
+  `follow_relaunch()` (after the browser restarted itself); with `wait_ubo`,
+  both return only once the bundled uBlock Origin filters; pages with
   `page(url_part)`, `new_tab(url)`, `close_target(page)`, `targets()`,
   `browser_call(method)`, `pipe_call(method)` (PWA); views with `views(cls, **props)`,
   `wait_view(cls, **props)`, `menus()`, `ubo_background()`, `wait_ubo_menu()`; real input with `click_view(view)`,
@@ -353,7 +353,7 @@ class Browser:
     """The oganesson binary on an Xvfb display, with a throwaway profile and HOME."""
 
     def __init__(self, args=(), first_run=False, prefs=None, env=None, pipe=False,
-                 wayland=WAYLAND, local_state=None):
+                 wayland=WAYLAND, local_state=None, wait_ubo=False):
         if not BINARY.is_file():
             raise unittest.SkipTest(f'no browser binary at {BINARY!s}; run ./oganesson.py build')
         # A test may start another copy of the browser on the profile.
@@ -377,6 +377,7 @@ class Browser:
         # --remote-debugging-pipe as well, for the domains only a pipe gets
         # (PWA); see pipe_call().
         self.pipe = pipe
+        self.wait_ubo = wait_ubo
         self.proc = None
         self.log_offset = 0
         BROWSERS.add(self)
@@ -437,7 +438,8 @@ class Browser:
             self.browser_call('Browser.setWindowBounds', windowId=window['windowId'],
                               bounds={'windowState': 'maximized'})
             time.sleep(1)
-        self._wait_ubo()
+        if self.wait_ubo:
+            self.ubo_background().close()
 
     def follow_relaunch(self):
         """After the browser relaunched itself (Settings' Restart button):
@@ -461,20 +463,8 @@ class Browser:
         self.ui_port = int(wait_for(lambda: rewritten(names[1]), timeout=60,
                                     what=f'a new {names[1]}'))
         wait_for(lambda: any(t['type'] == 'page' for t in self.targets()), what='a first tab')
-        self._wait_ubo()
-
-    def _wait_ubo(self):
-        """A page loaded before the bundled uBlock Origin listens isn't
-        filtered, and uBlock restarts on its first launch, so a
-        start waits until it filters. A profile that disables it
-        (`disable_reasons` in its Preferences)
-        doesn't wait."""
-        for name in ('Preferences', 'Secure Preferences'):
-            path = self.profile / 'Default' / name
-            settings = json.loads(path.read_text()) if path.exists() else {}
-            if settings.get('extensions', {}).get('settings', {}).get(UBO, {}).get('disable_reasons'):
-                return
-        self.ubo_background().close()
+        if self.wait_ubo:
+            self.ubo_background().close()
 
     def _read_port(self, name):
         path = self.profile / name
@@ -879,12 +869,18 @@ class BrowserTest(unittest.TestCase):
     browser_env = None
     debugging_pipe = False
     wayland = WAYLAND
+    # Whether a start waits until the bundled uBlock Origin filters, about a
+    # second: on a new profile it restarts itself, then loads its lists. It
+    # runs either way, as shipped. Without the wait, a page loaded in the
+    # first moments may go unfiltered, and later ones wait for its lists.
+    wait_ubo = False
 
     @classmethod
     def setUpClass(cls):
         cls.browser = Browser(cls.browser_args, first_run=cls.first_run, prefs=cls.prefs,
                               env=cls.browser_env, pipe=cls.debugging_pipe,
-                              wayland=cls.wayland, local_state=cls.local_state)
+                              wayland=cls.wayland, local_state=cls.local_state,
+                              wait_ubo=cls.wait_ubo)
         cls.failed = False
 
     @classmethod
