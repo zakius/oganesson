@@ -439,7 +439,10 @@ class Browser:
             window = self.browser_call('Browser.getWindowForTarget', targetId=page['id'])
             self.browser_call('Browser.setWindowBounds', windowId=window['windowId'],
                               bounds={'windowState': 'maximized'})
-            time.sleep(1)
+            wait_for(lambda: self.browser_call('Browser.getWindowBounds', windowId=window['windowId'])
+                     ['bounds']['windowState'] == 'maximized', what='the window maximized')
+            # Its views laid out at that size.
+            self.wait_view('BrowserView', match=lambda v: (v.bounds['x'], v.bounds['y']) == (0, 0))
         if self.wait_ubo:
             self.ubo_background().close()
 
