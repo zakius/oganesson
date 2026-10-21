@@ -59,6 +59,8 @@ BURST = ("window.counts = {sent: 0, loaded: 0, failed: 0};"
 class UboRestartTest(BrowserTest):
     """Steps run in order and build on each other."""
 
+    wait_ubo = True
+
     @classmethod
     def setUpClass(cls):
         cls.server = Server({

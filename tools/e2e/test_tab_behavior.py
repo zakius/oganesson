@@ -58,7 +58,7 @@ class TabBehaviorTest(BrowserTest):
 
     def run_js(self, body):
         page = self.browser.page('background.js')
-        wait_for(lambda: page.eval('typeof chrome.tabs') == 'object', what='the extension APIs')
+        wait_for(lambda: page.eval('typeof self.chrome?.tabs') == 'object', what='the extension APIs')
         return page.eval(f'(async () => {{ {body} }})()')
 
     def tabs(self):

@@ -527,10 +527,8 @@ def test(args):
     env['TMPDIR'] = str(WORK / 'tmp')
     if args.keep:
         env['OGANESSON_E2E_KEEP'] = '1'
-    # unittest takes `discover` only as its first argument.
-    args_ = [*dict.fromkeys(modules), *patterns]
-    args_ = ['-v', *args_] if args_ else ['discover', '-v', '-p', 'test_*.py']
-    sys.exit(subprocess.run([sys.executable, '-m', 'unittest', *args_], cwd=ROOT / 'tools/e2e',
+    sys.exit(subprocess.run([sys.executable, 'run.py', f'--jobs={args.jobs}',
+                             *dict.fromkeys(modules), *patterns], cwd=ROOT / 'tools/e2e',
                             env=env, check=False, pass_fds=held_lock()).returncode)
 
 
@@ -616,6 +614,10 @@ def main():
     test_target = test_parser.add_mutually_exclusive_group()
     test_target.add_argument('--binary', type=Path, help='browser to test (default: the dev build)')
     test_target.add_argument('--release', action='store_true', help='test the release build, out/Release')
+    test_parser.add_argument('-j', '--jobs', type=int, default=max(1, min(8, os.cpu_count() // 4)),
+                             help='test classes run at a time, each with its own browser; '
+                                  '1 runs them one after another (default: a quarter of the '
+                                  'CPUs, at most 8)')
     test_parser.add_argument('--keep', action='store_true',
                              help="keep every run's profile and log, not only failed ones")
     test_parser.set_defaults(handler=test)

@@ -111,7 +111,7 @@ class OmniboxSuggestionsTest(BrowserTest):
         cls.enter('zebrafish facts')
         cls.enter(f'http://twit.localhost:{cls.server.port}/')
         extension = cls.browser.page('background.js')
-        wait_for(lambda: extension.eval('typeof chrome.bookmarks') == 'object',
+        wait_for(lambda: extension.eval('typeof self.chrome?.bookmarks') == 'object',
                  what='the extension APIs')
         extension.eval(f"chrome.bookmarks.create({{title: 'Zebra bookmark', url: "
                        f"{json.dumps(cls.server.url('/zebra-bookmark.html'))}}})")

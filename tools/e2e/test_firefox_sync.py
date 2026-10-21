@@ -629,6 +629,9 @@ class FirefoxSyncServerTest(BrowserTest):
         wait_for(lambda: self.status(page).get('signedIn'), timeout=30, what='the sign-in')
         wait_for(lambda: 'global' in self.fake.collections.get('meta', {}), timeout=60,
                  what='the first sync')
+        # Done in the browser too: its result clears the error step 4b shows.
+        wait_for(lambda: self.status(page).get('lastSync') and not self.status(page).get('syncing'),
+                 timeout=30, what='the first sync to end')
         self.assertIn('GET /.well-known/fxa-client-configuration', self.fake.log)
 
     def test_4b_invalid_url_keeps_account(self):

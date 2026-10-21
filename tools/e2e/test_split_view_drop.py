@@ -7,9 +7,12 @@ import time
 
 from harness import BrowserTest, Server, wait_for
 
+# The page records where it gets dragover, and when the drag ends.
 PAGE = (b'<title>source</title><body style="margin:0">'
         b'<a id="link" href="/target" style="position:absolute; left:50%; top:20%;'
-        b' font-size:40px">drag me</a>')
+        b' font-size:40px">drag me</a><script>self.overs = []; self.ended = false;'
+        b' addEventListener("dragover", e => overs.push(`${e.clientX},${e.clientY}`));'
+        b' addEventListener("dragend", () => ended = true);</script>')
 
 
 class SplitViewDropTest(BrowserTest):
@@ -39,7 +42,7 @@ class SplitViewDropTest(BrowserTest):
 
     def start_drag(self):
         """Opens the page in a new tab (not in a split) and presses on its
-        link. Returns the pointer position and the page's bounds."""
+        link. Returns the pointer position, the page's bounds and the page."""
         page = self.browser.new_tab(self.server.url('/'))
         wait_for(lambda: page.eval('!!document.getElementById("link")'
                                    ' && document.visibilityState == "visible"'), what='the page')
@@ -47,14 +50,13 @@ class SplitViewDropTest(BrowserTest):
         bounds = self.contents()[0].bounds
         x, y = page.eval('(() => { const r = document.getElementById("link")'
                          '.getBoundingClientRect(); return [r.x + 20, r.y + r.height / 2]; })()')
-        page.close()
         x, y = bounds['x'] + int(x), bounds['y'] + int(y)
         self.browser.xdotool('mousemove', str(x), str(y), 'mousedown', '1')
         # Past the drag threshold.
         for step in range(1, 6):
             self.browser.xdotool('mousemove', str(x + 3 * step), str(y + 3 * step))
             time.sleep(0.05)
-        return (x + 15, y + 15), bounds
+        return (x + 15, y + 15), bounds, page
 
     def move(self, start, end):
         for step in range(1, 11):
@@ -66,7 +68,8 @@ class SplitViewDropTest(BrowserTest):
         """Drags the link next to the page's left edge and holds the pointer
         still until the drop target is there at its full width. Returns the
         pointer position and the drop target."""
-        start, bounds = self.start_drag()
+        start, bounds, page = self.start_drag()
+        page.close()
         # Inside both the nudge and the full panel.
         edge = (bounds['x'] + 40, start[1])
         self.move(start, edge)
@@ -99,11 +102,17 @@ class SplitViewDropTest(BrowserTest):
         self.assert_split()
 
     def test_drop_in_the_middle_of_the_page(self):
-        start, bounds = self.start_drag()
+        start, bounds, page = self.start_drag()
         middle = (bounds['x'] + bounds['width'] // 2, bounds['y'] + bounds['height'] * 2 // 3)
         self.move(start, middle)
-        time.sleep(2)
+        # The resting pointer's motion repeats every 350 ms: four dragovers at
+        # one point are over a second of rest, past the drop target's delays
+        # (500 ms, 1 s for the nudge).
+        wait_for(lambda: page.eval('overs.length >= 4 && new Set(overs.slice(-4)).size == 1'),
+                 what='the pointer to rest in the page')
         self.assertIsNone(self.drop_target())
         self.browser.xdotool('mouseup', '1')
-        time.sleep(2)
+        # A split would open as the drop is handled, before the drag ends.
+        wait_for(lambda: page.eval('ended'), what='the drag to end')
         self.assertEqual(len(self.contents()), 1)
+        page.close()
