@@ -33,7 +33,6 @@
 #include "content/public/browser/navigation_throttle.h"
 #include "content/public/browser/navigation_throttle_registry.h"
 #include "content/public/browser/new_window_form_post.h"
-#include "content/public/browser/page_navigator.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "content/public/browser/web_contents_user_data.h"
@@ -78,82 +77,46 @@ void OpenExternalInBackground(const GURL& url) {
 }
 #endif
 
-// Whether a link from `window` to `url` leaves the window's web app. The
-// app's scope is the one Chromium keeps the window to (manifest scope and
-// scope extensions); a user-configured scope belongs there too.
-bool LeavesApp(BrowserWindowInterface* window, const GURL& url) {
-  return IsWebAppOwnWindow(window) && url.SchemeIsHTTPOrHTTPS() &&
-         !AppBrowserController::From(window)->IsUrlInAppScope(url);
-}
-
-// Whether a page of `window` reaching `url` leaves the window's web app by
-// one of the user's exclusions, which no route gets past: not script
-// navigations, redirects or same-document navigations either.
-bool HitsExclusion(BrowserWindowInterface* window, const GURL& url) {
-  return IsWebAppOwnWindow(window) && url.SchemeIsHTTPOrHTTPS() &&
-         IsUrlExcludedFromUserAppScope(
-             *window->GetProfile()->GetPrefs(),
-             AppBrowserController::From(window)->app_id(), url);
-}
-
-// Opens `url`, excluded from the app of `contents`' window, in the default
-// browser; while that is oganesson, in a regular tab, as a target=_blank link
-// opens. Without a user gesture, the default browser stays behind the app
-// window.
-void OpenExcludedUrl(content::WebContents* contents,
-                     const GURL& url,
-                     bool user_gesture) {
-  RefreshIsDefaultBrowser();
-  if (OpenInDefaultBrowser(url, /*background=*/!user_gesture)) {
-    return;
+// Whether a page of `window` reaching `url` leaves the window's web app: by
+// one of the user's exclusions, which no route gets past, or with
+// `out_of_scope`, by leaving the app's scope, the one Chromium keeps the window
+// to (manifest scope and scope extensions) with the user's rules applied.
+bool LeavesApp(BrowserWindowInterface* window,
+               const GURL& url,
+               bool out_of_scope) {
+  if (!IsWebAppOwnWindow(window) || !url.SchemeIsHTTPOrHTTPS()) {
+    return false;
   }
-  // Not from inside the navigation that reached it. Not as a link either, which
-  // navigation capturing would take back into an app window.
-  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
-      FROM_HERE, base::BindOnce(
-                     [](base::WeakPtr<content::WebContents> contents,
-                        const GURL& url) {
-                       if (contents) {
-                         contents->OpenURL(
-                             content::OpenURLParams(
-                                 url, content::Referrer(),
-                                 WindowOpenDisposition::NEW_FOREGROUND_TAB,
-                                 ui::PAGE_TRANSITION_AUTO_TOPLEVEL, false),
-                             {});
-                       }
-                     },
-                     contents->GetWeakPtr(), url));
+  AppBrowserController* controller = AppBrowserController::From(window);
+  return IsUrlExcludedFromUserAppScope(*window->GetProfile()->GetPrefs(),
+                                       controller->app_id(), url) ||
+         (out_of_scope && !controller->IsUrlInAppScope(url));
 }
 
-// The answer of the last default-browser check, so the hooks can decide
-// synchronously and leave Chromium's navigation untouched.
-bool g_is_default_browser = false;
-
-// The name of the default browser's desktop entry, from the last check; empty
-// when it has none or oganesson is the default.
+// The name of the default browser's desktop entry, from the last lookup;
+// empty when it has none.
 std::u16string& DefaultBrowserName() {
   static base::NoDestructor<std::u16string> name;
   return *name;
 }
 
-// The number of the last check started, and of the last one whose answer
-// was kept: an answer older than that is dropped.
-int g_last_check = 0;
-int g_answered_check = 0;
-
-void Answer(int check,
-            bool is_default,
-            base::OnceClosure done,
-            std::u16string name) {
-  if (check > g_answered_check) {
-    g_answered_check = check;
-    g_is_default_browser = is_default;
-    // Without an entry, Chromium names xdg-open.
-    DefaultBrowserName() = name == u"xdg-open" ? std::u16string() : name;
+// The label of the link context menu item that opens a link in the default
+// browser, `background` or not: named after the browser's desktop entry when
+// the last lookup found one.
+std::u16string DefaultBrowserLinkLabel(bool background) {
+  if (DefaultBrowserName().empty()) {
+    return l10n_util::GetStringUTF16(
+        background ? IDS_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER_BACKGROUND
+                   : IDS_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER);
   }
-  if (done) {
-    std::move(done).Run();
-  }
+  // Short enough that "in background" stays in view, and with its own
+  // ampersands, not mnemonics.
+  const std::u16string name = ui::EscapeMenuLabelAmpersands(
+      gfx::TruncateString(DefaultBrowserName(), 32, gfx::CHARACTER_BREAK));
+  return l10n_util::GetStringFUTF16(
+      background ? IDS_CONTENT_CONTEXT_OPENLINKNAMEDBROWSER_BACKGROUND
+                 : IDS_CONTENT_CONTEXT_OPENLINKNAMEDBROWSER,
+      name);
 }
 
 class OutOfScopeLinkThrottle : public content::NavigationThrottle {
@@ -180,22 +143,12 @@ class OutOfScopeLinkThrottle : public content::NavigationThrottle {
       return PROCEED;
     }
     // A post's body can't go along; a 302 or 303 after it is a GET again.
-    if (!handle->IsPost() &&
-        HitsExclusion(tab->GetBrowserWindowInterface(), handle->GetURL())) {
-      OpenExcludedUrl(handle->GetWebContents(), handle->GetURL(),
-                      handle->HasUserGesture());
-      return CANCEL_AND_IGNORE;
-    }
-    if (!link || !LeavesApp(tab->GetBrowserWindowInterface(), handle->GetURL())) {
+    if (handle->IsPost() ||
+        !LeavesApp(tab->GetBrowserWindowInterface(), handle->GetURL(), link)) {
       return PROCEED;
     }
-    RefreshIsDefaultBrowser();
-    // While oganesson is the default browser the link loads in the window,
-    // as in Chromium.
-    if (IsDefaultBrowser()) {
-      return PROCEED;
-    }
-    platform_util::OpenExternal(handle->GetURL());
+    OpenInDefaultBrowser(handle->GetURL(),
+                         /*background=*/!handle->HasUserGesture());
     return CANCEL_AND_IGNORE;
   }
 
@@ -228,13 +181,12 @@ class ExclusionObserver
     if (!tab) {
       return;
     }
-    BrowserWindowInterface* window = tab->GetBrowserWindowInterface();
-    if (!HitsExclusion(window, handle->GetURL()) &&
-        !(handle->HasUserGesture() && !IsDefaultBrowser() &&
-          LeavesApp(window, handle->GetURL()))) {
+    if (!LeavesApp(tab->GetBrowserWindowInterface(), handle->GetURL(),
+                   /*out_of_scope=*/handle->HasUserGesture())) {
       return;
     }
-    OpenExcludedUrl(web_contents(), handle->GetURL(), handle->HasUserGesture());
+    OpenInDefaultBrowser(handle->GetURL(),
+                         /*background=*/!handle->HasUserGesture());
     base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE,
         base::BindOnce(&TakeBack, web_contents()->GetWeakPtr(),
@@ -303,7 +255,6 @@ bool MaybeOpenNewContentsOutsideApp(NavigateParams& params) {
   if (!IsWebAppOwnWindow(params.browser)) {
     return false;
   }
-  RefreshIsDefaultBrowser();
   // Popups (window.open with window features) stay: sign-in flows open the
   // provider in one and need its opener. So do form posts, which only
   // Chromium can submit.
@@ -313,8 +264,7 @@ bool MaybeOpenNewContentsOutsideApp(NavigateParams& params) {
       params.post_data ||
       (params.contents_to_insert &&
        content::IsNewWindowForFormPost(params.contents_to_insert.get())) ||
-      IsDefaultBrowser() ||
-      !LeavesApp(params.browser, params.url)) {
+      !LeavesApp(params.browser, params.url, /*out_of_scope=*/true)) {
     return false;
   }
   // A middle click or Ctrl+click leaves the default browser behind the app
@@ -323,50 +273,6 @@ bool MaybeOpenNewContentsOutsideApp(NavigateParams& params) {
       params.url,
       params.disposition == WindowOpenDisposition::NEW_BACKGROUND_TAB);
   return true;
-}
-
-bool IsDefaultBrowser() {
-  return g_is_default_browser;
-}
-
-// Called whenever an app window loads a page or opens one, or shows a link's
-// context menu, so the answer is current by the time its links are followed.
-void RefreshIsDefaultBrowser(base::OnceClosure done) {
-  const int check = ++g_last_check;
-  base::MakeRefCounted<shell_integration::DefaultBrowserWorker>()
-      ->StartCheckIsDefault(base::BindOnce(
-          [](int check, base::OnceClosure done,
-             shell_integration::DefaultWebClientState state) {
-            if (state == shell_integration::IS_DEFAULT) {
-              Answer(check, true, std::move(done), std::u16string());
-              return;
-            }
-            // The Name of the https handler's desktop entry.
-            base::ThreadPool::PostTaskAndReplyWithResult(
-                FROM_HERE, {base::MayBlock(), base::TaskPriority::USER_VISIBLE},
-                base::BindOnce([] {
-                  return shell_integration::GetApplicationNameForScheme(
-                      GURL("https://example.com/"));
-                }),
-                base::BindOnce(&Answer, check, false, std::move(done)));
-          },
-          check, std::move(done)));
-}
-
-std::u16string DefaultBrowserLinkLabel(bool background) {
-  if (DefaultBrowserName().empty()) {
-    return l10n_util::GetStringUTF16(
-        background ? IDS_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER_BACKGROUND
-                   : IDS_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER);
-  }
-  // Short enough that "in background" stays in view, and with its own
-  // ampersands, not mnemonics.
-  const std::u16string name = ui::EscapeMenuLabelAmpersands(
-      gfx::TruncateString(DefaultBrowserName(), 32, gfx::CHARACTER_BREAK));
-  return l10n_util::GetStringFUTF16(
-      background ? IDS_CONTENT_CONTEXT_OPENLINKNAMEDBROWSER_BACKGROUND
-                 : IDS_CONTENT_CONTEXT_OPENLINKNAMEDBROWSER,
-      name);
 }
 
 void AppendDefaultBrowserLinkItems(const GURL& url,
@@ -382,50 +288,47 @@ void AppendDefaultBrowserLinkItems(const GURL& url,
   for (int id : kIds) {
     model.AddItem(id, DefaultBrowserLinkLabel(
                           id == IDC_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER_BACKGROUND));
-    model.SetVisibleAt(model.GetItemCount() - 1, !IsDefaultBrowser());
   }
-  RefreshIsDefaultBrowser(base::BindOnce(
-      [](UpdateMenuItemCallback update_item) {
-        for (int id : kIds) {
-          update_item.Run(
-              id, /*enabled=*/true, /*hidden=*/IsDefaultBrowser(),
-              DefaultBrowserLinkLabel(
-                  id == IDC_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER_BACKGROUND));
-        }
-      },
-      std::move(update_item)));
+  // The name again, for the open menu: the https handler's desktop entry.
+  base::ThreadPool::PostTaskAndReplyWithResult(
+      FROM_HERE, {base::MayBlock(), base::TaskPriority::USER_VISIBLE},
+      base::BindOnce([] {
+        return shell_integration::GetApplicationNameForScheme(
+            GURL("https://example.com/"));
+      }),
+      base::BindOnce(
+          [](UpdateMenuItemCallback update_item, std::u16string name) {
+            // Without an entry, Chromium names xdg-open.
+            DefaultBrowserName() =
+                name == u"xdg-open" ? std::u16string() : name;
+            for (int id : kIds) {
+              update_item.Run(
+                  id, /*enabled=*/true, /*hidden=*/false,
+                  DefaultBrowserLinkLabel(
+                      id ==
+                      IDC_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER_BACKGROUND));
+            }
+          },
+          std::move(update_item)));
 }
 
-bool OpenInDefaultBrowser(const GURL& url, bool background) {
-  // xdg-open would hand it back to us.
-  if (IsDefaultBrowser()) {
-    return false;
-  }
+void OpenInDefaultBrowser(const GURL& url, bool background) {
 #if BUILDFLAG(IS_LINUX)
   if (background) {
     OpenExternalInBackground(url);
-    return true;
+    return;
   }
 #endif
   platform_util::OpenExternal(url);
-  return true;
 }
 
 void MaybeAddOutOfScopeLinkThrottle(
     content::NavigationThrottleRegistry& registry) {
   content::NavigationHandle& handle = registry.GetNavigationHandle();
-  // Any page an app window loads refreshes the answer, also a restored
-  // window's first page, which doesn't go through Navigate().
-  if (handle.IsInPrimaryMainFrame()) {
-    tabs::TabInterface* tab =
-        tabs::TabInterface::MaybeGetFromContents(handle.GetWebContents());
-    if (tab && IsWebAppOwnWindow(tab->GetBrowserWindowInterface())) {
-      RefreshIsDefaultBrowser();
-    }
-    // On every tab: one can move into an app window with its page loaded.
-    if (tab) {
-      ExclusionObserver::CreateForWebContents(handle.GetWebContents());
-    }
+  // On every tab: one can move into an app window with its page loaded.
+  if (handle.IsInPrimaryMainFrame() &&
+      tabs::TabInterface::MaybeGetFromContents(handle.GetWebContents())) {
+    ExclusionObserver::CreateForWebContents(handle.GetWebContents());
   }
   // Only the page's navigations: not history or reloads, nor the app's
   // launch.
