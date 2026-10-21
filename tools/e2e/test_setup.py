@@ -11,7 +11,7 @@ import unittest
 
 from harness import BrowserTest, wait_for
 
-STEP = ("document.querySelector('settings-ui').shadowRoot"
+STEP = ("document.querySelector('settings-ui')?.shadowRoot?"
         ".querySelector('settings-setup-page')")
 
 
