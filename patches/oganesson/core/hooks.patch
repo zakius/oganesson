@@ -46,7 +46,7 @@
    RegisterSafetyHubProfilePrefs(registry);
 --- a/chrome/browser/resources/settings/BUILD.gn
 +++ b/chrome/browser/resources/settings/BUILD.gn
-@@ -501,6 +501,20 @@ build_webui("build") {
+@@ -501,6 +501,21 @@ build_webui("build") {
      ts_files += [ "autofill_page/passwords/passkeys_browser_proxy.ts" ]
    }
  
@@ -57,6 +57,7 @@
 +    "privacy_page/history_saving.ts",
 +    "search_page/omnibox_suggestions.html.ts",
 +    "search_page/omnibox_suggestions.ts",
++    "setup_page/setup_page.ts",
 +    "site_settings/autoplay_page.ts",
 +    "system_page/add_gesture.ts",
 +    "system_page/extension_gestures.ts",

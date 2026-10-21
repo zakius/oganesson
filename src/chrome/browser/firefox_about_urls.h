@@ -9,7 +9,8 @@ class GURL;
 
 // Firefox's about: pages that have a Chromium counterpart, such as
 // about:preferences, open it: this rewrites their chrome:// form (which
-// url_formatter::FixupURL makes of about:foo) to the Chromium page.
+// url_formatter::FixupURL makes of about:foo) to the Chromium page. Helium's
+// chrome://setup opens oganesson's setup, chrome://settings/setup.
 void RewriteFirefoxAboutURL(GURL* url);
 
 #endif  // CHROME_BROWSER_FIREFOX_ABOUT_URLS_H_

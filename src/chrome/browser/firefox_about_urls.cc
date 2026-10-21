@@ -30,6 +30,14 @@ void RewriteFirefoxAboutURL(GURL* url) {
   if (!url->SchemeIs(content::kChromeUIScheme)) {
     return;
   }
+  // Helium's onboarding is oganesson's setup, in Settings.
+  if (url->GetHost() == chrome::kHeliumSetupHost) {
+    GURL::Replacements replacements;
+    replacements.SetHostStr(chrome::kChromeUISettingsHost);
+    replacements.SetPathStr("/setup");
+    *url = url->ReplaceComponents(replacements);
+    return;
+  }
   auto firefox = kFirefoxHosts.find(url->GetHost());
   if (firefox != kFirefoxHosts.end()) {
     GURL::Replacements replacements;

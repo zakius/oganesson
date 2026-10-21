@@ -1,0 +1,78 @@
+"""oganesson's setup, chrome://settings/setup
+(oganesson/settings/setup-page.patch): a first run opens it with every step;
+later starts open it with only the new choice until browser traffic is chosen
+once, and never after.
+
+These tests run without --no-first-run, which skips setup.
+"""
+
+import json
+import unittest
+
+from harness import BrowserTest, wait_for
+
+STEP = ("document.querySelector('settings-ui').shadowRoot"
+        ".querySelector('settings-setup-page')")
+
+
+class SetupTest(BrowserTest):
+    first_run = True
+
+    def setup_page(self):
+        return self.browser.page('chrome://settings/setup', timeout=30)
+
+    def steps(self, page):
+        return page.eval(f"{STEP}.steps_.map(step => step.id)")
+
+    def click(self, page, button):
+        page.eval(f"{STEP}.shadowRoot.querySelector('#{button}').click()")
+
+    def test_1_first_run_shows_every_step(self):
+        page = self.setup_page()
+        wait_for(lambda: page.eval(f"!!{STEP}?.steps_"), what='the setup page')
+        self.assertEqual(self.steps(page), [
+            'welcome', 'import', 'sync', 'traffic', 'search', 'tabs', 'passwords',
+            'privacy', 'default', 'done'])
+        self.assertTrue(page.eval(f"{STEP}.shadowRoot.querySelector('#skip').hidden"))
+        self.click(page, 'next')
+        # Import and Sync can be skipped; Browser traffic can't.
+        for _ in range(2):
+            wait_for(lambda: not page.eval(f"{STEP}.shadowRoot.querySelector('#skip').hidden"),
+                     what='Skip')
+            self.click(page, 'skip')
+        wait_for(lambda: page.eval(f"{STEP}.step_") == 'traffic', what='Browser traffic')
+        self.assertTrue(page.eval(f"{STEP}.shadowRoot.querySelector('#skip').hidden"))
+        # Through my server needs a server that answered: Next waits.
+        page.eval("chrome.send('applyBrowserTrafficPreset', ['throughServer'])")
+        wait_for(lambda: page.eval(f"{STEP}.shadowRoot.querySelector('#next').disabled"),
+                 what='Next disabled without a server')
+        page.eval("chrome.send('applyBrowserTrafficPreset', ['direct'])")
+        wait_for(lambda: not page.eval(f"{STEP}.shadowRoot.querySelector('#next').disabled"),
+                 what='Next enabled for Direct')
+        self.click(page, 'next')
+        wait_for(lambda: page.eval(f"{STEP}.step_") == 'search', what='Search')
+
+    def test_2_later_starts_show_only_the_new_choice(self):
+        self.browser.quit()
+        path = self.browser.profile / 'Local State'
+        state = json.loads(path.read_text())
+        self.assertTrue(state['browser_traffic']['chosen'])
+        state['browser_traffic']['chosen'] = False
+        path.write_text(json.dumps(state))
+        self.browser.start()
+        page = self.browser.page('chrome://settings/setup?existing', timeout=30)
+        wait_for(lambda: page.eval(f"!!{STEP}?.steps_"), what='the setup page')
+        self.assertEqual(self.steps(page), ['welcome', 'traffic', 'done'])
+        self.click(page, 'next')
+        wait_for(lambda: page.eval(f"{STEP}.step_") == 'traffic', what='Browser traffic')
+        self.click(page, 'next')
+        wait_for(lambda: page.eval(f"{STEP}.step_") == 'done', what='Done')
+
+    def test_3_chosen_starts_open_no_setup(self):
+        self.browser.quit()
+        self.browser.start()
+        self.assertFalse(any('settings/setup' in t['url'] for t in self.browser.targets()))
+
+
+if __name__ == '__main__':
+    unittest.main()
