@@ -41,6 +41,8 @@ APP_PAGE = b'''<!doctype html><link rel="manifest" href="/app/manifest.json">
   history.pushState(null, '', this.href)">excluded, pushed</a>
 <a id="replace" href="/app/excluded.html" onclick="event.preventDefault();
   history.replaceState(null, '', this.href)">excluded, replaced</a>
+<a id="push-out" href="/out.html?push" onclick="event.preventDefault();
+  history.pushState(null, '', this.href)">out of scope, pushed</a>
 <a id="push-inside" href="/app/inside.html" onclick="event.preventDefault();
   history.pushState(null, '', this.href)">in scope, pushed</a>
 <a id="assign" href="/app/excluded.html" onclick="event.preventDefault();
@@ -448,6 +450,21 @@ class WebAppLinksTest(WebAppTest):
         app.click('#push-inside')
         wait_for(lambda: app.eval('location.href') == self.server.url('/app/inside.html'),
                  what='the pushed page in the app window')
+        self.assertEqual(self.opened(), [])
+
+    def test_out_of_scope_push_from_click_opens_in_default_browser(self):
+        # Facebook's links push their URL; one out of scope leaves the app.
+        app = self.launch_app()
+        app.click('#push-out')
+        wait_for(self.opened, what='xdg-open')
+        self.assertEqual(self.opened(), [self.server.url('/out.html?push')])
+        wait_for(lambda: app.eval('location.href') == self.server.url('/app/index.html'),
+                 what='the app window back')
+
+    def test_out_of_scope_push_without_gesture_stays_in_app(self):
+        app = self.launch_app()
+        app.eval('history.pushState(null, "", "/out.html?script")')
+        self.assertEqual(app.eval('location.href'), self.server.url('/out.html?script'))
         self.assertEqual(self.opened(), [])
 
     def test_redirect_out_of_scope_stays_in_app(self):
