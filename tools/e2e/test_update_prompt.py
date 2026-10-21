@@ -1,12 +1,14 @@
 """The update prompt after a package upgrade (patches/oganesson/core/update-prompt.patch). apt and
 dnf put a new file at the binary's path, also for a rebuild on the same Chromium version; within
 seconds the app menu button shows "Update", and its "Relaunch to update" restarts the browser on
-the new file with its windows, tabs and back history.
+the new file with its windows, tabs and back history, also with every switch that stops saving
+history on (UpdatePromptNoHistoryTest).
 
 The browser runs from a folder of links to the build's files, with its binary hard-linked, so the
 test can replace the binary as a package upgrade does without touching the build.
 """
 
+import json
 import os
 import shutil
 import tempfile
@@ -103,3 +105,17 @@ class UpdatePromptTest(BrowserTest):
         restored.eval('history.back()')
         wait_for(lambda: restored.eval('location.href') == a, what='back to page a')
         self.assertEqual(self.update_chips(), [], 'an update chip after the relaunch')
+        if self.prefs:
+            # The switches were on in the profile the relaunched browser runs on.
+            prefs = json.loads((self.browser.profile / 'Default/Preferences').read_text())
+            self.assertTrue(prefs['history']['saving_disabled'])
+            self.assertTrue(prefs['oganesson']['downloads']['saving_disabled'])
+            self.assertFalse(prefs['oganesson']['history']['keep_closed_tabs'])
+
+
+class UpdatePromptNoHistoryTest(UpdatePromptTest):
+    """The same with browsing and download history not saved and closed tabs not kept: the
+    session that relaunch restores isn't history."""
+    prefs = {'history': {'saving_disabled': True},
+             'oganesson': {'downloads': {'saving_disabled': True},
+                           'history': {'keep_closed_tabs': False}}}
