@@ -11,10 +11,12 @@ icon mute or unmute with the EnableTabMuting feature, off by default.) The same 
 import io
 import json
 import math
+import shutil
 import struct
-import time
+import tempfile
 import unittest
 import wave
+from pathlib import Path
 
 from harness import BrowserTest, Server, wait_for
 from test_firefox_sync import FIND
@@ -34,6 +36,16 @@ def tone(seconds=30):
     return data.getvalue()
 
 
+# An extension that tells when the browser has the tab as audible: a missing
+# sound icon then shows the setting, not a tab yet to turn audible.
+MANIFEST = {
+    'manifest_version': 2,
+    'name': 'Audible tabs',
+    'version': '1',
+    'permissions': ['tabs'],
+    'background': {'scripts': ['background.js']},
+}
+
 ROUTES = {
     '/tone.wav': (200, {'Content-Type': 'audio/wav'}, tone()),
     '/sound.html': (200, {'Content-Type': 'text/html'},
@@ -43,22 +55,28 @@ ROUTES = {
 
 
 class TabAudioIndicatorTest(BrowserTest):
-    # A fake audio output, as in test_autoplay.py; the tab still turns audible.
-    browser_args = ('--disable-audio-output',)
     extra_prefs = {}
     tab_class = 'Tab'
 
     @classmethod
     def setUpClass(cls):
         cls.server = Server(ROUTES)
+        cls.folder = Path(tempfile.mkdtemp(prefix='oganesson-audible-'))
+        (cls.folder / 'manifest.json').write_text(json.dumps(MANIFEST))
+        (cls.folder / 'background.js').write_text('')
+        # A fake audio output, as in test_autoplay.py; the tab still turns audible.
+        cls.browser_args = ('--disable-audio-output', f'--load-extension={cls.folder}')
         cls.prefs = {'profile': {'default_content_setting_values': {'autoplay': ALLOW}},
                      **cls.extra_prefs}
         super().setUpClass()
+        cls.extension = cls.browser.page('_generated_background_page.html')
 
     @classmethod
     def tearDownClass(cls):
+        cls.extension.close()
         super().tearDownClass()
         cls.server.stop()
+        shutil.rmtree(cls.folder)
 
     def setUp(self):
         self.set_pref(False)
@@ -67,7 +85,7 @@ class TabAudioIndicatorTest(BrowserTest):
         wait_for(lambda: self.page.eval(f'location.href === {json.dumps(url)}'
                                         " && document.readyState === 'complete'"), what=url)
         self.page.eval('a.play()')
-        wait_for(lambda: self.page.eval('a.currentTime > 1'), what='the tone to play')
+        wait_for(self.audible, what='the tab to turn audible')
 
     def tearDown(self):
         self.browser.close_target(self.page)
@@ -85,9 +103,13 @@ class TabAudioIndicatorTest(BrowserTest):
         """The alert icons shown on tabs."""
         return [v for v in self.browser.views('AlertIndicatorButton') if v.visible]
 
+    def audible(self):
+        return self.extension.eval('new Promise(r => chrome.tabs.query({audible: true},'
+                                   ' tabs => r(tabs.length)))')
+
     def assert_no_indicator(self):
-        # Long past the moment the tab turns audible and the icon fades in.
-        time.sleep(3)
+        # The browser updates the tab's icons as it turns audible.
+        self.assertTrue(self.audible())
         self.assertEqual(self.indicators(), [])
 
     def mute_from_context_menu(self, label):
