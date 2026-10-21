@@ -284,6 +284,22 @@
    std::unique_ptr<content::WebContents> contents_move =
        source_tabstrip->DetachWebContentsAtForInsertion(found_tab_index.value());
  
+--- a/chrome/browser/ui/web_applications/web_app_ui_utils.cc
++++ b/chrome/browser/ui/web_applications/web_app_ui_utils.cc
+@@ -65,6 +65,13 @@ std::optional<webapps::AppId> GetAppIdFo
+ 
+   const webapps::AppId* app_id =
+       web_app::WebAppTabHelper::GetAppId(web_contents);
++  // oganesson: in an app window, the window's app, also on a page out of its
++  // scope, which user scope rules make common (user_app_scope.h).
++  const WebAppTabHelper* tab_helper =
++      WebAppTabHelper::FromWebContents(web_contents);
++  if (tab_helper && tab_helper->window_app_id()) {
++    app_id = &*tab_helper->window_app_id();
++  }
+   if (!app_id) {
+     return std::nullopt;
+   }
 --- a/chrome/browser/ui/webui/app_management/BUILD.gn
 +++ b/chrome/browser/ui/webui/app_management/BUILD.gn
 @@ -8,6 +8,7 @@ source_set("app_management") {

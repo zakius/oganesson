@@ -203,8 +203,10 @@ class OutOfScopeLinkThrottle : public content::NavigationThrottle {
 };
 
 // Same-document navigations (pushState, replaceState, fragments) commit
-// without throttles: one that reaches an excluded URL opens it outside the
-// app after the fact and takes the window back. A pushed entry goes back, as
+// without throttles: one that reaches an excluded URL, or from a click one
+// out of the app's scope, as a link there would (routers such as Facebook's
+// turn link clicks into pushState), opens it outside the app after the fact
+// and takes the window back. A pushed entry goes back, as
 // the Back button would, so the page's router shows the page before again;
 // for a replaced entry, the page before loads again in its place. The window
 // can show the excluded page's content until then. The observer also updates
@@ -223,8 +225,13 @@ class ExclusionObserver
     }
     tabs::TabInterface* tab =
         tabs::TabInterface::MaybeGetFromContents(web_contents());
-    if (!tab || !HitsExclusion(tab->GetBrowserWindowInterface(),
-                               handle->GetURL())) {
+    if (!tab) {
+      return;
+    }
+    BrowserWindowInterface* window = tab->GetBrowserWindowInterface();
+    if (!HitsExclusion(window, handle->GetURL()) &&
+        !(handle->HasUserGesture() && !IsDefaultBrowser() &&
+          LeavesApp(window, handle->GetURL()))) {
       return;
     }
     OpenExcludedUrl(web_contents(), handle->GetURL(), handle->HasUserGesture());
