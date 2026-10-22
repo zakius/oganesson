@@ -7,12 +7,15 @@ module blink.mojom;
 import "url/mojom/url.mojom";
 
 // oganesson: a main frame in an installed web app's window asks this before
-// its page sees a link click (oganesson_app_links.h). Implemented by
+// its page changes its address (oganesson_app_links.h). Implemented by
 // chrome/browser/ui/web_applications/out_of_scope_links.cc.
 interface OganessonAppLinkHost {
-  // Opens `url` in the system default browser if it leaves the frame's app,
-  // `background` as a middle click or Ctrl+click does; returns whether it
-  // did, and the click is then dropped.
+  // Whether `url` leaves the frame's app: by an exclusion, or out of its
+  // scope with `link` (a link followed from a click, or an address changed
+  // in place from one) or a strict scope. If it does, the page must not
+  // reach it, and the default browser opens it, `background` without taking
+  // the focus.
   [Sync]
-  OpenOutsideApp(url.mojom.Url url, bool background) => (bool opened);
+  OpenOutsideApp(url.mojom.Url url, bool link, bool background)
+      => (bool leaves);
 };

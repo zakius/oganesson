@@ -5,20 +5,32 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_HTML_OGANESSON_APP_LINKS_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_HTML_OGANESSON_APP_LINKS_H_
 
+#include "third_party/blink/public/web/web_frame_load_type.h"
+
 namespace blink {
 
-class Event;
-class Node;
+class FrameLoadRequest;
+class KURL;
+class LocalFrame;
 
+// In the main frame of an installed web app's window, the page's ways to
+// change its address ask the browser first, at their two entry points:
+// FrameLoader::StartNavigation (location and its setters, including hash,
+// navigation.navigate(), a link's default action, forms, meta refresh) and
+// History::StateObjectAdded (pushState, replaceState). A URL that leaves
+// the app opens in the default browser instead, and the address doesn't
+// change. Tabs don't ask: their pages have the "browser" display mode.
 namespace oganesson_app_links {
 
-// For EventDispatcher: a user's click or middle click on an http(s) link in
-// the main frame of an installed web app's window goes to the browser before
-// the page sees it. If the link leaves the app, the browser opens it in the
-// default browser and this returns true: the click is dropped, so the page's
-// own handlers, which may draw the linked page before changing the address
-// (as Facebook's router does), never run.
-bool MaybeOpenOutsideApp(const Event& event, Node& target);
+// For FrameLoader::StartNavigation: whether to drop `request`, a navigation
+// of `frame` in place, as its URL left the app.
+bool MaybeOpenOutsideApp(LocalFrame& frame,
+                         const FrameLoadRequest& request,
+                         WebFrameLoadType type);
+
+// For pushState and replaceState: whether to drop the change of `frame`'s
+// address to `url`, as it left the app.
+bool MaybeOpenOutsideApp(LocalFrame& frame, const KURL& url);
 
 }  // namespace oganesson_app_links
 

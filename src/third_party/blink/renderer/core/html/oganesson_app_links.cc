@@ -9,55 +9,57 @@
 #include "third_party/blink/public/mojom/manifest/display_mode.mojom-blink.h"
 #include "third_party/blink/public/mojom/oganesson/app_link_host.mojom-blink.h"
 #include "third_party/blink/renderer/core/css/media_values.h"
-#include "third_party/blink/renderer/core/dom/document.h"
-#include "third_party/blink/renderer/core/dom/element.h"
-#include "third_party/blink/renderer/core/event_type_names.h"
-#include "third_party/blink/renderer/core/events/mouse_event.h"
 #include "third_party/blink/renderer/core/frame/local_frame.h"
-#include "third_party/blink/renderer/core/html_names.h"
+#include "third_party/blink/renderer/core/loader/frame_load_request.h"
+#include "third_party/blink/renderer/core/loader/frame_loader.h"
+#include "third_party/blink/renderer/core/loader/frame_loader_types.h"
+#include "third_party/blink/renderer/platform/network/http_names.h"
 
 namespace blink::oganesson_app_links {
 
-bool MaybeOpenOutsideApp(const Event& event, Node& target) {
-  if (!event.isTrusted() || !event.IsMouseEvent() ||
-      (event.type() != event_type_names::kClick &&
-       event.type() != event_type_names::kAuxclick)) {
+namespace {
+
+// Asks the browser whether `url` leaves the app of `frame`'s window; if it
+// does, the browser has it opened in the default browser.
+bool LeavesApp(LocalFrame& frame, const KURL& url, bool link) {
+  if (!frame.IsOutermostMainFrame() || !url.ProtocolIsInHttpFamily()) {
     return false;
   }
-  const auto& mouse = To<MouseEvent>(event);
-  if (mouse.button() != 0 && mouse.button() != 1) {
-    return false;
-  }
-  LocalFrame* frame = target.GetDocument().GetFrame();
-  if (!frame || !frame->IsOutermostMainFrame() ||
-      !LocalFrame::HasTransientUserActivation(frame)) {
-    return false;
-  }
-  // Tabs show pages in the "browser" display mode, app windows in another:
-  // only those ask the browser.
-  mojom::blink::DisplayMode mode = MediaValues::CalculateDisplayMode(frame);
+  mojom::blink::DisplayMode mode = MediaValues::CalculateDisplayMode(&frame);
   if (mode == mojom::blink::DisplayMode::kBrowser ||
       mode == mojom::blink::DisplayMode::kUndefined) {
     return false;
   }
-  Element* link = target.EnclosingLinkEventParentOrSelf();
-  if (!link || link->FastHasAttribute(html_names::kDownloadAttr)) {
-    return false;
-  }
-  const KURL url = link->HrefURL();
-  if (!url.ProtocolIsInHttpFamily()) {
-    return false;
-  }
+  const bool activation = LocalFrame::HasTransientUserActivation(&frame);
   mojo::Remote<mojom::blink::OganessonAppLinkHost> host;
-  frame->GetBrowserInterfaceBroker().GetInterface(
+  frame.GetBrowserInterfaceBroker().GetInterface(
       host.BindNewPipeAndPassReceiver());
-  bool opened = false;
-  // As Chromium's dispositions: a middle click or Ctrl+click opens a
-  // background tab, with Shift a foreground one.
-  host->OpenOutsideApp(
-      url, (mouse.button() == 1 || mouse.ctrlKey()) && !mouse.shiftKey(),
-      &opened);
-  return opened;
+  bool leaves = false;
+  host->OpenOutsideApp(url, link && activation, /*background=*/!activation,
+                       &leaves);
+  return leaves;
+}
+
+}  // namespace
+
+bool MaybeOpenOutsideApp(LocalFrame& frame,
+                         const FrameLoadRequest& request,
+                         WebFrameLoadType type) {
+  // A new tab or window goes through the browser's Navigate(), which checks
+  // it there. A post's body can't go along to the default browser.
+  if (request.GetNavigationPolicy() != kNavigationPolicyCurrentTab ||
+      IsReloadLoadType(type) ||
+      request.GetResourceRequest().HttpMethod() == http_names::kPOST) {
+    return false;
+  }
+  return LeavesApp(
+      frame, request.GetResourceRequest().Url(),
+      request.GetClientNavigationReason() == ClientNavigationReason::kAnchorClick);
+}
+
+bool MaybeOpenOutsideApp(LocalFrame& frame, const KURL& url) {
+  // From a click, as a link's: Facebook's links push their URL.
+  return LeavesApp(frame, url, /*link=*/true);
 }
 
 }  // namespace blink::oganesson_app_links

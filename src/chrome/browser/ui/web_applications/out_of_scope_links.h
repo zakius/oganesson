@@ -70,10 +70,10 @@ void MaybeAddOutOfScopeLinkThrottle(
     content::NavigationThrottleRegistry& registry);
 
 // Binds the host that a main frame in a web app's window asks, before its page
-// sees a link click, whether the link leaves the app; if it does, the host
-// opens it in the system default browser and the frame drops the click
-// (third_party/blink/renderer/core/html/oganesson_app_links.h). So the page
-// can't draw the linked page in the window first.
+// changes its address (navigates, pushState, replaceState, hash), whether
+// the URL leaves the app; if it does, the address doesn't change, and the
+// host opens the URL in the system default browser, once per user input
+// (third_party/blink/renderer/core/html/oganesson_app_links.h).
 void BindAppLinkHost(
     content::RenderFrameHost* frame,
     mojo::PendingReceiver<blink::mojom::OganessonAppLinkHost> receiver);

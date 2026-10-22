@@ -169,6 +169,9 @@ class OutOfScopeLinkThrottle : public content::NavigationThrottle {
   const bool link_;
 };
 
+// The page's frame asks AppLinkHost before it changes its address, so such
+// a change doesn't happen; this is for one the frame didn't ask about, such
+// as from a page that moved into the app window while it changed it.
 // Same-document navigations (pushState, replaceState, fragments) commit
 // without throttles: one that reaches an excluded URL, or from a click one
 // out of the app's scope, as a link there would (routers such as Facebook's
@@ -189,6 +192,14 @@ class ExclusionObserver
  public:
   void DidGetUserInteraction(const blink::WebInputEvent& event) override {
     take_backs_since_input_ = 0;
+    opened_since_input_ = false;
+  }
+
+  // Whether a URL that leaves the app may open in the default browser: one
+  // per user input, so a page that tries again, or a router that answers
+  // with another URL, can't open a tab per try.
+  bool MayOpen() {
+    return !std::exchange(opened_since_input_, true);
   }
 
   void DidFinishNavigation(content::NavigationHandle* handle) override {
@@ -211,7 +222,8 @@ class ExclusionObserver
     if (take_backs_since_input_ == kMaxTakeBacksPerInput) {
       return;
     }
-    if (take_backs_since_input_++ == 0) {
+    ++take_backs_since_input_;
+    if (MayOpen()) {
       OpenInDefaultBrowser(handle->GetURL(),
                            /*background=*/!handle->HasUserGesture());
     }
@@ -292,9 +304,9 @@ class ExclusionObserver
 
   PrefChangeRegistrar scope_rules_registrar_;
   static constexpr int kMaxTakeBacksPerInput = 3;
-  // Navigations taken back since the user's last input to the page; the
-  // first one's URL went out.
+  // Navigations taken back since the user's last input to the page.
   int take_backs_since_input_ = 0;
+  bool opened_since_input_ = false;
 };
 
 WEB_CONTENTS_USER_DATA_KEY_IMPL(ExclusionObserver);
@@ -305,26 +317,26 @@ class AppLinkHost : public blink::mojom::OganessonAppLinkHost {
       : frame_(frame) {}
 
   void OpenOutsideApp(const GURL& url,
+                      bool link,
                       bool background,
                       OpenOutsideAppCallback callback) override {
-    // The frame asks only for its user's clicks, and is the window's page.
-    // Sticky, not transient, activation: the renderer reports a key press's
-    // activation on another pipe, which may arrive after this call.
     content::RenderFrameHost* frame =
         content::RenderFrameHost::FromID(frame_);
-    tabs::TabInterface* tab =
-        frame && frame->IsInPrimaryMainFrame() &&
-                frame->HasStickyUserActivation()
-            ? tabs::TabInterface::MaybeGetFromContents(
-                  content::WebContents::FromRenderFrameHost(frame))
+    content::WebContents* contents =
+        frame && frame->IsInPrimaryMainFrame()
+            ? content::WebContents::FromRenderFrameHost(frame)
             : nullptr;
-    if (!tab ||
-        !LeavesApp(tab->GetBrowserWindowInterface(), url,
-                   /*out_of_scope=*/true)) {
+    tabs::TabInterface* tab =
+        contents ? tabs::TabInterface::MaybeGetFromContents(contents)
+                 : nullptr;
+    if (!tab || !LeavesApp(tab->GetBrowserWindowInterface(), url, link)) {
       std::move(callback).Run(false);
       return;
     }
-    OpenInDefaultBrowser(url, background);
+    ExclusionObserver::CreateForWebContents(contents);
+    if (ExclusionObserver::FromWebContents(contents)->MayOpen()) {
+      OpenInDefaultBrowser(url, background);
+    }
     std::move(callback).Run(true);
   }
 
