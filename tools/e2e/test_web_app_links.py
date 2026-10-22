@@ -47,7 +47,11 @@ APP_PAGE = b'''<!doctype html><link rel="manifest" href="/app/manifest.json">
   history.pushState(null, '', this.href)">in scope, pushed</a>
 <a id="assign" href="/app/excluded.html" onclick="event.preventDefault();
   location.href = this.href">excluded, by script</a>
-<button id="push-button" onclick="history.pushState(null, '', '/app/excluded.html')">
+<a id="rewrite" href="/app/inside.html"
+  onmousedown="this.href = '/app/to-excluded'">excluded, through a redirect</a>
+<a id="rewrite-out" href="/app/inside.html"
+  onmousedown="this.href = '/app/to-out'">out of scope, through a redirect</a>
+<p><button id="push-button" onclick="history.pushState(null, '', '/app/excluded.html')">
 excluded, pushed by a button</button>
 <button id="replace-button" onclick="history.replaceState(null, '', '/app/excluded.html')">
 excluded, replaced by a button</button>
@@ -56,11 +60,7 @@ excluded, by a button's script</button>
 <button id="push-out-button" onclick="history.pushState(null, '', '/out.html?push')">
 out of scope, pushed by a button</button>
 <button id="push-twice" onclick="history.pushState(null, '', '/out.html?first');
-  history.pushState(null, '', '/out.html?second')">out of scope, pushed twice</button>
-<a id="rewrite" href="/app/inside.html"
-  onmousedown="this.href = '/app/to-excluded'">excluded, through a redirect</a>
-<a id="rewrite-out" href="/app/inside.html"
-  onmousedown="this.href = '/app/to-out'">out of scope, through a redirect</a>
+  history.pushState(null, '', '/out.html?second')">out of scope, pushed twice</button></p>
 <script>for (const id of ['cross-in', 'cross-out'])
   document.getElementById(id).host = `localhost:${location.port}`;</script>'''
 
@@ -540,7 +540,9 @@ class WebAppLinksTest(WebAppTest):
         # Tabs don't ask the browser.
         tab = self.browser.new_tab(self.server.url('/app/index.html'))
         self.addCleanup(self.browser.close_target, tab)
-        wait_for(lambda: tab.eval('document.readyState === "complete"'), what='the page')
+        # Not readyState: the new tab is complete on about:blank first.
+        wait_for(lambda: tab.eval('location.href') == self.server.url('/app/index.html'),
+                 what='the app page in a tab')
         tab.click('#push-out')
         wait_for(lambda: tab.eval('location.href', gesture=False) == self.server.url('/out.html?push'),
                  what='the pushed address in the tab')
