@@ -29,6 +29,7 @@
 #include "components/prefs/pref_service.h"
 #include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/navigation_controller.h"
+#include "content/public/browser/navigation_entry.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/navigation_throttle.h"
 #include "content/public/browser/navigation_throttle_registry.h"
@@ -159,20 +160,22 @@ class OutOfScopeLinkThrottle : public content::NavigationThrottle {
 // without throttles: one that reaches an excluded URL, or from a click one
 // out of the app's scope, as a link there would (routers such as Facebook's
 // turn link clicks into pushState), opens it outside the app after the fact
-// and takes the window back. A pushed entry goes back, as
-// the Back button would, so the page's router shows the page before again;
+// and takes the window back. A pushed entry goes back, as the Back button
+// would, to the last entry in the app, so the page's router shows it again;
 // for a replaced entry, the page before loads again in its place. The window
 // can show the excluded page's content until then. One URL goes out per
 // user input: a router that answers the take-back by navigating out again,
-// to the same URL or the one it resolves to (Facebook's /share/ links),
-// keeps it, instead of opening a tab in the default browser per round. The observer also updates
-// an app window's custom tab bar when the user's scope rules change.
+// to the same URL or the one it resolves to (Facebook's /share/ links), is
+// taken back again without opening another tab in the default browser, a few
+// times, so a page that never gives up can't keep the window busy. The
+// observer also updates an app window's custom tab bar when the user's scope
+// rules change.
 class ExclusionObserver
     : public content::WebContentsObserver,
       public content::WebContentsUserData<ExclusionObserver> {
  public:
   void DidGetUserInteraction(const blink::WebInputEvent& event) override {
-    sent_since_input_ = false;
+    take_backs_since_input_ = 0;
   }
 
   void DidFinishNavigation(content::NavigationHandle* handle) override {
@@ -192,12 +195,13 @@ class ExclusionObserver
                    /*out_of_scope=*/handle->HasUserGesture())) {
       return;
     }
-    if (sent_since_input_) {
+    if (take_backs_since_input_ == kMaxTakeBacksPerInput) {
       return;
     }
-    sent_since_input_ = true;
-    OpenInDefaultBrowser(handle->GetURL(),
-                         /*background=*/!handle->HasUserGesture());
+    if (take_backs_since_input_++ == 0) {
+      OpenInDefaultBrowser(handle->GetURL(),
+                           /*background=*/!handle->HasUserGesture());
+    }
     base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE,
         base::BindOnce(&TakeBack, web_contents()->GetWeakPtr(),
@@ -235,29 +239,49 @@ class ExclusionObserver
     }
   }
 
-  // Back from `excluded` unless the page moved on: to the entry before it, or
-  // with a `replaced` URL, to that URL in its place. Both are browser
-  // navigations, which the exclusions leave alone.
+  // Back from `excluded`: with a `replaced` URL, to that URL in its place;
+  // otherwise, unless the page is back in the app by now, to the last entry
+  // in the app, past every entry the page pushed out of it meanwhile
+  // (Facebook pushes a /share/ link and then the URL it resolves to). Both
+  // are browser navigations, which the exclusions leave alone.
   static void TakeBack(base::WeakPtr<content::WebContents> contents,
                        const GURL& excluded,
                        const GURL& replaced) {
-    if (!contents || contents->GetLastCommittedURL() != excluded) {
+    tabs::TabInterface* tab =
+        contents ? tabs::TabInterface::MaybeGetFromContents(contents.get())
+                 : nullptr;
+    if (!tab) {
       return;
     }
+    BrowserWindowInterface* window = tab->GetBrowserWindowInterface();
     content::NavigationController& controller = contents->GetController();
-    if (replaced.is_empty() && controller.CanGoBack()) {
-      controller.GoBack();
-    } else if (replaced.is_valid()) {
-      content::NavigationController::LoadURLParams params(replaced);
-      params.should_replace_current_entry = true;
-      params.transition_type = ui::PAGE_TRANSITION_AUTO_TOPLEVEL;
-      controller.LoadURLWithParams(params);
+    if (replaced.is_valid()) {
+      if (contents->GetLastCommittedURL() == excluded) {
+        content::NavigationController::LoadURLParams params(replaced);
+        params.should_replace_current_entry = true;
+        params.transition_type = ui::PAGE_TRANSITION_AUTO_TOPLEVEL;
+        controller.LoadURLWithParams(params);
+      }
+      return;
+    }
+    if (!LeavesApp(window, contents->GetLastCommittedURL(),
+                   /*out_of_scope=*/true)) {
+      return;
+    }
+    for (int i = controller.GetLastCommittedEntryIndex() - 1; i >= 0; --i) {
+      if (!LeavesApp(window, controller.GetEntryAtIndex(i)->GetURL(),
+                     /*out_of_scope=*/true)) {
+        controller.GoToIndex(i);
+        return;
+      }
     }
   }
 
   PrefChangeRegistrar scope_rules_registrar_;
-  // Whether a URL went out since the user's last input to the page.
-  bool sent_since_input_ = false;
+  static constexpr int kMaxTakeBacksPerInput = 3;
+  // Navigations taken back since the user's last input to the page; the
+  // first one's URL went out.
+  int take_backs_since_input_ = 0;
 };
 
 WEB_CONTENTS_USER_DATA_KEY_IMPL(ExclusionObserver);
