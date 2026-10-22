@@ -48,7 +48,7 @@ sudo curl -fsSL -o /etc/yum.repos.d/oganesson.repo https://<domain>/oganesson.re
 sudo dnf install oganesson
 ```
 
-The dnf repository checks the signature on its metadata, which holds each package's checksum. The packages themselves are not signed, so the repository file sets `gpgcheck=0`.
+The dnf repository checks the signature on its metadata, which holds each package's checksum. The packages themselves are not signed, so the repository file sets `gpgcheck=0`. It also sets `metadata_expire=1h`: dnf otherwise keeps the metadata for 48 hours, so a build released a few hours after the last one wouldn't show up. A repository file added before that setting existed has to be downloaded again with the `curl` line above; until then, `sudo dnf upgrade --refresh` sees the newest build.
 
 New builds then arrive with the system's updates: Discover, GNOME Software, `apt upgrade` or `dnf upgrade`. To install them without asking, turn on automatic updates in Discover or GNOME Software, or use `unattended-upgrades` with the origin `oganesson` or `dnf5-automatic`.
 

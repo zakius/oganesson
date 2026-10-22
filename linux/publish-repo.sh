@@ -50,6 +50,8 @@ enabled=1
 gpgcheck=0
 repo_gpgcheck=1
 gpgkey=https://$REPO_DOMAIN/oganesson.asc
+# dnf keeps metadata for 48 hours by default; builds come out several times a day.
+metadata_expire=1h
 REPO
 ssh "$host" mkdir -p "$dir"
 rsync -a --delete "$upload/src" "$upload/tools" "$target/"
