@@ -33,7 +33,8 @@ namespace web_app {
 bool IsWebAppOwnWindow(BrowserWindowInterface* window);
 
 // For Navigate(): a new tab or window that a web app's window opens on a URL
-// out of the app's scope goes to the system default browser. Returns true
+// out of the app's scope goes to the system default browser; with a strict
+// scope, so does a popup. Returns true
 // when it took the navigation, which the caller then drops.
 bool MaybeOpenNewContentsOutsideApp(NavigateParams& params);
 
@@ -59,8 +60,9 @@ void OpenInDefaultBrowser(const GURL& url, bool background);
 // A link clicked in a web app's window that leaves the app's scope, which
 // would load in the window, goes to the system default browser instead; so
 // does a same-document navigation from a click that leaves it. So does any
-// URL the page reaches that one of the user's exclusions matches: also by
-// script or redirect. The window undoes a same-document navigation.
+// URL the page reaches that one of the user's exclusions matches, or with a
+// strict scope, any URL out of the scope: also by script or redirect. The
+// window undoes a same-document navigation.
 void MaybeAddOutOfScopeLinkThrottle(
     content::NavigationThrottleRegistry& registry);
 

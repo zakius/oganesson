@@ -142,6 +142,22 @@ bool IsUrlExcludedFromUserAppScope(const PrefService& prefs,
   return false;
 }
 
+bool IsUserAppScopeStrict(const PrefService& prefs,
+                          const webapps::AppId& app_id) {
+  return prefs.GetDict(kUserAppStrictScope).FindBool(app_id).value_or(false);
+}
+
+void SetUserAppScopeStrict(PrefService& prefs,
+                           const webapps::AppId& app_id,
+                           bool strict) {
+  ScopedDictPrefUpdate update(&prefs, kUserAppStrictScope);
+  if (strict) {
+    update->Set(app_id, true);
+  } else {
+    update->Remove(app_id);
+  }
+}
+
 std::string GetUserAppScopeRules(const PrefService& prefs,
                                  const webapps::AppId& app_id) {
   std::vector<std::string_view> lines;

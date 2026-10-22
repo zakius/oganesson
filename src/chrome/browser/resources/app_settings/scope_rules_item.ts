@@ -3,7 +3,10 @@
 // found in the LICENSE file.
 
 import '//resources/cr_elements/cr_button/cr_button.js';
+import '//resources/cr_elements/cr_checkbox/cr_checkbox.js';
 import '//resources/cr_elements/cr_textarea/cr_textarea.js';
+
+import type {CrCheckboxElement} from '//resources/cr_elements/cr_checkbox/cr_checkbox.js';
 
 import type {App} from 'chrome://resources/cr_components/app_management/app_management.mojom-webui.js';
 import {browserProxyFactory} from 'chrome://resources/cr_components/app_management/app_management.mojom-webui.js';
@@ -26,6 +29,10 @@ export class ScopeRulesItemElement extends CrLitElement {
       p {
         margin: 0 0 8px;
       }
+      #strictConsequences {
+        margin: 4px 0 8px;
+        padding-inline-start: 20px;
+      }
       cr-textarea {
         --cr-textarea-footer-display: flex;
         font-family: monospace;
@@ -46,6 +53,7 @@ export class ScopeRulesItemElement extends CrLitElement {
     return {
       app: {type: Object},
       rules_: {type: String},
+      strict_: {type: Boolean},
       error_: {type: String},
       saved_: {type: Boolean},
     };
@@ -53,6 +61,7 @@ export class ScopeRulesItemElement extends CrLitElement {
 
   accessor app: App = createDummyApp();
   protected accessor rules_: string = '';
+  protected accessor strict_: boolean = false;
   protected accessor error_: string = '';
   protected accessor saved_: boolean = false;
 
@@ -62,7 +71,10 @@ export class ScopeRulesItemElement extends CrLitElement {
     if (changedProperties.has('app') && this.app.id &&
         previous?.id !== this.app.id) {
       browserProxyFactory.getInstance().handler.getScopeRules(this.app.id)
-          .then(({rules}) => this.rules_ = rules);
+          .then(({rules, strict}) => {
+            this.rules_ = rules;
+            this.strict_ = strict;
+          });
     }
   }
 
@@ -71,10 +83,15 @@ export class ScopeRulesItemElement extends CrLitElement {
     this.saved_ = false;
   }
 
+  protected onStrictChange_(e: Event) {
+    this.strict_ = (e.target as CrCheckboxElement).checked;
+    this.saved_ = false;
+  }
+
   protected async onSaveClick_() {
     const {error} =
         await browserProxyFactory.getInstance().handler.setScopeRules(
-            this.app.id, this.rules_);
+            this.app.id, this.rules_, this.strict_);
     this.error_ = error;
     this.saved_ = !error;
   }

@@ -21,6 +21,31 @@ export function getHtml(this: ScopeRulesItemElement) {
     first-footer="${this.error_}" @value-changed="${this.onRulesValueChanged_}"
     rows="4" autogrow>
 </cr-textarea>
+<cr-checkbox id="strict" ?checked="${this.strict_}"
+    @change="${this.onStrictChange_}">
+  Send every page outside the app to the default browser
+</cr-checkbox>
+<ul id="strictConsequences" class="secondary-text">
+  <li>
+    Pages outside the app go to the default browser however the app gets
+    there: by script, by redirect, or in a popup, not only when you click a
+    link.
+  </li>
+  <li>
+    Signing in within the app stops working where it goes through another
+    site or a popup, as "Continue with Google" does. Sign in in the default
+    browser, then open the app.
+  </li>
+  <li>
+    Payment and verification steps on another site open in the default
+    browser and may not return to the app.
+  </li>
+  <li>
+    The default browser uses its own sign-ins, not the app's, unless it is
+    this browser.
+  </li>
+  <li>Form posts and back and forward still stay in the app.</li>
+</ul>
 <div id="actions">
   <cr-button id="save" @click="${this.onSaveClick_}">
     ${this.saved_ ? 'Saved' : 'Save'}

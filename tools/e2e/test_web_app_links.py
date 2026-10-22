@@ -317,6 +317,41 @@ class WebAppTest(BrowserTest):
         self.assertEqual(self.settings_rules(rules), [rules, '', False])
         self.addCleanup(self.settings_rules, '')
 
+    def settings_strict(self, click=False):
+        """Opens the app's settings page; with `click`, toggles the strict
+        scope checkbox and saves. Returns whether the box is checked, then
+        whether the backend has the scope strict."""
+        tab = self.browser.new_tab(f'chrome://app-settings/{self.app_id}')
+        try:
+            item = ('document.querySelector("web-app-settings-app")?.shadowRoot?'
+                    '.querySelector("app-management-scope-rules-item")')
+            handler = ('(await import("chrome://resources/cr_components/app_management/'
+                       'app_management.mojom-webui.js")).browserProxyFactory.getInstance().handler')
+            # As in settings_rules: asked after the item's own request.
+            wait_for(lambda: tab.eval(
+                f'(async () => {{ const item = {item};'
+                f' if (item?.app?.id !== {json.dumps(self.app_id)}) return false;'
+                f' const {{strict}} = await {handler}.getScopeRules({json.dumps(self.app_id)});'
+                ' await item.updateComplete;'
+                ' return item.shadowRoot.querySelector("#strict").checked === strict; })()'),
+                     what='the strict scope box on the settings page')
+            if click:
+                tab.eval(f'(async () => {{ const item = {item};'
+                         ' item.shadowRoot.querySelector("#strict").click();'
+                         ' await item.updateComplete;'
+                         ' item.shadowRoot.querySelector("#save").click(); })()')
+                wait_for(lambda: tab.eval(f'{item}.shadowRoot.querySelector("#save")'
+                                          '.textContent.trim() === "Saved"'),
+                         what='the strict scope saved')
+            return tab.eval(f'(async () => [{item}.shadowRoot.querySelector("#strict").checked,'
+                            f' (await {handler}.getScopeRules({json.dumps(self.app_id)})).strict])()')
+        finally:
+            self.browser.close_target(tab)
+
+    def set_strict(self):
+        self.assertEqual(self.settings_strict(click=True), [True, True])
+        self.addCleanup(self.settings_strict, True)
+
     def settings_start_url(self, url=None):
         """Opens the app's settings page; with `url`, saves it as the start
         address there. Returns the address the page shows, its placeholder
@@ -478,6 +513,56 @@ class WebAppLinksTest(WebAppTest):
         wait_for(lambda: app.eval('location.href') == self.server.url('/out.html?redirect'),
                  what='the redirect target in the app window')
         self.assertEqual(self.opened(), [])
+
+    def test_strict_redirect_out_of_scope_opens_in_default_browser(self):
+        self.set_strict()
+        app = self.launch_app()
+        app.click('#rewrite-out')
+        wait_for(self.opened, what='xdg-open')
+        self.assertEqual(self.opened(), [self.server.url('/out.html?redirect')])
+        self.assertEqual(app.eval('location.href'), self.server.url('/app/index.html'))
+
+    def test_strict_script_navigation_from_click_opens_in_default_browser(self):
+        self.set_strict()
+        app = self.launch_app()
+        app.click('#sign-in')
+        wait_for(self.opened, what='xdg-open')
+        self.assertEqual(self.opened(), [self.server.url('/out.html?assign')])
+        self.assertEqual(app.eval('location.href'), self.server.url('/app/index.html'))
+
+    def test_strict_push_without_gesture_taken_back(self):
+        self.set_strict()
+        app = self.launch_app()
+        app.eval('history.pushState(null, "", "/out.html?script")', gesture=False)
+        wait_for(self.opened, what='xdg-open')
+        self.assertEqual(self.opened(), [self.server.url('/out.html?script')])
+        wait_for(lambda: app.eval('location.href', gesture=False)
+                 == self.server.url('/app/index.html'), what='the app window back')
+
+    def test_strict_popup_opens_in_default_browser(self):
+        self.set_strict()
+        app = self.launch_app()
+        app.eval('void window.open("/out.html?popup", "", "popup,width=400,height=300")')
+        wait_for(self.opened, what='xdg-open')
+        self.assertEqual(self.opened(), [self.server.url('/out.html?popup')])
+        self.assertEqual(self.out_tabs(), [])
+
+    def test_strict_in_scope_popup_stays(self):
+        self.set_strict()
+        app = self.launch_app()
+        app.eval('void window.open("/app/popup.html", "", "popup,width=400,height=300")')
+        popup = self.browser.page('/app/popup.html')
+        self.addCleanup(self.browser.close_target, popup)
+        self.assertEqual(self.opened(), [])
+
+    def test_strict_off_by_default_and_persists(self):
+        self.assertEqual(self.settings_strict(), [False, False])
+        self.set_strict()
+        self.browser.quit()
+        prefs = json.loads((self.browser.profile / 'Default/Preferences').read_text())
+        self.assertEqual(prefs['oganesson']['web_apps']['strict_scope'], {self.app_id: True})
+        self.browser.start()
+        self.assertEqual(self.settings_strict(), [True, True])
 
     def test_user_rule_on_app_site_narrows_scope(self):
         # the manifest's /app/ on 127.0.0.1 gives way to the rule there.

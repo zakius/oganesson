@@ -78,10 +78,19 @@ void OpenExternalInBackground(const GURL& url) {
 }
 #endif
 
+// Whether the user made the scope of `window`'s app strict: every page out
+// of it leaves by any route, as an excluded page does.
+bool HasStrictScope(BrowserWindowInterface* window) {
+  return IsWebAppOwnWindow(window) &&
+         IsUserAppScopeStrict(*window->GetProfile()->GetPrefs(),
+                              AppBrowserController::From(window)->app_id());
+}
+
 // Whether a page of `window` reaching `url` leaves the window's web app: by
 // one of the user's exclusions, which no route gets past, or with
-// `out_of_scope`, by leaving the app's scope, the one Chromium keeps the window
-// to (manifest scope and scope extensions) with the user's rules applied.
+// `out_of_scope` or a strict scope, by leaving the app's scope, the one
+// Chromium keeps the window to (manifest scope and scope extensions) with the
+// user's rules applied.
 bool LeavesApp(BrowserWindowInterface* window,
                const GURL& url,
                bool out_of_scope) {
@@ -91,7 +100,8 @@ bool LeavesApp(BrowserWindowInterface* window,
   AppBrowserController* controller = AppBrowserController::From(window);
   return IsUrlExcludedFromUserAppScope(*window->GetProfile()->GetPrefs(),
                                        controller->app_id(), url) ||
-         (out_of_scope && !controller->IsUrlInAppScope(url));
+         ((out_of_scope || HasStrictScope(window)) &&
+          !controller->IsUrlInAppScope(url));
 }
 
 // The name of the default browser's desktop entry, from the last lookup;
@@ -292,12 +302,14 @@ bool MaybeOpenNewContentsOutsideApp(NavigateParams& params) {
   if (!IsWebAppOwnWindow(params.browser)) {
     return false;
   }
-  // Popups (window.open with window features) stay: sign-in flows open the
-  // provider in one and need its opener. So do form posts, which only
-  // Chromium can submit.
+  // Popups (window.open with window features) stay, unless the scope is
+  // strict: sign-in flows open the provider in one and need its opener. So do
+  // form posts, which only Chromium can submit.
   if ((params.disposition != WindowOpenDisposition::NEW_FOREGROUND_TAB &&
        params.disposition != WindowOpenDisposition::NEW_BACKGROUND_TAB &&
-       params.disposition != WindowOpenDisposition::NEW_WINDOW) ||
+       params.disposition != WindowOpenDisposition::NEW_WINDOW &&
+       (params.disposition != WindowOpenDisposition::NEW_POPUP ||
+        !HasStrictScope(params.browser))) ||
       params.post_data ||
       (params.contents_to_insert &&
        content::IsNewWindowForFormPost(params.contents_to_insert.get())) ||
@@ -376,7 +388,8 @@ void MaybeAddOutOfScopeLinkThrottle(
   }
   // Out of scope, only the page's own link clicks: not redirects or form
   // posts, and not scripts navigating, even from a click handler (sign-in
-  // buttons that fetch the provider's URL and assign it). Exclusions, all.
+  // buttons that fetch the provider's URL and assign it). Exclusions, and
+  // with a strict scope every URL out of it, all.
   registry.AddThrottle(std::make_unique<OutOfScopeLinkThrottle>(
       registry, handle.WasInitiatedByLinkClick() && handle.HasUserGesture() &&
                     !handle.IsPost()));
