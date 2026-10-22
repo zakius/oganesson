@@ -83,12 +83,15 @@ export class ScopeRulesItemElement extends CrLitElement {
     this.saved_ = false;
   }
 
-  protected onStrictChange_(e: Event) {
-    this.strict_ = (e.target as CrCheckboxElement).checked;
+  protected onStrictChange_() {
     this.saved_ = false;
   }
 
   protected async onSaveClick_() {
+    // The box's own state: cr-checkbox fires "change" only after it renders,
+    // which a quick Save can beat.
+    this.strict_ =
+        this.shadowRoot!.querySelector<CrCheckboxElement>('#strict')!.checked;
     const {error} =
         await browserProxyFactory.getInstance().handler.setScopeRules(
             this.app.id, this.rules_, this.strict_);
