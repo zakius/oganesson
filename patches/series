@@ -7,6 +7,7 @@ oganesson/core/scroll-to-edge-commands.patch
 oganesson/core/mouse-gestures.patch
 oganesson/settings/mouse-gestures-page.patch
 oganesson/settings/restore-autofill-page.patch
+oganesson/ui/passwords-app-menu.patch
 oganesson/ui/mouse-gestures-wiring.patch
 oganesson/ui/middle-click-new-tab.patch
 oganesson/ui/vertical-tab-strip-clicks.patch

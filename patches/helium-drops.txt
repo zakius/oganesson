@@ -27,3 +27,4 @@ helium/core/disable-password-manager.patch	Do not want
 helium/settings/sync-setup-contract.patch	Do not want
 helium/ui/bangs-ui.patch	needs `add-native-bangs`
 helium/ui/helium-noise-page-info.patch	Do not want
+helium/ui/remove-autofill-link-to-password-manager.patch	Do not want: the password manager stays
