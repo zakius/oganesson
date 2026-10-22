@@ -5,7 +5,7 @@
 #include "third_party/blink/renderer/core/html/oganesson_app_links.h"
 
 #include "mojo/public/cpp/bindings/remote.h"
-#include "third_party/blink/public/common/browser_interface_broker_proxy.h"
+#include "third_party/blink/public/platform/browser_interface_broker_proxy.h"
 #include "third_party/blink/public/mojom/manifest/display_mode.mojom-blink.h"
 #include "third_party/blink/public/mojom/oganesson/app_link_host.mojom-blink.h"
 #include "third_party/blink/renderer/core/css/media_values.h"

@@ -9,7 +9,7 @@
 
 #include "base/functional/callback.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
-#include "third_party/blink/public/mojom/oganesson/app_link_host.mojom-forward.h"
+#include "third_party/blink/public/mojom/oganesson/app_link_host.mojom.h"
 
 class BrowserWindowInterface;
 class GURL;
