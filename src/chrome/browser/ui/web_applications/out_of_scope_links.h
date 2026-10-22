@@ -8,6 +8,8 @@
 #include <string>
 
 #include "base/functional/callback.h"
+#include "mojo/public/cpp/bindings/pending_receiver.h"
+#include "third_party/blink/public/mojom/oganesson/app_link_host.mojom-forward.h"
 
 class BrowserWindowInterface;
 class GURL;
@@ -19,6 +21,7 @@ class SimpleMenuModel;
 
 namespace content {
 class NavigationThrottleRegistry;
+class RenderFrameHost;
 }
 
 namespace web_app {
@@ -65,6 +68,15 @@ void OpenInDefaultBrowser(const GURL& url, bool background);
 // window undoes a same-document navigation.
 void MaybeAddOutOfScopeLinkThrottle(
     content::NavigationThrottleRegistry& registry);
+
+// Binds the host that a main frame in a web app's window asks, before its page
+// sees a link click, whether the link leaves the app; if it does, the host
+// opens it in the system default browser and the frame drops the click
+// (third_party/blink/renderer/core/html/oganesson_app_links.h). So the page
+// can't draw the linked page in the window first.
+void BindAppLinkHost(
+    content::RenderFrameHost* frame,
+    mojo::PendingReceiver<blink::mojom::OganessonAppLinkHost> receiver);
 
 }  // namespace web_app
 

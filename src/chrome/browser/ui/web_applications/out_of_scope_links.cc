@@ -34,9 +34,12 @@
 #include "content/public/browser/navigation_throttle.h"
 #include "content/public/browser/navigation_throttle_registry.h"
 #include "content/public/browser/new_window_form_post.h"
+#include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "content/public/browser/web_contents_user_data.h"
+#include "mojo/public/cpp/bindings/self_owned_receiver.h"
+#include "third_party/blink/public/mojom/oganesson/app_link_host.mojom.h"
 #include "ui/base/accelerators/menu_label_accelerator_util.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/menus/simple_menu_model.h"
@@ -296,6 +299,39 @@ class ExclusionObserver
 
 WEB_CONTENTS_USER_DATA_KEY_IMPL(ExclusionObserver);
 
+class AppLinkHost : public blink::mojom::OganessonAppLinkHost {
+ public:
+  explicit AppLinkHost(content::GlobalRenderFrameHostId frame)
+      : frame_(frame) {}
+
+  void OpenOutsideApp(const GURL& url,
+                      bool background,
+                      OpenOutsideAppCallback callback) override {
+    // The frame asks only for its user's clicks, and is the window's page.
+    // Sticky, not transient, activation: the renderer reports a key press's
+    // activation on another pipe, which may arrive after this call.
+    content::RenderFrameHost* frame =
+        content::RenderFrameHost::FromID(frame_);
+    tabs::TabInterface* tab =
+        frame && frame->IsInPrimaryMainFrame() &&
+                frame->HasStickyUserActivation()
+            ? tabs::TabInterface::MaybeGetFromContents(
+                  content::WebContents::FromRenderFrameHost(frame))
+            : nullptr;
+    if (!tab ||
+        !LeavesApp(tab->GetBrowserWindowInterface(), url,
+                   /*out_of_scope=*/true)) {
+      std::move(callback).Run(false);
+      return;
+    }
+    OpenInDefaultBrowser(url, background);
+    std::move(callback).Run(true);
+  }
+
+ private:
+  const content::GlobalRenderFrameHostId frame_;
+};
+
 }  // namespace
 
 bool MaybeOpenNewContentsOutsideApp(NavigateParams& params) {
@@ -369,6 +405,13 @@ void OpenInDefaultBrowser(const GURL& url, bool background) {
   }
 #endif
   platform_util::OpenExternal(url);
+}
+
+void BindAppLinkHost(
+    content::RenderFrameHost* frame,
+    mojo::PendingReceiver<blink::mojom::OganessonAppLinkHost> receiver) {
+  mojo::MakeSelfOwnedReceiver(
+      std::make_unique<AppLinkHost>(frame->GetGlobalId()), std::move(receiver));
 }
 
 void MaybeAddOutOfScopeLinkThrottle(

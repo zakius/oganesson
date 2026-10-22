@@ -1,0 +1,18 @@
+// Copyright 2026 The oganesson Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+module blink.mojom;
+
+import "url/mojom/url.mojom";
+
+// oganesson: a main frame in an installed web app's window asks this before
+// its page sees a link click (oganesson_app_links.h). Implemented by
+// chrome/browser/ui/web_applications/out_of_scope_links.cc.
+interface OganessonAppLinkHost {
+  // Opens `url` in the system default browser if it leaves the frame's app,
+  // `background` as a middle click or Ctrl+click does; returns whether it
+  // did, and the click is then dropped.
+  [Sync]
+  OpenOutsideApp(url.mojom.Url url, bool background) => (bool opened);
+};

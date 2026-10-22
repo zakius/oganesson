@@ -42,11 +42,19 @@ APP_PAGE = b'''<!doctype html><link rel="manifest" href="/app/manifest.json">
 <a id="replace" href="/app/excluded.html" onclick="event.preventDefault();
   history.replaceState(null, '', this.href)">excluded, replaced</a>
 <a id="push-out" href="/out.html?push" onclick="event.preventDefault();
-  history.pushState(null, '', this.href)">out of scope, pushed</a>
+  window.sawClick = true; history.pushState(null, '', this.href)">out of scope, pushed</a>
 <a id="push-inside" href="/app/inside.html" onclick="event.preventDefault();
   history.pushState(null, '', this.href)">in scope, pushed</a>
 <a id="assign" href="/app/excluded.html" onclick="event.preventDefault();
   location.href = this.href">excluded, by script</a>
+<button id="push-button" onclick="history.pushState(null, '', '/app/excluded.html')">
+excluded, pushed by a button</button>
+<button id="replace-button" onclick="history.replaceState(null, '', '/app/excluded.html')">
+excluded, replaced by a button</button>
+<button id="assign-button" onclick="location.href = '/app/excluded.html'">
+excluded, by a button's script</button>
+<button id="push-out-button" onclick="history.pushState(null, '', '/out.html?push')">
+out of scope, pushed by a button</button>
 <a id="rewrite" href="/app/inside.html"
   onmousedown="this.href = '/app/to-excluded'">excluded, through a redirect</a>
 <a id="rewrite-out" href="/app/inside.html"
@@ -445,18 +453,28 @@ class WebAppLinksTest(WebAppTest):
                  what='the app window back')
 
     def test_exclusion_takes_pushed_page_out(self):
-        # A click handler that keeps the link in the page, as Facebook's does.
+        # Not a link, so the page gets the click and pushes the URL.
+        self.set_rules(RULES)
+        app = self.launch_app()
+        length = app.eval('history.length')
+        app.click('#push-button')
+        self.assert_excluded_opened(app)
+        self.assertEqual(app.eval('history.length'), length + 1)
+
+    def test_excluded_link_leaves_before_page_sees_click(self):
+        # A click handler that keeps the link in the page, as Facebook's does:
+        # the browser takes the click first.
         self.set_rules(RULES)
         app = self.launch_app()
         length = app.eval('history.length')
         app.click('#push')
         self.assert_excluded_opened(app)
-        self.assertEqual(app.eval('history.length'), length + 1)
+        self.assertEqual(app.eval('history.length'), length)
 
     def test_exclusion_takes_replaced_page_out(self):
         self.set_rules(RULES)
         app = self.launch_app()
-        app.click('#replace')
+        app.click('#replace-button')
         self.assert_excluded_opened(app)
         # The page before loads again in the replaced entry.
         wait_for(lambda: app.eval('document.readyState === "complete"'), what='the page')
@@ -465,7 +483,7 @@ class WebAppLinksTest(WebAppTest):
     def test_exclusion_takes_script_navigation_out(self):
         self.set_rules(RULES)
         app = self.launch_app()
-        app.click('#assign')
+        app.click('#assign-button')
         self.assert_excluded_opened(app)
 
     def test_exclusion_takes_script_navigation_without_gesture_out(self):
@@ -491,13 +509,35 @@ class WebAppLinksTest(WebAppTest):
         self.assertEqual(self.opened(), [])
 
     def test_out_of_scope_push_from_click_opens_in_default_browser(self):
-        # Facebook's links push their URL; one out of scope leaves the app.
+        # A click that pushes a URL out of scope leaves the app.
         app = self.launch_app()
-        app.click('#push-out')
+        app.click('#push-out-button')
         wait_for(self.opened, what='xdg-open')
         self.assertEqual(self.opened(), [self.server.url('/out.html?push')])
         wait_for(lambda: app.eval('location.href') == self.server.url('/app/index.html'),
                  what='the app window back')
+
+    def test_out_of_scope_link_leaves_before_page_sees_click(self):
+        # Facebook's links push their URL from a click handler, after drawing
+        # the linked page; the handler never runs.
+        app = self.launch_app()
+        length = app.eval('history.length')
+        app.click('#push-out')
+        wait_for(self.opened, what='xdg-open')
+        self.assertEqual(self.opened(), [self.server.url('/out.html?push')])
+        self.assertIsNone(app.eval('window.sawClick', gesture=False))
+        self.assertEqual(app.eval('location.href'), self.server.url('/app/index.html'))
+        self.assertEqual(app.eval('history.length'), length)
+
+    def test_out_of_scope_link_in_normal_tab_reaches_page(self):
+        # Tabs don't ask the browser: the page's handler gets the click.
+        tab = self.browser.new_tab(self.server.url('/app/index.html'))
+        self.addCleanup(self.browser.close_target, tab)
+        wait_for(lambda: tab.eval('document.readyState === "complete"'), what='the page')
+        tab.click('#push-out')
+        wait_for(lambda: tab.eval('window.sawClick === true', gesture=False),
+                 what='the click in the page')
+        self.assertEqual(self.opened(), [])
 
     def test_out_of_scope_push_without_gesture_stays_in_app(self):
         app = self.launch_app()
