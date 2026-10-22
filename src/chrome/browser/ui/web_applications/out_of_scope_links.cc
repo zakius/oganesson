@@ -162,12 +162,19 @@ class OutOfScopeLinkThrottle : public content::NavigationThrottle {
 // and takes the window back. A pushed entry goes back, as
 // the Back button would, so the page's router shows the page before again;
 // for a replaced entry, the page before loads again in its place. The window
-// can show the excluded page's content until then. The observer also updates
+// can show the excluded page's content until then. One URL goes out per
+// user input: a router that answers the take-back by navigating out again,
+// to the same URL or the one it resolves to (Facebook's /share/ links),
+// keeps it, instead of opening a tab in the default browser per round. The observer also updates
 // an app window's custom tab bar when the user's scope rules change.
 class ExclusionObserver
     : public content::WebContentsObserver,
       public content::WebContentsUserData<ExclusionObserver> {
  public:
+  void DidGetUserInteraction(const blink::WebInputEvent& event) override {
+    sent_since_input_ = false;
+  }
+
   void DidFinishNavigation(content::NavigationHandle* handle) override {
     // Not history navigations: a Back or Forward that loops between two
     // excluded entries would never end.
@@ -185,6 +192,10 @@ class ExclusionObserver
                    /*out_of_scope=*/handle->HasUserGesture())) {
       return;
     }
+    if (sent_since_input_) {
+      return;
+    }
+    sent_since_input_ = true;
     OpenInDefaultBrowser(handle->GetURL(),
                          /*background=*/!handle->HasUserGesture());
     base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
@@ -245,6 +256,8 @@ class ExclusionObserver
   }
 
   PrefChangeRegistrar scope_rules_registrar_;
+  // Whether a URL went out since the user's last input to the page.
+  bool sent_since_input_ = false;
 };
 
 WEB_CONTENTS_USER_DATA_KEY_IMPL(ExclusionObserver);
