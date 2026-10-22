@@ -44,6 +44,7 @@ def local_commit(repo, ref):
 
 
 def sparse_clone(url, ref, dest, files, local=None):
+    shutil.rmtree(dest, ignore_errors=True)  # a kept tree from an earlier run has an origin and patched files
     git('init', '--quiet', str(dest))
     subprocess.run(['git', '-C', str(dest), 'sparse-checkout', 'set', '--no-cone', '--stdin'],
                    input='\n'.join(files) + '\n', text=True, check=True)
@@ -142,6 +143,7 @@ def main():
             ('third_party/devtools-frontend/src',
              'https://chromium.googlesource.com/devtools/devtools-frontend',
              r"'devtools_frontend_revision': '([0-9a-f]+)'"),
+            ('v8', 'https://chromium.googlesource.com/v8/v8.git', r"'v8_revision': '([0-9a-f]+)'"),
             ('third_party/skia', 'https://skia.googlesource.com/skia.git',
              r"'skia_revision': '([0-9a-f]+)'"),
             ('third_party/search_engines_data/resources',

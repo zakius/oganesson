@@ -57,7 +57,7 @@ def repos():
     """The Chromium checkout and the nested dependency checkouts inside it."""
     return [r for r in [src, *src.glob('third_party/*/src'), src / 'third_party/skia',
                         src / 'third_party/search_engines_data/resources',
-                        src / 'third_party/angle', src / 'third_party/dawn']
+                        src / 'third_party/angle', src / 'third_party/dawn', src / 'v8']
             if (r / '.git').exists()]
 
 
@@ -240,6 +240,11 @@ else:
                     str(oganesson.TREE / 'deps.ini'),
                     '-c', str(work / 'cache'), str(src), '--components', 'ublock_origin',
                     'onboarding'], check=True, capture_output=True)
+    if windows:
+        # WinSparkle, which helium-windows' updater patches change, as check_patches.py unpacks it.
+        subprocess.run([str(oganesson.helium_tree() / 'utils/downloads.py'), 'unpack', '-i',
+                        str(oganesson.HELIUM_WINDOWS / 'downloads.ini'), '-c', str(work / 'cache'),
+                        str(src), '--components', 'winsparkle'], check=True, capture_output=True)
     oganesson.copy_new_files(src)
     commit('base')
 

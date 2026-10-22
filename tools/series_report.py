@@ -19,7 +19,7 @@ src = work / ('src-windows' if windows else 'src')
 bases = oganesson.WINDOWS_SERIES if windows else oganesson.SERIES
 for repo in [src, *src.glob('third_party/*/src'), src / 'third_party/skia',
              src / 'third_party/search_engines_data/resources', src / 'third_party/angle',
-             src / 'third_party/dawn']:
+             src / 'third_party/dawn', src / 'v8']:
     if (repo / '.git').exists():
         # regen.py leaves a commit per patch on top of the checkout; go back to the checkout.
         root = subprocess.run(['git', '-C', str(repo), 'rev-list', '--max-parents=0', 'HEAD'],
