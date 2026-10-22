@@ -8,12 +8,12 @@
 #include "third_party/blink/public/platform/browser_interface_broker_proxy.h"
 #include "third_party/blink/public/mojom/manifest/display_mode.mojom-blink.h"
 #include "third_party/blink/public/mojom/oganesson/app_link_host.mojom-blink.h"
-#include "third_party/blink/renderer/core/css/media_values.h"
 #include "third_party/blink/renderer/core/frame/local_frame.h"
 #include "third_party/blink/renderer/core/loader/frame_load_request.h"
 #include "third_party/blink/renderer/core/loader/frame_loader.h"
 #include "third_party/blink/renderer/core/loader/frame_loader_types.h"
 #include "third_party/blink/renderer/platform/network/http_names.h"
+#include "third_party/blink/renderer/platform/widget/frame_widget.h"
 
 namespace blink::oganesson_app_links {
 
@@ -25,7 +25,10 @@ bool LeavesApp(LocalFrame& frame, const KURL& url, bool link) {
   if (!frame.IsOutermostMainFrame() || !url.ProtocolIsInHttpFamily()) {
     return false;
   }
-  mojom::blink::DisplayMode mode = MediaValues::CalculateDisplayMode(&frame);
+  // The display mode CSS sees, as MediaValues gets it.
+  FrameWidget* widget = frame.GetWidgetForLocalRoot();
+  mojom::blink::DisplayMode mode =
+      widget ? widget->DisplayMode() : mojom::blink::DisplayMode::kBrowser;
   if (mode == mojom::blink::DisplayMode::kBrowser ||
       mode == mojom::blink::DisplayMode::kUndefined) {
     return false;
