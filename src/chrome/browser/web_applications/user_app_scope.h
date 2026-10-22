@@ -23,6 +23,12 @@ namespace web_app {
 inline constexpr char kUserAppScopeRules[] =
     "oganesson.web_apps.user_scope_rules";
 
+// Profile pref: per app id, true where the user made the app's scope strict:
+// every page out of it leaves the app's window by any route, as an exclusion
+// does (out_of_scope_links.h).
+inline constexpr char kUserAppStrictScope[] =
+    "oganesson.web_apps.strict_scope";
+
 // Whether `url` is in the scope of app `app_id` as the user's rules decide, or
 // nullopt where the manifest's scope decides. Include rules add to the
 // manifest's scope, except on a host one of them names: there they replace it.
@@ -47,6 +53,14 @@ int GetUserAppScopeScore(const PrefService& prefs,
 bool IsUrlExcludedFromUserAppScope(const PrefService& prefs,
                                    const webapps::AppId& app_id,
                                    const GURL& url);
+
+// Whether the user made app `app_id`'s scope strict.
+bool IsUserAppScopeStrict(const PrefService& prefs,
+                          const webapps::AppId& app_id);
+
+void SetUserAppScopeStrict(PrefService& prefs,
+                           const webapps::AppId& app_id,
+                           bool strict);
 
 // The app's rules, one per line.
 std::string GetUserAppScopeRules(const PrefService& prefs,

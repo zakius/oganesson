@@ -8,6 +8,8 @@
 #include <string>
 
 #include "base/functional/callback.h"
+#include "mojo/public/cpp/bindings/pending_receiver.h"
+#include "third_party/blink/public/mojom/oganesson/app_link_host.mojom-forward.h"
 
 class BrowserWindowInterface;
 class GURL;
@@ -19,6 +21,7 @@ class SimpleMenuModel;
 
 namespace content {
 class NavigationThrottleRegistry;
+class RenderFrameHost;
 }
 
 namespace web_app {
@@ -33,7 +36,8 @@ namespace web_app {
 bool IsWebAppOwnWindow(BrowserWindowInterface* window);
 
 // For Navigate(): a new tab or window that a web app's window opens on a URL
-// out of the app's scope goes to the system default browser. Returns true
+// out of the app's scope goes to the system default browser; with a strict
+// scope, so does a popup. Returns true
 // when it took the navigation, which the caller then drops.
 bool MaybeOpenNewContentsOutsideApp(NavigateParams& params);
 
@@ -59,10 +63,20 @@ void OpenInDefaultBrowser(const GURL& url, bool background);
 // A link clicked in a web app's window that leaves the app's scope, which
 // would load in the window, goes to the system default browser instead; so
 // does a same-document navigation from a click that leaves it. So does any
-// URL the page reaches that one of the user's exclusions matches: also by
-// script or redirect. The window undoes a same-document navigation.
+// URL the page reaches that one of the user's exclusions matches, or with a
+// strict scope, any URL out of the scope: also by script or redirect. The
+// window undoes a same-document navigation.
 void MaybeAddOutOfScopeLinkThrottle(
     content::NavigationThrottleRegistry& registry);
+
+// Binds the host that a main frame in a web app's window asks, before its page
+// changes its address (navigates, pushState, replaceState, hash), whether
+// the URL leaves the app; if it does, the address doesn't change, and the
+// host opens the URL in the system default browser, once per user input
+// (third_party/blink/renderer/core/html/oganesson_app_links.h).
+void BindAppLinkHost(
+    content::RenderFrameHost* frame,
+    mojo::PendingReceiver<blink::mojom::OganessonAppLinkHost> receiver);
 
 }  // namespace web_app
 

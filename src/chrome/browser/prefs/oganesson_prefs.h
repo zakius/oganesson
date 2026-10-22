@@ -30,6 +30,7 @@ inline void RegisterOganessonProfilePrefs(
   registry->RegisterListPref(prefs::kToolbarHiddenItems);
   omnibox::RegisterSuggestionSourcePrefs(registry);
   registry->RegisterDictionaryPref(web_app::kUserAppScopeRules);
+  registry->RegisterDictionaryPref(web_app::kUserAppStrictScope);
   registry->RegisterDictionaryPref(web_app::kUserAppStartUrls);
 }
 

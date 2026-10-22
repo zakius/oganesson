@@ -329,7 +329,7 @@
    ]
 --- a/chrome/browser/ui/webui/app_management/app_management_page_handler_base.h
 +++ b/chrome/browser/ui/webui/app_management/app_management_page_handler_base.h
-@@ -53,6 +53,16 @@ class AppManagementPageHandlerBase : public app_management::mojom::PageHandler,
+@@ -53,6 +53,17 @@ class AppManagementPageHandlerBase : public app_management::mojom::PageHandler,
    void OpenNativeSettings(const std::string& app_id) override;
    void SetFileHandlingEnabled(const std::string& app_id, bool enabled) override;
    void UpdateAppSize(const std::string& app_id) override;
@@ -337,6 +337,7 @@
 +                     GetScopeRulesCallback callback) override;
 +  void SetScopeRules(const std::string& app_id,
 +                     const std::string& rules,
++                     bool strict,
 +                     SetScopeRulesCallback callback) override;
 +  void GetStartUrl(const std::string& app_id,
 +                   GetStartUrlCallback callback) override;
@@ -486,11 +487,11 @@
    // Sets app locale for an app with the given |app_id|. Empty |locale_tag|
    // indicates system language being chosen.
    SetAppLocale(string app_id, string locale_tag);
-+  // The scope rules the user added to the app, one per line.
-+  GetScopeRules(string app_id) => (string rules);
-+  // Sets them; returns why a rule is invalid, keeping the old rules, or an
-+  // empty string.
-+  SetScopeRules(string app_id, string rules) => (string error);
++  // The scope rules the user added to the app, one per line, and whether
++  // its scope is strict. Sets them; returns why a rule is invalid, keeping
++  // the old rules and strictness, or an empty string.
++  GetScopeRules(string app_id) => (string rules, bool strict);
++  SetScopeRules(string app_id, string rules, bool strict) => (string error);
 +  // The URL the user set for the app to open at, or an empty string, and the
 +  // manifest's start URL.
 +  GetStartUrl(string app_id) => (string url, string manifest_start_url);

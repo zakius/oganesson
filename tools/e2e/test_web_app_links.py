@@ -42,11 +42,21 @@ APP_PAGE = b'''<!doctype html><link rel="manifest" href="/app/manifest.json">
 <a id="replace" href="/app/excluded.html" onclick="event.preventDefault();
   history.replaceState(null, '', this.href)">excluded, replaced</a>
 <a id="push-out" href="/out.html?push" onclick="event.preventDefault();
-  history.pushState(null, '', this.href)">out of scope, pushed</a>
+  window.sawClick = true; history.pushState(null, '', this.href)">out of scope, pushed</a>
 <a id="push-inside" href="/app/inside.html" onclick="event.preventDefault();
   history.pushState(null, '', this.href)">in scope, pushed</a>
 <a id="assign" href="/app/excluded.html" onclick="event.preventDefault();
   location.href = this.href">excluded, by script</a>
+<button id="push-button" onclick="history.pushState(null, '', '/app/excluded.html')">
+excluded, pushed by a button</button>
+<button id="replace-button" onclick="history.replaceState(null, '', '/app/excluded.html')">
+excluded, replaced by a button</button>
+<button id="assign-button" onclick="location.href = '/app/excluded.html'">
+excluded, by a button's script</button>
+<button id="push-out-button" onclick="history.pushState(null, '', '/out.html?push')">
+out of scope, pushed by a button</button>
+<button id="push-twice" onclick="history.pushState(null, '', '/out.html?first');
+  history.pushState(null, '', '/out.html?second')">out of scope, pushed twice</button>
 <a id="rewrite" href="/app/inside.html"
   onmousedown="this.href = '/app/to-excluded'">excluded, through a redirect</a>
 <a id="rewrite-out" href="/app/inside.html"
@@ -317,6 +327,41 @@ class WebAppTest(BrowserTest):
         self.assertEqual(self.settings_rules(rules), [rules, '', False])
         self.addCleanup(self.settings_rules, '')
 
+    def settings_strict(self, click=False):
+        """Opens the app's settings page; with `click`, toggles the strict
+        scope checkbox and saves. Returns whether the box is checked, then
+        whether the backend has the scope strict."""
+        tab = self.browser.new_tab(f'chrome://app-settings/{self.app_id}')
+        try:
+            item = ('document.querySelector("web-app-settings-app")?.shadowRoot?'
+                    '.querySelector("app-management-scope-rules-item")')
+            handler = ('(await import("chrome://resources/cr_components/app_management/'
+                       'app_management.mojom-webui.js")).browserProxyFactory.getInstance().handler')
+            # As in settings_rules: asked after the item's own request.
+            wait_for(lambda: tab.eval(
+                f'(async () => {{ const item = {item};'
+                f' if (item?.app?.id !== {json.dumps(self.app_id)}) return false;'
+                f' const {{strict}} = await {handler}.getScopeRules({json.dumps(self.app_id)});'
+                ' await item.updateComplete;'
+                ' return item.shadowRoot.querySelector("#strict").checked === strict; })()'),
+                     what='the strict scope box on the settings page')
+            if click:
+                tab.eval(f'(async () => {{ const item = {item};'
+                         ' item.shadowRoot.querySelector("#strict").click();'
+                         ' await item.updateComplete;'
+                         ' item.shadowRoot.querySelector("#save").click(); })()')
+                wait_for(lambda: tab.eval(f'{item}.shadowRoot.querySelector("#save")'
+                                          '.textContent.trim() === "Saved"'),
+                         what='the strict scope saved')
+            return tab.eval(f'(async () => [{item}.shadowRoot.querySelector("#strict").checked,'
+                            f' (await {handler}.getScopeRules({json.dumps(self.app_id)})).strict])()')
+        finally:
+            self.browser.close_target(tab)
+
+    def set_strict(self):
+        self.assertEqual(self.settings_strict(click=True), [True, True])
+        self.addCleanup(self.settings_strict, True)
+
     def settings_start_url(self, url=None):
         """Opens the app's settings page; with `url`, saves it as the start
         address there. Returns the address the page shows, its placeholder
@@ -409,28 +454,35 @@ class WebAppLinksTest(WebAppTest):
         wait_for(lambda: app.eval('location.href') == self.server.url(url),
                  what='the app window back')
 
-    def test_exclusion_takes_pushed_page_out(self):
+    def test_excluded_push_never_changes_address(self):
+        # pushState asks the browser first: the address stays, no entry.
+        self.set_rules(RULES)
+        app = self.launch_app()
+        length = app.eval('history.length')
+        app.click('#push-button')
+        self.assert_excluded_opened(app)
+        self.assertEqual(app.eval('history.length'), length)
+
+    def test_excluded_push_from_link_handler_never_changes_address(self):
         # A click handler that keeps the link in the page, as Facebook's does.
         self.set_rules(RULES)
         app = self.launch_app()
         length = app.eval('history.length')
         app.click('#push')
         self.assert_excluded_opened(app)
-        self.assertEqual(app.eval('history.length'), length + 1)
+        self.assertEqual(app.eval('history.length'), length)
 
-    def test_exclusion_takes_replaced_page_out(self):
+    def test_excluded_replace_never_changes_address(self):
         self.set_rules(RULES)
         app = self.launch_app()
-        app.click('#replace')
+        app.click('#replace-button')
         self.assert_excluded_opened(app)
-        # The page before loads again in the replaced entry.
-        wait_for(lambda: app.eval('document.readyState === "complete"'), what='the page')
         self.assertEqual(app.eval('history.length'), 1)
 
     def test_exclusion_takes_script_navigation_out(self):
         self.set_rules(RULES)
         app = self.launch_app()
-        app.click('#assign')
+        app.click('#assign-button')
         self.assert_excluded_opened(app)
 
     def test_exclusion_takes_script_navigation_without_gesture_out(self):
@@ -456,13 +508,43 @@ class WebAppLinksTest(WebAppTest):
         self.assertEqual(self.opened(), [])
 
     def test_out_of_scope_push_from_click_opens_in_default_browser(self):
-        # Facebook's links push their URL; one out of scope leaves the app.
+        # A click that pushes a URL out of scope leaves the app.
         app = self.launch_app()
-        app.click('#push-out')
+        app.click('#push-out-button')
         wait_for(self.opened, what='xdg-open')
         self.assertEqual(self.opened(), [self.server.url('/out.html?push')])
         wait_for(lambda: app.eval('location.href') == self.server.url('/app/index.html'),
                  what='the app window back')
+
+    def test_out_of_scope_push_from_link_handler_never_changes_address(self):
+        # Facebook's links push their URL from a click handler: the handler
+        # runs, its pushState doesn't.
+        app = self.launch_app()
+        length = app.eval('history.length')
+        app.click('#push-out')
+        wait_for(self.opened, what='xdg-open')
+        self.assertEqual(self.opened(), [self.server.url('/out.html?push')])
+        self.assertTrue(app.eval('window.sawClick', gesture=False))
+        self.assertEqual(app.eval('location.href'), self.server.url('/app/index.html'))
+        self.assertEqual(app.eval('history.length'), length)
+
+    def test_out_of_scope_pushes_open_one_tab_per_input(self):
+        # A router that answers with another URL, or tries again.
+        app = self.launch_app()
+        app.click('#push-twice')
+        wait_for(self.opened, what='xdg-open')
+        self.assertEqual(self.opened(), [self.server.url('/out.html?first')])
+        self.assertEqual(app.eval('location.href'), self.server.url('/app/index.html'))
+
+    def test_out_of_scope_push_in_normal_tab_changes_address(self):
+        # Tabs don't ask the browser.
+        tab = self.browser.new_tab(self.server.url('/app/index.html'))
+        self.addCleanup(self.browser.close_target, tab)
+        wait_for(lambda: tab.eval('document.readyState === "complete"'), what='the page')
+        tab.click('#push-out')
+        wait_for(lambda: tab.eval('location.href', gesture=False) == self.server.url('/out.html?push'),
+                 what='the pushed address in the tab')
+        self.assertEqual(self.opened(), [])
 
     def test_out_of_scope_push_without_gesture_stays_in_app(self):
         app = self.launch_app()
@@ -478,6 +560,56 @@ class WebAppLinksTest(WebAppTest):
         wait_for(lambda: app.eval('location.href') == self.server.url('/out.html?redirect'),
                  what='the redirect target in the app window')
         self.assertEqual(self.opened(), [])
+
+    def test_strict_redirect_out_of_scope_opens_in_default_browser(self):
+        self.set_strict()
+        app = self.launch_app()
+        app.click('#rewrite-out')
+        wait_for(self.opened, what='xdg-open')
+        self.assertEqual(self.opened(), [self.server.url('/out.html?redirect')])
+        self.assertEqual(app.eval('location.href'), self.server.url('/app/index.html'))
+
+    def test_strict_script_navigation_from_click_opens_in_default_browser(self):
+        self.set_strict()
+        app = self.launch_app()
+        app.click('#sign-in')
+        wait_for(self.opened, what='xdg-open')
+        self.assertEqual(self.opened(), [self.server.url('/out.html?assign')])
+        self.assertEqual(app.eval('location.href'), self.server.url('/app/index.html'))
+
+    def test_strict_push_without_gesture_never_changes_address(self):
+        self.set_strict()
+        app = self.launch_app()
+        app.eval('history.pushState(null, "", "/out.html?script")', gesture=False)
+        wait_for(self.opened, what='xdg-open')
+        self.assertEqual(self.opened(), [self.server.url('/out.html?script')])
+        self.assertEqual(app.eval('location.href', gesture=False),
+                         self.server.url('/app/index.html'))
+
+    def test_strict_popup_opens_in_default_browser(self):
+        self.set_strict()
+        app = self.launch_app()
+        app.eval('void window.open("/out.html?popup", "", "popup,width=400,height=300")')
+        wait_for(self.opened, what='xdg-open')
+        self.assertEqual(self.opened(), [self.server.url('/out.html?popup')])
+        self.assertEqual(self.out_tabs(), [])
+
+    def test_strict_in_scope_popup_stays(self):
+        self.set_strict()
+        app = self.launch_app()
+        app.eval('void window.open("/app/popup.html", "", "popup,width=400,height=300")')
+        popup = self.browser.page('/app/popup.html')
+        self.addCleanup(self.browser.close_target, popup)
+        self.assertEqual(self.opened(), [])
+
+    def test_strict_off_by_default_and_persists(self):
+        self.assertEqual(self.settings_strict(), [False, False])
+        self.set_strict()
+        self.browser.quit()
+        prefs = json.loads((self.browser.profile / 'Default/Preferences').read_text())
+        self.assertEqual(prefs['oganesson']['web_apps']['strict_scope'], {self.app_id: True})
+        self.browser.start()
+        self.assertEqual(self.settings_strict(), [True, True])
 
     def test_user_rule_on_app_site_narrows_scope(self):
         # the manifest's /app/ on 127.0.0.1 gives way to the rule there.

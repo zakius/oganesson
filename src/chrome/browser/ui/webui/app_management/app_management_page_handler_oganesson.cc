@@ -20,15 +20,21 @@ void AppManagementPageHandlerBase::GetScopeRules(
     const std::string& app_id,
     GetScopeRulesCallback callback) {
   std::move(callback).Run(
-      web_app::GetUserAppScopeRules(*profile_->GetPrefs(), app_id));
+      web_app::GetUserAppScopeRules(*profile_->GetPrefs(), app_id),
+      web_app::IsUserAppScopeStrict(*profile_->GetPrefs(), app_id));
 }
 
 void AppManagementPageHandlerBase::SetScopeRules(
     const std::string& app_id,
     const std::string& rules,
+    bool strict,
     SetScopeRulesCallback callback) {
-  std::move(callback).Run(
-      web_app::SetUserAppScopeRules(*profile_->GetPrefs(), app_id, rules));
+  std::string error =
+      web_app::SetUserAppScopeRules(*profile_->GetPrefs(), app_id, rules);
+  if (error.empty()) {
+    web_app::SetUserAppScopeStrict(*profile_->GetPrefs(), app_id, strict);
+  }
+  std::move(callback).Run(error);
 }
 
 void AppManagementPageHandlerBase::GetStartUrl(const std::string& app_id,

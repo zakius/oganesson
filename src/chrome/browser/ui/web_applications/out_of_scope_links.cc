@@ -34,9 +34,12 @@
 #include "content/public/browser/navigation_throttle.h"
 #include "content/public/browser/navigation_throttle_registry.h"
 #include "content/public/browser/new_window_form_post.h"
+#include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "content/public/browser/web_contents_user_data.h"
+#include "mojo/public/cpp/bindings/self_owned_receiver.h"
+#include "third_party/blink/public/mojom/oganesson/app_link_host.mojom.h"
 #include "ui/base/accelerators/menu_label_accelerator_util.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/menus/simple_menu_model.h"
@@ -78,10 +81,19 @@ void OpenExternalInBackground(const GURL& url) {
 }
 #endif
 
+// Whether the user made the scope of `window`'s app strict: every page out
+// of it leaves by any route, as an excluded page does.
+bool HasStrictScope(BrowserWindowInterface* window) {
+  return IsWebAppOwnWindow(window) &&
+         IsUserAppScopeStrict(*window->GetProfile()->GetPrefs(),
+                              AppBrowserController::From(window)->app_id());
+}
+
 // Whether a page of `window` reaching `url` leaves the window's web app: by
 // one of the user's exclusions, which no route gets past, or with
-// `out_of_scope`, by leaving the app's scope, the one Chromium keeps the window
-// to (manifest scope and scope extensions) with the user's rules applied.
+// `out_of_scope` or a strict scope, by leaving the app's scope, the one
+// Chromium keeps the window to (manifest scope and scope extensions) with the
+// user's rules applied.
 bool LeavesApp(BrowserWindowInterface* window,
                const GURL& url,
                bool out_of_scope) {
@@ -91,7 +103,8 @@ bool LeavesApp(BrowserWindowInterface* window,
   AppBrowserController* controller = AppBrowserController::From(window);
   return IsUrlExcludedFromUserAppScope(*window->GetProfile()->GetPrefs(),
                                        controller->app_id(), url) ||
-         (out_of_scope && !controller->IsUrlInAppScope(url));
+         ((out_of_scope || HasStrictScope(window)) &&
+          !controller->IsUrlInAppScope(url));
 }
 
 // The name of the default browser's desktop entry, from the last lookup;
@@ -156,6 +169,9 @@ class OutOfScopeLinkThrottle : public content::NavigationThrottle {
   const bool link_;
 };
 
+// The page's frame asks AppLinkHost before it changes its address, so such
+// a change doesn't happen; this is for one the frame didn't ask about, such
+// as from a page that moved into the app window while it changed it.
 // Same-document navigations (pushState, replaceState, fragments) commit
 // without throttles: one that reaches an excluded URL, or from a click one
 // out of the app's scope, as a link there would (routers such as Facebook's
@@ -176,6 +192,14 @@ class ExclusionObserver
  public:
   void DidGetUserInteraction(const blink::WebInputEvent& event) override {
     take_backs_since_input_ = 0;
+    opened_since_input_ = false;
+  }
+
+  // Whether a URL that leaves the app may open in the default browser: one
+  // per user input, so a page that tries again, or a router that answers
+  // with another URL, can't open a tab per try.
+  bool MayOpen() {
+    return !std::exchange(opened_since_input_, true);
   }
 
   void DidFinishNavigation(content::NavigationHandle* handle) override {
@@ -198,7 +222,8 @@ class ExclusionObserver
     if (take_backs_since_input_ == kMaxTakeBacksPerInput) {
       return;
     }
-    if (take_backs_since_input_++ == 0) {
+    ++take_backs_since_input_;
+    if (MayOpen()) {
       OpenInDefaultBrowser(handle->GetURL(),
                            /*background=*/!handle->HasUserGesture());
     }
@@ -279,12 +304,45 @@ class ExclusionObserver
 
   PrefChangeRegistrar scope_rules_registrar_;
   static constexpr int kMaxTakeBacksPerInput = 3;
-  // Navigations taken back since the user's last input to the page; the
-  // first one's URL went out.
+  // Navigations taken back since the user's last input to the page.
   int take_backs_since_input_ = 0;
+  bool opened_since_input_ = false;
 };
 
 WEB_CONTENTS_USER_DATA_KEY_IMPL(ExclusionObserver);
+
+class AppLinkHost : public blink::mojom::OganessonAppLinkHost {
+ public:
+  explicit AppLinkHost(content::GlobalRenderFrameHostId frame)
+      : frame_(frame) {}
+
+  void OpenOutsideApp(const GURL& url,
+                      bool link,
+                      bool background,
+                      OpenOutsideAppCallback callback) override {
+    content::RenderFrameHost* frame =
+        content::RenderFrameHost::FromID(frame_);
+    content::WebContents* contents =
+        frame && frame->IsInPrimaryMainFrame()
+            ? content::WebContents::FromRenderFrameHost(frame)
+            : nullptr;
+    tabs::TabInterface* tab =
+        contents ? tabs::TabInterface::MaybeGetFromContents(contents)
+                 : nullptr;
+    if (!tab || !LeavesApp(tab->GetBrowserWindowInterface(), url, link)) {
+      std::move(callback).Run(false);
+      return;
+    }
+    ExclusionObserver::CreateForWebContents(contents);
+    if (ExclusionObserver::FromWebContents(contents)->MayOpen()) {
+      OpenInDefaultBrowser(url, background);
+    }
+    std::move(callback).Run(true);
+  }
+
+ private:
+  const content::GlobalRenderFrameHostId frame_;
+};
 
 }  // namespace
 
@@ -292,12 +350,14 @@ bool MaybeOpenNewContentsOutsideApp(NavigateParams& params) {
   if (!IsWebAppOwnWindow(params.browser)) {
     return false;
   }
-  // Popups (window.open with window features) stay: sign-in flows open the
-  // provider in one and need its opener. So do form posts, which only
-  // Chromium can submit.
+  // Popups (window.open with window features) stay, unless the scope is
+  // strict: sign-in flows open the provider in one and need its opener. So do
+  // form posts, which only Chromium can submit.
   if ((params.disposition != WindowOpenDisposition::NEW_FOREGROUND_TAB &&
        params.disposition != WindowOpenDisposition::NEW_BACKGROUND_TAB &&
-       params.disposition != WindowOpenDisposition::NEW_WINDOW) ||
+       params.disposition != WindowOpenDisposition::NEW_WINDOW &&
+       (params.disposition != WindowOpenDisposition::NEW_POPUP ||
+        !HasStrictScope(params.browser))) ||
       params.post_data ||
       (params.contents_to_insert &&
        content::IsNewWindowForFormPost(params.contents_to_insert.get())) ||
@@ -359,6 +419,13 @@ void OpenInDefaultBrowser(const GURL& url, bool background) {
   platform_util::OpenExternal(url);
 }
 
+void BindAppLinkHost(
+    content::RenderFrameHost* frame,
+    mojo::PendingReceiver<blink::mojom::OganessonAppLinkHost> receiver) {
+  mojo::MakeSelfOwnedReceiver(
+      std::make_unique<AppLinkHost>(frame->GetGlobalId()), std::move(receiver));
+}
+
 void MaybeAddOutOfScopeLinkThrottle(
     content::NavigationThrottleRegistry& registry) {
   content::NavigationHandle& handle = registry.GetNavigationHandle();
@@ -376,7 +443,8 @@ void MaybeAddOutOfScopeLinkThrottle(
   }
   // Out of scope, only the page's own link clicks: not redirects or form
   // posts, and not scripts navigating, even from a click handler (sign-in
-  // buttons that fetch the provider's URL and assign it). Exclusions, all.
+  // buttons that fetch the provider's URL and assign it). Exclusions, and
+  // with a strict scope every URL out of it, all.
   registry.AddThrottle(std::make_unique<OutOfScopeLinkThrottle>(
       registry, handle.WasInitiatedByLinkClick() && handle.HasUserGesture() &&
                     !handle.IsPost()));

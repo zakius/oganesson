@@ -1,0 +1,21 @@
+// Copyright 2026 The oganesson Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+module blink.mojom;
+
+import "url/mojom/url.mojom";
+
+// oganesson: a main frame in an installed web app's window asks this before
+// its page changes its address (oganesson_app_links.h). Implemented by
+// chrome/browser/ui/web_applications/out_of_scope_links.cc.
+interface OganessonAppLinkHost {
+  // Whether `url` leaves the frame's app: by an exclusion, or out of its
+  // scope with `link` (a link followed from a click, or an address changed
+  // in place from one) or a strict scope. If it does, the page must not
+  // reach it, and the default browser opens it, `background` without taking
+  // the focus.
+  [Sync]
+  OpenOutsideApp(url.mojom.Url url, bool link, bool background)
+      => (bool leaves);
+};
