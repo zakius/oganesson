@@ -1,18 +1,18 @@
 --- a/chrome/browser/ui/BUILD.gn
 +++ b/chrome/browser/ui/BUILD.gn
-@@ -2753,6 +2753,9 @@ static_library("ui") {
-       "views/frame/layout/browser_view_popup_layout_impl.h",
-       "views/frame/layout/browser_view_tabbed_layout_impl.cc",
-       "views/frame/layout/browser_view_tabbed_layout_impl.h",
+@@ -3553,6 +3553,9 @@ static_library("ui") {
+       "views/frame/browser_view.cc",
+       "views/frame/horizontal_tab_strip_region_view.cc",
+       "views/frame/horizontal_tab_strip_region_view.h",
 +      "views/frame/mouse_gesture_event_rewriter.cc",
 +      "views/frame/mouse_gesture_event_rewriter.h",
 +      "views/frame/mouse_gesture_tracker.h",
-       "views/frame/multi_contents_view.cc",
-       "views/frame/multi_contents_view.h",
-       "views/frame/picture_in_picture_browser_frame_view.cc",
+       "views/frame/vertical_tab_strip_region_view.cc",
+       "views/frame/vertical_tab_strip_region_view.h",
+       "views/helium/frame_corner_radius.cc",
 --- a/chrome/browser/ui/views/frame/browser_view.cc
 +++ b/chrome/browser/ui/views/frame/browser_view.cc
-@@ -408,6 +408,10 @@
+@@ -410,6 +410,10 @@
  #include "components/remote_cocoa/browser/application_host.h"
  #endif
  
@@ -23,7 +23,7 @@
  #if defined(USE_AURA)
  #include "chrome/browser/ui/views/theme_profile_key.h"
  #include "ui/aura/client/window_parenting_client.h"
-@@ -5091,6 +5095,9 @@ void BrowserView::ViewHierarchyChanged(
+@@ -5707,6 +5711,9 @@ void BrowserView::ViewHierarchyChanged(
  }
  
  void BrowserView::AddedToWidget() {

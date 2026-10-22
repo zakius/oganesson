@@ -1,6 +1,6 @@
 --- a/chrome/app/chrome_command_ids.h
 +++ b/chrome/app/chrome_command_ids.h
-@@ -338,6 +338,8 @@
+@@ -339,6 +339,8 @@
  #define IDC_CONTENT_CONTEXT_OPENLINKSPLITVIEW 50111
  #define IDC_CONTENT_CONTEXT_ADD_LINK_TO_READING_LIST 50112
  #define IDC_CONTENT_CONTEXT_OPENLINK_ISOLATED 50113
@@ -11,7 +11,7 @@
  #define IDC_CONTENT_CONTEXT_COPYIMAGELOCATION 50121
 --- a/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
 +++ b/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
-@@ -102,6 +102,7 @@
+@@ -103,6 +103,7 @@
  #include "chrome/browser/ui/read_anything/read_anything_side_panel_navigation_throttle.h"
  #include "chrome/browser/ui/search/chrome_search_navigation_throttle.h"
  #include "chrome/browser/ui/search/new_tab_page_navigation_throttle.h"
@@ -19,7 +19,7 @@
  #include "chrome/browser/ui/web_applications/tabbed_web_app_navigation_throttle.h"
  #include "chrome/browser/ui/web_applications/webui_web_app_navigation_throttle.h"
  #include "chrome/browser/ui/webui/image/image_navigation_throttle.h"
-@@ -491,6 +492,7 @@ void CreateAndAddChromeThrottlesForNavigation(
+@@ -494,6 +495,7 @@ void CreateAndAddChromeThrottlesForNavigation(
    NewTabPageNavigationThrottle::MaybeCreateAndAdd(registry);
  
    web_app::TabbedWebAppNavigationThrottle::MaybeCreateAndAdd(registry);
@@ -29,7 +29,7 @@
  
 --- a/chrome/browser/renderer_context_menu/render_view_context_menu.cc
 +++ b/chrome/browser/renderer_context_menu/render_view_context_menu.cc
-@@ -143,6 +143,7 @@
+@@ -146,6 +146,7 @@
  #include "chrome/browser/ui/ui_features.h"
  #include "chrome/browser/ui/user_education/browser_user_education_interface.h"
  #include "chrome/browser/ui/web_applications/app_browser_controller.h"
@@ -37,7 +37,7 @@
  #include "chrome/browser/ui/webauthn/context_menu_helper.h"
  #include "chrome/browser/ui/webui/history/foreign_session_handler.h"
  #include "chrome/browser/user_education/user_education_service.h"
-@@ -759,6 +760,11 @@ int CollapseCommandsForUMA(int id) {
+@@ -768,6 +769,11 @@ int CollapseCommandsForUMA(int id) {
      return IDC_OPEN_LINK_IN_PROFILE_FIRST;
    }
  
@@ -49,7 +49,7 @@
    return id;
  }
  
-@@ -1984,6 +1990,11 @@ void RenderViewContextMenu::AppendLinkItems() {
+@@ -1996,6 +2002,11 @@ void RenderViewContextMenu::AppendLinkItems() {
                   : IDS_CONTENT_CONTEXT_OPENLINKNEWTAB);
      }
  
@@ -61,7 +61,7 @@
      if (show_open_in_new_window) {
        AddItemWithOptionalIcon(IDC_CONTENT_CONTEXT_OPENLINKNEWWINDOW,
                                IDS_CONTENT_CONTEXT_OPENLINKNEWWINDOW,
-@@ -3639,6 +3650,8 @@ bool RenderViewContextMenu::IsCommandIdEnabled(int id) const {
+@@ -3675,6 +3686,8 @@ bool RenderViewContextMenu::IsCommandIdEnabled(int id) const {
      case IDC_CONTENT_CONTEXT_VIDEO_FRAME:
      case IDC_SPELLCHECK_MENU:
      case IDC_CONTENT_CONTEXT_OPENLINKWITH:
@@ -70,7 +70,7 @@
      case IDC_CONTENT_CONTEXT_PROTOCOL_HANDLER_SETTINGS:
      case IDC_CONTENT_CONTEXT_GENERATEPASSWORD:
      case IDC_CONTENT_CONTEXT_SHOWALLSAVEDPASSWORDS:
-@@ -3808,6 +3821,13 @@ void RenderViewContextMenu::ExecuteCommand(int id, int event_flags) {
+@@ -3844,6 +3857,13 @@ void RenderViewContextMenu::ExecuteCommand(int id, int event_flags) {
    }
  
    switch (id) {
@@ -99,7 +99,7 @@
      "supported_links_item.html.ts",
 --- a/chrome/browser/resources/app_settings/app.html.ts
 +++ b/chrome/browser/resources/app_settings/app.html.ts
-@@ -113,6 +113,14 @@ export function getHtml(this: AppElement) {
+@@ -111,6 +111,14 @@ export function getHtml(this: AppElement) {
      <app-management-supported-links-item id="supportedLinksOption"
          class="permission-card-row" .app="${this.app_}" .apps="${this.apps_}">
      </app-management-supported-links-item>
@@ -127,7 +127,7 @@
  import './icons.html.js';
 --- a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
 +++ b/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
-@@ -52,6 +52,7 @@
+@@ -54,6 +54,7 @@
  #include "chrome/browser/ui/views/frame/contents_web_view.h"
  #include "chrome/browser/ui/views/status_bubble_views.h"
  #include "chrome/browser/ui/web_applications/app_browser_controller.h"
@@ -156,7 +156,7 @@
  #include "chrome/browser/ui/web_applications/web_app_launch_navigation_handle_user_data.h"
  #include "chrome/browser/ui/web_applications/web_app_launch_utils.h"
  #include "chrome/browser/ui/web_applications/web_app_tabbed_utils.h"
-@@ -836,6 +837,10 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
+@@ -841,6 +842,10 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
          params->source_contents, contents_to_navigate_or_insert);
    }
  
@@ -169,7 +169,7 @@
    std::unique_ptr<web_app::NavigationCapturingProcess> app_navigation =
 --- a/chrome/browser/ui/startup/startup_browser_creator_impl.cc
 +++ b/chrome/browser/ui/startup/startup_browser_creator_impl.cc
-@@ -217,6 +217,18 @@ BrowserWindowInterface* GetExistingBrows
+@@ -215,6 +215,18 @@ BrowserWindowInterface* GetExistingBrowserForOpenBehavior(
    }
  #endif  // BUILDFLAG(IS_LINUX)
  
@@ -190,7 +190,7 @@
  
 --- a/chrome/browser/ui/web_applications/BUILD.gn
 +++ b/chrome/browser/ui/web_applications/BUILD.gn
-@@ -151,6 +151,7 @@ source_set("impl") {
+@@ -155,6 +155,7 @@ source_set("impl") {
        "diagnostics/web_app_icon_health_checks.cc",
        "navigation_capturing_process.cc",
        "navigation_capturing_redirection_throttle.cc",
@@ -257,8 +257,8 @@
      // regular launch.
 @@ -274,7 +276,10 @@ content::WebContents* WebAppLaunchProcess::Run() {
    bool app_wants_focus_existing_without_navigation =
-      GetLaunchHandler().NeverNavigateExistingClients() ||
-      registrar_->IsPreventCloseEnabled(params_->app_id);
+       GetLaunchHandler().NeverNavigateExistingClients() ||
+       registrar_->IsPreventCloseEnabled(params_->app_id);
 -  if (!open_in_new_window && app_wants_focus_existing_without_navigation) {
 +  // A user start URL can be out of the app's scope; the existing
 +  // client's launch queue only takes targets in scope, so navigate it instead.
@@ -267,7 +267,7 @@
      auto* tab_helper = WebAppTabHelper::FromWebContents(existing_tab);
      if (tab_helper->pending_launch_app_id() == params_->app_id) {
        // This WebContents is already handling a launch for this app. It may
-@@ -364,7 +369,9 @@ std::tuple<GURL, bool /*is_file_handling*/> WebAppLaunchProcess::GetLaunchUrl(
+@@ -378,7 +383,9 @@ std::tuple<GURL, bool /*is_file_handling*/> WebAppLaunchProcess::GetLaunchUrl(
      launch_url = web_app_->note_taking_new_note_url();
    } else {
      // This is a default launch.
@@ -303,7 +303,7 @@
  
 --- a/chrome/browser/ui/web_applications/web_app_ui_utils.cc
 +++ b/chrome/browser/ui/web_applications/web_app_ui_utils.cc
-@@ -65,6 +65,13 @@ std::optional<webapps::AppId> GetAppIdFo
+@@ -65,6 +65,13 @@ std::optional<webapps::AppId> GetAppIdForManagementLinkInWebContents(
  
    const webapps::AppId* app_id =
        web_app::WebAppTabHelper::GetAppId(web_contents);
@@ -468,7 +468,7 @@
  // These values are persisted to logs. Entries should not be renumbered and
  // numeric values should never be reused.
  //
-@@ -5832,6 +5844,12 @@ FrameTree* WebContentsImpl::CreateNewWindow(
+@@ -5915,6 +5927,12 @@ FrameTree* WebContentsImpl::CreateNewWindow(
                               false,  // started_from_context_menu
                               true);  // renderer_initiated
  

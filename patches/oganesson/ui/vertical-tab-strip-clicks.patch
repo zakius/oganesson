@@ -1,6 +1,6 @@
 --- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
 +++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
-@@ -19,6 +19,7 @@
+@@ -21,6 +21,7 @@
  #include "chrome/browser/ui/animation/browser_animation_controller.h"
  #include "chrome/browser/ui/animation/browser_animation_types.h"
  #include "chrome/browser/ui/browser_actions.h"
@@ -8,7 +8,7 @@
  #include "chrome/browser/ui/browser_element_identifiers.h"
  #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
  #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
-@@ -106,6 +107,7 @@ VerticalTabStripRegionView::VerticalTabStripRegionView(
+@@ -112,6 +113,7 @@ VerticalTabStripRegionView::VerticalTabStripRegionView(
                               TabStripOrientation::kVertical),
        resize_area_width_(kResizeAreaWidth),
        state_controller_(state_controller) {
@@ -16,7 +16,7 @@
    // For z-ordering purposes this needs to be on a layer.
    SetPaintToLayer();
    // Because corners may be transparent, this must be set to false.
-@@ -709,6 +711,29 @@ void VerticalTabStripRegionView::ClickEventHandler::OnMouseEvent(
+@@ -835,6 +837,29 @@ void VerticalTabStripRegionView::ClickEventHandler::OnMouseEvent(
    }
  }
  
@@ -43,22 +43,22 @@
 +  return views::ViewTargeterDelegate::TargetForRect(root, target);
 +}
 +
- void VerticalTabStripRegionView::OnTabStripViewSet() {
-   tab_strip_view()->SetProperty(
-       views::kFlexBehaviorKey,
+ void VerticalTabStripRegionView::AddTabStripView(
+     std::unique_ptr<views::View> view) {
+   view->SetProperty(
 --- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
 +++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
-@@ -54,7 +54,8 @@ class VerticalTabStripRegionView final
-     : public BaseTabStripRegionView,
-       public views::ResizeAreaDelegate,
+@@ -58,7 +58,8 @@ class VerticalTabStripRegionView final
        public OmniboxTabHelper::Observer,
--      public tabs::VerticalTabStripStateController::Delegate {
-+      public tabs::VerticalTabStripStateController::Delegate,
+       public tabs::VerticalTabStripStateController::Delegate,
+       public OrganizerPanelHost,
+-      public views::LayoutDelegate {
++      public views::LayoutDelegate,
 +      public views::ViewTargeterDelegate {
    METADATA_HEADER(VerticalTabStripRegionView, BaseTabStripRegionView)
  
   public:
-@@ -113,6 +114,13 @@ class VerticalTabStripRegionView final
+@@ -122,6 +123,13 @@ class VerticalTabStripRegionView final
    void OnMouseEntered(const ui::MouseEvent& event) override;
    void OnMouseMoved(const ui::MouseEvent& event) override;
    void OnMouseExited(const ui::MouseEvent& event) override;
