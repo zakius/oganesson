@@ -273,8 +273,9 @@ std::optional<int> OganessonTabRules::NewSelectedIndex(
   // opened.
   if (knobs.select_related) {
     for (const int related :
-         {model.GetIndexOfNextWebContentsOpenedBy(block_tabs),
-          model.GetIndexOfNextWebContentsOpenedByOpenerOf(block_tabs)}) {
+         {model.GetIndexOfNextWebContentsOpenedBy(block_tabs, visible),
+          model.GetIndexOfNextWebContentsOpenedByOpenerOf(block_tabs,
+                                                          visible)}) {
       if (related != TabStripModel::kNoTab && visible(related)) {
         return after_closing(related);
       }

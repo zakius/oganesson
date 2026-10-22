@@ -47,22 +47,22 @@ using Type = AutocompleteMatchType;
 // (what the user typed, search suggestions, keywords, chrome:// pages).
 const char* SourceOf(const AutocompleteMatch& match) {
   switch (match.type) {
-    case Type::SEARCH_HISTORY:
-    case Type::SEARCH_SUGGEST_PERSONALIZED:
-    case Type::TILE_REPEATABLE_QUERY:
+    case Type::kSearchHistory:
+    case Type::kSearchSuggestPersonalized:
+    case Type::kTileRepeatableQuery:
       return kSuggestPastSearches;
-    case Type::BOOKMARK_TITLE:
+    case Type::kBookmarkTitle:
       return kSuggestBookmarks;
-    case Type::HISTORY_URL:
-    case Type::HISTORY_TITLE:
-    case Type::HISTORY_BODY:
-    case Type::HISTORY_KEYWORD:
-    case Type::HISTORY_CLUSTER:
-    case Type::HISTORY_EMBEDDINGS:
-    case Type::HISTORY_EMBEDDINGS_ANSWER:
+    case Type::kHistoryUrl:
+    case Type::kHistoryTitle:
+    case Type::kHistoryBody:
+    case Type::kHistoryKeyword:
+    case Type::kHistoryCluster:
+    case Type::kHistoryEmbeddings:
+    case Type::kHistoryEmbeddingsAnswer:
       return kSuggestHistory;
-    case Type::OPEN_TAB:
-    case Type::TAB_GROUP:
+    case Type::kOpenTab:
+    case Type::kTabGroup:
       return kSuggestOpenTabs;
     default:
       break;
@@ -71,12 +71,12 @@ const char* SourceOf(const AutocompleteMatch& match) {
     return nullptr;
   }
   switch (match.provider->type()) {
-    // Shortcuts store searches as SEARCH_HISTORY, except
-    // SEARCH_OTHER_ENGINE, and pages as HISTORY_URL.
-    case AutocompleteProvider::TYPE_SHORTCUTS:
+    // Shortcuts store searches as kSearchHistory, except
+    // kSearchOtherEngine, and pages as kHistoryUrl.
+    case AutocompleteProvider::Type::kShortcuts:
       return AutocompleteMatch::IsSearchType(match.type) ? kSuggestPastSearches
                                                          : kSuggestHistory;
-    case AutocompleteProvider::TYPE_MOST_VISITED_SITES:
+    case AutocompleteProvider::Type::kMostVisitedSites:
       return kSuggestHistory;
     default:
       return nullptr;
@@ -309,7 +309,7 @@ ACMatches BookmarkMatches(AutocompleteProviderClient& client,
     }
     AutocompleteMatch match(&provider,
                             (bookmarks_first ? 1499 : 899) - place[url], false,
-                            Type::BOOKMARK_TITLE);
+                            Type::kBookmarkTitle);
     match.destination_url = url;
     const std::u16string shown = url_formatter::FormatUrl(
         url, AutocompleteMatch::GetFormatTypes(!scheme.empty(), false),
@@ -437,7 +437,7 @@ int SortKey(const AutocompleteMatch& match,
   }
   const char* source = SourceOf(match);
   Group group = kGroupCount;
-  if (match.type == Type::URL_WHAT_YOU_TYPED) {
+  if (match.type == Type::kUrlWhatYouTyped) {
     group = kGroupCount;
   } else if (tabs && (source == kSuggestOpenTabs ||
                       (!AutocompleteMatch::IsSearchType(match.type) &&
@@ -450,8 +450,8 @@ int SortKey(const AutocompleteMatch& match,
     group = kHistory;
   } else if (source == kSuggestPastSearches ||
              AutocompleteMatch::IsSearchType(match.type) ||
-             match.type == Type::NAVSUGGEST ||
-             match.type == Type::NAVSUGGEST_PERSONALIZED) {
+             match.type == Type::kNavsuggest ||
+             match.type == Type::kNavsuggestPersonalized) {
     group = kSearches;
   }
   return 10 + (group == kGroupCount ? kGroupCount : ranks[group]);
@@ -494,7 +494,7 @@ ACMatches SuggestedMatches(AutocompleteProviderClient& client,
   const std::u16string typed = AutofillText(client, input, scheme);
   const auto ranks = GroupRanks(prefs);
   const ACMatches matches =
-      provider.type() == AutocompleteProvider::TYPE_BOOKMARK &&
+      provider.type() == AutocompleteProvider::Type::kBookmark &&
               SuggestsFrom(prefs, kSuggestBookmarks)
           ? BookmarkMatches(client, input, provider, ranks[kBookmarks] == 0)
           : provider.matches();
@@ -507,7 +507,7 @@ ACMatches SuggestedMatches(AutocompleteProviderClient& client,
       }
       kept.push_back(match);
       // The search icon, not the past search clock.
-      kept.back().type = Type::SEARCH_WHAT_YOU_TYPED;
+      kept.back().type = Type::kSearchWhatYouTyped;
     } else {
       kept.push_back(match);
       if (!typed.empty() &&

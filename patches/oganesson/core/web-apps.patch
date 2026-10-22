@@ -106,11 +106,11 @@
 +    <app-management-scope-rules-item id="scopeRules"
 +        class="permission-card-row" .app="${this.app_}">
 +    </app-management-scope-rules-item>
-+    ${this.isIsolatedWebApp_() ? '' : html`
++    ${!this.isIsolatedWebApp_() ? html`
 +      <app-management-start-url-item id="startUrl"
 +          class="permission-card-row" .app="${this.app_}">
 +      </app-management-start-url-item>
-+    `}
++    ` : ''}
    </div>
  </div>
  <!--_html_template_end_-->`;

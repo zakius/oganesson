@@ -7,7 +7,7 @@
 +  // Runs `command` for `extension_id` as if its shortcut had been pressed.
 +  void ExecuteCommand(const ExtensionId& extension_id,
 +                      const std::string& command) {
-+    CommandExecuted(extension_id, command);
++    CommandExecuted(extension_id, command, ui::Accelerator());
 +  }
 +
   protected:
