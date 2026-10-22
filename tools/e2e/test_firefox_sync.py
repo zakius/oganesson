@@ -309,11 +309,13 @@ class FirefoxSyncTest(BrowserTest):
         page = self.settings('/privacy', 'settings-privacy-page')
         # The handler replies only once initialized.
         page.eval("chrome.send('initializeClearBrowsingData', ['init'])")
+        # The handler answers 'cbd' once the clearing is done; catch that answer.
+        page.eval("(() => { const answer = window.cr.webUIResponse;"
+                  " window.cr.webUIResponse = (id, ...rest) =>"
+                  " id === 'cbd' ? (window.cleared = true) : answer(id, ...rest); })()")
         page.eval("chrome.send('clearBrowsingData', "
                   "['cbd', ['browser.clear_data.browsing_history'], 4])")  # all time
-        history = self.browser.new_tab('chrome://history')
-        wait_for(lambda: history.eval(f"({FIND})('history-list')?.historyData_?.length") == 0,
-                 what='history to be cleared')
+        wait_for(lambda: page.eval('window.cleared') is True, what='history to be cleared')
         # Before the deletion's sync.
         self.browser.quit()
         deletions = self.saved_deletions()
