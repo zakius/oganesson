@@ -68,6 +68,50 @@ def jwe_for(keys_jwk, plaintext):
                      b64url(sealed[-16:])])
 
 
+# Mozilla accounts' device commands: sending a tab, and closing tabs.
+SEND_TAB = 'https://identity.mozilla.com/cmd/open-uri'
+CLOSE_TABS = 'https://identity.mozilla.com/cmd/close-uri/v1'
+
+
+def public_bytes(key):
+    nums = key.public_key().public_numbers()
+    return b'\x04' + nums.x.to_bytes(32, 'big') + nums.y.to_bytes(32, 'big')
+
+
+def ece_keys(private, peer_public, auth_secret, receiver_public, sender_public, salt):
+    """RFC 8291's content key and nonce, for either side."""
+    peer = ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), peer_public)
+    secret = private.exchange(ec.ECDH(), peer)
+
+    def mac(key, data):
+        return hmac.new(key, data, hashlib.sha256).digest()
+    ikm = mac(mac(auth_secret, secret),
+              b'WebPush: info\0' + receiver_public + sender_public + b'\x01')
+    prk = mac(salt, ikm)
+    return (mac(prk, b'Content-Encoding: aes128gcm\0\x01')[:16],
+            mac(prk, b'Content-Encoding: nonce\0\x01')[:12])
+
+
+def ece_encrypt(receiver_public, auth_secret, plaintext):
+    """A one-record aes128gcm message (RFC 8188, 8291), as device commands
+    carry their payloads."""
+    sender = ec.generate_private_key(ec.SECP256R1())
+    sender_public = public_bytes(sender)
+    salt = os.urandom(16)
+    key, nonce = ece_keys(sender, receiver_public, auth_secret, receiver_public,
+                          sender_public, salt)
+    sealed = AESGCM(key).encrypt(nonce, plaintext + b'\x02', None)
+    return salt + (4096).to_bytes(4, 'big') + bytes([len(sender_public)]) + sender_public + sealed
+
+
+def ece_decrypt(private, auth_secret, message):
+    salt, id_len = message[:16], message[20]
+    sender_public, sealed = message[21:21 + id_len], message[21 + id_len:]
+    key, nonce = ece_keys(private, sender_public, auth_secret, public_bytes(private),
+                          sender_public, salt)
+    return AESGCM(key).decrypt(nonce, sealed, None).rstrip(b'\0')[:-1]
+
+
 def encrypt(bundle, cleartext):
     """A Sync 1.5 encrypted payload: AES-256-CBC, HMAC over the base64."""
     enc_key, hmac_key = bundle
@@ -108,6 +152,17 @@ class State:
         self.device = {'id': 'fakedevice', 'name': '', 'type': 'desktop',
                        'isCurrentDevice': True, 'pushEndpointExpired': False,
                        'availableCommands': {}, 'location': {}, 'lastAccessTime': 0}
+        # Another Firefox on the account, which takes tabs and close requests:
+        # its keys for each command, what the browser sent it, and the
+        # commands it queued for the browser.
+        self.remote_keys = {name: (ec.generate_private_key(ec.SECP256R1()), os.urandom(16))
+                            for name in (SEND_TAB, CLOSE_TABS)}
+        self.remote = dict(self.device, id='remotefirefox01', name='Remote Firefox',
+                           isCurrentDevice=False, availableCommands={
+                               name: self.command_keys(public_bytes(key), auth)
+                               for name, (key, auth) in self.remote_keys.items()})
+        self.invoked = []
+        self.commands = []
         # hold(): requests under a path prefix wait until let_go().
         self.held_prefix = None
         self.held = threading.Event()
@@ -129,6 +184,34 @@ class State:
 
     def root_bundle(self):
         return self.ksync[:32], self.ksync[32:]
+
+    def command_keys(self, public, auth_secret):
+        """A device's public keys for a command, as it registers them:
+        encrypted with the account's sync key."""
+        payload = json.loads(encrypt(self.root_bundle(), json.dumps(
+            {'publicKey': b64url(public), 'authSecret': b64url(auth_secret)})))
+        kid = unb64url(self.kid.split('-', 1)[1]).hex()
+        return json.dumps(dict(payload, kid=kid))
+
+    def send_to_browser(self, command, payload):
+        """Queues a command from the other Firefox for the browser, encrypted
+        with the keys the browser registered for it."""
+        keys = json.loads(decrypt(self.root_bundle(),
+                                  self.device['availableCommands'][command]))
+        encrypted = ece_encrypt(unb64url(keys['publicKey']), unb64url(keys['authSecret']),
+                                json.dumps(payload).encode())
+        self.commands.append({'index': len(self.commands) + 1, 'data': {
+            'command': command, 'payload': {'encrypted': b64url(encrypted)},
+            'sender': self.remote['id']}})
+
+    def received(self):
+        """What the browser sent the other Firefox: (command, payload) pairs."""
+        out = []
+        for request in self.invoked:
+            key, auth = self.remote_keys[request['command']]
+            message = unb64url(request['payload']['encrypted'])
+            out.append((request['command'], json.loads(ece_decrypt(key, auth, message))))
+        return out
 
     def bundle(self, coll):
         keys = self.collections.get('crypto', {}).get('keys')
@@ -261,12 +344,22 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(data)
             return None
+        if path == '/auth/v1/account/device/commands':
+            index = int(query.get('index', 1))
+            messages = [c for c in self.state.commands if c['index'] >= index]
+            return self.reply(200, {'index': len(self.state.commands), 'last': True,
+                                    'messages': messages})
+        if path == '/auth/v1/account/devices/invoke_command':
+            self.state.invoked.append(self.body())
+            return self.reply(200, {})
         if path.startswith('/auth/v1/account/device'):
             device = self.state.device
             if method == 'POST' and path == '/auth/v1/account/device':
                 req = self.body()
-                device.update({k: req[k] for k in ('name', 'type') if k in req})
-            return self.reply(200, [device] if path.endswith('devices') else device)
+                device.update({k: req[k] for k in ('name', 'type', 'availableCommands')
+                               if k in req})
+            return self.reply(200, [device, self.state.remote]
+                              if path.endswith('devices') else device)
         if path == '/token/1.0/sync/1.5':
             return self.reply(200, {
                 'id': 'hawk-id', 'key': b64url(os.urandom(32)), 'uid': 1,

@@ -9,12 +9,16 @@ source_set("platform") {
     "desktop_platform.cc",
     "remote_tabs.cc",
     "remote_tabs.h",
+    "send_to_device_menu.cc",
+    "send_to_device_menu.h",
     "tabs_adapter.cc",
     "tabs_adapter.h",
   ]
   public_deps = [ "//chrome/browser/firefox_sync" ]
   deps = [
     "//base",
+    "//chrome/app:command_ids",
+    "//chrome/app/vector_icons",
     "//chrome/browser/profiles:profile",
     "//chrome/browser/sync",
     "//components/sessions",
@@ -25,6 +29,9 @@ source_set("platform") {
     "//crypto",
     "//services/data_decoder/public/cpp",
     "//skia",
+    "//ui/base",
     "//ui/gfx",
+    "//ui/menus",
+    "//ui/message_center/public/cpp",
   ]
 }
