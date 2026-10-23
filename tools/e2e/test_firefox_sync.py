@@ -431,8 +431,10 @@ class FirefoxSyncTest(BrowserTest):
                                        b'<title>To close</title>')})
         try:
             url = server.url('/to-close')
-            tab = self.browser.new_tab(url)
-            wait_for(lambda: tab.eval('document.title') == 'To close', what='the page')
+            # Two copies: Firefox names tabs only by URL, so both close.
+            for _ in range(2):
+                tab = self.browser.new_tab(url)
+                wait_for(lambda: tab.eval('document.title') == 'To close', what='the page')
             page = self.settings('/people', 'settings-people-page')
             with self.fake.lock:
                 self.fake.send_to_browser(fake_firefox_sync.CLOSE_TABS, {

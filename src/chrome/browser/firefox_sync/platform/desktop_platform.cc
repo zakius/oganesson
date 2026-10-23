@@ -5,7 +5,7 @@
 // Firefox Sync's desktop side (see dubna's firefox_sync_platform.h).
 
 #include <memory>
-#include <map>
+#include <algorithm>
 #include <string>
 #include <utility>
 #include <vector>
@@ -120,14 +120,10 @@ class DesktopPlatform : public Platform {
         /*metadata=*/nullptr);
   }
 
-  // One open tab per URL in `urls`, as many as the other device listed: it
-  // asks to close tabs it saw in this device's synced tabs.
+  // Every open tab at one of `urls`, as tennessine does: Firefox names tabs
+  // only by URL, so copies of a tab can't be told apart.
   void CloseTabs(const std::string& from,
                  const std::vector<GURL>& urls) override {
-    std::map<GURL, int> remaining;
-    for (const GURL& url : urls) {
-      ++remaining[url];
-    }
     std::vector<base::WeakPtr<content::WebContents>> to_close;
     ProfileBrowserCollection::GetForProfile(profile_)->ForEach(
         [&](BrowserWindowInterface* browser) {
@@ -137,9 +133,7 @@ class DesktopPlatform : public Platform {
           TabStripModel* model = browser->GetTabStripModel();
           for (int i = 0; i < model->count(); ++i) {
             content::WebContents* contents = model->GetWebContentsAt(i);
-            auto it = remaining.find(contents->GetVisibleURL());
-            if (it != remaining.end() && it->second > 0) {
-              --it->second;
+            if (std::ranges::contains(urls, contents->GetVisibleURL())) {
               to_close.push_back(contents->GetWeakPtr());
             }
           }
