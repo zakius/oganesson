@@ -1,0 +1,155 @@
+--- a/chrome/browser/ui/views/status_bubble_views.cc
++++ b/chrome/browser/ui/views/status_bubble_views.cc
+@@ -94,6 +94,12 @@
+ // How long to delay before destroying an unused status bubble widget.
+ constexpr auto kDestroyPopupDelay = base::Seconds(10);
+ 
++// A text wider than the bubble scrolls by: it waits at its start, scrolls to
++// its end at this speed, waits again and starts over.
++constexpr auto kScrollPause = base::Seconds(1);
++constexpr auto kScrollStepDuration = base::Milliseconds(16);
++constexpr int kScrollStepPixels = 2;
++
+ const gfx::FontList& GetFont() {
+   return views::TypographyProvider::Get().GetFont(views::style::CONTEXT_LABEL,
+                                                   views::style::STYLE_PRIMARY);
+@@ -198,10 +204,14 @@
+  protected:
+   // views::View:
+   void OnThemeChanged() override;
++  void Layout(PassKey) override;
+ 
+  private:
+   class InitialTimer;
+ 
++  // One step of scrolling a text wider than the bubble.
++  void Scroll();
++
+   // Manage the timers that control the delay before a fade begins or ends.
+   void StartTimer(base::TimeDelta time);
+   void OnTimer();
+@@ -234,9 +244,14 @@
+   // The status bubble that manages the popup widget and this view.
+   raw_ptr<StatusBubbleViews> status_bubble_;
+ 
+-  // The currently-displayed text.
++  // The currently-displayed text, in a view that clips it to the text area.
++  raw_ptr<views::View> text_clip_;
+   raw_ptr<views::Label> text_;
+ 
++  // How far a text wider than the bubble has scrolled.
++  int scroll_ = 0;
++  base::OneShotTimer scroll_timer_;
++
+   base::CallbackListSubscription paint_as_active_subscription_;
+ 
+   base::WeakPtrFactory<StatusBubbleViews::StatusView> timer_factory_{this};
+@@ -249,14 +264,15 @@
+     : status_bubble_(status_bubble) {
+   animation_ = std::make_unique<StatusViewAnimation>(this, 0, 0);
+ 
+-  SetUseDefaultFillLayout(true);
+-
+   std::unique_ptr<views::Label> text = std::make_unique<views::Label>();
+   // Don't move this after AddChildView() since this function would trigger
+   // repaint which should not happen in the constructor.
+   SetTextLabelColors(text.get());
+   text->SetHorizontalAlignment(gfx::ALIGN_LEFT);
+-  text_ = AddChildView(std::move(text));
++  // Never elided: a text wider than the bubble scrolls instead.
++  text->SetElideBehavior(gfx::NO_ELIDE);
++  text_clip_ = AddChildView(std::make_unique<views::View>());
++  text_ = text_clip_->AddChildView(std::move(text));
+ 
+   paint_as_active_subscription_ =
+       status_bubble_->base_view()
+@@ -286,6 +302,32 @@
+ 
+   text_->SetText(text);
+   OnPropertyChanged(&text_, views::PropertyEffects::kNone);
++  scroll_ = 0;
++  InvalidateLayout();
++  scroll_timer_.Start(FROM_HERE, kScrollPause, this, &StatusView::Scroll);
++}
++
++void StatusView::Layout(PassKey) {
++  text_clip_->SetBoundsRect(GetContentsBounds());
++  text_->SetBounds(
++      -scroll_, 0,
++      std::max(text_clip_->width(), text_->GetPreferredSize().width()),
++      text_clip_->height());
++}
++
++void StatusView::Scroll() {
++  const int overflow = text_->width() - text_clip_->width();
++  if (overflow <= 0) {
++    return;
++  }
++  // From the end, back to the start; otherwise one step on.
++  scroll_ = scroll_ >= overflow ? 0
++                                : std::min(scroll_ + kScrollStepPixels, overflow);
++  text_->SetX(-scroll_);
++  scroll_timer_.Start(FROM_HERE,
++                      scroll_ == 0 || scroll_ == overflow ? kScrollPause
++                                                          : kScrollStepDuration,
++                      this, &StatusView::Scroll);
+ }
+ 
+ void StatusView::AnimateForText(std::u16string_view text) {
+@@ -808,47 +850,18 @@
+     return;
+   }
+ 
+-  // Set Elided Text corresponding to the GURL object.
+-  int text_width = static_cast<int>(
+-      size_.width() - (kBubblePaintMargin + kTextHorizPadding) * 2 - 1);
+-  url_text_ = url_formatter::ElideUrl(url, GetFont(), text_width);
+-
+-  // Get the width of the URL if the bubble width is the maximum size.
+-  std::u16string full_size_elided_url =
+-      url_formatter::ElideUrl(url, GetFont(), GetMaxStatusBubbleWidth());
+-  int url_width = GetWidthForURL(full_size_elided_url);
+-
+-  // Get the width for the url if it is unexpanded.
+-  int unexpanded_width = std::min(url_width, GetStandardStatusBubbleWidth());
+-
+-  // Reset expansion state only when bubble is completely hidden.
+-  if (view_->GetState() == StatusView::BubbleState::kHidden) {
+-    is_expanded_ = false;
+-    url_text_ = url_formatter::ElideUrl(url, GetFont(), unexpanded_width);
+-    SetBubbleWidth(unexpanded_width);
++  // The whole URL at once, in a bubble as wide as it needs up to the
++  // window's width; a longer URL scrolls (StatusView::Scroll). No narrow
++  // bubble that expands after a delay.
++  url_text_ = url_formatter::FormatUrl(
++      url, url_formatter::kFormatUrlOmitDefaults, base::UnescapeRule::SPACES,
++      nullptr, nullptr, nullptr);
++  if (!url.is_empty()) {
++    SetBubbleWidth(
++        std::min(GetWidthForURL(url_text_), GetMaxStatusBubbleWidth()));
+   }
+ 
+   if (IsFrameVisible()) {
+-    // If bubble is not expanded & not empty, make it fit properly in the
+-    // unexpanded bubble
+-    if (!is_expanded_ & !url.is_empty()) {
+-      url_text_ = url_formatter::ElideUrl(url, GetFont(), unexpanded_width);
+-      SetBubbleWidth(unexpanded_width);
+-    }
+-
+-    CancelExpandTimer();
+-
+-    // If bubble is already in expanded state, shift to adjust to new text
+-    // size (shrinking or expanding). Otherwise delay.
+-    if (is_expanded_ && !url.is_empty()) {
+-      ExpandBubble();
+-    } else if (url_formatter::FormatUrl(url).length() > url_text_.length()) {
+-      task_runner_->PostDelayedTask(
+-          FROM_HERE,
+-          base::BindOnce(&StatusBubbleViews::ExpandBubble,
+-                         expand_timer_factory_.GetWeakPtr()),
+-          base::Milliseconds(kExpandHoverDelayMS));
+-    }
+     // An URL is always treated as a left-to-right string. On right-to-left UIs
+     // we need to explicitly mark the URL as LTR to make sure it is displayed
+     // correctly.
