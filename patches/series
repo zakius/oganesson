@@ -50,4 +50,4 @@ oganesson/core/browser-traffic.patch
 oganesson/settings/browser-traffic-settings.patch
 oganesson/settings/setup-page.patch
 oganesson/ui/status-bubble-full-url.patch
-oganesson/ui/no-reading-mode-menu-item.patch
+oganesson/core/reading-mode.patch
