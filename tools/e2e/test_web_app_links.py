@@ -790,28 +790,52 @@ class WebAppLinksTest(WebAppTest):
         self.assertEqual(self.opened(), [])
         self.browser.close_target(tab)
 
-    def test_default_browser_still_gets_links(self):
-        # oganesson as the default browser opens them in a browser window: the
-        # app hands every link out of it to the system, whichever browser that
-        # is, from a click, a new window, the link menu and an exclusion.
+    def close_out_tabs(self):
+        for t in self.browser.targets():
+            if t['type'] == 'page' and ('/out.html' in t['url'] or '/app/excluded.html' in t['url']):
+                self.browser.close_target(Page(t))
+
+    def test_default_browser_opens_links_in_tabs(self):
+        # oganesson as the default browser opens them itself, in tabs of the
+        # tabbed window, without xdg-open: from a click, a new window, the
+        # link menu and an exclusion.
         self.set_rules(RULES)
         self.make_default_browser()
+        self.addCleanup(self.close_out_tabs)
         app = self.launch_app()
         app.click('#plain')
-        wait_for(self.opened, what='xdg-open')
+        wait_for(lambda: self.out_tabs(), what='the link in a tab')
         app.click('#blank')
         app.eval('void window.open("/out.html?open")')
-        wait_for(lambda: len(self.opened()) == 3, what='xdg-open thrice')
+        wait_for(lambda: len(self.out_tabs()) == 3, what='three tabs')
         self.browser.click_view(self.link_menu(app, '#plain')[1])
-        wait_for(lambda: len(self.opened()) == 4, what='xdg-open from the menu')
+        wait_for(lambda: len(self.out_tabs()) == 4, what='the tab from the menu')
         app.click('#push')
-        wait_for(lambda: len(self.opened()) == 5, what='xdg-open for the excluded page')
-        self.assertEqual(self.opened(), [self.server.url(p) for p in
-                                         ('/out.html?plain', '/out.html?blank', '/out.html?open',
-                                          '/out.html?plain', '/app/excluded.html')])
-        wait_for(lambda: app.eval('location.href') == self.server.url('/app/index.html'),
-                 what='the app window back')
-        self.assertEqual(self.out_tabs(), [])
+        wait_for(lambda: self.out_tabs('/app/excluded.html'), what='the excluded page in a tab')
+        self.assertEqual(sorted(self.out_tabs()), [self.server.url(p) for p in
+                                                   ('/out.html?blank', '/out.html?open',
+                                                    '/out.html?plain', '/out.html?plain')])
+        self.assertEqual(app.eval('location.href'), self.server.url('/app/index.html'))
+        self.assertEqual(self.opened(), [])
+
+    def assert_background_tab(self, url):
+        """`url` opened in a background tab, and not by xdg-open."""
+        tab = self.browser.page(url)
+        self.addCleanup(self.browser.close_target, tab)
+        self.assertEqual(tab.eval('document.visibilityState', gesture=False), 'hidden')
+        self.assertEqual(self.opened(), [])
+
+    def test_default_browser_middle_click_opens_background_tab(self):
+        self.make_default_browser()
+        app = self.launch_app()
+        app.click('#plain', button='middle')
+        self.assert_background_tab('/out.html?plain')
+
+    def test_default_browser_menu_background_item_opens_background_tab(self):
+        self.make_default_browser()
+        app = self.launch_app()
+        self.browser.click_view(self.link_menu(app, '#plain')[2])
+        self.assert_background_tab('/out.html?plain')
 
     def test_menu_opens_link_in_default_browser(self):
         # also a link in the app's scope, which a click keeps in the app.

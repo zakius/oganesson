@@ -19,6 +19,8 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/shell_integration.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
+#include "chrome/browser/ui/navigator/browser_navigator.h"
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/web_applications/app_browser_controller.h"
 #include "chrome/browser/web_applications/user_app_scope.h"
@@ -107,6 +109,23 @@ bool LeavesApp(BrowserWindowInterface* window,
           !controller->IsUrlInAppScope(url));
 }
 
+// With this build as the default browser: `url` in a tab of the last active
+// tabbed window, or a new one. xdg-open would hand it to this process as a
+// command line, which always opens a foreground tab and raises the window; a
+// `background` tab leaves both as they are.
+void OpenInThisBrowser(Profile& profile, const GURL& url, bool background) {
+  NavigateParams params(&profile, url, ui::PAGE_TRANSITION_LINK);
+  params.browser =
+      ProfileBrowserCollection::GetForProfile(&profile)->FindTabbedBrowser();
+  params.disposition = background ? WindowOpenDisposition::NEW_BACKGROUND_TAB
+                                  : WindowOpenDisposition::NEW_FOREGROUND_TAB;
+  using WindowAction = NavigateParams::WindowAction;
+  params.window_action = !background ? WindowAction::kShowWindow
+                         : params.browser ? WindowAction::kNoAction
+                                          : WindowAction::kShowWindowInactive;
+  Navigate(&params);
+}
+
 // The name of the default browser's desktop entry, from the last lookup;
 // empty when it has none.
 std::u16string& DefaultBrowserName() {
@@ -161,7 +180,8 @@ class OutOfScopeLinkThrottle : public content::NavigationThrottle {
         !LeavesApp(tab->GetBrowserWindowInterface(), handle->GetURL(), link)) {
       return PROCEED;
     }
-    OpenInDefaultBrowser(handle->GetURL(),
+    OpenInDefaultBrowser(tab->GetBrowserWindowInterface()->GetProfile(),
+                         handle->GetURL(),
                          /*background=*/!handle->HasUserGesture());
     return CANCEL_AND_IGNORE;
   }
@@ -224,8 +244,9 @@ class ExclusionObserver
     }
     ++take_backs_since_input_;
     if (MayOpen()) {
-      OpenInDefaultBrowser(handle->GetURL(),
-                           /*background=*/!handle->HasUserGesture());
+      OpenInDefaultBrowser(
+          Profile::FromBrowserContext(web_contents()->GetBrowserContext()),
+          handle->GetURL(), /*background=*/!handle->HasUserGesture());
     }
     base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE,
@@ -335,7 +356,8 @@ class AppLinkHost : public blink::mojom::OganessonAppLinkHost {
     }
     ExclusionObserver::CreateForWebContents(contents);
     if (ExclusionObserver::FromWebContents(contents)->MayOpen()) {
-      OpenInDefaultBrowser(url, background);
+      OpenInDefaultBrowser(tab->GetBrowserWindowInterface()->GetProfile(), url,
+                           background);
     }
     std::move(callback).Run(true);
   }
@@ -367,7 +389,7 @@ bool MaybeOpenNewContentsOutsideApp(NavigateParams& params) {
   // A middle click or Ctrl+click leaves the default browser behind the app
   // window, as it leaves a tab in the background.
   OpenInDefaultBrowser(
-      params.url,
+      params.browser->GetProfile(), params.url,
       params.disposition == WindowOpenDisposition::NEW_BACKGROUND_TAB);
   return true;
 }
@@ -409,14 +431,28 @@ void AppendDefaultBrowserLinkItems(const GURL& url,
           std::move(update_item)));
 }
 
-void OpenInDefaultBrowser(const GURL& url, bool background) {
+void OpenInDefaultBrowser(Profile* profile, const GURL& url, bool background) {
+  // Whether this build is the default browser takes xdg-settings, off the UI
+  // thread.
+  base::ThreadPool::PostTaskAndReplyWithResult(
+      FROM_HERE, {base::MayBlock(), base::TaskPriority::USER_BLOCKING},
+      base::BindOnce(&shell_integration::GetDefaultBrowser),
+      base::BindOnce(
+          [](base::WeakPtr<Profile> profile, const GURL& url, bool background,
+             shell_integration::DefaultWebClientState state) {
+            if (state == shell_integration::IS_DEFAULT && profile) {
+              OpenInThisBrowser(*profile, url, background);
+              return;
+            }
 #if BUILDFLAG(IS_LINUX)
-  if (background) {
-    OpenExternalInBackground(url);
-    return;
-  }
+            if (background) {
+              OpenExternalInBackground(url);
+              return;
+            }
 #endif
-  platform_util::OpenExternal(url);
+            platform_util::OpenExternal(url);
+          },
+          profile->GetWeakPtr(), url, background));
 }
 
 void BindAppLinkHost(

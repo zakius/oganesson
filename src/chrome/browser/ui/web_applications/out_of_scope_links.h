@@ -13,6 +13,7 @@
 
 class BrowserWindowInterface;
 class GURL;
+class Profile;
 struct NavigateParams;
 
 namespace ui {
@@ -55,10 +56,11 @@ void AppendDefaultBrowserLinkItems(const GURL& url,
                                    ui::SimpleMenuModel& model,
                                    UpdateMenuItemCallback update_item);
 
-// Opens `url` in the system default browser, whichever it is: oganesson opens
-// it in a browser window. With `background`, without letting the browser take
-// focus, where the platform can.
-void OpenInDefaultBrowser(const GURL& url, bool background);
+// Opens `url` in the system default browser, whichever it is. If that is this
+// build, in a tab of `profile`'s last active tabbed window. With `background`,
+// without letting the browser take focus, where the platform can, and here as
+// a background tab.
+void OpenInDefaultBrowser(Profile* profile, const GURL& url, bool background);
 
 // A link clicked in a web app's window that leaves the app's scope, which
 // would load in the window, goes to the system default browser instead; so

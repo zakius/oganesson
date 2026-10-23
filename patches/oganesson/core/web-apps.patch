@@ -77,7 +77,7 @@
 +    case IDC_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER:
 +    case IDC_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER_BACKGROUND:
 +      web_app::OpenInDefaultBrowser(
-+          params_.link_url,
++          GetProfile(), params_.link_url,
 +          id == IDC_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER_BACKGROUND);
 +      break;
 +
