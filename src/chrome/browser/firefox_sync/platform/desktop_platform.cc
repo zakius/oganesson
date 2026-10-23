@@ -5,8 +5,10 @@
 // Firefox Sync's desktop side (see dubna's firefox_sync_platform.h).
 
 #include <memory>
+#include <map>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "base/base_paths.h"
 #include "base/containers/span.h"
@@ -14,26 +16,40 @@
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/path_service.h"
+#include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/firefox_sync/firefox_sync_platform.h"
 #include "chrome/browser/firefox_sync/platform/remote_tabs.h"
 #include "chrome/browser/firefox_sync/platform/tabs_adapter.h"
+#include "chrome/browser/notifications/notification_display_service.h"
+#include "chrome/browser/notifications/notification_display_service_factory.h"
+#include "chrome/browser/notifications/notification_handler.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_attributes_entry.h"
 #include "chrome/browser/profiles/profile_attributes_storage.h"
 #include "chrome/browser/profiles/profile_manager.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
 #include "chrome/browser/ui/navigator/browser_navigator.h"
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
+#include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/grit/generated_resources.h"
 #include "build/build_config.h"
 #include "components/sync_device_info/local_device_info_util.h"
+#include "content/public/browser/web_contents.h"
+#include "content/public/browser/web_contents_delegate.h"
 #include "services/data_decoder/public/cpp/decode_image.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 
 #if BUILDFLAG(IS_LINUX)
 #include "crypto/nss_util.h"
 #endif
+#include "ui/base/l10n/l10n_util.h"
 #include "ui/gfx/image/image.h"
+#include "ui/message_center/public/cpp/notification.h"
+#include "ui/message_center/public/cpp/notification_delegate.h"
+#include "ui/message_center/public/cpp/notifier_id.h"
 #include "url/gurl.h"
 
 namespace firefox_sync {
@@ -42,6 +58,15 @@ namespace {
 
 // The decoded picture's limit in bytes, as the download's.
 constexpr size_t kMaxPictureSize = 4 * 1024 * 1024;
+
+constexpr char kReceivedTabNotifier[] = "oganesson.firefox_sync.received_tab";
+
+// Switches to the received tab, if it's still open.
+void ActivateTab(base::WeakPtr<content::WebContents> contents) {
+  if (contents && contents->GetDelegate()) {
+    contents->GetDelegate()->ActivateContents(contents.get());
+  }
+}
 
 class DesktopPlatform : public Platform {
  public:
@@ -65,6 +90,67 @@ class DesktopPlatform : public Platform {
   }
 
   void ClearRemoteTabs() override { remote_tabs_.Clear(); }
+
+  // In the background, as Firefox does, with a notification that switches to
+  // it.
+  void OpenReceivedTab(const std::string& from,
+                       const GURL& url,
+                       const std::string& title) override {
+    NavigateParams params(profile_, url, ui::PAGE_TRANSITION_LINK);
+    params.disposition = WindowOpenDisposition::NEW_BACKGROUND_TAB;
+    Navigate(&params);
+    content::WebContents* contents = params.navigated_or_inserted_contents.get();
+    if (!contents) {
+      return;
+    }
+    message_center::Notification notification(
+        message_center::NOTIFICATION_TYPE_SIMPLE,
+        kReceivedTabNotifier + base::NumberToString(++notifications_),
+        l10n_util::GetStringFUTF16(IDS_OGANESSON_RECEIVED_TAB,
+                                   base::UTF8ToUTF16(from)),
+        base::UTF8ToUTF16(title), ui::ImageModel(), std::u16string(), url,
+        message_center::NotifierId(
+            message_center::NotifierType::SYSTEM_COMPONENT,
+            kReceivedTabNotifier),
+        {},
+        base::MakeRefCounted<message_center::HandleNotificationClickDelegate>(
+            base::BindRepeating(&ActivateTab, contents->GetWeakPtr())));
+    NotificationDisplayServiceFactory::GetForProfile(profile_)->Display(
+        NotificationHandler::Type::TRANSIENT, notification,
+        /*metadata=*/nullptr);
+  }
+
+  // One open tab per URL in `urls`, as many as the other device listed: it
+  // asks to close tabs it saw in this device's synced tabs.
+  void CloseTabs(const std::string& from,
+                 const std::vector<GURL>& urls) override {
+    std::map<GURL, int> remaining;
+    for (const GURL& url : urls) {
+      ++remaining[url];
+    }
+    std::vector<base::WeakPtr<content::WebContents>> to_close;
+    ProfileBrowserCollection::GetForProfile(profile_)->ForEach(
+        [&](BrowserWindowInterface* browser) {
+          if (browser->GetType() != BrowserWindowInterface::TYPE_NORMAL) {
+            return true;
+          }
+          TabStripModel* model = browser->GetTabStripModel();
+          for (int i = 0; i < model->count(); ++i) {
+            content::WebContents* contents = model->GetWebContentsAt(i);
+            auto it = remaining.find(contents->GetVisibleURL());
+            if (it != remaining.end() && it->second > 0) {
+              --it->second;
+              to_close.push_back(contents->GetWeakPtr());
+            }
+          }
+          return true;
+        });
+    for (const auto& contents : to_close) {
+      if (contents) {
+        contents->Close();
+      }
+    }
+  }
 
   void ShowAccount(const std::string& name,
                    const std::string& url,
@@ -112,6 +198,8 @@ class DesktopPlatform : public Platform {
   const raw_ptr<Profile> profile_;
   // The synced tabs for History, Recent tabs and the sessions API.
   RemoteTabs remote_tabs_;
+  // For each received tab's notification id.
+  int notifications_ = 0;
   base::WeakPtrFactory<DesktopPlatform> weak_factory_{this};
 };
 

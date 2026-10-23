@@ -379,6 +379,85 @@ class FirefoxSyncTest(BrowserTest):
                f" img.src = {root}.querySelector('#avatar').src; }})")
         wait_for(lambda: page.eval(red), timeout=30, what="the account's picture")
 
+    def menu_item(self, title):
+        return wait_for(lambda: next((i for menu in self.browser.menus() for group in menu
+                                      for i in group if i['Title'].replace('&', '') == title),
+                                     None),
+                        what=f'"{title}"')
+
+    def test_5j_send_link_to_device(self):
+        # The fake's other Firefox takes tabs; a sync lists it.
+        self.sync_now(self.settings('/people', 'settings-people-page'))
+        server = Server({'/links': (200, {'Content-Type': 'text/html'},
+                                    b'<title>Links</title>'
+                                    b'<a id="link" href="https://sent.example/page">Sent link</a>')})
+        before = len(self.fake.invoked)
+        try:
+            page = self.browser.new_tab(server.url('/links'))
+            self.browser.wait_view('ContentsWebView')
+            wait_for(lambda: page.eval('!!document.querySelector("#link")'), what='the link')
+            self.browser.click_element(page, '#link', button=3)
+            self.browser.click_view(self.menu_item('Send to device'))
+            self.browser.click_view(self.menu_item('Remote Firefox'))
+            wait_for(lambda: len(self.fake.invoked) > before, timeout=30, what='the sent tab')
+            self.browser.close_target(page)
+        finally:
+            server.stop()
+        command, payload = self.fake.received()[-1]
+        self.assertEqual(command, fake_firefox_sync.SEND_TAB)
+        self.assertEqual([(e['url'], e['title']) for e in payload['entries']],
+                         [('https://sent.example/page', 'Sent link')])
+
+    def test_5k_received_tab_opens_in_background(self):
+        server = Server({'/received': (200, {'Content-Type': 'text/html'},
+                                       b'<title>Received</title>')})
+        try:
+            url = server.url('/received')
+            page = self.settings('/people', 'settings-people-page')
+            with self.fake.lock:
+                self.fake.send_to_browser(fake_firefox_sync.SEND_TAB, {
+                    'entries': [{'title': 'Received', 'url': url}],
+                    'flowID': 'flow', 'streamID': 'stream'})
+            self.sync_now(page)
+            tab = self.browser.page(url, timeout=30)
+            wait_for(lambda: tab.eval('document.title') == 'Received', what='the received page')
+            self.assertEqual(tab.eval('document.visibilityState'), 'hidden')
+            self.browser.close_target(tab)
+        finally:
+            server.stop()
+
+    def test_5l_close_request_closes_tab(self):
+        server = Server({'/to-close': (200, {'Content-Type': 'text/html'},
+                                       b'<title>To close</title>')})
+        try:
+            url = server.url('/to-close')
+            tab = self.browser.new_tab(url)
+            wait_for(lambda: tab.eval('document.title') == 'To close', what='the page')
+            page = self.settings('/people', 'settings-people-page')
+            with self.fake.lock:
+                self.fake.send_to_browser(fake_firefox_sync.CLOSE_TABS, {
+                    'urls': [url], 'flowID': 'flow', 'streamID': 'stream'})
+            self.sync_now(page)
+            wait_for(lambda: all(t['url'] != url for t in self.browser.targets()),
+                     timeout=30, what='the tab to close')
+        finally:
+            server.stop()
+
+    def test_5m_close_remote_tab_from_history(self):
+        # The remote tab from 5h, on the fake's other Firefox, which takes
+        # close requests.
+        history = self.browser.new_tab('chrome://history/syncedTabs')
+        button = (f"({FIND})('history-synced-device-card')?.shadowRoot"
+                  "?.querySelector('.close-tab')")
+        wait_for(lambda: history.eval(f'!!{button} && !{button}.hidden'), timeout=30,
+                 what='the close button')
+        before = len(self.fake.invoked)
+        history.eval(f'{button}.click()')
+        wait_for(lambda: len(self.fake.invoked) > before, timeout=30, what='the close request')
+        command, payload = self.fake.received()[-1]
+        self.assertEqual(command, fake_firefox_sync.CLOSE_TABS)
+        self.assertEqual(payload['urls'], ['https://remote.example/page'])
+
     def test_6_sign_out_during_sync(self):
         page = self.settings('/people', 'settings-people-page')
         # Held at its first request, so syncs run one at a time and earlier

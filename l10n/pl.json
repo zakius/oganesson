@@ -1078,5 +1078,25 @@
     "name": "IDS_SETUP_RUN_AGAIN",
     "source": "Run setup again",
     "message": "Uruchom konfigurację ponownie"
+  },
+  {
+    "name": "IDS_OGANESSON_SEND_TO_DEVICE",
+    "source": "Send to device",
+    "message": "Wyślij na urządzenie"
+  },
+  {
+    "name": "IDS_OGANESSON_SEND_TO_ALL_DEVICES",
+    "source": "All devices",
+    "message": "Wszystkie urządzenia"
+  },
+  {
+    "name": "IDS_OGANESSON_RECEIVED_TAB",
+    "source": "Tab from <ph name=\"DEVICE\">$1<ex>Firefox on my-laptop</ex></ph>",
+    "message": "Karta z urządzenia <ph name=\"DEVICE\">$1<ex>Firefox on my-laptop</ex></ph>"
+  },
+  {
+    "name": "IDS_OGANESSON_CLOSE_SYNCED_TAB",
+    "source": "Close on that device",
+    "message": "Zamknij na tamtym urządzeniu"
   }
 ]

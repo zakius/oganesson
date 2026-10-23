@@ -10,6 +10,7 @@
   <part file="oganesson_import_strings.grdp" />
   <part file="oganesson_mouse_gestures_strings.grdp" />
   <part file="oganesson_omnibox_strings.grdp" />
+  <part file="oganesson_send_tab_strings.grdp" />
   <part file="oganesson_setup_strings.grdp" />
   <part file="oganesson_shortcut_strings.grdp" />
   <part file="oganesson_tab_strings.grdp" />

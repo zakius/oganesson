@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright 2026 The oganesson Authors. GPL-3.0, see the LICENSE file. -->
+<grit-part>
+  <message name="IDS_OGANESSON_SEND_TO_DEVICE" desc="Page, link and tab context menus: submenu listing the user's other devices signed in to Firefox Sync (Firefox ones included). Choosing one sends the page, link or tabs there.">
+    Send to device
+  </message>
+  <message name="IDS_OGANESSON_SEND_TO_ALL_DEVICES" desc="Last item of the Send to device submenu: sends the page, link or tabs to every device listed above it.">
+    All devices
+  </message>
+  <message name="IDS_OGANESSON_RECEIVED_TAB" desc="Title of the system notification shown when another device sent a tab, which opened in the background. The notification's text is the page's title; clicking it switches to the tab.">
+    Tab from <ph name="DEVICE">$1<ex>Firefox on my-laptop</ex></ph>
+  </message>
+  <message name="IDS_OGANESSON_CLOSE_SYNCED_TAB" desc="History, Tabs from other devices: tooltip of the button beside one of another device's tabs that asks that device to close it, through Firefox Sync.">
+    Close on that device
+  </message>
+</grit-part>

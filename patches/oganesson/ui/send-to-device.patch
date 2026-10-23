@@ -1,0 +1,137 @@
+--- a/chrome/app/chrome_command_ids.h
++++ b/chrome/app/chrome_command_ids.h
+@@ -459,6 +459,10 @@
+ #define IDC_CONTENT_CONTEXT_SHARING_SUBMENU 51035
+ #define IDC_CONTENT_CONTEXT_SEND_TAB_TO_SELF_DEVICE1 51040
+ #define IDC_CONTENT_CONTEXT_SEND_TAB_TO_SELF_MANAGE_DEVICES 51045
++// Firefox Sync's Send to device submenu.
++#define IDC_OGANESSON_SEND_TO_ALL_DEVICES 51046
++#define IDC_OGANESSON_SEND_TO_DEVICE_FIRST 51050
++#define IDC_OGANESSON_SEND_TO_DEVICE_LAST 51069
+ 
+ // ChromeOS clipboard history
+ #define IDC_CONTENT_PASTE_FROM_CLIPBOARD 51037
+--- a/chrome/browser/renderer_context_menu/render_view_context_menu.cc
++++ b/chrome/browser/renderer_context_menu/render_view_context_menu.cc
+@@ -134,6 +134,7 @@
+ #include "chrome/browser/ui/read_anything/read_anything_side_panel_controller_utils.h"
+ #include "chrome/browser/ui/send_tab_to_self/send_tab_to_self_bubble.h"
+ #include "chrome/browser/ui/send_tab_to_self/send_tab_to_self_context_menu_delegate.h"
++#include "chrome/browser/firefox_sync/platform/send_to_device_menu.h"
+ #include "chrome/browser/ui/tab_contents/core_tab_helper.h"
+ #include "chrome/browser/ui/tabs/features.h"
+ #include "chrome/browser/ui/tabs/page_context_eligibility_helper.h"
+@@ -2179,6 +2180,12 @@
+                             embedder_web_contents_, params_.link_url)) {
+       AppendSendTabToSelfItem(/*add_separator=*/false);
+     }
++    if (GetBrowser()) {
++      firefox_sync::SendToDeviceMenu::AppendTo(
++          &menu_model_, IDC_SEND_TAB_TO_SELF, GetProfile(),
++          {{params_.link_url, base::UTF16ToUTF8(params_.link_text)}},
++          send_to_device_menu_);
++    }
+ 
+     // Place QR Generator close to send-tab-to-self feature for link images.
+     if (params_.has_image_contents) {
+@@ -2634,6 +2641,13 @@
+         send_tab_to_self::ShouldDisplayEntryPoint(embedder_web_contents_)) {
+       AppendSendTabToSelfItem(/*add_separator=*/false);
+     }
++    if (GetBrowser() && embedder_web_contents_) {
++      firefox_sync::SendToDeviceMenu::AppendTo(
++          &menu_model_, IDC_SEND_TAB_TO_SELF, GetProfile(),
++          {{embedder_web_contents_->GetLastCommittedURL(),
++            base::UTF16ToUTF8(embedder_web_contents_->GetTitle())}},
++          send_to_device_menu_);
++    }
+ 
+     // Create QR code for this page
+     AppendQRCodeGeneratorItem(/*for_image=*/false, /*draw_icon=*/true,
+@@ -2718,6 +2732,14 @@
+     AppendSendTabToSelfItem(/*add_separator=*/!has_sharing_menu_items);
+     has_sharing_menu_items = true;
+   }
++  if (GetBrowser() && embedder_web_contents_ &&
++      firefox_sync::SendToDeviceMenu::AppendTo(
++          &menu_model_, IDC_SEND_TAB_TO_SELF, GetProfile(),
++          {{embedder_web_contents_->GetLastCommittedURL(),
++            base::UTF16ToUTF8(embedder_web_contents_->GetTitle())}},
++          send_to_device_menu_, /*add_separator=*/!has_sharing_menu_items)) {
++    has_sharing_menu_items = true;
++  }
+ 
+   // Context menu item for QR Code Generator.
+   has_sharing_menu_items |=
+--- a/chrome/browser/renderer_context_menu/render_view_context_menu.h
++++ b/chrome/browser/renderer_context_menu/render_view_context_menu.h
+@@ -64,6 +64,10 @@
+ class TemplateURL;
+ class ToastController;
+ 
++namespace firefox_sync {
++class SendToDeviceMenu;
++}
++
+ namespace send_tab_to_self {
+ class SendTabToSelfContextMenuDelegate;
+ }
+@@ -651,6 +655,7 @@
+   std::unique_ptr<ui::SimpleMenuModel> send_tab_to_self_submenu_;
+   std::unique_ptr<send_tab_to_self::SendTabToSelfContextMenuDelegate>
+       send_tab_to_self_submenu_delegate_;
++  std::unique_ptr<firefox_sync::SendToDeviceMenu> send_to_device_menu_;
+ 
+   std::unique_ptr<ui::SimpleMenuModel> split_layout_submenu_;
+ 
+--- a/chrome/browser/ui/tabs/tab_menu_model.cc
++++ b/chrome/browser/ui/tabs/tab_menu_model.cc
+@@ -29,7 +29,9 @@
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+ #include "chrome/browser/ui/color/chrome_color_id.h"
+ #include "chrome/browser/ui/immersive/immersive_mode_controller.h"
++#include "base/strings/utf_string_conversions.h"
+ #include "chrome/browser/ui/send_tab_to_self/send_tab_to_self_context_menu_delegate.h"
++#include "chrome/browser/firefox_sync/platform/send_to_device_menu.h"
+ #include "chrome/browser/ui/tabs/existing_tab_group_sub_menu_model.h"
+ #include "chrome/browser/ui/tabs/existing_window_sub_menu_model.h"
+ #include "chrome/browser/ui/tabs/features.h"
+@@ -604,6 +606,17 @@
+       BuildLegacySendTabToSelfItem();
+     }
+   }
++  {
++    std::vector<firefox_sync::SendToDeviceMenu::Page> pages;
++    for (int i : indices) {
++      content::WebContents* contents = tab_strip_->GetWebContentsAt(i);
++      pages.push_back({contents->GetVisibleURL(),
++                       base::UTF16ToUTF8(contents->GetTitle())});
++    }
++    firefox_sync::SendToDeviceMenu::AppendTo(
++        this, TabStripModel::CommandSendTabToSelf, tab_strip_->profile(),
++        std::move(pages), send_to_device_menu_);
++  }
+ 
+   // Append extension items for the 'tab' context if the feature is enabled.
+ #if BUILDFLAG(ENABLE_EXTENSIONS)
+--- a/chrome/browser/ui/tabs/tab_menu_model.h
++++ b/chrome/browser/ui/tabs/tab_menu_model.h
+@@ -13,6 +13,10 @@
+ #include "ui/base/interaction/element_identifier.h"
+ #include "ui/menus/simple_menu_model.h"
+ 
++namespace firefox_sync {
++class SendToDeviceMenu;
++}
++
+ namespace send_tab_to_self {
+ class SendTabToSelfContextMenuDelegate;
+ }
+@@ -107,6 +111,7 @@
+   std::unique_ptr<ui::SimpleMenuModel> send_tab_to_self_submenu_;
+   std::unique_ptr<send_tab_to_self::SendTabToSelfContextMenuDelegate>
+       send_tab_to_self_submenu_delegate_;
++  std::unique_ptr<firefox_sync::SendToDeviceMenu> send_to_device_menu_;
+ 
+   // `tab_strip_` needs to outlive this class.
+   raw_ptr<TabStripModel> tab_strip_;

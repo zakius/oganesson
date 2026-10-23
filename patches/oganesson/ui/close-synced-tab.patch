@@ -1,0 +1,210 @@
+--- a/chrome/browser/resources/history/externs.ts
++++ b/chrome/browser/resources/history/externs.ts
+@@ -48,6 +48,8 @@
+   tag: string;
+   timestamp: number;
+   windows: ForeignSessionWindow[];
++  // The device takes Firefox Sync's requests to close its tabs.
++  canCloseTabs?: boolean;
+ }
+ 
+ /**
+--- a/chrome/browser/resources/history/synced_device_card.css
++++ b/chrome/browser/resources/history/synced_device_card.css
+@@ -61,6 +61,17 @@
+   min-height: var(--item-height);
+ }
+ 
++.close-tab {
++  --cr-icon-button-size: 28px;
++  margin-inline-start: auto;
++  visibility: hidden;
++}
++
++.item-container:hover .close-tab,
++.close-tab:focus-visible {
++  visibility: visible;
++}
++
+ .window-separator {
+   background-color: var(--card-border-color);
+   height: 1px;
+--- a/chrome/browser/resources/history/synced_device_card.html.ts
++++ b/chrome/browser/resources/history/synced_device_card.html.ts
+@@ -41,6 +41,10 @@
+                 search-term="${this.searchTerm}">
+             </history-searched-label>
+           </a>
++          <cr-icon-button class="close-tab" iron-icon="cr:close"
++              ?hidden="${!this.canCloseTabs}" data-session-id="${tab.sessionId}"
++              title="$i18n{closeSyncedTab}" @click="${this.onCloseTabClick_}">
++          </cr-icon-button>
+         </div>
+         <div class="window-separator"
+             ?hidden="${!this.isWindowSeparatorIndex_(index)}">
+--- a/chrome/browser/resources/history/synced_device_card.ts
++++ b/chrome/browser/resources/history/synced_device_card.ts
+@@ -75,6 +75,9 @@
+ 
+       // Internal identifier for the device.
+       sessionTag: {type: String},
++
++      // The device takes Firefox Sync's requests to close its tabs.
++      canCloseTabs: {type: Boolean},
+     };
+   }
+ 
+@@ -85,6 +88,7 @@
+   accessor searchTerm: string = '';
+   accessor separatorIndexes: number[] = [];
+   accessor sessionTag: string = '';
++  accessor canCloseTabs: boolean = false;
+ 
+   override updated(changedProperties: PropertyValues<this>) {
+     super.updated(changedProperties);
+@@ -203,6 +207,18 @@
+     e.stopPropagation();  // Prevent cr-collapse.
+   }
+ 
++  /**
++   * Asks the device to close the tab, and hides it until the device's next
++   * sync lists its tabs again.
++   */
++  protected onCloseTabClick_(e: Event) {
++    const sessionId =
++        Number((e.currentTarget as HTMLElement).dataset['sessionId']);
++    browserProxyFactory.getInstance().handler.closeForeignSessionTab(
++        this.sessionTag, sessionId);
++    this.tabs = this.tabs.filter(tab => tab.sessionId !== sessionId);
++  }
++
+   protected onLinkContextmenu_() {
+     BrowserProxyImpl.getInstance().recordHistogram(
+         SYNCED_TABS_HISTOGRAM_NAME, SyncedTabsHistogram.LINK_RIGHT_CLICKED,
+--- a/chrome/browser/resources/history/synced_device_manager.html.ts
++++ b/chrome/browser/resources/history/synced_device_manager.html.ts
+@@ -21,6 +21,7 @@
+         .tabs="${syncedDevice.tabs}"
+         .separatorIndexes="${syncedDevice.separatorIndexes}"
+         .searchTerm="${this.searchTerm}" .sessionTag="${syncedDevice.tag}"
++        .canCloseTabs="${syncedDevice.canCloseTabs}"
+         ?opened="${syncedDevice.opened}"
+         @opened-changed="${this.onCardOpenedChanged_}" data-index="${index}">
+     </history-synced-device-card>
+--- a/chrome/browser/resources/history/synced_device_manager.ts
++++ b/chrome/browser/resources/history/synced_device_manager.ts
+@@ -38,6 +38,7 @@
+   timestamp: number;
+   tabs: ForeignSessionTab[];
+   tag: string;
++  canCloseTabs: boolean;
+ }
+ 
+ declare global {
+@@ -243,6 +244,7 @@
+       timestamp: session.timestamp,
+       tabs: tabs,
+       tag: session.tag,
++      canCloseTabs: !!session.canCloseTabs,
+     };
+   }
+ 
+--- a/chrome/browser/ui/webui/cr_components/history/history_util.cc
++++ b/chrome/browser/ui/webui/cr_components/history/history_util.cc
+@@ -47,6 +47,7 @@
+       {"deleteSuccess", IDS_HISTORY_REMOVE_PAGE_SUCCESS},
+       {"deleteConfirm", IDS_HISTORY_DELETE_PRIOR_VISITS_CONFIRM_BUTTON},
+       {"deleteSession", IDS_HISTORY_OTHER_SESSIONS_HIDE_FOR_NOW},
++      {"closeSyncedTab", IDS_OGANESSON_CLOSE_SYNCED_TAB},
+       {"deleteWarning", IDS_HISTORY_DELETE_PRIOR_VISITS_WARNING},
+       {"entrySummary", IDS_HISTORY_ENTRY_SUMMARY},
+       {"expandSessionButton", IDS_HISTORY_OTHER_SESSIONS_EXPAND_SESSION},
+--- a/chrome/browser/ui/webui/history/foreign_session_handler.cc
++++ b/chrome/browser/ui/webui/history/foreign_session_handler.cc
+@@ -23,6 +23,8 @@
+ #include "base/strings/utf_string_conversions.h"
+ #include "base/time/time.h"
+ #include "base/values.h"
++#include "chrome/browser/firefox_sync/firefox_sync_service.h"
++#include "chrome/browser/firefox_sync/firefox_sync_service_factory.h"
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/sessions/session_restore.h"
+ #include "chrome/browser/sync/device_info_sync_service_factory.h"
+@@ -333,6 +335,26 @@
+   }
+ }
+ 
++void ForeignSessionHandler::CloseForeignSessionTab(
++    const std::string& session_tag,
++    int32_t tab_id_value) {
++  sync_sessions::OpenTabsUIDelegate* open_tabs =
++      GetOpenTabsUIDelegate(profile_);
++  firefox_sync::FirefoxSyncService* firefox_sync =
++      firefox_sync::FirefoxSyncServiceFactory::GetForProfile(profile_);
++  const SessionID tab_id = SessionID::FromSerializedValue(tab_id_value);
++  const ::sessions::SessionTab* tab;
++  if (!open_tabs || !firefox_sync || !tab_id.is_valid() ||
++      !open_tabs->GetForeignTab(session_tag, tab_id, &tab) ||
++      tab->navigations.empty()) {
++    return;
++  }
++  // Firefox Sync's session tags are the devices' account ids.
++  firefox_sync->CloseRemoteTabs(
++      session_tag, {tab->navigations[tab->normalized_navigation_index()]
++                        .virtual_url()});
++}
++
+ void ForeignSessionHandler::SetForeignSessionCollapsed(
+     const std::string& session_tag,
+     bool collapsed) {
+@@ -457,6 +479,18 @@
+       total_tab_count += session_tab_count;
+ 
+       session_mojom->windows = std::move(windows);
++      if (firefox_sync::FirefoxSyncService* firefox_sync =
++              firefox_sync::FirefoxSyncServiceFactory::GetForProfile(
++                  profile_)) {
++        for (const base::Value& device : firefox_sync->devices()) {
++          if (const base::DictValue* dict = device.GetIfDict();
++              dict && dict->FindString("id") &&
++              *dict->FindString("id") == session_tag) {
++            session_mojom->can_close_tabs =
++                dict->FindBool("closeTabs").value_or(false);
++          }
++        }
++      }
+       session_list.push_back(std::move(session_mojom));
+     }
+ 
+--- a/chrome/browser/ui/webui/history/foreign_session_handler.h
++++ b/chrome/browser/ui/webui/history/foreign_session_handler.h
+@@ -91,6 +91,8 @@
+                              int32_t tab_id,
+                              ui::mojom::ClickModifiersPtr modifiers) override;
+   void DeleteForeignSession(const std::string& session_tag) override;
++  void CloseForeignSessionTab(const std::string& session_tag,
++                              int32_t tab_id) override;
+   void SetForeignSessionCollapsed(const std::string& session_tag,
+                                   bool collapsed) override;
+   void ShowUi() override;
+--- a/ui/webui/resources/cr_components/history/foreign_sessions.mojom
++++ b/ui/webui/resources/cr_components/history/foreign_sessions.mojom
+@@ -31,6 +31,8 @@
+   double timestamp;
+   bool collapsed;
+   array<ForeignSessionWindow> windows;
++  // The device takes Firefox Sync's requests to close its tabs.
++  bool can_close_tabs;
+ };
+ 
+ // Used by the WebUI page to bootstrap bidirectional communication.
+@@ -56,6 +58,9 @@
+   // Delete a foreign session.
+   DeleteForeignSession(string session_tag);
+ 
++  // Asks the device to close one of its tabs, through Firefox Sync.
++  CloseForeignSessionTab(string session_tag, int32 tab_id);
++
+   // Sets the collapsed state of a foreign session.
+   SetForeignSessionCollapsed(string session_tag, bool collapsed);
+ 
