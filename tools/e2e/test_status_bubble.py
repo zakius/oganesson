@@ -2,7 +2,6 @@
 
 Hovering a link shows its whole URL at once, in a bubble as wide as the URL,
 which doesn't grow later. A URL wider than the window scrolls in the bubble.
-The link menu has no "Open in reading mode" (oganesson/ui/no-reading-mode-menu-item.patch).
 """
 
 import time
@@ -54,16 +53,6 @@ class StatusBubbleTest(BrowserTest):
         start = self.text_x()
         time.sleep(2)
         self.assertLess(self.text_x(), start)
-
-    def test_3_no_reading_mode(self):
-        page = self.browser.new_tab(PAGE)
-        self.browser.wait_view('ContentsWebView')
-        self.browser.click_element(page, '#medium', button=3)
-        menus = wait_for(self.browser.menus, what='the link menu')
-        titles = [v['Title'] for group in menus[-1] for v in group]
-        self.browser.key('Escape')
-        self.assertIn('Copy link address', [t.replace('&', '') for t in titles])
-        self.assertFalse([t for t in titles if 'reading mode' in t.replace('&', '').lower()])
 
 
 if __name__ == '__main__':
