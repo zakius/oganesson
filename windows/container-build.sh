@@ -123,6 +123,26 @@ write_windows_args() {
 
 # gclient's toolchain hook would fetch Google's own package: ours comes after.
 DEPOT_TOOLS_WIN_TOOLCHAIN=0 fetch_pinned win64
+
+# The build's host tools run on Linux here, and some need DEPS that only a Linux
+# checkout gets: clone.py's gclient has target_os win only. Each at DEPS' commit.
+fetch_linux_dep() {
+    local path=$1 url rev
+    read -r url rev < <(python3 - "$_src_dir/DEPS" "src/$path" <<'PY'
+import re, sys
+deps, path = open(sys.argv[1]).read(), sys.argv[2]
+m = re.search(re.escape(f"'{path}'") + r": \{\s*'url': Var\('chromium_git'\) \+ '([^']+)' \+ '@' \+ '([0-9a-f]{40})'", deps)
+print('https://chromium.googlesource.com' + m.group(1), m.group(2))
+PY
+)
+    if [ "$(git -C "$_src_dir/$path" rev-parse -q HEAD 2>/dev/null)" != "$rev" ]; then
+        rm -rf "${_src_dir:?}/$path"
+        git init -q "$_src_dir/$path"
+        git -C "$_src_dir/$path" fetch -q --depth=1 "$url" "$rev"
+        git -C "$_src_dir/$path" checkout -q FETCH_HEAD
+    fi
+}
+fetch_linux_dep third_party/fontconfig/src  # Skia's fontconfig, for generate_colors_info
 windows_msvc
 export DEPOT_TOOLS_WIN_TOOLCHAIN=1 DEPOT_TOOLS_WIN_TOOLCHAIN_BASE_URL="$toolchain"
 export "GYP_MSVS_HASH_${pin_hash}=$(cat "$toolchain/hash")"
