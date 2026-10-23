@@ -26,6 +26,7 @@
 #include "chrome/browser/ui/navigator/browser_navigator.h"
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "build/build_config.h"
+#include "components/sync_device_info/local_device_info_util.h"
 #include "services/data_decoder/public/cpp/decode_image.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 
@@ -132,6 +133,12 @@ base::FilePath SyncLibraryPath() {
   crypto::EnsureNSSInit();
   return dir.Append(FILE_PATH_LITERAL("liboganesson_sync.so"));
 #endif
+}
+
+std::string DeviceName() {
+  // The hostname, or the Linux distribution's name for a "localhost"; the
+  // computer's name on Windows. Chrome's own Sync names devices so.
+  return "oganesson on " + syncer::GetPersonalizableDeviceNameBlocking();
 }
 
 }  // namespace firefox_sync

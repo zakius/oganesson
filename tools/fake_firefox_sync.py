@@ -104,6 +104,10 @@ class State:
         self.modified = {}     # name -> timestamp
         self.last = 0.0
         self.log = []
+        # The browser's device record, as it registered it.
+        self.device = {'id': 'fakedevice', 'name': '', 'type': 'desktop',
+                       'isCurrentDevice': True, 'pushEndpointExpired': False,
+                       'availableCommands': {}, 'location': {}, 'lastAccessTime': 0}
         # hold(): requests under a path prefix wait until let_go().
         self.held_prefix = None
         self.held = threading.Event()
@@ -258,9 +262,10 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(data)
             return None
         if path.startswith('/auth/v1/account/device'):
-            device = {'id': 'fakedevice', 'name': 'oganesson', 'type': 'desktop',
-                      'isCurrentDevice': True, 'pushEndpointExpired': False,
-                      'availableCommands': {}, 'location': {}, 'lastAccessTime': 0}
+            device = self.state.device
+            if method == 'POST' and path == '/auth/v1/account/device':
+                req = self.body()
+                device.update({k: req[k] for k in ('name', 'type') if k in req})
             return self.reply(200, [device] if path.endswith('devices') else device)
         if path == '/token/1.0/sync/1.5':
             return self.reply(200, {

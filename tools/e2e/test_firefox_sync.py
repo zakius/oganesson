@@ -18,6 +18,7 @@ Needs the `cryptography` package, like the fake.
 import json
 import os
 import shutil
+import socket
 import sqlite3
 import sys
 import tempfile
@@ -77,6 +78,9 @@ class FirefoxSyncTest(BrowserTest):
         wait_for(lambda: self.status(page).get('signedIn'), timeout=30, what='the sign-in')
         wait_for(lambda: 'global' in self.fake.collections.get('meta', {}), timeout=60,
                  what='the first sync')
+        # Firefox's device list tells this computer apart by its hostname.
+        self.assertEqual(self.fake.device['name'], f'oganesson on {socket.gethostname()}')
+        self.assertEqual(self.fake.device['type'], 'desktop')
 
     def firefox_bookmarks(self):
         bundle = self.fake.bundle('bookmarks')

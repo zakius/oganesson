@@ -102,7 +102,7 @@ def main():
     lib = ctypes.CDLL(str(lib_path))
     lib.og_call.restype = ctypes.c_void_p
     callback = HTTP(http)
-    lib.og_init(callback)
+    lib.og_init(callback, b'oganesson on check', False)
 
     def raw_call(method, **args):
         raw = lib.og_call(None, method.encode(), json.dumps(args).encode())
@@ -146,6 +146,7 @@ def main():
     assert signed_in['profile']['email'] == 'fake@example.com'
     assert signed_in['profile']['name'] == 'Fake User'
     assert signed_in['profile']['avatar'].endswith('/profile/avatar.png')
+    assert (state.device['name'], state.device['type']) == ('oganesson on check', 'desktop')
     saved = {'account': signed_in['account']}
     local = [login('https://a.example', 'ann', 'pa', 1000)]
 
@@ -202,11 +203,17 @@ def main():
     assert local == []
     print('ok: Firefox deletions remove local logins')
 
-    # A restart restores the account and state from what the browser saved.
+    # A restart restores the account and state from what the browser saved,
+    # and renames a device registered under the old name.
+    account = json.loads(saved['account'])
+    account['server_local_device_info']['display_name'] = 'oganesson'
+    saved['account'] = json.dumps(account)
+    state.device['name'] = 'oganesson'
     local.append(login('https://c.example', 'cat', 'pc', 5000))
     assert sync(profile=restarted) == []
     assert firefox_live()['https://c.example']['password'] == 'pc'
-    print('ok: saved state restores')
+    assert state.device['name'] == 'oganesson on check', state.device
+    print('ok: saved state restores, and the device gets its name')
 
     # Firefox renames the user: the local login under the old key is replaced.
     c = firefox_live()['https://c.example']
