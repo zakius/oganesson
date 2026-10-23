@@ -143,6 +143,15 @@ PY
     fi
 }
 fetch_linux_dep third_party/fontconfig/src  # Skia's fontconfig, for generate_colors_info
+# Dawn's generators run Go: the CIPD package for this host, at Dawn's version.
+fetch_linux_cipd() {
+    local path=$1 package=$2 version
+    version=$(sed -n "s/^ *'$3': '\(.*\)',$/\1/p" "$_src_dir/$4")
+    printf '%s %s\n' "$package" "$version" |
+        "$_src_dir/third_party/depot_tools/cipd" ensure -root "$_src_dir/$path" -ensure-file -
+}
+fetch_linux_cipd third_party/dawn/tools/golang/linux-amd64 infra/3pp/tools/go/linux-amd64 \
+    dawn_go_version third_party/dawn/DEPS
 windows_msvc
 export DEPOT_TOOLS_WIN_TOOLCHAIN=1 DEPOT_TOOLS_WIN_TOOLCHAIN_BASE_URL="$toolchain"
 export "GYP_MSVS_HASH_${pin_hash}=$(cat "$toolchain/hash")"
