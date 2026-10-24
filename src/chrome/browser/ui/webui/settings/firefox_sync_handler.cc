@@ -8,6 +8,8 @@
 #include "chrome/browser/firefox_sync/firefox_sync_service.h"
 #include "chrome/browser/firefox_sync/firefox_sync_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/common/oganesson_pref_names.h"
+#include "components/prefs/pref_service.h"
 #include "chrome/grit/generated_resources.h"
 #include "content/public/browser/web_ui.h"
 #include "content/public/browser/web_ui_data_source.h"
@@ -56,6 +58,9 @@ void FirefoxSyncHandler::AddStrings(content::WebUIDataSource* html_source) {
       {"firefoxSyncNoServer", IDS_FIREFOX_SYNC_NO_SERVER_SET},
       {"firefoxSyncOtherDevicesTabs", IDS_FIREFOX_SYNC_OTHER_DEVICES_TABS},
       {"firefoxSyncReceiveTabs", IDS_FIREFOX_SYNC_RECEIVE_TABS},
+      {"firefoxSyncInstantTabs", IDS_OGANESSON_INSTANT_TABS},
+      {"firefoxSyncInstantTabsDescription",
+       IDS_OGANESSON_INSTANT_TABS_DESCRIPTION},
       {"firefoxSyncReceiveTabsMinutes", IDS_FIREFOX_SYNC_RECEIVE_TABS_MINUTES},
       {"firefoxSyncReceiveTabsHour", IDS_FIREFOX_SYNC_RECEIVE_TABS_HOUR},
       {"firefoxSyncReceiveTabsSyncOnly",
@@ -83,6 +88,10 @@ void FirefoxSyncHandler::RegisterMessages() {
   web_ui()->RegisterMessageCallback(
       "setFirefoxSyncType",
       base::BindRepeating(&FirefoxSyncHandler::HandleSetType,
+                          base::Unretained(this)));
+  web_ui()->RegisterMessageCallback(
+      "setFirefoxSyncInstantTabs",
+      base::BindRepeating(&FirefoxSyncHandler::HandleSetInstantTabs,
                           base::Unretained(this)));
   web_ui()->RegisterMessageCallback(
       "setFirefoxSyncReceiveInterval",
@@ -113,6 +122,9 @@ base::DictValue FirefoxSyncHandler::Status() const {
   base::DictValue status =
       service ? service->GetStatus() : base::DictValue();
   status.Set("available", service != nullptr);
+  // oganesson's own: tennessine keeps no connection.
+  status.Set("instantTabs",
+             profile_->GetPrefs()->GetBoolean(prefs::kFirefoxSyncInstantTabs));
   return status;
 }
 
@@ -148,6 +160,15 @@ void FirefoxSyncHandler::HandleSetType(const base::ListValue& args) {
   if (service && args.size() == 2 && args[0].is_string() &&
       args[1].is_bool()) {
     service->SetTypeEnabled(args[0].GetString(), args[1].GetBool());
+  }
+}
+
+// [on]
+void FirefoxSyncHandler::HandleSetInstantTabs(const base::ListValue& args) {
+  if (args.size() == 1 && args[0].is_bool()) {
+    profile_->GetPrefs()->SetBoolean(prefs::kFirefoxSyncInstantTabs,
+                                     args[0].GetBool());
+    OnStatusChanged();
   }
 }
 

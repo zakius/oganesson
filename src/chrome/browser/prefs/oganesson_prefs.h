@@ -32,6 +32,10 @@ inline void RegisterOganessonProfilePrefs(
   registry->RegisterDictionaryPref(web_app::kUserAppScopeRules);
   registry->RegisterDictionaryPref(web_app::kUserAppStrictScope);
   registry->RegisterDictionaryPref(web_app::kUserAppStartUrls);
+  registry->RegisterBooleanPref(prefs::kFirefoxSyncInstantTabs, true);
+  registry->RegisterStringPref(prefs::kFirefoxSyncPushUaid, std::string());
+  registry->RegisterStringPref(prefs::kFirefoxSyncPushChannel, std::string());
+  registry->RegisterStringPref(prefs::kFirefoxSyncPushEndpoint, std::string());
 }
 
 #endif  // CHROME_BROWSER_PREFS_OGANESSON_PREFS_H_

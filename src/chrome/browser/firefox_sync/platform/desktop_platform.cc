@@ -23,6 +23,7 @@
 #include "chrome/browser/firefox_sync/firefox_sync_platform.h"
 #include "chrome/browser/firefox_sync/firefox_sync_service.h"
 #include "chrome/browser/firefox_sync/firefox_sync_service_factory.h"
+#include "chrome/browser/firefox_sync/platform/push_connection.h"
 #include "chrome/browser/firefox_sync/platform/tabs_adapter.h"
 #include "chrome/browser/notifications/notification_display_service.h"
 #include "chrome/browser/notifications/notification_display_service_factory.h"
@@ -37,6 +38,9 @@
 #include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
 #include "chrome/browser/ui/navigator/browser_navigator.h"
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
+#include "chrome/common/oganesson_pref_names.h"
+#include "components/prefs/pref_change_registrar.h"
+#include "components/prefs/pref_service.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/grit/generated_resources.h"
 #include "build/build_config.h"
@@ -77,6 +81,15 @@ class DesktopPlatform : public Platform, public BrowserCollectionObserver {
   explicit DesktopPlatform(Profile* profile)
       : profile_(profile) {
     browsers_.Observe(GlobalBrowserCollection::GetInstance());
+    instant_tabs_.Init(profile_->GetPrefs());
+    instant_tabs_.Add(prefs::kFirefoxSyncInstantTabs,
+                      base::BindRepeating(&DesktopPlatform::UpdatePush,
+                                          base::Unretained(this)));
+  }
+
+  void OnSignedIn(bool signed_in) override {
+    signed_in_ = signed_in;
+    UpdatePush();
   }
 
   // A window of the profile came to the front: tabs other devices sent show
@@ -201,7 +214,51 @@ class DesktopPlatform : public Platform, public BrowserCollectionObserver {
     entry->SetIsUsingGAIAPicture(!image.IsEmpty());
   }
 
+  // The push connection runs while signed in with Receive tabs instantly on.
+  void UpdatePush() {
+    const bool wanted =
+        signed_in_ &&
+        profile_->GetPrefs()->GetBoolean(prefs::kFirefoxSyncInstantTabs);
+    if (wanted == !!push_) {
+      return;
+    }
+    if (!wanted) {
+      push_.reset();
+      if (FirefoxSyncService* service = Service()) {
+        service->SetPushEndpoint(std::string());
+      }
+      return;
+    }
+    push_ = std::make_unique<PushConnection>(
+        profile_,
+        base::BindRepeating(&DesktopPlatform::OnPushEndpoint,
+                            weak_factory_.GetWeakPtr()),
+        base::BindRepeating(&DesktopPlatform::OnPushNotice,
+                            weak_factory_.GetWeakPtr()));
+  }
+
+  void OnPushEndpoint(const std::string& endpoint) {
+    if (FirefoxSyncService* service = Service()) {
+      service->SetPushEndpoint(endpoint);
+    }
+  }
+
+  void OnPushNotice() {
+    if (FirefoxSyncService* service = Service()) {
+      service->OnPushReceived();
+    }
+  }
+
+  // The service that owns this. Not called while it's being made: the push
+  // connection's callbacks come later.
+  FirefoxSyncService* Service() {
+    return FirefoxSyncServiceFactory::GetForProfile(profile_);
+  }
+
   const raw_ptr<Profile> profile_;
+  bool signed_in_ = false;
+  PrefChangeRegistrar instant_tabs_;
+  std::unique_ptr<PushConnection> push_;
   // For each received tab's notification id.
   int notifications_ = 0;
   base::ScopedObservation<GlobalBrowserCollection, BrowserCollectionObserver>

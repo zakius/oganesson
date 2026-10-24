@@ -13,4 +13,10 @@
   <message name="IDS_OGANESSON_CLOSE_SYNCED_TAB" desc="History, Tabs from other devices: tooltip of the button beside one of another device's tabs that asks that device to close it, through Firefox Sync.">
     Close on that device
   </message>
+  <message name="IDS_OGANESSON_INSTANT_TABS" desc="Settings, Sync: switch that keeps a connection to Mozilla's push server, so tabs the user's other devices send arrive at once.">
+    Receive tabs instantly
+  </message>
+  <message name="IDS_OGANESSON_INSTANT_TABS_DESCRIPTION" desc="Settings, Sync: what the Receive tabs instantly switch does.">
+    Keeps a connection to Mozilla's push server, as Firefox does. Without it, tabs arrive when the browser checks for them.
+  </message>
 </grit-part>
