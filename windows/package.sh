@@ -24,25 +24,37 @@ dir="$dest/$version-$release"
 mkdir -p "$dir"
 name="oganesson-$version-windows-x64"
 
-# The zip: what FILES.cfg lists for official builds, without the installer's files.
-python3 - "$src" "$out" "$dir/$name.zip" <<'EOF'
-import sys
+# The zip: what FILES.cfg lists for official builds, without the installer's files,
+# copied into a folder with the commit's time on each file (copies: the build's own
+# files keep their times, which ninja compares), then zipped by 7-Zip:
+# its deflate makes the zip about 6 MB smaller than Python's zipfile.
+stage="$(mktemp -d)"
+nsi="$(mktemp --suffix=.nsi)"
+trap 'rm -rf "$stage" "$nsi"' EXIT
+python3 - "$src" "$out" "$stage/$name" <<'EOF'
+import os, shutil, sys
 from pathlib import Path
 sys.path.insert(0, '/oganesson/helium/utils')
 import filescfg
-src, out, zip_path = Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3])
+src, out, stage = Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3])
 excluded = {Path(n) for n in ('mini_installer.exe', 'mini_installer_exe_version.rc',
                               'setup.exe', 'oganesson.packed.7z')}
-files = filescfg.filescfg_generator(src / 'chrome/tools/build/win/FILES.cfg', out, '64bit',
-                                    excluded)
 timestamp = int((src / 'build/util/LASTCHANGE.committime').read_text())
-filescfg.create_archive(files, (), out, zip_path, timestamp)
+for relative in filescfg.filescfg_generator(src / 'chrome/tools/build/win/FILES.cfg', out,
+                                            '64bit', excluded):
+    path = out / relative
+    for file in [p for p in path.rglob('*') if p.is_file()] if path.is_dir() else [path]:
+        target = stage / file.relative_to(out)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(file, target)
+for path in [stage, *stage.rglob('*')]:
+    os.utime(path, (timestamp, timestamp))
 EOF
+rm -f "$dir/$name.zip"
+(cd "$stage" && 7z a -tzip -mx=9 -mfb=258 -mpass=15 -mtc=off -bd -bso0 "$dir/$name.zip" "$name")
 
 # The installer: helium-windows' script with our names (the install folder as
 # windows/late/branding.patch has it: no company folder).
-nsi="$(mktemp --suffix=.nsi)"
-trap 'rm -f "$nsi"' EXIT
 sed -e 's/^!define PRODUCT_NAME "Helium"/!define PRODUCT_NAME "oganesson"/' \
     -e 's/^!define PRODUCT_PUBLISHER "imput"/!define PRODUCT_PUBLISHER "oganesson"/' \
     -e 's/^!define PRODUCT_COMPANY_PATH "imput"/!define PRODUCT_COMPANY_PATH ""/' \
