@@ -5,13 +5,15 @@ DIY apps, and not for isolated web apps. In normal tabs, "Open in app" and link 
 rules too. A stub `xdg-open` on PATH stands in for the desktop's default
 handler and records the URLs it gets, and the activation token variables it
 sees, which decide whether the browser it starts may take focus; a stub `xdg-settings` and a desktop
-file make oganesson the default browser when a test needs it.
+file make oganesson the default browser when a test needs it. An app window
+also stays usable while a regular window shows a "Leave this page?" dialog.
 """
 
 import base64
 import hashlib
 import json
 import os
+import re
 import shutil
 import struct
 import subprocess
@@ -1238,6 +1240,58 @@ class ActivationTokenTest(WebAppTest):
         wait_for(self.opened, what='xdg-open')
         self.assertEqual(self.opened(), [self.server.url('/out.html?blank')])
         self.assertEqual(self.tokens_file.read_text().splitlines(), ['XDG_ACTIVATION_TOKEN'])
+
+
+class LeavePageDialogTest(WebAppTest):
+    """A "Leave this page?" dialog in a regular window leaves an app window
+    usable (issue #16): it takes clicks and keys. On Wayland, where the issue
+    was seen, when labwc is installed, else on X11, which blocks the same way."""
+
+    wayland = bool(shutil.which('labwc'))
+
+    def test_leave_page_dialog_leaves_app_window_usable(self):
+        tab = self.browser.new_tab(self.server.url('/out.html'))
+        self.addCleanup(self.browser.close_target, tab)
+        # The new tab starts at about:blank, whose readyState is complete too.
+        wait_for(lambda: tab.eval('location.pathname == "/out.html"'
+                                  ' && document.readyState == "complete"', gesture=False),
+                 what='the page')
+        # The gesture gives the page the user activation a beforeunload dialog needs.
+        tab.eval('addEventListener("beforeunload", e => e.preventDefault())')
+        # With Page enabled, the cleanup can close the dialog.
+        tab.call('Page.enable')
+        # Deferred: setting the location waits for the dialog to close.
+        tab.eval('setTimeout(() => location.href = "/elsewhere.html")', gesture=False)
+        self.browser.wait_view('MessageBoxView')
+        self.addCleanup(tab.call, 'Page.handleJavaScriptDialog', accept=False)
+
+        app = self.launch_app()
+        window = self.browser.browser_call('Browser.getWindowForTarget', targetId=app.id)
+        self.browser.browser_call('Browser.setWindowBounds', windowId=window['windowId'],
+                                  bounds={'windowState': 'maximized'})
+        # An input over the whole page, so a click anywhere in the maximized
+        # app window lands on it.
+        app.eval("""document.body.insertAdjacentHTML('beforeend', '<input id="field"'
+                 + ' style="position: fixed; inset: 0; width: 100%; height: 100%">');
+                 addEventListener('mousedown', () => window.pressed = true)""", gesture=False)
+        wait_for(lambda: app.eval('innerWidth', gesture=False) > 1000, what='the app maximized')
+        # Bottom left, away from the dialog in the middle of the other window.
+        self.browser.xdotool('mousemove', '200', '800', 'click', '1')
+        wait_for(lambda: app.eval('window.pressed === true', gesture=False),
+                 what='the click in the app window')
+        if self.wayland:
+            self.browser.key('a', 'b')
+        else:
+            # Browser.key focuses the regular window first; with no window
+            # manager, focus the app window under the pointer instead.
+            found = subprocess.run(['xdotool', 'getmouselocation', '--shell'],
+                                   env=self.browser.env(), capture_output=True, text=True,
+                                   check=True).stdout
+            window = re.search(r'^WINDOW=(\d+)$', found, re.M)[1]
+            self.browser.xdotool('windowfocus', '--sync', window)
+            self.browser.xdotool('key', 'a', 'b')
+        wait_for(lambda: app.eval('field.value', gesture=False) == 'ab',
+                 what='the keys in the app window')
 
 
 if __name__ == '__main__':

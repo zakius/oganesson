@@ -69,3 +69,9 @@ Code: `src/chrome/browser/ui/web_applications/app_tray.cc` and `src/chrome/brows
 A web app's badge (`navigator.setAppBadge()`) shows on its icon. On Linux, Chromium shows none; oganesson sends the count with the Unity launcher API's D-Bus signal (`com.canonical.Unity.LauncherEntry`), which KDE Plasma's task manager, Ubuntu Dock, Dash to Dock and Plank read, for the app's desktop entry. A badge without a count (`setAppBadge()` with no number) has nothing to show there. A tray app's tray icon gets a red dot for any badge.
 
 Code: `src/chrome/browser/badging/badge_manager_delegate_linux.cc`, hooked in by `patches/oganesson/core/web-app-tray.patch`.
+
+## "Leave this page?" dialogs
+
+Chromium shows the `beforeunload` dialog ("Leave this page?") as an app-modal dialog: while it is open, every other browser window refuses activation (`BrowserView::CanActivate()`), and on X11 and Wayland takes no input (`JavascriptAppModalEventBlockerAura`). An installed web app's window is an app of its own, so here such a dialog in another window leaves it usable, and a dialog in an app window leaves the other windows usable. Regular browser windows still block each other, as in Chromium. App-modal dialogs still show one at a time: a second app's dialog waits until the open one closes.
+
+Code: `src/chrome/browser/ui/views/frame/app_modal_dialog_scope.cc`, hooked in by `patches/oganesson/ui/app-window-modal-dialog.patch`. Verified by `./oganesson.py test web_app_links` (`LeavePageDialogTest`): on Wayland when labwc is installed, else on X11.
