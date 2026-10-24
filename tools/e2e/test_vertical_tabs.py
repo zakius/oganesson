@@ -1,9 +1,7 @@
 """Vertical tabs: the window edge beside the tabs is clickable, and a middle
 click on the strip's empty space opens a new tab, as in Firefox."""
 
-import time
-
-from harness import BrowserTest, wait_for
+from harness import BrowserTest, assert_never, wait_for
 
 
 class VerticalTabsTest(BrowserTest):
@@ -37,5 +35,4 @@ class VerticalTabsTest(BrowserTest):
         self.browser.xdotool('mousemove', str(b['x'] + b['width'] // 2),
                              str(b['y'] + b['height'] - 40), 'click', '2')
         wait_for(lambda: len(self.pages()) == before + 1, what='a new tab')
-        time.sleep(0.5)
-        self.assertEqual(len(self.pages()), before + 1)
+        assert_never(lambda: len(self.pages()) > before + 1, 1, what='a second new tab')

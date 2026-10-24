@@ -10,7 +10,6 @@ hooks, unlike DOM-generated events.
 
 import shutil
 import tempfile
-import time
 import unittest
 from pathlib import Path
 
@@ -69,8 +68,7 @@ class GesturesTest(BrowserTest):
         cls.server = Server({'/a': page('A'), '/b': page('B'), '/cancel': page('Cancel', CANCEL),
                              '/inner': page('Inner', CANCEL),
                              '/doc.pdf': (200, {'Content-Type': 'application/pdf'}, tiny_pdf()),
-                             '/hung': page('Hung', '<script>setTimeout(() => { for (;;); }, 300)'
-                                                   '</script>'),
+                             '/hung': page('Hung'),
                              '/split': page('Split', '<p><a id="link" href="/b" '
                                                      'style="font-size: 40px">b</a>'),
                              '/lock': page('Lock', '<script>onclick = () =>'
@@ -174,7 +172,9 @@ class GesturesTest(BrowserTest):
 
     def test_hung_renderer(self):
         page = self.visit(self.server.url('/a'), self.server.url('/hung'))
-        time.sleep(1)  # the page is spinning now, and answers no DevTools call
+        # It spins from its next task on, after a beacon the server records.
+        page.eval("setTimeout(() => { navigator.sendBeacon('/spinning'); for (;;); })")
+        wait_for(lambda: '/spinning' in self.server.requests, what='the page to spin')
         self.stroke_left()
         wait_for(lambda: any(t['url'] == self.server.url('/a') for t in self.browser.targets()),
                  what='back to /a')

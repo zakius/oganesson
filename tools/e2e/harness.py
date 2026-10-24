@@ -37,7 +37,8 @@ What's here:
 - Page: `eval(js)` (awaits promises; a user gesture unless `gesture=False`),
   `click(selector, button)`, `call(method)`.
 - Server: local HTTP(S) `routes`, with `requests`, `headers` and `bodies` seen.
-- wait_for(check): polls until `check()` is truthy.
+- wait_for(check): polls until `check()` is truthy; assert_never(check,
+  timeout) fails if it gets truthy in time.
 - installed_env(folder): `browser_env` for a browser installed as a package.
 
 Tests to copy from: test_ubo_restart.py for the bundled uBlock Origin,
@@ -139,6 +140,16 @@ def wait_for(check, timeout=15, interval=0.05, what='condition'):
             return value
         if time.monotonic() > deadline:
             raise AssertionError(f'timed out after {timeout}s waiting for {what}')
+        time.sleep(interval)
+
+
+def assert_never(check, timeout, interval=0.05, what='condition'):
+    """Fails as soon as `check` returns something truthy within `timeout`
+    seconds: for what must not happen, such as a request or a resize."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if check():
+            raise AssertionError(f'{what} within {timeout}s')
         time.sleep(interval)
 
 
@@ -646,10 +657,10 @@ class Browser:
 
         A menu being rebuilt, as a context menu is when an asynchronous check
         changes its items, reads as part of its items: the menus come back
-        once two reads 0.1 s apart agree, or after 2 s.
+        once two reads 0.1 s apart agree, items and their bounds, or after 2 s.
         """
         def shape(menus):
-            return [[[(v.widget, v['Title']) for v in group] for group in menu]
+            return [[[(v.widget, v['Title'], v.bounds) for v in group] for group in menu]
                     for menu in menus]
         last = self._menus()
         for _ in range(20):

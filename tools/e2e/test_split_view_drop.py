@@ -3,14 +3,13 @@ on the panel that appears there opens in a new split, wherever on the panel it
 drops. Runs on Wayland, where the compositor only drops on a target that took
 the drag at the last pointer motion."""
 
-import time
-
 from harness import BrowserTest, Server, wait_for
 
 # The page records where it gets dragover, and when the drag ends.
 PAGE = (b'<title>source</title><body style="margin:0">'
         b'<a id="link" href="/target" style="position:absolute; left:50%; top:20%;'
-        b' font-size:40px">drag me</a><script>self.overs = []; self.ended = false;'
+        b' font-size:40px">drag me</a><script>self.overs = []; self.started = self.ended = false;'
+        b' addEventListener("dragstart", () => started = true);'
         b' addEventListener("dragover", e => overs.push(`${e.clientX},${e.clientY}`));'
         b' addEventListener("dragend", () => ended = true);</script>')
 
@@ -55,14 +54,13 @@ class SplitViewDropTest(BrowserTest):
         # Past the drag threshold.
         for step in range(1, 6):
             self.browser.xdotool('mousemove', str(x + 3 * step), str(y + 3 * step))
-            time.sleep(0.05)
+        wait_for(lambda: page.eval('started'), what='the drag to start')
         return (x + 15, y + 15), bounds, page
 
     def move(self, start, end):
         for step in range(1, 11):
             self.browser.xdotool('mousemove', str(start[0] + (end[0] - start[0]) * step // 10),
                                  str(start[1] + (end[1] - start[1]) * step // 10))
-            time.sleep(0.05)
 
     def drag_to_left_edge(self):
         """Drags the link next to the page's left edge and holds the pointer
@@ -87,7 +85,7 @@ class SplitViewDropTest(BrowserTest):
     def test_drop_on_the_plus_icon(self):
         pointer, target = self.drag_to_left_edge()
         self.move(pointer, target.center)
-        time.sleep(0.5)
+        self.browser.wait_view('MultiContentsDropTargetView', match=lambda v: v.bounds == target.bounds)
         self.browser.xdotool('mouseup', '1')
         self.assert_split()
 

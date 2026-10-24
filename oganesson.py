@@ -528,8 +528,8 @@ def test(args):
     if args.keep:
         env['OGANESSON_E2E_KEEP'] = '1'
     sys.exit(subprocess.run([sys.executable, 'run.py', f'--jobs={args.jobs}',
-                             *dict.fromkeys(modules), *patterns], cwd=ROOT / 'tools/e2e',
-                            env=env, check=False, pass_fds=held_lock()).returncode)
+                             f'--repeat={args.repeat}', *dict.fromkeys(modules), *patterns],
+                            cwd=ROOT / 'tools/e2e', env=env, check=False, pass_fds=held_lock()).returncode)
 
 
 def stamp(args):
@@ -618,6 +618,9 @@ def main():
                              help='test classes run at a time, each with its own browser; '
                                   '1 runs them one after another (default: a quarter of the '
                                   'CPUs, at most 8)')
+    test_parser.add_argument('--repeat', type=int, default=1, metavar='N',
+                             help='run each test class N times, and list every test that '
+                                  "doesn't pass every run")
     test_parser.add_argument('--keep', action='store_true',
                              help="keep every run's profile and log, not only failed ones")
     test_parser.set_defaults(handler=test)

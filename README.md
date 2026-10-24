@@ -65,7 +65,7 @@ A build needs Linux x86-64, Python 3, Git, Docker, and room for a Chromium build
 ./oganesson.py run                      # the dev build, with the profile in work/profile
 ```
 
-The browser tests need Xvfb, xdotool and xwd, and use throwaway profiles. Each test class has its own browser and X display, so classes run side by side, as many as a quarter of the CPUs and at most eight (`-j`). `-j1` runs them one after another, with unittest's output as it comes.
+The browser tests need Xvfb, xdotool and xwd, and use throwaway profiles. Each test class has its own browser and X display, so classes run side by side, as many as a quarter of the CPUs and at most eight (`-j`). `-j1` runs them one after another, with unittest's output as it comes. `--repeat N` runs each class N times and lists every test that didn't pass every run, to find flaky tests.
 
 A build takes the checkout's lock. To keep a build running after the terminal closes, start it with `tools/detach.sh LOG -- ./oganesson.py build ...`. A build runs one compile job per CPU of the machine, unless `-j` says otherwise; how many CPUs the containers get is up to the system.
 
