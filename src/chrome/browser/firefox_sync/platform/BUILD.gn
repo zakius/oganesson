@@ -7,8 +7,6 @@
 source_set("platform") {
   sources = [
     "desktop_platform.cc",
-    "remote_tabs.cc",
-    "remote_tabs.h",
     "send_to_device_menu.cc",
     "send_to_device_menu.h",
     "tabs_adapter.cc",

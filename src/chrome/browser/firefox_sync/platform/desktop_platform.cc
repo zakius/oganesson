@@ -23,7 +23,6 @@
 #include "chrome/browser/firefox_sync/firefox_sync_platform.h"
 #include "chrome/browser/firefox_sync/firefox_sync_service.h"
 #include "chrome/browser/firefox_sync/firefox_sync_service_factory.h"
-#include "chrome/browser/firefox_sync/platform/remote_tabs.h"
 #include "chrome/browser/firefox_sync/platform/tabs_adapter.h"
 #include "chrome/browser/notifications/notification_display_service.h"
 #include "chrome/browser/notifications/notification_display_service_factory.h"
@@ -76,7 +75,7 @@ void ActivateTab(base::WeakPtr<content::WebContents> contents) {
 class DesktopPlatform : public Platform, public BrowserCollectionObserver {
  public:
   explicit DesktopPlatform(Profile* profile)
-      : profile_(profile), remote_tabs_(profile) {
+      : profile_(profile) {
     browsers_.Observe(GlobalBrowserCollection::GetInstance());
   }
 
@@ -103,12 +102,6 @@ class DesktopPlatform : public Platform, public BrowserCollectionObserver {
     Navigate(&params);
     return params.navigated_or_inserted_contents.get();
   }
-
-  void ShowRemoteTabs(const base::ListValue& devices) override {
-    remote_tabs_.Update(devices);
-  }
-
-  void ClearRemoteTabs() override { remote_tabs_.Clear(); }
 
   // In the background, as Firefox does, with a notification that switches to
   // it.
@@ -209,8 +202,6 @@ class DesktopPlatform : public Platform, public BrowserCollectionObserver {
   }
 
   const raw_ptr<Profile> profile_;
-  // The synced tabs for History, Recent tabs and the sessions API.
-  RemoteTabs remote_tabs_;
   // For each received tab's notification id.
   int notifications_ = 0;
   base::ScopedObservation<GlobalBrowserCollection, BrowserCollectionObserver>

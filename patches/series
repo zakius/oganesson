@@ -31,6 +31,7 @@ oganesson/core/webrequest-extension-reload.patch
 oganesson/core/prefs-editor.patch
 oganesson/ui/menu-item-title-devtools.patch
 ../dubna/patches/no-saved-history.patch
+../dubna/patches/firefox-sync-remote-tabs.patch
 oganesson/settings/no-saved-history-settings.patch
 oganesson/core/firefox-sync-remote-tabs.patch
 oganesson/ui/firefox-sync-avatar.patch
