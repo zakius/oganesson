@@ -13,6 +13,7 @@ import 'chrome://resources/cr_elements/cr_expand_button/cr_expand_button.js';
 import 'chrome://resources/cr_elements/cr_input/cr_input.js';
 import 'chrome://resources/cr_elements/cr_link_row/cr_link_row.js';
 import 'chrome://resources/cr_elements/cr_toggle/cr_toggle.js';
+import 'chrome://resources/cr_elements/md_select.css.js';
 import '../settings_page/settings_section.js';
 import '../settings_shared.css.js';
 
@@ -56,6 +57,8 @@ interface FirefoxSyncStatus {
   server?: string;
   syncServer?: string;
   canSignIn?: boolean;
+  // Minutes; 0 for only with each sync.
+  receiveInterval?: number;
   types?: FirefoxSyncType[];
 }
 
@@ -68,7 +71,7 @@ export class SettingsFirefoxSyncElement extends SettingsFirefoxSyncElementBase {
 
   static get template() {
     return html`
-      <style include="cr-shared-style settings-shared">
+      <style include="cr-shared-style settings-shared md-select">
         #firefoxSync cr-button,
         #firefoxSyncServerRow cr-button {
           margin-inline-start: 8px;
@@ -123,6 +126,21 @@ export class SettingsFirefoxSyncElement extends SettingsFirefoxSyncElementBase {
             hidden="[[!showTabsLink_(firefoxSync_)]]"
             on-click="onFirefoxSyncTabs_">
         </cr-link-row>
+        <div id="firefoxSyncReceiveTabs" class="cr-row"
+            hidden="[[!firefoxSync_.signedIn]]">
+          <div class="flex cr-padded-text" aria-hidden="true">
+            [[i18n('firefoxSyncReceiveTabs')]]
+          </div>
+          <select class="md-select" aria-label="[[i18n('firefoxSyncReceiveTabs')]]"
+              on-change="onReceiveIntervalChange_">
+            <template is="dom-repeat" items="[[receiveIntervals_]]">
+              <option value="[[item]]"
+                  selected="[[isReceiveInterval_(item, firefoxSync_)]]">
+                [[receiveIntervalLabel_(item)]]
+              </option>
+            </template>
+          </select>
+        </div>
         <cr-expand-button id="firefoxSyncTypesButton" class="cr-row"
             expanded="{{typesExpanded_}}">
           <div>[[i18n('firefoxSyncManage')]]</div>
@@ -186,6 +204,12 @@ export class SettingsFirefoxSyncElement extends SettingsFirefoxSyncElementBase {
       avatar_: String,
       typesExpanded_: Boolean,
       serversExpanded_: Boolean,
+
+      // The receive intervals the service takes, in minutes.
+      receiveIntervals_: {
+        type: Array,
+        value: () => [15, 30, 60, 0],
+      },
     };
   }
 
@@ -195,6 +219,7 @@ export class SettingsFirefoxSyncElement extends SettingsFirefoxSyncElementBase {
   declare private avatar_: string;
   declare private typesExpanded_: boolean;
   declare private serversExpanded_: boolean;
+  declare private receiveIntervals_: number[];
 
   override connectedCallback() {
     super.connectedCallback();
@@ -325,6 +350,25 @@ export class SettingsFirefoxSyncElement extends SettingsFirefoxSyncElementBase {
   // The people page's import dialog; its section is hidden.
   private onImport_() {
     Router.getInstance().navigateTo(routes.IMPORT_DATA);
+  }
+
+  private isReceiveInterval_(minutes: number, status: FirefoxSyncStatus):
+      boolean {
+    return status.receiveInterval === minutes;
+  }
+
+  private receiveIntervalLabel_(minutes: number): string {
+    if (minutes === 0) {
+      return this.i18n('firefoxSyncReceiveTabsSyncOnly');
+    }
+    return minutes === 60 ?
+        this.i18n('firefoxSyncReceiveTabsHour') :
+        this.i18n('firefoxSyncReceiveTabsMinutes', minutes);
+  }
+
+  private onReceiveIntervalChange_(e: Event) {
+    chrome.send('setFirefoxSyncReceiveInterval',
+                [Number((e.target as HTMLSelectElement).value)]);
   }
 
   private onFirefoxSyncTabs_() {
