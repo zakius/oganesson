@@ -59,7 +59,9 @@ else
         | xargs strip --strip-unneeded
 
     if want tarball || want deb || want rpm; then
-        tar -C "$stage" -cf - "$tarball" | xz -T0 -9 > "$stage/$tarball.tar.xz"
+        # The x86 filter makes the binary's calls and jumps compress better:
+        # about 1% off the archive, more than -9e alone gains.
+        tar -C "$stage" -cf - "$tarball" | xz -T0 --x86 --lzma2=preset=9e > "$stage/$tarball.tar.xz"
     fi
     if want tarball; then
         cp "$stage/$tarball.tar.xz" "$packages/"
@@ -97,14 +99,17 @@ if want deb; then
     if [ -n "${DEPENDS:-}" ]; then
         depends=(--define "deb_depends $DEPENDS" --define "__ldd true")
     fi
+    # xz -9: dpkg-deb's default -6 makes the .deb about 4 MB bigger.
     spec debbuild "$stage/deb" --define "debbuild 1" --define "_arch amd64" \
-        --define "dist %{nil}" "${depends[@]}"
+        --define "dist %{nil}" --define "__dpkg_deb dpkg-deb -Zxz -z9" "${depends[@]}"
     # The tier goes in the file name; both tiers are the same package.
     mv "$stage"/deb/DEBS/*/*.deb "$packages/oganesson_${version}-${target}_amd64.deb"
 fi
 if want rpm; then
-    # Fedora's own payload compression: Debian's rpmbuild otherwise falls back to gzip -9.
-    spec rpmbuild "$stage/rpm" --define "dist %{nil}" --define "_binary_payload w19.zstdio" \
+    # xz -9, multithreaded: about 10 MB smaller than Fedora's own zstd -19, for a
+    # few seconds more unpacking at install. Debian's rpmbuild otherwise falls
+    # back to gzip -9.
+    spec rpmbuild "$stage/rpm" --define "dist %{nil}" --define "_binary_payload w9T0.xzdio" \
         --target x86_64
     mv "$stage"/rpm/RPMS/*/*.rpm "$packages/oganesson-${version}-${target}.x86_64.rpm"
 fi

@@ -53,7 +53,9 @@ mkdir "$stage/packages"
 release="1.$(TZ=UTC0 git -C "$root" log -1 --format=%cd --date=format-local:%Y%m%d%H%M%S)"
 # The version is Chromium's own, as patches/helium-utils.patch makes the build's.
 version="$(cat "$root/helium/chromium_version.txt")-$release"
-tar -C "$stage" -cf - "$name" | xz -T0 -9 > "$stage/packages/$name.tar.xz"
+# The x86 filter makes the binary's calls and jumps compress better: about 1%
+# off the archive, more than -9e alone gains.
+tar -C "$stage" -cf - "$name" | xz -T0 --x86 --lzma2=preset=9e > "$stage/packages/$name.tar.xz"
 docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp \
     -e PKG_RELEASE="$release" -e PACKAGES="/oganesson/${stage#"$root"/}/packages" -v "$root:/oganesson" oganesson-packager \
     bash /oganesson/linux/package/package.sh "/oganesson/${out#"$root"/}" x86-64-v2 tarball deb rpm
