@@ -46,3 +46,9 @@ The same page has a "Start address" card: the URL the app opens at, in place of 
 - **Storage.** Per app, in the profile pref `oganesson.web_apps.user_start_urls`, kept like the scope rules: across app updates and restarts, not synced, and kept after an uninstall, for a reinstall.
 
 Code: `src/chrome/browser/web_applications/user_app_start_url.cc` and `src/chrome/browser/resources/app_settings/start_url_item.ts`, hooked in by `patches/oganesson/core/web-apps.patch`. Verified by `./oganesson.py test web_app_links`.
+
+## "Leave this page?" dialogs
+
+Chromium shows the `beforeunload` dialog ("Leave this page?") as an app-modal dialog: while it is open, every other browser window refuses activation (`BrowserView::CanActivate()`), and on X11 and Wayland takes no input (`JavascriptAppModalEventBlockerAura`). An installed web app's window is an app of its own, so here such a dialog in another window leaves it usable, and a dialog in an app window leaves the other windows usable. Regular browser windows still block each other, as in Chromium. App-modal dialogs still show one at a time: a second app's dialog waits until the open one closes.
+
+Code: `src/chrome/browser/ui/views/frame/app_modal_dialog_scope.cc`, hooked in by `patches/oganesson/ui/app-window-modal-dialog.patch`. Verified on Wayland by `./oganesson.py test web_app_links` (`LeavePageDialogTest`).

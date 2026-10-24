@@ -1,0 +1,58 @@
+--- a/chrome/browser/ui/BUILD.gn
++++ b/chrome/browser/ui/BUILD.gn
+@@ -3548,6 +3548,8 @@
+ 
+   if (toolkit_views) {
+     sources += [
++      "views/frame/app_modal_dialog_scope.cc",
++      "views/frame/app_modal_dialog_scope.h",
+       "views/frame/base_tab_strip_region_view.cc",
+       "views/frame/base_tab_strip_region_view.h",
+       "views/frame/browser_view.cc",
+--- a/chrome/browser/ui/views/frame/browser_view.cc
++++ b/chrome/browser/ui/views/frame/browser_view.cc
+@@ -166,6 +166,7 @@
+ #include "chrome/browser/ui/views/find_bar_host.h"
+ #include "chrome/browser/ui/views/find_bar_owner.h"
+ #include "chrome/browser/ui/views/frame/app_menu_button.h"
++#include "chrome/browser/ui/views/frame/app_modal_dialog_scope.h"
+ #include "chrome/browser/ui/views/frame/browser_frame_view.h"
+ #include "chrome/browser/ui/views/frame/browser_native_widget.h"
+ #include "chrome/browser/ui/views/frame/browser_widget.h"
+@@ -4336,6 +4337,12 @@
+       !queue->active_dialog()->view()->IsShowing()) {
+     return true;
+   }
++  if (AppModalDialogSparesWindow(
++          GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(
++              queue->active_dialog()->web_contents()),
++          browser_.get())) {
++    return true;
++  }
+ 
+   // If another browser is app modal, flash and activate the modal browser. This
+   // has to be done in a post task, otherwise if the user clicked on a window
+--- a/chrome/browser/ui/views/javascript_app_modal_event_blocker_aura.cc
++++ b/chrome/browser/ui/views/javascript_app_modal_event_blocker_aura.cc
+@@ -2,6 +2,7 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
++#include "chrome/browser/ui/views/frame/app_modal_dialog_scope.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
+ #include "chrome/browser/ui/views/javascript_app_modal_event_blocker.h"
+ #include "ui/aura/env.h"
+@@ -59,7 +60,12 @@
+   }
+   BrowserView* browser_view =
+       BrowserView::GetBrowserViewForNativeWindow(window);
+-  return browser_view && browser_view != browser_view_with_modal_dialog_;
++  return browser_view && browser_view != browser_view_with_modal_dialog_ &&
++         !AppModalDialogSparesWindow(
++             browser_view_with_modal_dialog_
++                 ? browser_view_with_modal_dialog_->browser()
++                 : nullptr,
++             browser_view->browser());
+ }
+ 
+ void JavascriptAppModalEventBlockerAura::OnKeyEvent(ui::KeyEvent* event) {

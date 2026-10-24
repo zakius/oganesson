@@ -54,3 +54,4 @@ oganesson/ui/status-bubble-full-url.patch
 oganesson/core/reading-mode.patch
 oganesson/ui/send-to-device.patch
 oganesson/ui/close-synced-tab.patch
+oganesson/ui/app-window-modal-dialog.patch
