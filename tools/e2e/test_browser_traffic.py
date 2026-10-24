@@ -15,7 +15,7 @@ import time
 import unittest
 from pathlib import Path
 
-from harness import BrowserTest, Server, wait_for
+from harness import BrowserTest, Server, assert_never, wait_for
 
 GOOGLE_HOST = 'update.googleapis.com'
 GOOGLE_PATH = '/service/update2/json'
@@ -139,9 +139,8 @@ class ProxyTest(TrafficTest):
     def test_proxied_rows_without_a_server_stay_idle(self):
         self.restart_with({row: {'route': 1} for row in ROWS})
         # fast-update checks within seconds; give it well past that.
-        time.sleep(30)
-        self.assertEqual(self.google.requests, [])
-        self.assertEqual(self.own.requests, [])
+        assert_never(lambda: self.google.requests or self.own.requests, 30, interval=0.5,
+                     what='an update check')
         _, state = self.traffic_state()
         self.assertTrue(all(row['idle'] for row in state['rows'] if row['hasProxy']))
         self.assertTrue(state['needsServer'])
