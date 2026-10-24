@@ -15,11 +15,14 @@
 #include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
+#include "base/scoped_observation.h"
 #include "base/path_service.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/firefox_sync/firefox_sync_platform.h"
+#include "chrome/browser/firefox_sync/firefox_sync_service.h"
+#include "chrome/browser/firefox_sync/firefox_sync_service_factory.h"
 #include "chrome/browser/firefox_sync/platform/remote_tabs.h"
 #include "chrome/browser/firefox_sync/platform/tabs_adapter.h"
 #include "chrome/browser/notifications/notification_display_service.h"
@@ -29,7 +32,9 @@
 #include "chrome/browser/profiles/profile_attributes_entry.h"
 #include "chrome/browser/profiles/profile_attributes_storage.h"
 #include "chrome/browser/profiles/profile_manager.h"
+#include "chrome/browser/ui/browser_window/public/browser_collection_observer.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
 #include "chrome/browser/ui/navigator/browser_navigator.h"
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
@@ -68,10 +73,24 @@ void ActivateTab(base::WeakPtr<content::WebContents> contents) {
   }
 }
 
-class DesktopPlatform : public Platform {
+class DesktopPlatform : public Platform, public BrowserCollectionObserver {
  public:
   explicit DesktopPlatform(Profile* profile)
-      : profile_(profile), remote_tabs_(profile) {}
+      : profile_(profile), remote_tabs_(profile) {
+    browsers_.Observe(GlobalBrowserCollection::GetInstance());
+  }
+
+  // A window of the profile came to the front: tabs other devices sent show
+  // up then, not only at the next sync or receive interval.
+  void OnBrowserActivated(BrowserWindowInterface* browser) override {
+    if (browser->GetProfile() != profile_) {
+      return;
+    }
+    if (FirefoxSyncService* service =
+            FirefoxSyncServiceFactory::GetForProfile(profile_)) {
+      service->PollCommands();
+    }
+  }
 
   std::unique_ptr<SyncAdapter> CreateTabsAdapter(
       base::RepeatingClosure local_changed) override {
@@ -194,6 +213,8 @@ class DesktopPlatform : public Platform {
   RemoteTabs remote_tabs_;
   // For each received tab's notification id.
   int notifications_ = 0;
+  base::ScopedObservation<GlobalBrowserCollection, BrowserCollectionObserver>
+      browsers_{this};
   base::WeakPtrFactory<DesktopPlatform> weak_factory_{this};
 };
 

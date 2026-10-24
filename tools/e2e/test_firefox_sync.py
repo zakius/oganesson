@@ -460,6 +460,67 @@ class FirefoxSyncTest(BrowserTest):
         self.assertEqual(command, fake_firefox_sync.CLOSE_TABS)
         self.assertEqual(payload['urls'], ['https://remote.example/page'])
 
+    def test_5n_receive_interval_setting(self):
+        page = self.settings('/people', 'settings-people-page')
+        select = (f"({FIND})('settings-firefox-sync').shadowRoot"
+                  ".querySelector('#firefoxSyncReceiveTabs select')")
+        wait_for(lambda: page.eval(f'!!{select} && {select}.options.length === 4'),
+                 what='the receive interval dropdown')
+        self.assertEqual(self.status(page)['receiveInterval'], 15)
+        self.assertEqual(page.eval(f'{select}.value'), '15')
+        try:
+            page.eval(f"{select}.value = '30'; "
+                      f"{select}.dispatchEvent(new Event('change'))")
+            wait_for(lambda: self.status(page)['receiveInterval'] == 30,
+                     what='the new interval')
+        finally:
+            page.eval("chrome.send('setFirefoxSyncReceiveInterval', [15])")
+            wait_for(lambda: self.status(page)['receiveInterval'] == 15,
+                     what='the default interval back')
+
+    def test_5o_window_to_front_fetches_sent_tabs(self):
+        # A sent tab, and no sync: with every type off, nothing syncs, and a
+        # window coming to the front fetches it, a minute or more after the
+        # last fetch.
+        page = self.settings('/people', 'settings-people-page')
+        types = [t['name'] for t in self.status(page)['types'] if t['enabled']]
+
+        def set_types(enabled):
+            for name in types:
+                wait_for(lambda: not self.status(page).get('syncing'), timeout=60,
+                         what='no sync under way')
+                page.eval(f"chrome.send('setFirefoxSyncType', ['{name}', {str(enabled).lower()}])")
+                wait_for(lambda: next(t['enabled'] for t in self.status(page)['types']
+                                      if t['name'] == name) == enabled, what=f'{name} switched')
+        server = Server({'/focus': (200, {'Content-Type': 'text/html'},
+                                    b'<title>Focus</title>')})
+        set_types(False)
+        try:
+            url = server.url('/focus')
+            with self.fake.lock:
+                self.fake.send_to_browser(fake_firefox_sync.SEND_TAB, {
+                    'entries': [{'title': 'Focus', 'url': url}],
+                    'flowID': 'flow', 'streamID': 'stream'})
+            before = len(self.fake.log)
+            first = self.browser.new_tab('about:blank')
+            second = self.browser.browser_call('Target.createTarget', url='about:blank',
+                                               newWindow=True)['targetId']
+            windows = [first.id, second]
+
+            def arrived():
+                windows.reverse()
+                self.browser.browser_call('Target.activateTarget', targetId=windows[0])
+                return any(t['url'] == url for t in self.browser.targets())
+            wait_for(arrived, timeout=150, interval=1,
+                     what='the sent tab on a window coming to the front')
+            self.assertFalse([r for r in self.fake.log[before:] if '/storage/' in r])
+            self.browser.close_target(self.browser.page(url))
+            self.browser._get(f'/json/close/{second}')
+            self.browser.close_target(first)
+        finally:
+            server.stop()
+            set_types(True)
+
     def test_6_sign_out_during_sync(self):
         page = self.settings('/people', 'settings-people-page')
         # Held at its first request, so syncs run one at a time and earlier

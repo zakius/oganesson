@@ -40,6 +40,7 @@ class FirefoxSyncHandler : public SettingsPageUIHandler {
   void HandleSignOut(const base::ListValue& args);
   void HandleSetServer(const base::ListValue& args);
   void HandleSetType(const base::ListValue& args);
+  void HandleSetReceiveInterval(const base::ListValue& args);
   void HandleSyncNow(const base::ListValue& args);
   void OnStatusChanged();
   base::DictValue Status() const;

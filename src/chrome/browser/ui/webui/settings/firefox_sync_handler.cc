@@ -55,6 +55,11 @@ void FirefoxSyncHandler::AddStrings(content::WebUIDataSource* html_source) {
       {"firefoxSyncServers", IDS_FIREFOX_SYNC_SERVERS},
       {"firefoxSyncNoServer", IDS_FIREFOX_SYNC_NO_SERVER_SET},
       {"firefoxSyncOtherDevicesTabs", IDS_FIREFOX_SYNC_OTHER_DEVICES_TABS},
+      {"firefoxSyncReceiveTabs", IDS_FIREFOX_SYNC_RECEIVE_TABS},
+      {"firefoxSyncReceiveTabsMinutes", IDS_FIREFOX_SYNC_RECEIVE_TABS_MINUTES},
+      {"firefoxSyncReceiveTabsHour", IDS_FIREFOX_SYNC_RECEIVE_TABS_HOUR},
+      {"firefoxSyncReceiveTabsSyncOnly",
+       IDS_FIREFOX_SYNC_RECEIVE_TABS_SYNC_ONLY},
   };
   html_source->AddLocalizedStrings(kStrings);
 }
@@ -78,6 +83,10 @@ void FirefoxSyncHandler::RegisterMessages() {
   web_ui()->RegisterMessageCallback(
       "setFirefoxSyncType",
       base::BindRepeating(&FirefoxSyncHandler::HandleSetType,
+                          base::Unretained(this)));
+  web_ui()->RegisterMessageCallback(
+      "setFirefoxSyncReceiveInterval",
+      base::BindRepeating(&FirefoxSyncHandler::HandleSetReceiveInterval,
                           base::Unretained(this)));
   web_ui()->RegisterMessageCallback(
       "firefoxSyncNow", base::BindRepeating(&FirefoxSyncHandler::HandleSyncNow,
@@ -139,6 +148,14 @@ void FirefoxSyncHandler::HandleSetType(const base::ListValue& args) {
   if (service && args.size() == 2 && args[0].is_string() &&
       args[1].is_bool()) {
     service->SetTypeEnabled(args[0].GetString(), args[1].GetBool());
+  }
+}
+
+// [minutes]
+void FirefoxSyncHandler::HandleSetReceiveInterval(const base::ListValue& args) {
+  auto* service = Service(profile_);
+  if (service && args.size() == 1 && args[0].is_int()) {
+    service->SetReceiveInterval(args[0].GetInt());
   }
 }
 
