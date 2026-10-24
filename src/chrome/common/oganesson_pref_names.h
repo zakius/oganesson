@@ -43,6 +43,18 @@ inline constexpr char kTabSelectOwnerOnClose[] =
 inline constexpr char kTabSelectMRUOnClose[] =
     "oganesson.tabs.select_mru_on_close";
 
+// Firefox Sync keeps a connection to Mozilla's push server, so tabs other
+// devices send arrive at once: on by default, as in Firefox.
+inline constexpr char kFirefoxSyncInstantTabs[] =
+    "oganesson.firefox_sync.instant_tabs";
+// That connection's identity on the push server (its UAID), its channel and
+// the channel's endpoint, kept so the endpoint survives restarts.
+inline constexpr char kFirefoxSyncPushUaid[] = "oganesson.firefox_sync.push_uaid";
+inline constexpr char kFirefoxSyncPushChannel[] =
+    "oganesson.firefox_sync.push_channel";
+inline constexpr char kFirefoxSyncPushEndpoint[] =
+    "oganesson.firefox_sync.push_endpoint";
+
 }  // namespace prefs
 
 #endif  // CHROME_COMMON_OGANESSON_PREF_NAMES_H_

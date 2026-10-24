@@ -20,6 +20,10 @@ import hashlib
 import hmac
 import json
 import os
+import socket
+import socketserver
+import struct
+import uuid
 import sys
 import threading
 import time
@@ -163,6 +167,8 @@ class State:
                                for name, (key, auth) in self.remote_keys.items()})
         self.invoked = []
         self.commands = []
+        # The fake push server, which serve() starts.
+        self.push = None
         # hold(): requests under a path prefix wait until let_go().
         self.held_prefix = None
         self.held = threading.Event()
@@ -193,9 +199,11 @@ class State:
         kid = unb64url(self.kid.split('-', 1)[1]).hex()
         return json.dumps(dict(payload, kid=kid))
 
-    def send_to_browser(self, command, payload):
+    def send_to_browser(self, command, payload, push=True):
         """Queues a command from the other Firefox for the browser, encrypted
-        with the keys the browser registered for it."""
+        with the keys the browser registered for it. With `push`, as Mozilla
+        accounts do, also pushes a notice to the browser's push endpoint, if it
+        registered one."""
         keys = json.loads(decrypt(self.root_bundle(),
                                   self.device['availableCommands'][command]))
         encrypted = ece_encrypt(unb64url(keys['publicKey']), unb64url(keys['authSecret']),
@@ -203,6 +211,9 @@ class State:
         self.commands.append({'index': len(self.commands) + 1, 'data': {
             'command': command, 'payload': {'encrypted': b64url(encrypted)},
             'sender': self.remote['id']}})
+        endpoint = self.device.get('pushCallback')
+        if push and endpoint and self.push:
+            self.push.notify(endpoint.rsplit('/', 1)[-1])
 
     def received(self):
         """What the browser sent the other Firefox: (command, payload) pairs."""
@@ -356,8 +367,9 @@ class Handler(BaseHTTPRequestHandler):
             device = self.state.device
             if method == 'POST' and path == '/auth/v1/account/device':
                 req = self.body()
-                device.update({k: req[k] for k in ('name', 'type', 'availableCommands')
-                               if k in req})
+                device.update({k: req[k] for k in ('name', 'type', 'availableCommands',
+                                                   'pushCallback', 'pushPublicKey',
+                                                   'pushAuthKey') if k in req})
             return self.reply(200, [device, self.state.remote]
                               if path.endswith('devices') else device)
         if path == '/token/1.0/sync/1.5':
@@ -445,9 +457,120 @@ class Handler(BaseHTTPRequestHandler):
         return self.reply(404, {})
 
 
+class PushServer(socketserver.ThreadingTCPServer):
+    """Mozilla's push server, for the browser's push connection: autopush's
+    WebSocket protocol, hello, register and ping, over plain ws://.
+    notify(channel) pushes a notice. Notices are sent once, not stored."""
+    daemon_threads = True
+    allow_reuse_address = True
+
+    def __init__(self):
+        super().__init__(('127.0.0.1', 0), PushHandler)
+        self.url = f'ws://127.0.0.1:{self.server_address[1]}/'
+        self.connections = {}  # channelID -> PushHandler
+        self.acks = []
+        self.lock = threading.Lock()
+        self.version = 0
+
+    def notify(self, channel):
+        with self.lock:
+            handler = self.connections.get(channel)
+            self.version += 1
+            version = str(self.version)
+        if handler:
+            handler.send({'messageType': 'notification', 'channelID': channel,
+                          'version': version, 'ttl': 60, 'data': '', 'headers': {}})
+
+
+class PushHandler(socketserver.BaseRequestHandler):
+    def setup(self):
+        self.send_lock = threading.Lock()
+
+    def read(self, n):
+        data = b''
+        while len(data) < n:
+            chunk = self.request.recv(n - len(data))
+            if not chunk:
+                raise ConnectionError('closed')
+            data += chunk
+        return data
+
+    def frame(self):
+        """The next frame from the browser, which masks every frame."""
+        b0, b1 = self.read(2)
+        length = b1 & 0x7f
+        if length == 126:
+            length = struct.unpack('>H', self.read(2))[0]
+        elif length == 127:
+            length = struct.unpack('>Q', self.read(8))[0]
+        mask = self.read(4)
+        data = bytes(b ^ mask[i % 4] for i, b in enumerate(self.read(length)))
+        return b0 & 0x0f, data
+
+    def send(self, message):
+        data = (message if isinstance(message, str) else json.dumps(message)).encode()
+        header = bytes([0x81])
+        header += bytes([len(data)]) if len(data) < 126 else \
+            bytes([126]) + struct.pack('>H', len(data))
+        with self.send_lock:
+            self.request.sendall(header + data)
+
+    def handle(self):
+        request = b''
+        while b'\r\n\r\n' not in request:
+            chunk = self.request.recv(4096)
+            if not chunk:
+                return
+            request += chunk
+        headers = dict(line.split(': ', 1) for line in
+                       request.decode().split('\r\n')[1:] if ': ' in line)
+        key = next(v for k, v in headers.items() if k.lower() == 'sec-websocket-key')
+        accept = base64.b64encode(hashlib.sha1(
+            (key + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11').encode()).digest()).decode()
+        self.request.sendall(('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\n'
+                              f'Connection: Upgrade\r\nSec-WebSocket-Accept: {accept}\r\n\r\n')
+                             .encode())
+        try:
+            while True:
+                opcode, data = self.frame()
+                if opcode == 8:  # close
+                    return
+                if opcode != 1:
+                    continue
+                message = json.loads(data)
+                kind = message.get('messageType')
+                if not kind:  # a ping
+                    self.send('{}')
+                elif kind == 'hello':
+                    self.send({'messageType': 'hello', 'status': 200, 'use_webpush': True,
+                               'uaid': message.get('uaid') or uuid.uuid4().hex,
+                               'broadcasts': {}})
+                    for channel in message.get('channelIDs', []):
+                        with self.server.lock:
+                            self.server.connections[channel] = self
+                elif kind == 'register':
+                    channel = message['channelID']
+                    with self.server.lock:
+                        self.server.connections[channel] = self
+                    self.send({'messageType': 'register', 'status': 200, 'channelID': channel,
+                               'pushEndpoint': f'http://127.0.0.1/wpush/v1/{channel}'})
+                elif kind == 'ack':
+                    with self.server.lock:
+                        self.server.acks.extend(message.get('updates', []))
+        except (ConnectionError, OSError, ValueError):
+            return
+        finally:
+            with self.server.lock:
+                for channel in [c for c, h in self.server.connections.items() if h is self]:
+                    del self.server.connections[channel]
+
+
 def serve(port=0):
-    """Starts the fake in a thread; returns (server, base URL, State)."""
+    """Starts the fake in a thread; returns (server, base URL, State). The
+    fake push server's URL is State.push.url."""
     state = State()
+    state.push = PushServer()
+    threading.Thread(target=state.push.serve_forever, daemon=True).start()
     # A class per server, so that several fakes can run at once.
     handler = type('Handler', (Handler,), {})
     server = ThreadingHTTPServer(('127.0.0.1', port), handler)

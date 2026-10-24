@@ -1098,5 +1098,15 @@
     "name": "IDS_OGANESSON_CLOSE_SYNCED_TAB",
     "source": "Close on that device",
     "message": "Zamknij na tamtym urządzeniu"
+  },
+  {
+    "name": "IDS_OGANESSON_INSTANT_TABS",
+    "source": "Receive tabs instantly",
+    "message": "Odbieraj karty od razu"
+  },
+  {
+    "name": "IDS_OGANESSON_INSTANT_TABS_DESCRIPTION",
+    "source": "Keeps a connection to Mozilla's push server, as Firefox does. Without it, tabs arrive when the browser checks for them.",
+    "message": "Utrzymuje połączenie z serwerem powiadomień Mozilli, jak Firefox. Bez tego karty przychodzą, gdy przeglądarka je sprawdza."
   }
 ]

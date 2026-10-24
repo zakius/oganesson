@@ -59,6 +59,8 @@ interface FirefoxSyncStatus {
   canSignIn?: boolean;
   // Minutes; 0 for only with each sync.
   receiveInterval?: number;
+  // The connection to Mozilla's push server is on.
+  instantTabs?: boolean;
   types?: FirefoxSyncType[];
 }
 
@@ -126,6 +128,17 @@ export class SettingsFirefoxSyncElement extends SettingsFirefoxSyncElementBase {
             hidden="[[!showTabsLink_(firefoxSync_)]]"
             on-click="onFirefoxSyncTabs_">
         </cr-link-row>
+        <div id="firefoxSyncInstantTabs" class="cr-row"
+            hidden="[[!firefoxSync_.signedIn]]">
+          <div class="flex cr-padded-text" aria-hidden="true">
+            <div>[[i18n('firefoxSyncInstantTabs')]]</div>
+            <div class="secondary">[[i18n('firefoxSyncInstantTabsDescription')]]</div>
+          </div>
+          <cr-toggle checked="[[firefoxSync_.instantTabs]]"
+              aria-label="[[i18n('firefoxSyncInstantTabs')]]"
+              on-change="onInstantTabsChange_">
+          </cr-toggle>
+        </div>
         <div id="firefoxSyncReceiveTabs" class="cr-row"
             hidden="[[!firefoxSync_.signedIn]]">
           <div class="flex cr-padded-text" aria-hidden="true">
@@ -364,6 +377,11 @@ export class SettingsFirefoxSyncElement extends SettingsFirefoxSyncElementBase {
     return minutes === 60 ?
         this.i18n('firefoxSyncReceiveTabsHour') :
         this.i18n('firefoxSyncReceiveTabsMinutes', minutes);
+  }
+
+  private onInstantTabsChange_(e: Event) {
+    chrome.send('setFirefoxSyncInstantTabs',
+                [(e.target as CrToggleElement).checked]);
   }
 
   private onReceiveIntervalChange_(e: Event) {

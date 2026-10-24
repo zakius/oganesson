@@ -50,7 +50,8 @@ class FirefoxSyncTest(BrowserTest):
         if not fake_firefox_sync:
             raise unittest.SkipTest(f'the fake sync server needs {MISSING}')
         cls.server, base, cls.fake = fake_firefox_sync.serve()
-        cls.browser_env = {'OGANESSON_FXA_SERVER': base}
+        cls.browser_env = {'OGANESSON_FXA_SERVER': base,
+                           'OGANESSON_PUSH_SERVER': cls.fake.push.url}
         super().setUpClass()
 
     @classmethod
@@ -478,6 +479,16 @@ class FirefoxSyncTest(BrowserTest):
             wait_for(lambda: self.status(page)['receiveInterval'] == 15,
                      what='the default interval back')
 
+    def set_types(self, page, types, enabled):
+        """Switches `types` on or off, one at a time, between syncs. With every
+        type off, nothing syncs."""
+        for name in types:
+            wait_for(lambda: not self.status(page).get('syncing'), timeout=60,
+                     what='no sync under way')
+            page.eval(f"chrome.send('setFirefoxSyncType', ['{name}', {str(enabled).lower()}])")
+            wait_for(lambda: next(t['enabled'] for t in self.status(page)['types']
+                                  if t['name'] == name) == enabled, what=f'{name} switched')
+
     def test_5o_window_to_front_fetches_sent_tabs(self):
         # A sent tab, and no sync: with every type off, nothing syncs, and a
         # window coming to the front fetches it, a minute or more after the
@@ -486,12 +497,7 @@ class FirefoxSyncTest(BrowserTest):
         types = [t['name'] for t in self.status(page)['types'] if t['enabled']]
 
         def set_types(enabled):
-            for name in types:
-                wait_for(lambda: not self.status(page).get('syncing'), timeout=60,
-                         what='no sync under way')
-                page.eval(f"chrome.send('setFirefoxSyncType', ['{name}', {str(enabled).lower()}])")
-                wait_for(lambda: next(t['enabled'] for t in self.status(page)['types']
-                                      if t['name'] == name) == enabled, what=f'{name} switched')
+            self.set_types(page, types, enabled)
         server = Server({'/focus': (200, {'Content-Type': 'text/html'},
                                     b'<title>Focus</title>')})
         set_types(False)
@@ -500,7 +506,7 @@ class FirefoxSyncTest(BrowserTest):
             with self.fake.lock:
                 self.fake.send_to_browser(fake_firefox_sync.SEND_TAB, {
                     'entries': [{'title': 'Focus', 'url': url}],
-                    'flowID': 'flow', 'streamID': 'stream'})
+                    'flowID': 'flow', 'streamID': 'stream'}, push=False)
             before = len(self.fake.log)
             first = self.browser.new_tab('about:blank')
             second = self.browser.browser_call('Target.createTarget', url='about:blank',
@@ -520,6 +526,33 @@ class FirefoxSyncTest(BrowserTest):
         finally:
             server.stop()
             set_types(True)
+
+    def test_5p_push_brings_sent_tab(self):
+        # The push connection registered its endpoint with the account; a
+        # notice there fetches a sent tab at once, with no sync and no window
+        # coming to the front.
+        wait_for(lambda: self.fake.device.get('pushCallback'), timeout=30,
+                 what='the push endpoint on the account')
+        page = self.settings('/people', 'settings-people-page')
+        types = [t['name'] for t in self.status(page)['types'] if t['enabled']]
+        server = Server({'/pushed': (200, {'Content-Type': 'text/html'},
+                                     b'<title>Pushed</title>')})
+        # With every type off, nothing syncs: only the push can bring it.
+        self.set_types(page, types, False)
+        try:
+            url = server.url('/pushed')
+            before = len(self.fake.log)
+            with self.fake.lock:
+                self.fake.send_to_browser(fake_firefox_sync.SEND_TAB, {
+                    'entries': [{'title': 'Pushed', 'url': url}],
+                    'flowID': 'flow', 'streamID': 'stream'})
+            tab = self.browser.page(url, timeout=15)
+            self.assertFalse([r for r in self.fake.log[before:] if '/storage/' in r])
+            wait_for(lambda: self.fake.push.acks, what='the notice acknowledged')
+            self.browser.close_target(tab)
+        finally:
+            server.stop()
+            self.set_types(page, types, True)
 
     def test_6_sign_out_during_sync(self):
         page = self.settings('/people', 'settings-people-page')
@@ -587,7 +620,8 @@ class FirefoxSyncFailuresTest(BrowserTest):
         if not fake_firefox_sync:
             raise unittest.SkipTest(f'the fake sync server needs {MISSING}')
         cls.server, base, cls.fake = fake_firefox_sync.serve()
-        cls.browser_env = {'OGANESSON_FXA_SERVER': base}
+        cls.browser_env = {'OGANESSON_FXA_SERVER': base,
+                           'OGANESSON_PUSH_SERVER': cls.fake.push.url}
         super().setUpClass()
 
     @classmethod
@@ -690,6 +724,8 @@ class FirefoxSyncServerTest(BrowserTest):
         if not fake_firefox_sync:
             raise unittest.SkipTest(f'the fake sync server needs {MISSING}')
         cls.server, cls.base, cls.fake = fake_firefox_sync.serve()
+        # Not Mozilla's push server, once signed in.
+        cls.browser_env = {'OGANESSON_PUSH_SERVER': cls.fake.push.url}
         super().setUpClass()
 
     @classmethod
