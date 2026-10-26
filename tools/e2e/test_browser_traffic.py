@@ -96,6 +96,16 @@ class DirectTest(TrafficTest):
         wait_for(lambda: self.traffic_state()[1]['certificatesUpdated'] > time.time() * 1000 - 120000,
                  what='the certificate data recorded as current')
 
+    def test_update_now_while_automatic(self):
+        wait_for(lambda: any(CRLSET.encode() in body for body in self.google.posts),
+                 timeout=120, what="the certificate components' first check")
+        self.google.posts.clear()
+        page, state = self.traffic_state()
+        self.assertTrue(state['rows'][0]['automatic'])
+        page.eval("chrome.send('updateBrowserTrafficNow', ['certificates'])")
+        wait_for(lambda: any(CRLSET.encode() in body for body in self.google.posts),
+                 timeout=30, what="Update now's check at Google's update server")
+
     def test_presets_set_the_rows(self):
         page, state = self.traffic_state()
         names = [row['name'] for row in state['rows']]

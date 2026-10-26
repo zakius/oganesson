@@ -39,8 +39,9 @@ void StopMonitor();
 // check. Records the answer when `server` is the one in use.
 void CheckServer(const GURL& server, base::OnceCallback<void(bool)> callback);
 
-// Updates the certificate data now, whatever its row's Download setting.
-void UpdateCertificatesNow();
+// Updates the components of `row` (ComponentsOf) now, whatever its Download
+// setting.
+void UpdateComponentsNow(Row row);
 
 }  // namespace browser_traffic
 

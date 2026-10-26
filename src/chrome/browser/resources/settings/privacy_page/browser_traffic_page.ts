@@ -23,6 +23,8 @@ import {sendWithPromise} from 'chrome://resources/js/cr.js';
 import {html, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {loadTimeData} from '../i18n_setup.js';
+import {routes} from '../route.js';
+import {Router} from '../router.js';
 
 /** From BrowserTrafficHandler (oganesson). */
 interface BrowserTrafficRow {
@@ -61,9 +63,6 @@ const SOURCES: Record<string, string> = {
   dictionaries: 'Google',
   browser_updates: 'dubna.zakius.xyz',
 };
-
-// Rows with an Update now button while they are On request.
-const UPDATE_NOW = ['certificates', 'bangs'];
 
 function capitalized(name: string): string {
   return name.charAt(0).toUpperCase() + name.slice(1);
@@ -285,6 +284,10 @@ export class BrowserTrafficElement extends BrowserTrafficElementBase {
             <div class="secondary">
               [[i18n('browserTrafficDownload')]] · [[i18n('browserTrafficRoute')]]
             </div>
+            <cr-button id="updateAll" hidden="[[setup]]"
+                on-click="onUpdateAll_">
+              [[i18n('browserTrafficUpdateAll')]]
+            </cr-button>
           </div>
           <template is="dom-repeat" items="[[state_.rows]]" as="row">
             <div class="cr-row" id$="row_[[row.name]]">
@@ -298,7 +301,7 @@ export class BrowserTrafficElement extends BrowserTrafficElementBase {
                 </div>
               </div>
               <div class="row-controls">
-                <cr-button hidden="[[!showUpdateNow_(row)]]"
+                <cr-button hidden="[[!showUpdateNow_(row, setup)]]"
                     on-click="onUpdateNow_">
                   [[i18n('browserTrafficUpdateNow')]]
                 </cr-button>
@@ -514,8 +517,10 @@ export class BrowserTrafficElement extends BrowserTrafficElementBase {
     return state.server ? this.i18n('browserTrafficNoDirectSource') : '';
   }
 
-  private showUpdateNow_(row: BrowserTrafficRow): boolean {
-    return !row.automatic && UPDATE_NOW.includes(row.name);
+  // Every row, Automatic or On request, but not in setup, and not while it
+  // has nowhere to download from. uBO's lists have uBO's own Update now.
+  private showUpdateNow_(row: BrowserTrafficRow, setup: boolean): boolean {
+    return !setup && !row.idle && row.name !== 'content_blocker';
   }
 
   private downloadValue_(row: BrowserTrafficRow): string {
@@ -652,7 +657,22 @@ export class BrowserTrafficElement extends BrowserTrafficElementBase {
   }
 
   private onUpdateNow_(e: RowEvent) {
-    chrome.send('updateBrowserTrafficNow', [e.model.row.name]);
+    const name = e.model.row.name;
+    if (name === 'browser_updates') {
+      // About checks for browser updates when it opens.
+      Router.getInstance().navigateTo(routes.ABOUT);
+      return;
+    }
+    chrome.send('updateBrowserTrafficNow', [name]);
+  }
+
+  // Browser updates are left out: their check is on About.
+  private onUpdateAll_() {
+    for (const row of this.state_.rows) {
+      if (this.showUpdateNow_(row, false) && row.name !== 'browser_updates') {
+        chrome.send('updateBrowserTrafficNow', [row.name]);
+      }
+    }
   }
 }
 

@@ -252,12 +252,12 @@ void CheckServer(const GURL& server, base::OnceCallback<void(bool)> callback) {
                      std::move(callback)));
 }
 
-void UpdateCertificatesNow() {
+void UpdateComponentsNow(Row row) {
   auto* updater = g_browser_process->component_updater();
   if (!updater) {
     return;
   }
-  for (std::string_view id : ComponentsOf(Row::kCertificates)) {
+  for (std::string_view id : ComponentsOf(row)) {
     updater->GetOnDemandUpdater().OnDemandUpdate(
         std::string(id), component_updater::OnDemandUpdater::Priority::FOREGROUND,
         base::DoNothing());

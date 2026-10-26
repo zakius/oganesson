@@ -6,18 +6,24 @@
 
 #include <optional>
 #include <string>
+#include <utility>
 
 #include "base/functional/bind.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/browser_traffic/browser_traffic_monitor.h"
+#include "chrome/browser/extensions/updater/extension_updater.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/search_engines/template_url_service_factory.h"
+#include "chrome/browser/spellchecker/spellcheck_factory.h"
+#include "chrome/browser/spellchecker/spellcheck_hunspell_dictionary.h"
+#include "chrome/browser/spellchecker/spellcheck_service.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/browser_traffic/browser_traffic.h"
 #include "components/prefs/pref_service.h"
 #include "components/search_engines/template_url_service.h"
 #include "content/public/browser/web_ui.h"
 #include "content/public/browser/web_ui_data_source.h"
+#include "extensions/browser/updater/extension_downloader_types.h"
 #include "ui/base/webui/web_ui_util.h"
 #include "url/gurl.h"
 
@@ -147,6 +153,7 @@ void BrowserTrafficHandler::AddStrings(content::WebUIDataSource* html_source) {
        IDS_BROWSER_TRAFFIC_BROWSER_UPDATES_MANAGED},
       {"browserTrafficPackageManager", IDS_BROWSER_TRAFFIC_PACKAGE_MANAGER},
       {"browserTrafficUpdateNow", IDS_BROWSER_TRAFFIC_UPDATE_NOW},
+      {"browserTrafficUpdateAll", IDS_BROWSER_TRAFFIC_UPDATE_ALL},
       {"browserTrafficUpdated", IDS_BROWSER_TRAFFIC_UPDATED},
       {"browserTrafficRevocationWarningTitle",
        IDS_BROWSER_TRAFFIC_REVOCATION_WARNING_TITLE},
@@ -325,16 +332,46 @@ void BrowserTrafficHandler::HandleSetHealthCheck(const base::ListValue& args) {
                         : browser_traffic::HealthCheck::kOnRequest);
 }
 
+// Update now, on any row and whatever its Download setting. uBO's lists have
+// none: uBO has its own. Browser updates have none here: the page opens
+// About, which checks.
 void BrowserTrafficHandler::HandleUpdateNow(const base::ListValue& args) {
   const std::optional<browser_traffic::Row> row =
       browser_traffic::RowFromName(args[0].GetString());
-  if (row == browser_traffic::Row::kCertificates) {
-    browser_traffic::UpdateCertificatesNow();
-  } else if (row == browser_traffic::Row::kBangs) {
-    if (TemplateURLService* service =
-            TemplateURLServiceFactory::GetForProfile(profile_)) {
-      service->RefreshBangs();
+  if (!row) {
+    return;
+  }
+  switch (*row) {
+    case browser_traffic::Row::kCertificates:
+    case browser_traffic::Row::kDrm:
+      browser_traffic::UpdateComponentsNow(*row);
+      break;
+    case browser_traffic::Row::kExtensions: {
+      extensions::ExtensionUpdater::CheckParams params;
+      params.fetch_priority = extensions::DownloadFetchPriority::kForeground;
+      params.install_immediately = true;
+      extensions::ExtensionUpdater::Get(profile_)->CheckNow(std::move(params));
+      break;
     }
+    case browser_traffic::Row::kDictionaries:
+      if (SpellcheckService* service =
+              SpellcheckServiceFactory::GetForContext(profile_)) {
+        for (const auto& dictionary : service->GetHunspellDictionaries()) {
+          if (!dictionary->IsReady() && !dictionary->IsDownloadInProgress()) {
+            dictionary->RetryDownloadDictionary(profile_);
+          }
+        }
+      }
+      break;
+    case browser_traffic::Row::kBangs:
+      if (TemplateURLService* service =
+              TemplateURLServiceFactory::GetForProfile(profile_)) {
+        service->RefreshBangs();
+      }
+      break;
+    case browser_traffic::Row::kContentBlocker:
+    case browser_traffic::Row::kBrowserUpdates:
+      break;
   }
 }
 
