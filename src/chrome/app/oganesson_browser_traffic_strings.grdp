@@ -187,6 +187,9 @@
   <message name="IDS_BROWSER_TRAFFIC_UPDATE_NOW" desc="Settings, Browser traffic: button that downloads a row's data now.">
     Update now
   </message>
+  <message name="IDS_BROWSER_TRAFFIC_UPDATE_ALL" desc="Settings, Browser traffic: button above the rows that downloads every row's data now.">
+    Update all now
+  </message>
   <message name="IDS_BROWSER_TRAFFIC_UPDATED" desc="Settings, Browser traffic: when the certificate data was last found current. The placeholder is a relative time, as '3 hours ago'.">
     Updated <ph name="WHEN">$1<ex>3 hours ago</ex></ph>
   </message>
@@ -196,7 +199,7 @@
   <message name="IDS_BROWSER_TRAFFIC_REVOCATION_WARNING" desc="Settings, Browser traffic: rest of the warning shown when certificate data doesn't update automatically. eMudhra is a certificate authority whose keys were stolen; the placeholder is the name of Google's browser, Chrome.">
     When a certificate authority is compromised, <ph name="CHROME">$1<ex>Chrome</ex></ph> blocks it within hours (100 minutes for eMudhra on Oct 17, 2026). With this setting, oganesson learns of it only with its next release, days or weeks later. Until then, a stolen certificate for any site is trusted.
   </message>
-  <message name="IDS_BROWSER_TRAFFIC_STALE_MENU_ITEM" desc="App menu: item shown when the certificate data the browser updates automatically is more than a day old. Opens Settings, Browser traffic.">
+  <message name="IDS_BROWSER_TRAFFIC_STALE_MENU_ITEM" desc="App menu: item shown when the certificate data the browser updates automatically is more than a day old. Updates the certificate data and opens Settings, Browser traffic.">
     Certificate data is out of date
   </message>
   <message name="IDS_BROWSER_TRAFFIC_STALE_BUTTON" desc="Short label next to the app menu button when the certificate data is more than a day old.">

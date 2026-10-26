@@ -7,9 +7,10 @@
 # Helium's observers re-read. Component updates check the CRLSet, the PKI metadata (Chrome Root
 # Store, CT log list) and Widevine, one update check per row, each with its row's route, and send
 # no pings. Extensions, uBO's lists (through its managed storage's autoUpdate) and spellcheck
-# dictionaries update by themselves only while their row is Automatic. Bangs get an Update now.
-# The app menu badge for Helium's schema notice shows when automatic certificate data is more than
-# a day old, and its item opens the Browser traffic page.
+# dictionaries update by themselves only while their row is Automatic. Every row but uBO's lists
+# (uBO has its own) has an Update now, whatever its setting. The app menu badge for Helium's schema
+# notice shows when automatic certificate data is more than a day old, and its item updates them
+# and opens the Browser traffic page.
 --- a/chrome/app/generated_resources.grd
 +++ b/chrome/app/generated_resources.grd
 @@ -7025,7 +7025,7 @@
@@ -356,9 +357,19 @@
    std::unique_ptr<SpellcheckCustomDictionary> custom_dictionary_;
 --- a/chrome/browser/ui/chrome_pages.cc
 +++ b/chrome/browser/ui/chrome_pages.cc
-@@ -624,7 +624,7 @@
+@@ -23,6 +23,7 @@
+ #include "chrome/browser/apps/app_service/app_service_proxy.h"
+ #include "chrome/browser/apps/app_service/app_service_proxy_factory.h"
+ #include "chrome/browser/bookmarks/bookmark_model_factory.h"
++#include "chrome/browser/browser_traffic/browser_traffic_monitor.h"
+ #include "chrome/browser/download/bubble/download_bubble_ui_controller.h"
+ #include "chrome/browser/extensions/extension_util.h"
+ #include "chrome/browser/file_system_access/file_system_access_features.h"
+@@ -624,7 +625,9 @@
  
  void ShowHeliumServices(BrowserWindowInterface* browser) {
++  // oganesson: the app menu's stale certificate data item also updates them.
++  browser_traffic::UpdateComponentsNow(browser_traffic::Row::kCertificates);
    ShowSingletonTabIgnorePathOverwriteNTP(
 -      browser, GURL("chrome://settings/privacy/services"));
 +      browser, GURL("chrome://settings/updates"));
@@ -509,23 +520,24 @@
  
 --- a/components/component_updater/component_updater_service.h
 +++ b/components/component_updater/component_updater_service.h
-@@ -24,6 +24,10 @@
+@@ -24,6 +24,11 @@
  class ComponentsHandler;
  class PluginObserver;
  
 +namespace browser_traffic {
-+void UpdateCertificatesNow();
++enum class Row;
++void UpdateComponentsNow(Row row);
 +}
 +
  namespace ash {
  class SmartDimComponentIntegrationTest;
  }
-@@ -247,6 +251,8 @@
+@@ -247,6 +252,8 @@
    friend class PlatformRuntimeComponentInstallerPolicy;
    friend void UpdateAIEmbeddingsComponentOnDemand(Priority priority,
                                                    Callback callback);
 +  // oganesson: browser traffic's Update now.
-+  friend void ::browser_traffic::UpdateCertificatesNow();
++  friend void ::browser_traffic::UpdateComponentsNow(browser_traffic::Row row);
  
    // Triggers an update check for a component. |id| is a value
    // returned by GetCrxComponentID(). If an update for this component is already

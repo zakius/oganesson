@@ -675,6 +675,11 @@
     "message": "Aktualizuj teraz"
   },
   {
+    "name": "IDS_BROWSER_TRAFFIC_UPDATE_ALL",
+    "source": "Update all now",
+    "message": "Aktualizuj wszystko teraz"
+  },
+  {
     "name": "IDS_BROWSER_TRAFFIC_UPDATED",
     "source": "Updated <ph name=\"WHEN\">$1<ex>3 hours ago</ex></ph>",
     "message": "Zaktualizowano <ph name=\"WHEN\">$1<ex>3 hours ago</ex></ph>"
