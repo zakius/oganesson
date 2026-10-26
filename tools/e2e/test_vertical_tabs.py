@@ -37,5 +37,6 @@ class VerticalTabsTest(BrowserTest):
         self.browser.xdotool('mousemove', str(b['x'] + b['width'] // 2),
                              str(b['y'] + b['height'] - 40), 'click', '2')
         wait_for(lambda: len(self.pages()) == before + 1, what='a new tab')
+        # And no second one.
         time.sleep(0.5)
         self.assertEqual(len(self.pages()), before + 1)

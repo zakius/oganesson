@@ -62,6 +62,7 @@ A build needs Linux x86-64, Python 3, Git, Docker, and room for a Chromium build
 ./oganesson.py build --release          # without --release: the dev build
 ./oganesson.py build --windows          # the Windows build and its packages (docs/windows.md)
 ./oganesson.py test --release           # all browser tests, or name suites: toolbar web_app_links
+./oganesson.py test --release --repeat 10   # each test 10 times, listing the flaky ones
 ./oganesson.py run                      # the dev build, with the profile in work/profile
 ```
 

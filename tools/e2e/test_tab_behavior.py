@@ -102,8 +102,8 @@ class TabBehaviorTest(BrowserTest):
 
     def select(self, position):
         self.browser.key(f'ctrl+{position}')
-        # Firefox's selectMRUOnClose test waits between switches as well.
-        time.sleep(0.1)
+        wait_for(lambda: self.tabs().split()[position - 1].startswith('['),
+                 what=f'tab {position} selected')
 
     def settings(self):
         page = self.browser.new_tab('chrome://settings/appearance')

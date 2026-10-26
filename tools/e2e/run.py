@@ -8,7 +8,10 @@ With --jobs 1 it is a plain unittest run, one class after another, with
 unittest's output as it happens. Otherwise each class's output comes whole
 as it ends, then a summary.
 
-    python3 run.py [--jobs N] [-k PATTERN]... [test_module]...
+With --repeat N every class runs N times, and the summary lists each test
+that didn't pass every time, with how often it failed.
+
+    python3 run.py [--jobs N] [--repeat N] [-k PATTERN]... [test_module]...
 """
 
 import argparse
@@ -19,6 +22,7 @@ import sys
 import tempfile
 import time
 import unittest
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
@@ -59,10 +63,11 @@ def run_class(name, patterns):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-j', '--jobs', type=int, default=1)
+    parser.add_argument('--repeat', type=int, default=1)
     parser.add_argument('-k', dest='patterns', action='append', default=[])
     parser.add_argument('modules', nargs='*')
     args = parser.parse_args()
-    if args.jobs == 1:
+    if args.jobs == 1 and args.repeat == 1:
         command = [*args.modules, *(f'-k{p}' for p in args.patterns)]
         command = ['-v', *command] if command else ['discover', '-v', '-p', 'test_*.py']
         sys.exit(subprocess.run([sys.executable, '-m', 'unittest', *command], cwd=HERE).returncode)
@@ -73,9 +78,10 @@ def main():
     # counts 2 s a test.
     order = sorted(found, key=lambda name: -times.get(name, 2 * found[name]))
     start = time.monotonic()
-    failed, ran = [], 0
+    failed, failures, ran = [], Counter(), 0
     with ThreadPoolExecutor(args.jobs) as pool:
-        jobs = [pool.submit(run_class, name, args.patterns) for name in order]
+        jobs = [pool.submit(run_class, name, args.patterns)
+                for _ in range(args.repeat) for name in order]
         for job in as_completed(jobs):
             name, code, output, took = job.result()
             print(f'== {name} ({took:.1f} s)\n{output}', flush=True)
@@ -84,12 +90,23 @@ def main():
             ran += sum(int(n) for n in re.findall(r'^Ran (\d+) tests? in', output, re.M))
             if code:
                 failed.append(name)
+                # A class that dies before its tests report counts as a whole.
+                failures.update(set(failed_tests(output)) or {name})
     TIMES.write_text(json.dumps(times, indent=0, sort_keys=True))
     print(f'Ran {ran} tests in {len(found)} classes in {time.monotonic() - start:.1f} s, '
-          f'{args.jobs} at a time')
-    if failed:
+          f'{args.jobs} at a time' + (f', {args.repeat} times' if args.repeat > 1 else ''))
+    if args.repeat > 1:
+        for test, count in sorted(failures.items()):
+            print(f'FAILED {count} of {args.repeat}: {test}')
+    elif failed:
         print('FAILED: ' + ', '.join(failed))
     sys.exit(1 if failed else 0)
+
+
+def failed_tests(output):
+    """'module.Class.test' of each test that failed or errored in unittest's
+    output, from its FAIL: and ERROR: headers."""
+    return re.findall(r'^(?:FAIL|ERROR): \S+ \(([\w.]+)\)', output, re.M)
 
 
 if __name__ == '__main__':

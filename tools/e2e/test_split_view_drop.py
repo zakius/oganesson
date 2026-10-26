@@ -87,6 +87,7 @@ class SplitViewDropTest(BrowserTest):
     def test_drop_on_the_plus_icon(self):
         pointer, target = self.drag_to_left_edge()
         self.move(pointer, target.center)
+        # The drop target shows no hover, so give the drag's last moves time to reach it.
         time.sleep(0.5)
         self.browser.xdotool('mouseup', '1')
         self.assert_split()

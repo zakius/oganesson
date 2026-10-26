@@ -39,20 +39,19 @@ class StatusBubbleTest(BrowserTest):
         page = self.browser.new_tab(PAGE)
         window = self.browser.wait_view('ContentsWebView').bounds['width']
         self.hover(page, '#medium')
-        time.sleep(0.3)
-        width = self.bubble().bounds['width']
+        width = self.browser.wait_view('StatusView').bounds['width']
         # Chromium's bubble starts at a third of the window and widens 1.6 s later.
         self.assertGreater(width, window / 3 + 20)
+        # Past Chromium's widening, which must not come.
         time.sleep(2.5)
         self.assertEqual(self.bubble().bounds['width'], width)
 
     def test_2_longer_than_window_scrolls(self):
         page = self.browser.new_tab(PAGE)
         self.hover(page, '#long')
-        time.sleep(0.5)
+        self.browser.wait_view('StatusView')
         start = self.text_x()
-        time.sleep(2)
-        self.assertLess(self.text_x(), start)
+        wait_for(lambda: self.text_x() < start, what='the text to scroll')
 
 
 if __name__ == '__main__':

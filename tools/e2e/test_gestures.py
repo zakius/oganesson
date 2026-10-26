@@ -174,7 +174,8 @@ class GesturesTest(BrowserTest):
 
     def test_hung_renderer(self):
         page = self.visit(self.server.url('/a'), self.server.url('/hung'))
-        time.sleep(1)  # the page is spinning now, and answers no DevTools call
+        # Past the page's 300 ms timer: it spins then, and nothing can tell from outside.
+        time.sleep(1)
         self.stroke_left()
         wait_for(lambda: any(t['url'] == self.server.url('/a') for t in self.browser.targets()),
                  what='back to /a')
