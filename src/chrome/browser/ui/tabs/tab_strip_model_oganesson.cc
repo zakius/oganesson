@@ -117,8 +117,14 @@ bool OganessonTabRules::PlaceNewTab(
   tabs::TabModel* const selected = model.GetActiveTabModel();
   // An extension's tabs.create() openerTabId is the tab's owner and opener,
   // for Chromium extensions too.
-  auto* const extension_opener =
+  // Only one in this window: Chromium refuses an opener in another, and its
+  // group or index would be another window's.
+  tabs::TabModel* extension_opener =
       static_cast<tabs::TabModel*>(model.oganesson_next_opener_.Get());
+  if (extension_opener &&
+      model.GetIndexOfTab(extension_opener) == TabStripModel::kNoTab) {
+    extension_opener = nullptr;
+  }
   if (extension_opener) {
     tab->set_opener(extension_opener);
   }

@@ -175,6 +175,8 @@ class DesktopPlatform : public Platform, public BrowserCollectionObserver {
                    const std::string& url,
                    std::string picture,
                    bool keep_picture) override {
+    // A picture still decoding is an older account's, or one signed out.
+    decode_weak_factory_.InvalidateWeakPtrs();
     if (picture.empty()) {
       SetProfileAccount(name, url, keep_picture, SkBitmap());
       return;
@@ -183,7 +185,7 @@ class DesktopPlatform : public Platform, public BrowserCollectionObserver {
         base::as_byte_span(picture), data_decoder::mojom::ImageCodec::kDefault,
         /*shrink_to_fit=*/true, kMaxPictureSize, gfx::Size(),
         base::BindOnce(&DesktopPlatform::SetProfileAccount,
-                       weak_factory_.GetWeakPtr(), name, url,
+                       decode_weak_factory_.GetWeakPtr(), name, url,
                        /*keep_picture=*/false));
   }
 
@@ -263,6 +265,7 @@ class DesktopPlatform : public Platform, public BrowserCollectionObserver {
   int notifications_ = 0;
   base::ScopedObservation<GlobalBrowserCollection, BrowserCollectionObserver>
       browsers_{this};
+  base::WeakPtrFactory<DesktopPlatform> decode_weak_factory_{this};
   base::WeakPtrFactory<DesktopPlatform> weak_factory_{this};
 };
 

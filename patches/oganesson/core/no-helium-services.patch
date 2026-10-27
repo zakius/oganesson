@@ -4,9 +4,8 @@
 # uBO's asset mirror); bangs, whose list comes from those services; Helium's update checks (updates
 # come from the package repository); onboarding (a first run opens a normal window);
 # fingerprint noise; and crash reports, which would go to Helium's crash server. Store extensions update through ExtensionDownloader, as update_client's
-# checks are blocked. Without Helium's extension proxy, Chrome Web Store installs, updates and
-# item data come from Google's own servers, as in Chromium, not from Helium's placeholder host;
-# so do spellcheck dictionaries, unless the switch that stops their downloads is off.
+# checks are blocked. Where the extensions and dictionaries go (Google's servers, as in
+# Chromium, or the user's server) is browser traffic's (browser-traffic.patch).
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
 @@ -1618,7 +1618,8 @@ void ChromeContentBrowserClient::RegisterProfilePrefs(
@@ -74,47 +73,6 @@
 +    registry->RegisterBooleanPref(prefs::kHeliumUpdateFetchingEnabled, false);
      registry->RegisterBooleanPref(prefs::kHeliumUBlockAssetsEnabled, true);
    }
- 
---- a/components/helium_services/helium_services_helpers.cc
-+++ b/components/helium_services/helium_services_helpers.cc
-@@ -115,7 +115,10 @@
- 
- GURL GetExtensionUpdateURL(const PrefService& prefs) {
-     if (!ShouldAccessExtensionService(prefs)) {
--        return GetDummyURL();
-+        // oganesson: without Helium's proxy, Chrome Web Store installs and
-+        // updates go to Google's own update server, as in Chromium. The split
-+        // literal keeps domain substitution from rewriting it.
-+        return GURL("https://clients2.google." "com/service/update2/crx");
-     }
- 
-     return GetServicesBaseURL(prefs).Resolve("/ext");
-@@ -123,7 +126,10 @@
- 
- GURL GetWebstoreSnippetURL(const PrefService& prefs, std::string_view id) {
-     if (!ShouldAccessExtensionService(prefs)) {
--        return GetDummyURL();
-+        // oganesson: the store's own item data, as in Chromium.
-+        return GURL("https://chromewebstore.googleapis." "com/")
-+            .Resolve(base::StringPrintf("v2/items/%s:fetchItemSnippet",
-+                                        std::string(id).c_str()));
-     }
- 
-     return GetServicesBaseURL(prefs).Resolve(
-@@ -132,6 +138,14 @@
- 
- GURL GetSpellcheckURL(const PrefService& prefs) {
-     if (!ShouldAccessDictionaryService(prefs)) {
-+        // oganesson: with Helium's services off, dictionaries download from
-+        // Google's server, as in Chromium; the switch that stops dictionary
-+        // downloads still stops them. The split literal keeps domain
-+        // substitution from rewriting it.
-+        if (prefs.GetBoolean(prefs::kHeliumSpellcheckEnabled) &&
-+            !ShouldAccessServices(prefs)) {
-+            return GURL("https://redirector.gvt1." "com/edgedl/chrome/dict/");
-+        }
-         return GetDummyURL();
-     }
  
 --- a/extensions/browser/pending_extension_manager.cc
 +++ b/extensions/browser/pending_extension_manager.cc

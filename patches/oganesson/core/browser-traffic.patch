@@ -573,21 +573,21 @@
 +}
 +
 +namespace {
- 
--    return GURL(kHeliumDefaultOrigin);
++
 +// A row goes through the server, which is valid.
 +bool Proxied(browser_traffic::Row row) {
 +    const PrefService* local_state = browser_traffic::GetLocalState();
 +    return local_state &&
 +           browser_traffic::GetProxyURL(*local_state, row, "").has_value();
- }
++}
  
+-    return GURL(kHeliumDefaultOrigin);
 +bool Direct(browser_traffic::Row row) {
 +    const PrefService* local_state = browser_traffic::GetLocalState();
 +    return local_state && browser_traffic::GetRoute(*local_state, row) ==
 +                              browser_traffic::Route::kDirect;
-+}
-+
+ }
+ 
 +}  // namespace
 +
  GURL GetDummyURL() {
@@ -622,7 +622,7 @@
  }
  
  bool ShouldAccessUpdateService(const PrefService& prefs) {
-@@ -103,21 +121,25 @@
+@@ -103,27 +121,37 @@
  }
  
  bool ShouldAccessComponentUpdateService(const PrefService& prefs) {
@@ -646,42 +646,42 @@
  
  GURL GetExtensionUpdateURL(const PrefService& prefs) {
 -    if (!ShouldAccessExtensionService(prefs)) {
--        // oganesson: without Helium's proxy, Chrome Web Store installs and
--        // updates go to Google's own update server, as in Chromium. The split
--        // literal keeps domain substitution from rewriting it.
+-        return GetDummyURL();
 +    if (Direct(browser_traffic::Row::kExtensions)) {
 +        // oganesson: going direct, Chrome Web Store installs and updates go
 +        // to Google's own update server, as in Chromium. The split literal
 +        // keeps domain substitution from rewriting it. Through a server
 +        // that isn't set, they go to the placeholder.
-         return GURL("https://clients2.google." "com/service/update2/crx");
++        return GURL("https://clients2.google." "com/service/update2/crx");
      }
  
-@@ -125,7 +147,7 @@
+     return GetServicesBaseURL(prefs).Resolve("/ext");
  }
  
  GURL GetWebstoreSnippetURL(const PrefService& prefs, std::string_view id) {
 -    if (!ShouldAccessExtensionService(prefs)) {
+-        return GetDummyURL();
 +    if (Direct(browser_traffic::Row::kExtensions)) {
-         // oganesson: the store's own item data, as in Chromium.
-         return GURL("https://chromewebstore.googleapis." "com/")
-             .Resolve(base::StringPrintf("v2/items/%s:fetchItemSnippet",
-@@ -138,12 +160,10 @@
++        // oganesson: the store's own item data, as in Chromium.
++        return GURL("https://chromewebstore.googleapis." "com/")
++            .Resolve(base::StringPrintf("v2/items/%s:fetchItemSnippet",
++                                        std::string(id).c_str()));
+     }
+ 
+     return GetServicesBaseURL(prefs).Resolve(
+@@ -132,6 +160,12 @@
  
  GURL GetSpellcheckURL(const PrefService& prefs) {
      if (!ShouldAccessDictionaryService(prefs)) {
--        // oganesson: with Helium's services off, dictionaries download from
--        // Google's server, as in Chromium; the switch that stops dictionary
--        // downloads still stops them. The split literal keeps domain
 +        // oganesson: going direct, dictionaries download from Google's
 +        // server, as in Chromium. The split literal keeps domain
-         // substitution from rewriting it.
--        if (prefs.GetBoolean(prefs::kHeliumSpellcheckEnabled) &&
--            !ShouldAccessServices(prefs)) {
++        // substitution from rewriting it.
 +        if (Direct(browser_traffic::Row::kDictionaries)) {
-             return GURL("https://redirector.gvt1." "com/edgedl/chrome/dict/");
-         }
++            return GURL("https://redirector.gvt1." "com/edgedl/chrome/dict/");
++        }
          return GetDummyURL();
+     }
+ 
 --- a/components/helium_services/helium_services_helpers.h
 +++ b/components/helium_services/helium_services_helpers.h
 @@ -6,6 +6,8 @@
@@ -781,15 +781,30 @@
  
 --- a/components/search_engines/template_url_service.cc
 +++ b/components/search_engines/template_url_service.cc
-@@ -1734,6 +1734,13 @@
+@@ -1734,6 +1734,28 @@
                       weak_ptr_factory_.GetWeakPtr()));
  }
  
 +void TemplateURLService::RefreshBangs() {
 +  bang_manager_->Refresh(
 +      url_loader_factory_, prefs_.get(),
-+      base::BindOnce(&TemplateURLService::BangsLoadedCallback,
-+                     weak_ptr_factory_.GetWeakPtr()));
++      base::BindOnce(
++          [](base::WeakPtr<TemplateURLService> service) {
++            if (!service) {
++              return;
++            }
++            // The new list numbers its bangs anew, and may change their
++            // addresses: the old ones go before it is added.
++            std::erase_if(service->template_urls_, [&](const auto& t_url) {
++              if (t_url->bang_id() <= 0) {
++                return false;
++              }
++              service->RemoveFromMaps(t_url.get());
++              return true;
++            });
++            service->BangsLoadedCallback();
++          },
++          weak_ptr_factory_.GetWeakPtr()));
 +}
 +
  void TemplateURLService::BangsLoadedCallback() {
@@ -890,3 +905,16 @@
      }
    }
  
+--- a/third_party/ublock/js/assets.js
++++ b/third_party/ublock/js/assets.js
+@@ -537,7 +537,9 @@
+             return assets.fetchText(
+                 µb.assetsBootstrapLocation || µb.assetsJsonPath
+             ).then(details => {
+-                return details.content !== ''
++                // oganesson: the catalog of a server set by browser traffic
++                // or policy has no fallback; the bundled one goes direct.
++                return details.content !== '' || µb.assetsBootstrapLocation
+                     ? details
+                     : assets.fetchText(µb.assetsJsonPath);
+             }).then(details => {

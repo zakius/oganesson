@@ -389,6 +389,8 @@ void ToolbarView::ShutdownToolbarItems() {
     RemovePreTargetHandler(GetProperty(kToolbarItemsStateKey));
   }
   ClearProperty(kToolbarItemsStateKey);
+  // Its menu model points into the toolbar, which goes first.
+  ClearProperty(kAppMenuFallbackKey);
   // Hand the pinned items back to their containers, which own their state, so
   // they are destroyed with them.
   for (views::View* child : View::Views(children())) {

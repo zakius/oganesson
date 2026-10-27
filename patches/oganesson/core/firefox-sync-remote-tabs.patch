@@ -65,13 +65,16 @@
    is_dynamic_section_built_ = true;
  }
  
-@@ -540,6 +541,11 @@ void RecentTabsSubMenuModel::BuildLocalEntries() {
+@@ -540,6 +541,14 @@ void RecentTabsSubMenuModel::BuildLocalEntries() {
  }
  
  void RecentTabsSubMenuModel::BuildTabsFromOtherDevices() {
 +  // Only another sync backend's tabs (Firefox Sync): Chromium's sign-in
-+  // prompts stay out.
-+  if (!session_sync_service_ || !GetOpenTabsUIDelegate()) {
++  // prompts stay out. None while history isn't saved, even with closed tabs
++  // kept in memory.
++  if (!session_sync_service_ || !GetOpenTabsUIDelegate() ||
++      browser_->GetProfile()->GetPrefs()->GetBoolean(
++          prefs::kSavingBrowserHistoryDisabled)) {
 +    return;
 +  }
  #if !BUILDFLAG(IS_CHROMEOS)
