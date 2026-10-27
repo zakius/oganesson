@@ -29,7 +29,8 @@ bool MaybeOpenOutsideApp(LocalFrame& frame,
                          WebFrameLoadType type);
 
 // For pushState and replaceState: whether to drop the change of `frame`'s
-// address to `url`, as it left the app.
+// address to `url`, as it left the app. From a user's input, the page then
+// gets a popstate for the entry it is still on.
 bool MaybeOpenOutsideApp(LocalFrame& frame, const KURL& url);
 
 }  // namespace oganesson_app_links
