@@ -179,7 +179,8 @@ class PrefsEditorHandler : public content::WebUIMessageHandler {
  private:
   PrefService* Prefs(std::string_view scope) {
     return scope == "browser" ? g_browser_process->local_state()
-                              : profile_->GetPrefs();
+                              // Not an incognito window's, which forgets.
+                              : profile_->GetOriginalProfile()->GetPrefs();
   }
 
   static const char* TypeName(base::Value::Type type) {

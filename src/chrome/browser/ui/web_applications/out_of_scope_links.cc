@@ -152,6 +152,10 @@ std::u16string DefaultBrowserLinkLabel(bool background) {
       name);
 }
 
+// Whether `contents` may open a URL that leaves the app now; see
+// ExclusionObserver::MayOpen.
+bool MayOpen(content::WebContents* contents);
+
 class OutOfScopeLinkThrottle : public content::NavigationThrottle {
  public:
   // `link`: the page's own link click, which also leaves the app for being
@@ -180,9 +184,13 @@ class OutOfScopeLinkThrottle : public content::NavigationThrottle {
         !LeavesApp(tab->GetBrowserWindowInterface(), handle->GetURL(), link)) {
       return PROCEED;
     }
-    OpenInDefaultBrowser(tab->GetBrowserWindowInterface()->GetProfile(),
-                         handle->GetURL(),
-                         /*background=*/!handle->HasUserGesture());
+    // A script that keeps trying, or keeps landing on a redirect out, opens
+    // one tab per user input, not one per try.
+    if (MayOpen(handle->GetWebContents())) {
+      OpenInDefaultBrowser(tab->GetBrowserWindowInterface()->GetProfile(),
+                           handle->GetURL(),
+                           /*background=*/!handle->HasUserGesture());
+    }
     return CANCEL_AND_IGNORE;
   }
 
@@ -365,6 +373,11 @@ class AppLinkHost : public blink::mojom::OganessonAppLinkHost {
  private:
   const content::GlobalRenderFrameHostId frame_;
 };
+
+bool MayOpen(content::WebContents* contents) {
+  ExclusionObserver* observer = ExclusionObserver::FromWebContents(contents);
+  return !observer || observer->MayOpen();
+}
 
 }  // namespace
 

@@ -168,7 +168,9 @@ void FirefoxSyncHandler::HandleSetInstantTabs(const base::ListValue& args) {
   if (args.size() == 1 && args[0].is_bool()) {
     profile_->GetPrefs()->SetBoolean(prefs::kFirefoxSyncInstantTabs,
                                      args[0].GetBool());
-    OnStatusChanged();
+    if (IsJavascriptAllowed()) {
+      OnStatusChanged();
+    }
   }
 }
 
