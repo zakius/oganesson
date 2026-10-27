@@ -239,6 +239,21 @@ class MouseGestureEventRewriterImpl : public ui::EventRewriter,
       }
       return ReplayPress(event, continuation);
     }
+    // Without the right button, its release went to a window that took
+    // capture, such as a menu: the gesture is over. Wayland sends no motion
+    // when that window closes, so a wheel can be the first to tell.
+    if ((event.type() == ui::EventType::kMouseMoved ||
+         event.type() == ui::EventType::kMouseDragged ||
+         event.type() == ui::EventType::kMousewheel) &&
+        !event.AsMouseEvent()->IsRightMouseButton()) {
+      auto weak = weak_factory_.GetWeakPtr();
+      Cancel();
+      if (!weak) {
+        return DiscardEvent(continuation);
+      }
+      tracker_ = {};
+      return SendEvent(continuation, &event);
+    }
     if (event.type() == ui::EventType::kMousewheel) {
       // Counts whole wheel notches, so smooth trackpad scrolling fires slowly.
       wheel_offset_ += event.AsMouseWheelEvent()->y_offset();
@@ -279,15 +294,6 @@ class MouseGestureEventRewriterImpl : public ui::EventRewriter,
     }
     if (event.type() == ui::EventType::kMouseMoved ||
         event.type() == ui::EventType::kMouseDragged) {
-      if (!event.AsMouseEvent()->IsRightMouseButton()) {
-        auto weak = weak_factory_.GetWeakPtr();
-        Cancel();
-        if (!weak) {
-          return DiscardEvent(continuation);
-        }
-        tracker_ = {};
-        return SendEvent(continuation, &event);
-      }
       const auto point = Location(event);
       tracker_.Update(point.x(), point.y());
     }

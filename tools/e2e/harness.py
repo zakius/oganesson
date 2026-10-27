@@ -29,7 +29,7 @@ What's here:
   when it exits, also on SIGTERM or SIGHUP),
   `follow_relaunch()` (after the browser restarted itself); with `wait_ubo`,
   both return only once the bundled uBlock Origin filters; pages with
-  `page(url_part)`, `new_tab(url)`, `close_target(page)`, `targets()`,
+  `page(url_part)`, `new_tab(url)`, `close_target(page)`, `close_window(id)`, `targets()`,
   `browser_call(method)`, `pipe_call(method)` (PWA); views with `views(cls, **props)`,
   `wait_view(cls, **props)`, `wait_settled(find)`, `menus()`, `ubo_background()`, `wait_ubo_menu()`; real input with `click_view(view)`,
   `click_element(page, selector, button, repeat)`, `key(*keys)`, `xdotool(...)`;
@@ -536,6 +536,14 @@ class Browser:
     def close_target(self, page):
         self._get(f'/json/close/{page.id}')
         wait_for(lambda: all(t['id'] != page.id for t in self.targets()), what='the tab to close')
+
+    def close_window(self, target_id):
+        """Closes the window whose only tab is `target_id`. Its tab goes
+        before the window does, and a new tab in between would land in the
+        closing window and keep it open."""
+        windows = len(self.views('BrowserView'))
+        self.browser_call('Target.closeTarget', targetId=target_id)
+        wait_for(lambda: len(self.views('BrowserView')) < windows, what='the window to close')
 
     def browser_call(self, method, **params):
         session = Session(self._browser_ws())

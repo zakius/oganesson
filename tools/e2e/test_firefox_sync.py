@@ -521,7 +521,7 @@ class FirefoxSyncTest(BrowserTest):
                      what='the sent tab on a window coming to the front')
             self.assertFalse([r for r in self.fake.log[before:] if '/storage/' in r])
             self.browser.close_target(self.browser.page(url))
-            self.browser._get(f'/json/close/{second}')
+            self.browser.close_window(second)
             self.browser.close_target(first)
         finally:
             server.stop()

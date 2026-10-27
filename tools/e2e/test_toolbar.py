@@ -8,10 +8,11 @@ is a toolbar button, in either tab strip.
 import json
 import shutil
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
-from harness import BrowserTest, wait_for
+from harness import WAYLAND, BrowserTest, wait_for
 
 MANIFEST = {'manifest_version': 3, 'name': 'Toolbar test', 'version': '1',
             'action': {'default_title': 'Toolbar test'}}
@@ -47,8 +48,12 @@ class ToolbarTest(BrowserTest):
     def drag(self, view, to_x):
         x, y = view.center
         self.browser.xdotool('mousemove', str(x), str(y), 'mousedown', '1')
+        # Paced: the drag starts on a move past the threshold, and the
+        # windowing system's drag session must start before the release. A
+        # browser slowed by load gets both in one batch, and no drag starts.
         for step in range(1, 11):
             self.browser.xdotool('mousemove', str(x + (to_x - x) * step // 10), str(y))
+            time.sleep(0.05)
         self.browser.xdotool('mouseup', '1')
 
     def order(self):
@@ -181,10 +186,19 @@ class TabSearchButtonTest(BrowserTest):
         search = self.browser.page('chrome://tab-search.top-chrome')
         wait_for(lambda: search.eval("document.visibilityState == 'visible'"),
                  what='tab search shown')
-        bubble = wait_for(self.bubbles, what='the tab search bubble')[0]
-        # Its top edge on the button's bottom, right edges aligned.
-        self.assertEqual(bubble['y'], button['y'] + button['height'])
-        self.assertEqual(bubble['x'] + bubble['width'], button['x'] + button['width'])
+        # A click on the button closes the bubble only once the bubble is active.
+        wait_for(lambda: search.eval('document.hasFocus()'), what='tab search focused')
+        # It grows to fit its list, and a click while it grows can be lost.
+        bubble = self.browser.wait_settled(
+            lambda: [v for v in self.browser.views('WebUIBubbleDialogView') if v.visible],
+            what='the tab search bubble')[0].bounds
+        # Its top edge on the button's bottom, right edges aligned. With a
+        # shadow (always on Wayland, never on Xvfb) the bubble draws a 1 DIP
+        # border around these contents, and the border's edges are the ones
+        # aligned.
+        border = 1 if WAYLAND else 0
+        self.assertEqual(bubble['y'] - border, button['y'] + button['height'])
+        self.assertEqual(bubble['x'] + bubble['width'] + border, button['x'] + button['width'])
 
     def test_2b_second_click_closes_it(self):
         self.browser.click_view(self.tab_search())

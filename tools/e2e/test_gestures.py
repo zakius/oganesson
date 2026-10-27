@@ -245,7 +245,7 @@ class GesturesTest(BrowserTest):
         wait_for(lambda: second.eval('location.href') == self.server.url('/a'),
                  what='back in window 2')
         self.assertEqual(first.eval('location.href'), self.server.url('/b'))
-        self.browser.browser_call('Target.closeTarget', targetId=target)
+        self.browser.close_window(target)
 
     def test_split_view(self):
         # The stroke acts on the focused pane (a click focuses a pane).
@@ -371,9 +371,7 @@ class GesturesTest(BrowserTest):
             page.close()
 
         def close_window():
-            self.browser.browser_call('Target.closeTarget', targetId=opened[0])
-            wait_for(lambda: all(t['id'] != opened[0] for t in self.browser.targets()),
-                     what='the window to close')
+            self.browser.close_window(opened[0])
 
         self.assert_cancelled(open_window, close_window)
 
@@ -428,7 +426,7 @@ class GesturesTest(BrowserTest):
             wait_for(lambda: page.eval('location.href') == self.server.url('/a'),
                      what='back to /a')
         finally:
-            self.browser.browser_call('Target.closeTarget', targetId=target['id'])
+            self.browser.close_window(target['id'])
 
     def test_shift_right_click_through_replay(self):
         # Helium's Shift+right-click shows the browser's menu on a page that
