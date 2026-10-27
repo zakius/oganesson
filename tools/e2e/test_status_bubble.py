@@ -21,8 +21,10 @@ class StatusBubbleTest(BrowserTest):
 
     def hover(self, page, selector):
         contents = self.browser.wait_view('ContentsWebView')
-        x, y = page.eval(f'(() => {{ const r = document.querySelector("{selector}")'
-                         '.getBoundingClientRect(); return [r.x + 5, r.y + r.height / 2]; })()')
+        x, y = wait_for(lambda: page.eval(
+            f'(() => {{ const r = document.querySelector("{selector}")'
+            '?.getBoundingClientRect(); return r && [r.x + 5, r.y + r.height / 2]; })()'),
+            what=selector)
         self.browser.xdotool('mousemove', str(contents.bounds['x'] + int(x)),
                              str(contents.bounds['y'] + int(y)))
         return wait_for(self.bubble, what='the status bubble')

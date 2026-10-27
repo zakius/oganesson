@@ -147,7 +147,7 @@ class UboRestartTest(BrowserTest):
         try:
             # The tab is on about:blank until uBlock lets the navigation go.
             wait_for(lambda: pages[0].eval('document.getElementById("allowed")?.naturalWidth == 1'
-                                           ' && document.getElementById("audio").readyState == 4'),
+                                           ' && document.getElementById("audio")?.readyState == 4'),
                      timeout=30, what="the page's image and audio")
         finally:
             pages[0].close()
