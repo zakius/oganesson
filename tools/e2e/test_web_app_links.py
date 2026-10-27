@@ -61,7 +61,9 @@ excluded, by a button's script</button>
 out of scope, pushed by a button</button>
 <button id="push-twice" onclick="history.pushState(null, '', '/out.html?first');
   history.pushState(null, '', '/out.html?second')">out of scope, pushed twice</button></p>
-<script>for (const id of ['cross-in', 'cross-out'])
+<script>window.popstates = 0;
+addEventListener('popstate', () => window.popstates++);
+for (const id of ['cross-in', 'cross-out'])
   document.getElementById(id).host = `localhost:${location.port}`;</script>'''
 
 # Rules for the app: localhost's /other/ joins its scope, and one page of its
@@ -527,6 +529,22 @@ class WebAppLinksTest(WebAppTest):
         self.assertTrue(app.eval('window.sawClick', gesture=False))
         self.assertEqual(app.eval('location.href'), self.server.url('/app/index.html'))
         self.assertEqual(app.eval('history.length'), length)
+
+    def test_dropped_push_fires_popstate(self):
+        # A router that drew the pushed page draws the current one again, as
+        # after Back: Facebook's photo viewer closes.
+        app = self.launch_app()
+        app.click('#push-out')
+        wait_for(lambda: app.eval('window.popstates', gesture=False) == 1,
+                 what='a popstate after the dropped push')
+        self.assertEqual(app.eval('location.href'), self.server.url('/app/index.html'))
+
+    def test_dropped_push_without_gesture_fires_no_popstate(self):
+        self.set_strict()
+        app = self.launch_app()
+        app.eval('history.pushState(null, "", "/out.html?script")', gesture=False)
+        wait_for(self.opened, what='xdg-open')
+        self.assertEqual(app.eval('window.popstates', gesture=False), 0)
 
     def test_out_of_scope_pushes_open_one_tab_per_input(self):
         # A router that answers with another URL, or tries again.
