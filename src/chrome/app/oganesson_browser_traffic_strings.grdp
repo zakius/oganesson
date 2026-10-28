@@ -199,6 +199,12 @@
   <message name="IDS_BROWSER_TRAFFIC_REVOCATION_WARNING" desc="Settings, Browser traffic: rest of the warning shown when certificate data doesn't update automatically. eMudhra is a certificate authority whose keys were stolen; the placeholder is the name of Google's browser, Chrome.">
     When a certificate authority is compromised, <ph name="CHROME">$1<ex>Chrome</ex></ph> blocks it within hours (100 minutes for eMudhra on Oct 17, 2026). With this setting, oganesson learns of it only with its next release, days or weeks later. Until then, a stolen certificate for any site is trusted.
   </message>
+  <message name="IDS_BROWSER_TRAFFIC_BLOCKER_WARNING_TITLE" desc="Setup, Browser traffic: bold start of the warning shown while uBlock Origin's filter lists come through the user's server.">
+    Ads aren't blocked until your server answers.
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_BLOCKER_WARNING" desc="Setup, Browser traffic: rest of the warning shown while uBlock Origin's filter lists come through the user's server. uBlock Origin is a product name.">
+    uBlock Origin gets its filter lists only through your server. If the server can't be reached when uBlock Origin first starts with it, nothing is blocked until a later start reaches it. After that, uBlock Origin keeps the lists it has.
+  </message>
   <message name="IDS_BROWSER_TRAFFIC_STALE_MENU_ITEM" desc="App menu: item shown when the certificate data the browser updates automatically is more than a day old. Updates the certificate data and opens Settings, Browser traffic.">
     Certificate data is out of date
   </message>

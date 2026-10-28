@@ -695,6 +695,16 @@
     "message": "Gdy urząd certyfikacji zostaje przejęty, <ph name=\"CHROME\">$1<ex>Chrome</ex></ph> blokuje go w ciągu kilku godzin (100 minut w przypadku eMudhra 17 października 2026). Przy tym ustawieniu oganesson dowie się o tym dopiero z następnym wydaniem, po dniach lub tygodniach. Do tego czasu skradziony certyfikat dowolnej witryny jest zaufany."
   },
   {
+    "name": "IDS_BROWSER_TRAFFIC_BLOCKER_WARNING_TITLE",
+    "source": "Ads aren't blocked until your server answers.",
+    "message": "Reklamy nie są blokowane, dopóki twój serwer nie odpowie."
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_BLOCKER_WARNING",
+    "source": "uBlock Origin gets its filter lists only through your server. If the server can't be reached when uBlock Origin first starts with it, nothing is blocked until a later start reaches it. After that, uBlock Origin keeps the lists it has.",
+    "message": "uBlock Origin pobiera listy filtrów tylko przez twój serwer. Jeśli serwer jest nieosiągalny, gdy uBlock Origin pierwszy raz startuje z tym serwerem, nic nie jest blokowane, dopóki któreś kolejne uruchomienie się z nim nie połączy. Potem uBlock Origin zachowuje pobrane listy."
+  },
+  {
     "name": "IDS_BROWSER_TRAFFIC_STALE_MENU_ITEM",
     "source": "Certificate data is out of date",
     "message": "Dane certyfikatów są nieaktualne"
