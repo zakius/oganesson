@@ -13,6 +13,8 @@ from harness import BrowserTest, wait_for
 
 STEP = ("document.querySelector('settings-ui')?.shadowRoot?"
         ".querySelector('settings-setup-page')")
+BLOCKER_WARNING = (f"{STEP}.shadowRoot.querySelector('#traffic').shadowRoot"
+                   ".querySelector('#blockerWarning')")
 
 
 class SetupTest(BrowserTest):
@@ -46,9 +48,14 @@ class SetupTest(BrowserTest):
         page.eval("chrome.send('applyBrowserTrafficPreset', ['throughServer'])")
         wait_for(lambda: page.eval(f"{STEP}.shadowRoot.querySelector('#next').disabled"),
                  what='Next disabled without a server')
+        # uBO's lists come only through the server then: setup says what
+        # that means when it can't be reached.
+        wait_for(lambda: page.eval(f"!!{BLOCKER_WARNING}"), what='the content blocker warning')
         page.eval("chrome.send('applyBrowserTrafficPreset', ['direct'])")
         wait_for(lambda: not page.eval(f"{STEP}.shadowRoot.querySelector('#next').disabled"),
                  what='Next enabled for Direct')
+        wait_for(lambda: not page.eval(f"!!{BLOCKER_WARNING}"),
+                 what='no content blocker warning for Direct')
         self.click(page, 'next')
         wait_for(lambda: page.eval(f"{STEP}.step_") == 'search', what='Search')
 

@@ -159,6 +159,9 @@ void BrowserTrafficHandler::AddStrings(content::WebUIDataSource* html_source) {
        IDS_BROWSER_TRAFFIC_REVOCATION_WARNING_TITLE},
       {"browserTrafficRevocationWarning",
        IDS_BROWSER_TRAFFIC_REVOCATION_WARNING},
+      {"browserTrafficBlockerWarningTitle",
+       IDS_BROWSER_TRAFFIC_BLOCKER_WARNING_TITLE},
+      {"browserTrafficBlockerWarning", IDS_BROWSER_TRAFFIC_BLOCKER_WARNING},
   };
   html_source->AddLocalizedStrings(kStrings);
 }

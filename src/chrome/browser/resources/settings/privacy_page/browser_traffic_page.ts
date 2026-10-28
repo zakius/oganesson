@@ -278,6 +278,13 @@ export class BrowserTrafficElement extends BrowserTrafficElementBase {
           </div>
         </template>
 
+        <template is="dom-if" if="[[showBlockerWarning_(setup, state_)]]" restamp>
+          <div id="blockerWarning" class="warning yellow">
+            <b>[[i18n('browserTrafficBlockerWarningTitle')]]</b>
+            [[i18n('browserTrafficBlockerWarning')]]
+          </div>
+        </template>
+
         <div class="list-frame">
           <div class="cr-row first">
             <div class="flex secondary">[[i18n('browserTrafficWhat')]]</div>
@@ -545,6 +552,15 @@ export class BrowserTrafficElement extends BrowserTrafficElementBase {
     return certificates && !certificates.automatic ?
         loadTimeData.getStringF('browserTrafficRevocationWarning', 'Chrome') :
         '';
+  }
+
+  // In setup, while uBO's lists come through the server: uBO has no other
+  // source for them (browser-traffic.patch, assets.js), so a server that
+  // can't be reached when uBO first starts with it leaves it with none.
+  private showBlockerWarning_(setup: boolean, state: BrowserTrafficState):
+      boolean {
+    return setup &&
+        !!state.rows.find(row => row.name === 'content_blocker')?.proxy;
   }
 
   // The server stopped answering: its last failure is newer than its last
