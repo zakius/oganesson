@@ -1,6 +1,6 @@
 --- a/chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model.cc
 +++ b/chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model.cc
-@@ -227,6 +227,9 @@ void PinnedToolbarActionsModel::ResetToDefault() {
+@@ -228,6 +228,9 @@ void PinnedToolbarActionsModel::ResetToDefault() {
    pref_service_->ClearPref(prefs::kShowForwardButton);
    pref_service_->ClearPref(prefs::kPinSplitTabButton);
    pref_service_->ClearPref(prefs::kPinnedActions);
@@ -10,7 +10,7 @@
  }
  
  bool PinnedToolbarActionsModel::IsDefault() const {
-@@ -238,6 +241,7 @@ bool PinnedToolbarActionsModel::IsDefault() const {
+@@ -239,6 +242,7 @@ bool PinnedToolbarActionsModel::IsDefault() const {
    return std::ranges::all_of(
        std::initializer_list{prefs::kPinnedActions, prefs::kShowHomeButton,
                              prefs::kShowForwardButton,
@@ -60,7 +60,7 @@
    }
  
 @@ -603,6 +604,8 @@ void ExtensionsToolbarDesktop::AnchorAndShowWidgetImmediately(
-       ->SetAnchorView(anchor_view);
+       ->SetAnchorView(app_menu_anchor_view);
    }
  
 +  auto* const bubble = widget->widget_delegate()->AsBubbleDialogDelegate();
@@ -119,7 +119,7 @@
  void ExtensionsToolbarDesktop::OnDragEntered(const ui::DropTargetEvent& event) {
 --- a/chrome/browser/ui/views/toolbar/BUILD.gn
 +++ b/chrome/browser/ui/views/toolbar/BUILD.gn
-@@ -155,6 +155,7 @@ source_set("impl") {
+@@ -199,6 +199,7 @@ source_set("impl") {
      "toolbar_icon_container_view.cc",
      "toolbar_ink_drop_util.cc",
      "toolbar_view.cc",
@@ -163,7 +163,7 @@
    if (!ShouldRemainPoppedOutInToolbar(*iter)) {
      GetAnimatingLayoutManager()->FadeOut(*iter);
      GetAnimatingLayoutManager()->PostOrQueueAction(
-@@ -706,7 +715,8 @@ void PinnedToolbarActionsContainer::ReorderViews() {
+@@ -704,7 +713,8 @@ void PinnedToolbarActionsContainer::ReorderViews() {
    // or from the user dragging to reorder.
    const auto ordered_pinned_ids = model_->PinnedActionIds();
    for (auto id : ordered_pinned_ids) {
@@ -175,7 +175,7 @@
      }
 --- a/chrome/browser/ui/views/toolbar/toolbar_view.cc
 +++ b/chrome/browser/ui/views/toolbar/toolbar_view.cc
-@@ -416,6 +416,8 @@ ToolbarView::~ToolbarView() {
+@@ -421,6 +421,8 @@ ToolbarView::~ToolbarView() {
      overflow_button_->set_toolbar_controller(nullptr);
    }
  
@@ -184,7 +184,7 @@
    for (const auto& view_and_command : GetViewCommandMap()) {
      chrome::RemoveCommandObserver(browser_, view_and_command.second, this);
    }
-@@ -921,6 +923,8 @@ void ToolbarView::Init() {
+@@ -936,6 +938,8 @@ void ToolbarView::Init() {
      glic_split_button_controller_->SetVerticalTabsDelegate(this);
    }
  
@@ -195,7 +195,7 @@
  
 --- a/chrome/browser/ui/views/toolbar/toolbar_view.h
 +++ b/chrome/browser/ui/views/toolbar/toolbar_view.h
-@@ -269,6 +269,42 @@ class ToolbarView : public views::AccessiblePaneView,
+@@ -272,6 +272,42 @@ class ToolbarView : public views::AccessiblePaneView,
    bool AcceleratorPressed(const ui::Accelerator& acc) override;
    void ChildPreferredSizeChanged(views::View* child) override;
    void ChildVisibilityChanged(View* child) override;

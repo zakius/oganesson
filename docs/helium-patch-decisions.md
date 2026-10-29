@@ -50,7 +50,7 @@ Every other Helium patch is carried, also the ones earlier reviews called indiff
 
 ## Browser traffic
 
-Decided 2026-10-21. On 2026-10-17 the Chrome Root Program used CRLSet to block six compromised eMudhra intermediate CAs. oganesson got no CRLSet: Helium's services were off, and component updates with them. Helium's `component-updates` lets only CRLSet and Widevine register, and the Chrome Root Store and the CT log list never updated. The six keys are also compiled in (`oganesson/core/emudhra-spki-block`).
+Decided 2026-10-21. On 2026-10-17 the Chrome Root Program used CRLSet to block six compromised eMudhra intermediate CAs. oganesson got no CRLSet: Helium's services were off, and component updates with them. Helium's `component-updates` lets only CRLSet and Widevine register, and the Chrome Root Store and the CT log list never updated. The six keys were compiled in (`oganesson/core/emudhra-spki-block`) until Chromium 156.0.8078.73 blocked the same SPKIs in its own blocklist; the patch was dropped then.
 
 The model is my own code in dubna (`components/browser_traffic`), not a copy of Helium's: dubna is GPL-2.0-only OR GPL-3.0-only, and tennessine builds no GPL-3.0 code. Helium's server URL paths are an interface it targets. `oganesson/core/browser-traffic` makes Helium's `ShouldAccess*` and `Get*URL` defer to it; Helium's prefs stay registered, derived, so its later patches keep compiling. The settings are in Local State, one set for each OS user.
 
