@@ -1,0 +1,14 @@
+# Settings > About relaunches the browser on demand, with its windows and tabs, as "Relaunch to
+# update" does. Useful when the running browser is in a bad state, say after something deleted its
+# single-instance socket in /tmp and links from other apps open a second browser on the profile.
+--- a/chrome/browser/resources/settings/about_page/about_page.html.ts
++++ b/chrome/browser/resources/settings/about_page/about_page.html.ts
+@@ -88,6 +88,8 @@ export function getHtml(this: SettingsAboutPageElement) {
+ </if>
+   <cr-link-row class="hr" id="runSetup" @click="${this.onRunSetupClick_}"
+       label="$i18n{setupRunAgain}"></cr-link-row>
++  <cr-link-row class="hr" id="relaunchNow" @click="${this.onRelaunchClick_}"
++      label="$i18n{restart}"></cr-link-row>
+   <cr-link-row class="hr" @click="${this.onManagementPageClick_}"
+       start-icon="${this.managedByIcon_}" label="$i18n{managementPage}"
+       role-description="$i18n{subpageArrowRoleDescription}"
