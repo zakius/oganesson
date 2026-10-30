@@ -13,17 +13,6 @@
    # TODO(crbug.com/40242425): Cleanup undefined symbol errors caught by
    # --no-undefined-version.
    if ((use_lld || linker_path != "") && !is_win && !is_mac && !is_ios &&
---- a/build/config/compiler/pgo/BUILD.gn
-+++ b/build/config/compiler/pgo/BUILD.gn
-@@ -173,7 +173,7 @@
-     ]
- 
-     # TODO(crbug.com/383537825): Try enabling on all platforms.
--    if (is_android || is_fuchsia) {
-+    if (is_android || is_fuchsia || is_linux) {
-       cflags += [
-         "-mllvm",
-         "-pgo-cold-func-opt=minsize",
 --- a/extensions/renderer/resource_bundle_source_map.cc
 +++ b/extensions/renderer/resource_bundle_source_map.cc
 @@ -11,7 +11,6 @@

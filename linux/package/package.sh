@@ -61,9 +61,7 @@ else
     if want tarball || want deb || want rpm; then
         # The x86 filter makes the binary's calls and jumps compress better:
         # about 1% off the archive, more than -9e alone gains.
-        # A 256 MiB dictionary sees the whole binary: 1.3% smaller again, for
-        # 256 MiB of memory while unpacking.
-        tar -C "$stage" -cf - "$tarball" | xz -T0 --x86 --lzma2=preset=9e,dict=256MiB > "$stage/$tarball.tar.xz"
+        tar -C "$stage" -cf - "$tarball" | xz -T0 --x86 --lzma2=preset=9e > "$stage/$tarball.tar.xz"
     fi
     if want tarball; then
         cp "$stage/$tarball.tar.xz" "$packages/"
