@@ -1,0 +1,96 @@
+--- a/build/config/compiler/BUILD.gn
++++ b/build/config/compiler/BUILD.gn
+@@ -1175,6 +1175,12 @@
+     }
+   }
+ 
++  # RELR: the relative relocations as a bitmap, about 25 MB less in the
++  # browser binary and less to read at start. Needs glibc 2.36.
++  if (is_linux) {
++    ldflags += [ "-Wl,-z,pack-relative-relocs" ]
++  }
++
+   # TODO(crbug.com/40242425): Cleanup undefined symbol errors caught by
+   # --no-undefined-version.
+   if ((use_lld || linker_path != "") && !is_win && !is_mac && !is_ios &&
+--- a/extensions/renderer/resource_bundle_source_map.cc
++++ b/extensions/renderer/resource_bundle_source_map.cc
+@@ -11,7 +11,6 @@
+ 
+ #include "base/notreached.h"
+ #include "extensions/renderer/static_v8_external_one_byte_string_resource.h"
+-#include "third_party/zlib/google/compression_utils.h"
+ #include "ui/base/resource/resource_bundle.h"
+ #include "v8/include/v8-primitive.h"
+ 
+@@ -60,13 +59,13 @@
+     return v8::Local<v8::String>();
+   }
+ 
+-  bool is_gzipped = resource_bundle_->IsGzipped(*resource_id);
+-  if (is_gzipped) {
++  if (resource_bundle_->IsGzipped(*resource_id) ||
++      resource_bundle_->IsBrotli(*resource_id)) {
+     std::string& cached_source = cached_sources_[*resource_id];
+-    if (!compression::GzipUncompress(resource, &cached_source)) {
++    cached_source = resource_bundle_->LoadDataResourceString(*resource_id);
++    if (cached_source.empty()) {
+       // Leave an empty string in the cache so later requests return directly
+       // instead of trying to uncompress again.
+-      cached_source.clear();
+       return v8::Local<v8::String>();
+     }
+     resource = cached_source;
+--- a/third_party/ublock/generate_file_list.py
++++ b/third_party/ublock/generate_file_list.py
+@@ -41,7 +41,7 @@
+           os.path.relpath(path, root_gen_dir)).as_posix()
+       entry = ET.fromstring(generate_grd._generate_include_row(
+           'ublock', relative, file_path, {}, 'ublock'))
+-      entry.set('compress', 'gzip')
++      entry.set('compress', 'brotli')
+       compressed_assets.append(entry)
+     else:
+       files.append(relative)
+--- a/tools/grit/grit/node/base.py
++++ b/tools/grit/grit/node/base.py
+@@ -672,16 +672,16 @@
+       and self.attrs.get('file').endswith(self._COMPRESS_DISALLOWED_EXTENSIONS)
+     ), 'Disallowed |compress| attribute found for %s' % self.attrs.get('name')
+ 
+-    # Compress JS, HTML, CSS and SVG files by default (gzip), unless |compress|
++    # Compress JS, HTML, CSS and SVG files by default (brotli), unless |compress|
+     # is explicitly specified.
+     compress_by_default = compress == 'default' and self.attrs.get(
+       'file'
+     ).endswith(self._COMPRESS_BY_DEFAULT_EXTENSIONS)
+ 
+-    if compress == 'gzip' or compress_by_default:
++    if compress == 'gzip':
+       return grit.format.gzip_string.GzipString(data)
+ 
+-    if compress == 'brotli':
++    if compress == 'brotli' or compress_by_default:
+       # The length of the uncompressed data as 8 bytes little-endian.
+       size_bytes = struct.pack("<q", len(data))
+       data = brotli_util.BrotliCompress(data)
+--- a/tools/grit/grit_rule.gni
++++ b/tools/grit/grit_rule.gni
+@@ -259,7 +259,7 @@
+     }
+ 
+     # Add brotli executable if using brotli.
+-    if (defined(invoker.use_brotli) && invoker.use_brotli) {
++    if (!defined(invoker.use_brotli) || invoker.use_brotli) {
+       _brotli_target = "//third_party/brotli:brotli($host_toolchain)"
+       _brotli_executable = get_label_info(_brotli_target, "root_out_dir") +
+                            "/" + get_label_info(_brotli_target, "name")
+@@ -348,7 +348,7 @@
+       visibility = [ ":${invoker.target_name}" ] + invoker.visibility
+     }
+ 
+-    if (defined(invoker.use_brotli) && invoker.use_brotli) {
++    if (!defined(invoker.use_brotli) || invoker.use_brotli) {
+       if (is_mac && is_asan) {
+         deps += [ "//tools/grit:brotli_mac_asan_workaround" ]
+       } else {

@@ -17,6 +17,7 @@ oganesson/core/no-helium-services.patch
 oganesson/core/ublock-assets-update.patch
 oganesson/core/chrome-scheme.patch
 oganesson/core/x86-64-levels.patch
+oganesson/core/smaller-build.patch
 oganesson/core/offer-to-save-passwords.patch
 oganesson/ui/toolbar-items.patch
 oganesson/ui/toolbar-settings-cleanup.patch
