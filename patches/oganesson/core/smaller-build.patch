@@ -34,7 +34,7 @@
  #include "ui/base/resource/resource_bundle.h"
  #include "v8/include/v8-primitive.h"
  
-@@ -60,10 +59,11 @@
+@@ -60,13 +59,13 @@
      return v8::Local<v8::String>();
    }
  
@@ -48,7 +48,10 @@
 +    if (cached_source.empty()) {
        // Leave an empty string in the cache so later requests return directly
        // instead of trying to uncompress again.
-       cached_source.clear();
+-      cached_source.clear();
+       return v8::Local<v8::String>();
+     }
+     resource = cached_source;
 --- a/third_party/ublock/generate_file_list.py
 +++ b/third_party/ublock/generate_file_list.py
 @@ -41,7 +41,7 @@
