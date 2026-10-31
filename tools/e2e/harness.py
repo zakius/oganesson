@@ -852,8 +852,8 @@ class Server:
                 self.do_GET()
 
             def do_GET(self):
-                # Other programs on the machine probe local ports (a Node tool
-                # sends "GET /" as "node"): only the browser's requests count.
+                # T3 Code probes every new local port every 15 s with "GET /"
+                # as "node": only the browser's requests count.
                 if not self.headers.get('User-Agent', '').startswith('Mozilla/'):
                     self.send_error(404)
                     return

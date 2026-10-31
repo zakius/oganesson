@@ -253,7 +253,11 @@ class Handler(BaseHTTPRequestHandler):
     base: str
 
     def log_message(self, fmt, *args):
-        self.state.log.append(f'{self.command} {self.path.split("?")[0]}')
+        # T3 Code probes every new local port every 15 s with "GET /" as
+        # "node", and with a TLS handshake that never parses into a request:
+        # only the browser's and the checks' own (urllib) requests count.
+        if getattr(self, 'headers', None) and self.headers.get('User-Agent', '').startswith(('Mozilla/', 'Python-urllib/')):
+            self.state.log.append(f'{self.command} {self.path.split("?")[0]}')
 
     def reply(self, status, body=None, headers=()):
         data = b'' if body is None else json.dumps(body).encode()
