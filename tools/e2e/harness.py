@@ -829,7 +829,7 @@ class Server:
     """A local HTTP server. `routes` maps a path to (status, headers, body), or
     to a function of the request's headers that returns them. With `tls`, a
     (certificate, key) pair of files, it speaks HTTPS; with `ipv6`, it listens
-    on ::1 instead of 127.0.0.1. `requests` lists the paths it was asked for, in order; `headers` maps a
+    on ::1 instead of 127.0.0.1. `requests` lists the paths the browser asked for, in order; `headers` maps a
     path to the headers of its last request, and `bodies` to the body of its
     last POST; `posts` lists every POST's body, in order."""
 
@@ -852,6 +852,11 @@ class Server:
                 self.do_GET()
 
             def do_GET(self):
+                # Other programs on the machine probe local ports (a Node tool
+                # sends "GET /" as "node"): only the browser's requests count.
+                if not self.headers.get('User-Agent', '').startswith('Mozilla/'):
+                    self.send_error(404)
+                    return
                 requests_ref.append(urllib.parse.urlparse(self.path).path)
                 headers_ref[requests_ref[-1]] = dict(self.headers)
                 route = routes_ref.get(urllib.parse.urlparse(self.path).path)
