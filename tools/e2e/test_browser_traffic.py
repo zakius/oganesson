@@ -69,6 +69,15 @@ class TrafficTest(BrowserTest):
         self.own.requests.clear()
         self.browser.start()
 
+    @staticmethod
+    def row(name):
+        """A script expression for a row of the page, in its shadow roots."""
+        return ("(function find(root) { for (const el of root.querySelectorAll('*')) {"
+                " if (el.localName === 'settings-browser-traffic')"
+                f" return el.shadowRoot.querySelector('#row_{name}');"
+                " const found = el.shadowRoot && find(el.shadowRoot);"
+                " if (found) return found; } return null; })(document)")
+
     def traffic_state(self):
         page = self.browser.new_tab('chrome://settings/updates')
         wait_for(lambda: page.eval("!!customElements.get('settings-browser-traffic-page')"),
@@ -102,9 +111,12 @@ class DirectTest(TrafficTest):
         self.google.posts.clear()
         page, state = self.traffic_state()
         self.assertTrue(state['rows'][0]['automatic'])
-        page.eval("chrome.send('updateBrowserTrafficNow', ['certificates'])")
+        row = self.row('certificates')
+        page.eval(f"{row}.querySelector('.update-now').click()")
         wait_for(lambda: any(CRLSET.encode() in body for body in self.google.posts),
                  timeout=30, what="Update now's check at Google's update server")
+        wait_for(lambda: page.eval(f"{row}.querySelector('.good')?.textContent.trim()")
+                 == 'Up to date', timeout=30, what="Update now's result on its row")
 
     def test_presets_set_the_rows(self):
         page, state = self.traffic_state()

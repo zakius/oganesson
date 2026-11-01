@@ -5,8 +5,10 @@
 #ifndef CHROME_BROWSER_UI_WEBUI_SETTINGS_BROWSER_TRAFFIC_HANDLER_H_
 #define CHROME_BROWSER_UI_WEBUI_SETTINGS_BROWSER_TRAFFIC_HANDLER_H_
 
+#include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
+#include "base/timer/timer.h"
 #include "base/values.h"
 #include "chrome/browser/ui/webui/settings/settings_page_ui_handler.h"
 #include "components/prefs/pref_change_registrar.h"
@@ -47,11 +49,17 @@ class BrowserTrafficHandler : public SettingsPageUIHandler {
   void HandleUpdateNow(const base::ListValue& args);
   void HandleChoose(const base::ListValue& args);
   void OnServerTested(base::Value callback_id, bool answered);
+  void OnUpdated(base::Value callback_id, bool done);
+  void UpdateDictionaries(base::OnceCallback<void(bool)> done);
+  void CheckDictionaries();
   void OnChanged();
   base::DictValue State() const;
 
   raw_ptr<Profile> profile_;
   PrefChangeRegistrar registrar_;
+  // Update now on the dictionaries: polled until none is downloading.
+  base::RepeatingTimer dictionaries_timer_;
+  base::OnceCallback<void(bool)> dictionaries_done_;
   base::WeakPtrFactory<BrowserTrafficHandler> weak_factory_{this};
 };
 

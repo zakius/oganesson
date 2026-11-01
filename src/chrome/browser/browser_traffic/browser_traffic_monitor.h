@@ -40,8 +40,9 @@ void StopMonitor();
 void CheckServer(const GURL& server, base::OnceCallback<void(bool)> callback);
 
 // Updates the components of `row` (ComponentsOf) now, whatever its Download
-// setting.
+// setting. `done` gets whether every component's check succeeded.
 void UpdateComponentsNow(Row row);
+void UpdateComponentsNow(Row row, base::OnceCallback<void(bool)> done);
 
 }  // namespace browser_traffic
 

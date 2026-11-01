@@ -4,9 +4,12 @@
 
 #include "chrome/browser/browser_traffic/browser_traffic_monitor.h"
 
+#include <algorithm>
 #include <memory>
 #include <utility>
+#include <vector>
 
+#include "base/barrier_callback.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
 #include "base/functional/callback_helpers.h"
@@ -24,6 +27,7 @@
 #include "components/prefs/pref_change_registrar.h"
 #include "components/prefs/pref_service.h"
 #include "components/update_client/crx_update_item.h"
+#include "components/update_client/update_client_errors.h"
 #include "net/base/load_flags.h"
 #include "net/http/http_response_headers.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
@@ -253,14 +257,31 @@ void CheckServer(const GURL& server, base::OnceCallback<void(bool)> callback) {
 }
 
 void UpdateComponentsNow(Row row) {
+  UpdateComponentsNow(row, base::DoNothing());
+}
+
+void UpdateComponentsNow(Row row, base::OnceCallback<void(bool)> done) {
   auto* updater = g_browser_process->component_updater();
-  if (!updater) {
+  const base::span<const std::string_view> ids = ComponentsOf(row);
+  if (!updater || ids.empty()) {
+    std::move(done).Run(false);
     return;
   }
-  for (std::string_view id : ComponentsOf(row)) {
+  const auto checked = base::BarrierCallback<update_client::Error>(
+      ids.size(),
+      base::BindOnce(
+          [](base::OnceCallback<void(bool)> done,
+             std::vector<update_client::Error> errors) {
+            std::move(done).Run(std::ranges::all_of(
+                errors, [](update_client::Error error) {
+                  return error == update_client::Error::NONE;
+                }));
+          },
+          std::move(done)));
+  for (std::string_view id : ids) {
     updater->GetOnDemandUpdater().OnDemandUpdate(
         std::string(id), component_updater::OnDemandUpdater::Priority::FOREGROUND,
-        base::DoNothing());
+        checked);
   }
 }
 
