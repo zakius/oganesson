@@ -4,11 +4,13 @@
 
 #include "chrome/browser/ui/webui/settings/browser_traffic_handler.h"
 
+#include <algorithm>
 #include <optional>
 #include <string>
 #include <utility>
 
 #include "base/functional/bind.h"
+#include "base/time/time.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/browser_traffic/browser_traffic_monitor.h"
 #include "chrome/browser/extensions/updater/extension_updater.h"
@@ -154,6 +156,9 @@ void BrowserTrafficHandler::AddStrings(content::WebUIDataSource* html_source) {
       {"browserTrafficPackageManager", IDS_BROWSER_TRAFFIC_PACKAGE_MANAGER},
       {"browserTrafficUpdateNow", IDS_BROWSER_TRAFFIC_UPDATE_NOW},
       {"browserTrafficUpdateAll", IDS_BROWSER_TRAFFIC_UPDATE_ALL},
+      {"browserTrafficUpdate_checking", IDS_BROWSER_TRAFFIC_UPDATE_CHECKING},
+      {"browserTrafficUpdate_done", IDS_BROWSER_TRAFFIC_UPDATE_DONE},
+      {"browserTrafficUpdate_failed", IDS_BROWSER_TRAFFIC_UPDATE_FAILED},
       {"browserTrafficUpdated", IDS_BROWSER_TRAFFIC_UPDATED},
       {"browserTrafficRevocationWarningTitle",
        IDS_BROWSER_TRAFFIC_REVOCATION_WARNING_TITLE},
@@ -210,6 +215,7 @@ void BrowserTrafficHandler::OnJavascriptAllowed() {
 
 void BrowserTrafficHandler::OnJavascriptDisallowed() {
   registrar_.RemoveAll();
+  dictionaries_timer_.Stop();
   weak_factory_.InvalidateWeakPtrs();
 }
 
@@ -335,47 +341,94 @@ void BrowserTrafficHandler::HandleSetHealthCheck(const base::ListValue& args) {
                         : browser_traffic::HealthCheck::kOnRequest);
 }
 
-// Update now, on any row and whatever its Download setting. uBO's lists have
-// none: uBO has its own. Browser updates have none here: the page opens
-// About, which checks.
+// Update now, on any row and whatever its Download setting; resolves whether
+// it got the data. uBO's lists have none: uBO has its own. Browser updates
+// have none here: the page opens About, which checks.
 void BrowserTrafficHandler::HandleUpdateNow(const base::ListValue& args) {
+  AllowJavascript();
+  base::OnceCallback<void(bool)> done =
+      base::BindOnce(&BrowserTrafficHandler::OnUpdated,
+                     weak_factory_.GetWeakPtr(), args[0].Clone());
   const std::optional<browser_traffic::Row> row =
-      browser_traffic::RowFromName(args[0].GetString());
+      browser_traffic::RowFromName(args[1].GetString());
   if (!row) {
+    std::move(done).Run(false);
     return;
   }
   switch (*row) {
     case browser_traffic::Row::kCertificates:
     case browser_traffic::Row::kDrm:
-      browser_traffic::UpdateComponentsNow(*row);
+      browser_traffic::UpdateComponentsNow(*row, std::move(done));
       break;
     case browser_traffic::Row::kExtensions: {
       extensions::ExtensionUpdater::CheckParams params;
       params.fetch_priority = extensions::DownloadFetchPriority::kForeground;
       params.install_immediately = true;
+      params.callback = base::BindOnce(std::move(done), true);
       extensions::ExtensionUpdater::Get(profile_)->CheckNow(std::move(params));
       break;
     }
     case browser_traffic::Row::kDictionaries:
-      if (SpellcheckService* service =
-              SpellcheckServiceFactory::GetForContext(profile_)) {
-        for (const auto& dictionary : service->GetHunspellDictionaries()) {
-          if (!dictionary->IsReady() && !dictionary->IsDownloadInProgress()) {
-            dictionary->RetryDownloadDictionary(profile_);
-          }
-        }
-      }
+      UpdateDictionaries(std::move(done));
       break;
     case browser_traffic::Row::kBangs:
       if (TemplateURLService* service =
               TemplateURLServiceFactory::GetForProfile(profile_)) {
-        service->RefreshBangs();
+        service->RefreshBangs(std::move(done));
+      } else {
+        std::move(done).Run(false);
       }
       break;
     case browser_traffic::Row::kContentBlocker:
     case browser_traffic::Row::kBrowserUpdates:
+      std::move(done).Run(false);
       break;
   }
+}
+
+void BrowserTrafficHandler::OnUpdated(base::Value callback_id, bool done) {
+  ResolveJavascriptCallback(callback_id, base::Value(done));
+}
+
+// Downloads the missing dictionaries, and watches them until none is
+// downloading.
+void BrowserTrafficHandler::UpdateDictionaries(
+    base::OnceCallback<void(bool)> done) {
+  SpellcheckService* service =
+      SpellcheckServiceFactory::GetForContext(profile_);
+  if (!service) {
+    std::move(done).Run(false);
+    return;
+  }
+  for (const auto& dictionary : service->GetHunspellDictionaries()) {
+    if (!dictionary->IsReady() && !dictionary->IsDownloadInProgress()) {
+      dictionary->RetryDownloadDictionary(profile_);
+    }
+  }
+  dictionaries_done_ = std::move(done);
+  dictionaries_timer_.Start(
+      FROM_HERE, base::Milliseconds(250),
+      base::BindRepeating(&BrowserTrafficHandler::CheckDictionaries,
+                          base::Unretained(this)));
+  CheckDictionaries();
+}
+
+void BrowserTrafficHandler::CheckDictionaries() {
+  SpellcheckService* service =
+      SpellcheckServiceFactory::GetForContext(profile_);
+  if (service &&
+      std::ranges::any_of(service->GetHunspellDictionaries(),
+                          [](const auto& dictionary) {
+                            return dictionary->IsDownloadInProgress();
+                          })) {
+    return;
+  }
+  dictionaries_timer_.Stop();
+  std::move(dictionaries_done_)
+      .Run(service && std::ranges::all_of(service->GetHunspellDictionaries(),
+                                          [](const auto& dictionary) {
+                                            return dictionary->IsReady();
+                                          }));
 }
 
 // Setup's Browser traffic step: the rows as they are are the user's choice.

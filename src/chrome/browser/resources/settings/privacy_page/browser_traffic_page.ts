@@ -78,7 +78,7 @@ export function relativeTime(time: number): string {
       return format.format(Math.round(seconds / size), unit);
     }
   }
-  return format.format(0, 'minute');
+  return format.format(0, 'second');
 }
 
 function timeOfDay(time: number): string {
@@ -122,15 +122,35 @@ export class BrowserTrafficElement extends BrowserTrafficElementBase {
         }
         .fixed {
           color: var(--cr-secondary-text-color);
-          text-align: end;
         }
         .row-controls {
           align-items: center;
           display: flex;
           gap: 8px;
+          margin-inline-start: 16px;
         }
         .row-controls .md-select {
           --md-select-width: 140px;
+        }
+        /* The rows' Download and Route, under their headings. */
+        .column {
+          flex-shrink: 0;
+          width: 140px;
+        }
+        .column-heading {
+          padding-inline-start: 8px;
+          width: 132px;
+        }
+        .link-button {
+          background: none;
+          border: none;
+          color: var(--cr-link-color);
+          cursor: pointer;
+          font: inherit;
+          padding: 0;
+        }
+        .link-button:hover {
+          text-decoration: underline;
         }
         #serverRow cr-input {
           flex: 1;
@@ -285,16 +305,19 @@ export class BrowserTrafficElement extends BrowserTrafficElementBase {
           </div>
         </template>
 
+        <div class="cr-row" hidden="[[setup]]">
+          <div class="flex"></div>
+          <cr-button id="updateAll" on-click="onUpdateAll_">
+            [[i18n('browserTrafficUpdateAll')]]
+          </cr-button>
+        </div>
         <div class="list-frame">
           <div class="cr-row first">
             <div class="flex secondary">[[i18n('browserTrafficWhat')]]</div>
-            <div class="secondary">
-              [[i18n('browserTrafficDownload')]] · [[i18n('browserTrafficRoute')]]
+            <div class="row-controls secondary">
+              <div class="column-heading">[[i18n('browserTrafficDownload')]]</div>
+              <div class="column-heading">[[i18n('browserTrafficRoute')]]</div>
             </div>
-            <cr-button id="updateAll" hidden="[[setup]]"
-                on-click="onUpdateAll_">
-              [[i18n('browserTrafficUpdateAll')]]
-            </cr-button>
           </div>
           <template is="dom-repeat" items="[[state_.rows]]" as="row">
             <div class="cr-row" id$="row_[[row.name]]">
@@ -305,13 +328,22 @@ export class BrowserTrafficElement extends BrowserTrafficElementBase {
                   <span class="bad" hidden="[[!row.idle]]">
                     · [[idleText_(row)]]
                   </span>
+                  <span hidden="[[!showUpdateNow_(row, setup)]]">
+                    ·
+                    <span class$="[[updateClass_(row, updates_)]]">
+                      [[updateText_(row, updates_)]]
+                    </span>
+                    <span hidden="[[!isUpdate_(row, updates_, 'failed')]]">
+                      ·
+                    </span>
+                    <button class="link-button update-now"
+                        hidden="[[!canUpdate_(row, updates_)]]"
+                        on-click="onUpdateNow_">
+                      [[i18n('browserTrafficUpdateNow')]]</button>
+                  </span>
                 </div>
               </div>
               <div class="row-controls">
-                <cr-button hidden="[[!showUpdateNow_(row, setup)]]"
-                    on-click="onUpdateNow_">
-                  [[i18n('browserTrafficUpdateNow')]]
-                </cr-button>
                 <select class="md-select download"
                     aria-label$="[[rowName_(row)]]: [[i18n('browserTrafficDownload')]]"
                     value="[[downloadValue_(row)]]"
@@ -330,7 +362,7 @@ export class BrowserTrafficElement extends BrowserTrafficElementBase {
                   <option value="direct">[[i18n('browserTrafficDirect')]]</option>
                   <option value="proxy">[[i18n('browserTrafficProxy')]]</option>
                 </select>
-                <div class="fixed" hidden="[[hasBothRoutes_(row)]]">
+                <div class="fixed column" hidden="[[hasBothRoutes_(row)]]">
                   <div>[[onlyRoute_(row)]]</div>
                   <div class="secondary">[[onlyRouteWhy_(row, state_)]]</div>
                 </div>
@@ -387,6 +419,12 @@ export class BrowserTrafficElement extends BrowserTrafficElementBase {
         value: '',
       },
 
+      // Update now's result by row: 'checking', 'done' or 'failed'.
+      updates_: {
+        type: Object,
+        value: () => ({}),
+      },
+
       state_: {
         type: Object,
         value: () => ({rows: [], preset: 'direct', server: ''}),
@@ -409,6 +447,7 @@ export class BrowserTrafficElement extends BrowserTrafficElementBase {
   declare canContinue: boolean;
   declare private presetCards_: string[];
   declare private answeredServer_: string;
+  declare private updates_: Record<string, string>;
   declare private state_: BrowserTrafficState;
   declare private serverDescription_: string;
   declare private serverInvalid_: boolean;
@@ -528,6 +567,30 @@ export class BrowserTrafficElement extends BrowserTrafficElementBase {
   // has nowhere to download from. uBO's lists have uBO's own Update now.
   private showUpdateNow_(row: BrowserTrafficRow, setup: boolean): boolean {
     return !setup && !row.idle && row.name !== 'content_blocker';
+  }
+
+  private isUpdate_(row: BrowserTrafficRow, updates: Record<string, string>,
+                    update: string): boolean {
+    return updates[row.name] === update;
+  }
+
+  // Not while it checks, nor once it got the data.
+  private canUpdate_(row: BrowserTrafficRow,
+                     updates: Record<string, string>): boolean {
+    return !this.isUpdate_(row, updates, 'checking') &&
+        !this.isUpdate_(row, updates, 'done');
+  }
+
+  private updateText_(row: BrowserTrafficRow,
+                      updates: Record<string, string>): string {
+    const update = updates[row.name];
+    return update ? this.i18n(`browserTrafficUpdate_${update}`) : '';
+  }
+
+  private updateClass_(row: BrowserTrafficRow,
+                       updates: Record<string, string>): string {
+    const update = updates[row.name];
+    return update === 'done' ? 'good' : update === 'failed' ? 'bad' : '';
   }
 
   private downloadValue_(row: BrowserTrafficRow): string {
@@ -679,14 +742,24 @@ export class BrowserTrafficElement extends BrowserTrafficElementBase {
       Router.getInstance().navigateTo(routes.ABOUT);
       return;
     }
-    chrome.send('updateBrowserTrafficNow', [name]);
+    this.updateNow_(name);
+  }
+
+  // Shows 'checking' on the row until the handler resolves whether it got
+  // the data.
+  private async updateNow_(name: string) {
+    this.updates_ = {...this.updates_, [name]: 'checking'};
+    const done =
+        await sendWithPromise<boolean>('updateBrowserTrafficNow', name);
+    this.updates_ = {...this.updates_, [name]: done ? 'done' : 'failed'};
   }
 
   // Browser updates are left out: their check is on About.
   private onUpdateAll_() {
     for (const row of this.state_.rows) {
-      if (this.showUpdateNow_(row, false) && row.name !== 'browser_updates') {
-        chrome.send('updateBrowserTrafficNow', [row.name]);
+      if (this.showUpdateNow_(row, false) && row.name !== 'browser_updates' &&
+          !this.isUpdate_(row, this.updates_, 'checking')) {
+        this.updateNow_(row.name);
       }
     }
   }

@@ -527,18 +527,19 @@
  
 +namespace browser_traffic {
 +enum class Row;
-+void UpdateComponentsNow(Row row);
++void UpdateComponentsNow(Row row, base::OnceCallback<void(bool)> done);
 +}
 +
  namespace ash {
  class SmartDimComponentIntegrationTest;
  }
-@@ -247,6 +252,8 @@ class OnDemandUpdater {
+@@ -247,6 +252,9 @@ class OnDemandUpdater {
    friend class PlatformRuntimeComponentInstallerPolicy;
    friend void UpdateAIEmbeddingsComponentOnDemand(Priority priority,
                                                    Callback callback);
 +  // oganesson: browser traffic's Update now.
-+  friend void ::browser_traffic::UpdateComponentsNow(browser_traffic::Row row);
++  friend void ::browser_traffic::UpdateComponentsNow(
++      browser_traffic::Row row, base::OnceCallback<void(bool)> done);
  
    // Triggers an update check for a component. |id| is a value
    // returned by GetCrxComponentID(). If an update for this component is already
@@ -760,18 +761,19 @@
      OnBangsLoaded(base::MakeRefCounted<Catalogue>(std::vector<Bang>()));
      return;
    }
-@@ -193,10 +202,28 @@ void BangManager::LoadBangs(Callback callback) {
+@@ -193,10 +202,29 @@ void BangManager::LoadBangs(Callback callback) {
    StartFetch();
  }
  
-+void BangManager::Refresh() {
++bool BangManager::Refresh() {
 +  if (!callback_ || !helium::ShouldAccessServices(*prefs_)) {
-+    return;
++    return false;
 +  }
 +  retry_timer_.Stop();
 +  backoff_.Reset();
 +  BangCache::GetInstance().Forget(BangsURL());
 +  FetchWith(net::LOAD_BYPASS_CACHE);
++  return true;
 +}
 +
 +GURL BangManager::BangsURL() const {
@@ -807,8 +809,8 @@
    void LoadBangs(Callback callback);
 +  // oganesson: fetches the list again, past the cache, whatever browser
 +  // traffic's Bangs row says (its Update now), and reports it as LoadBangs'
-+  // callback.
-+  void Refresh();
++  // callback. False when it can't: no server, or no LoadBangs yet.
++  [[nodiscard]] bool Refresh();
  
   private:
    void StartFetch();
@@ -819,30 +821,47 @@
    const raw_ref<PrefService> prefs_;
 --- a/components/search_engines/template_url_service.cc
 +++ b/components/search_engines/template_url_service.cc
-@@ -1700,6 +1700,12 @@ void TemplateURLService::LoadBangs() {
+@@ -1700,8 +1700,19 @@ void TemplateURLService::LoadBangs() {
                            weak_ptr_factory_.GetWeakPtr()));
  }
  
-+void TemplateURLService::RefreshBangs() {
-+  if (bang_manager_) {
-+    bang_manager_->Refresh();
++void TemplateURLService::RefreshBangs(base::OnceCallback<void(bool)> done) {
++  if (!bang_manager_ || !bang_manager_->Refresh()) {
++    std::move(done).Run(false);
++    return;
 +  }
++  bangs_refreshed_ = std::move(done);
 +}
 +
  void TemplateURLService::BangsLoadedCallback(
      const Bangs::BangManager::Result& bangs) {
++  if (bangs_refreshed_) {
++    std::move(bangs_refreshed_).Run(!!bangs);
++  }
    if (!bangs || bangs == bang_catalogue_) {
+     return;
+   }
 --- a/components/search_engines/template_url_service.h
 +++ b/components/search_engines/template_url_service.h
-@@ -530,6 +530,8 @@ class TemplateURLService final : public WebDataServiceConsumer,
+@@ -530,6 +530,9 @@ class TemplateURLService final : public WebDataServiceConsumer,
    void Load();
  
    void LoadBangs();
 +  // oganesson: fetches the bang list again (browser traffic's Update now).
-+  void RefreshBangs();
++  // `done` gets whether it got the list.
++  void RefreshBangs(base::OnceCallback<void(bool)> done);
  
    // Registers a callback to be called when the service has loaded.
    //
+@@ -978,6 +981,8 @@ class TemplateURLService final : public WebDataServiceConsumer,
+ 
+   std::unique_ptr<Bangs::BangManager> bang_manager_;
+   scoped_refptr<const Bangs::Catalogue> bang_catalogue_;
++  // oganesson: RefreshBangs()' `done`, until the list it fetched comes.
++  base::OnceCallback<void(bool)> bangs_refreshed_;
+ 
+   std::unique_ptr<TemplateURLServiceClient> client_;
+ 
 --- a/components/update_client/configurator.h
 +++ b/components/update_client/configurator.h
 @@ -17,8 +17,8 @@

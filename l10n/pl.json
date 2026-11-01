@@ -680,6 +680,21 @@
     "message": "Aktualizuj wszystko teraz"
   },
   {
+    "name": "IDS_BROWSER_TRAFFIC_UPDATE_CHECKING",
+    "source": "Checking…",
+    "message": "Sprawdzanie…"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_UPDATE_DONE",
+    "source": "Up to date",
+    "message": "Aktualne"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_UPDATE_FAILED",
+    "source": "Couldn't update",
+    "message": "Nie udało się zaktualizować"
+  },
+  {
     "name": "IDS_BROWSER_TRAFFIC_UPDATED",
     "source": "Updated <ph name=\"WHEN\">$1<ex>3 hours ago</ex></ph>",
     "message": "Zaktualizowano <ph name=\"WHEN\">$1<ex>3 hours ago</ex></ph>"
