@@ -20,6 +20,13 @@ import oganesson  # pylint: disable=wrong-import-position
 BASES = oganesson.SERIES
 
 
+# What clone.py's gclient config pins in place of DEPS (patches/helium-utils.patch): commits DEPS
+# names that the mirror lacks.
+MIRROR_PINS = {
+    'third_party/search_engines_data/resources': 'effde84e73491653b245b68ac65835ad2fc4e1de',
+}
+
+
 def git(*args):
     subprocess.run(['git', *args], check=True)
 
@@ -156,8 +163,8 @@ def main():
              r"'dawn_revision': '([0-9a-f]+)'")):
         files = [p.removeprefix(folder + '/') for p in paths if p.startswith(folder + '/')]
         if files:
-            sparse_clone(url, re.search(key, deps, re.S).group(1), src / folder, files,
-                         tree and tree / folder)
+            ref = MIRROR_PINS.get(folder) or re.search(key, deps, re.S).group(1)
+            sparse_clone(url, ref, src / folder, files, tree and tree / folder)
     for action, extra in (('retrieve', []), ('unpack', [str(src)])):
         subprocess.run([str(tree_dir / 'utils/downloads.py'), action, '-i', str(tree_dir / 'deps.ini'),
                         '-c', str(cache), *extra, '--components', 'ublock_origin', 'onboarding'],
