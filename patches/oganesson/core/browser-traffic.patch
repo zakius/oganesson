@@ -696,6 +696,15 @@
  #include "components/prefs/pref_change_registrar.h"
  #include "components/prefs/pref_service.h"
  #include "url/gurl.h"
+@@ -18,7 +20,7 @@
+ const char kHeliumDummyOrigin[] =
+     "https://helium-services-are-disabled.qjz9zk";
+ 
+-bool ShouldAccessServices(const PrefService& prefs);
++COMPONENT_EXPORT(HELIUM) bool ShouldAccessServices(const PrefService& prefs);
+ 
+ COMPONENT_EXPORT(HELIUM) bool ShouldFetchBangs(const PrefService& prefs);
+ COMPONENT_EXPORT(HELIUM) bool ShouldAccessExtensionService(const PrefService& prefs);
 --- a/components/helium_services/schema.cc
 +++ b/components/helium_services/schema.cc
 @@ -19,9 +19,12 @@ void AcceptCurrentSchema(PrefService& prefs) {
