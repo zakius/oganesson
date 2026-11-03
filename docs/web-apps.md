@@ -46,3 +46,26 @@ The same page has a "Start address" card: the URL the app opens at, in place of 
 - **Storage.** Per app, in the profile pref `oganesson.web_apps.user_start_urls`, kept like the scope rules: across app updates and restarts, not synced, and kept after an uninstall, for a reinstall.
 
 Code: `src/chrome/browser/web_applications/user_app_start_url.cc` and `src/chrome/browser/resources/app_settings/start_url_item.ts`, hooked in by `patches/oganesson/core/web-apps.patch`. Verified by `./oganesson.py test web_app_links`.
+
+## Tray
+
+An installed app's settings page has a "Keep running in the tray" switch, off by default. With it on, the app keeps running after its window closes, and its notifications and messages keep arriving with every other browser window closed: the browser keeps running for the app, as it does for any open window.
+
+- **Closing.** Closing the app's last window (its close button, the window manager, Ctrl+Shift+W, Ctrl+W on its last tab) hides the window instead, with its page as it was. A second window of the app closes as before, and so do the app's popups. A page that closes itself (`window.close()`) closes the app.
+- **The icon.** While the app has a window, shown or hidden, it has an icon in the system tray, from the app's own icon. On Linux that is a StatusNotifierItem, which KDE Plasma, XFCE, Ubuntu's AppIndicator extension and waybar show; trays that only take XEmbed windows (stalonetray, i3bar) show none without a bridge such as snixembed, as Chromium's XEmbed fallback fails a DCHECK without an X11 tray and is left out. A click shows and activates the window. Its menu has the manifest's `shortcuts`, which open in the app's window, not a new one, and Quit. On trays where a click opens the menu (Ubuntu's), the menu's first item, the app's name, shows the window. Stock GNOME has no tray: there, launching the app again is the way back (below).
+- **One window.** Launching the app while it has a window (its desktop entry, the app list) shows that window, keeping its page. A launch with its own URL (a shortcut in the desktop entry, a protocol or file handler) navigates that window there.
+- **Quitting.** Quit in the icon's menu closes the app's windows. So does quitting the browser (Ctrl+Shift+Q, Exit), and uninstalling the app. Turning the switch off shows a hidden window again.
+- **Notifications.** A page that focuses its window (`window.focus()`, `clients.focus()` from a notification click) shows it from the tray.
+- **At login.** An app set to "Open at sign-in" starts hidden in the tray.
+- **Hidden pages.** A hidden window's page runs as a background tab's does: Chromium throttles its timers, and chat and mail apps keep their connections.
+- **Storage.** Per app, in the profile pref `oganesson.web_apps.tray_apps`, kept like the scope rules.
+
+oganesson builds without Chromium's background mode (`enable_background_mode=false` in `flags.gn`): there is no "Continue running background apps when closed" setting, and an extension's `background` permission doesn't keep the browser running.
+
+Code: `src/chrome/browser/ui/web_applications/app_tray.cc` and `src/chrome/browser/resources/app_settings/tray_item.ts`, hooked in by `patches/oganesson/core/web-app-tray.patch`.
+
+## Badges
+
+A web app's badge (`navigator.setAppBadge()`) shows on its icon. On Linux, Chromium shows none; oganesson sends the count with the Unity launcher API's D-Bus signal (`com.canonical.Unity.LauncherEntry`), which KDE Plasma's task manager, Ubuntu Dock, Dash to Dock and Plank read, for the app's desktop entry. A badge without a count (`setAppBadge()` with no number) has nothing to show there. A tray app's tray icon gets a red dot for any badge.
+
+Code: `src/chrome/browser/badging/badge_manager_delegate_linux.cc`, hooked in by `patches/oganesson/core/web-app-tray.patch`.

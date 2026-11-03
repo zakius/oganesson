@@ -1,0 +1,319 @@
+# Installed web apps in the tray (src/chrome/browser/ui/web_applications/app_tray.cc): closing a
+# tray app's last window, or Ctrl+W on its last tab, hides the window; a page that focuses its
+# window shows it again; a launch reuses the window, and a login launch leaves it hidden. The app
+# settings page gets the switch. Badges: a Linux delegate for the dock's count
+# (src/chrome/browser/badging/badge_manager_delegate_linux.cc), and every badge marks the tray icon.
+--- a/chrome/browser/badging/BUILD.gn
++++ b/chrome/browser/badging/BUILD.gn
+@@ -28,6 +28,10 @@
+   if (is_mac) {
+     sources += [ "badge_manager_delegate_mac.h" ]
+   }
++
++  if (is_linux) {
++    sources += [ "badge_manager_delegate_linux.h" ]
++  }
+ }
+ 
+ source_set("impl") {
+@@ -64,6 +68,15 @@
+     deps += [ "//chrome/browser/apps/app_shim" ]
+   }
+ 
++  if (is_linux) {
++    sources += [ "badge_manager_delegate_linux.cc" ]
++    deps += [
++      "//chrome/browser:shell_integration_linux",
++      "//components/dbus",
++      "//dbus",
++    ]
++  }
++
+   public_deps = [ "//chrome/browser:browser_public_dependencies" ]
+ }
+ 
+--- a/chrome/browser/badging/badge_manager.cc
++++ b/chrome/browser/badging/badge_manager.cc
+@@ -15,6 +15,7 @@
+ #include "chrome/browser/badging/badge_manager_delegate.h"
+ #include "chrome/browser/badging/badge_manager_factory.h"
+ #include "chrome/browser/profiles/profile.h"
++#include "chrome/browser/ui/web_applications/app_tray.h"
+ #include "chrome/browser/web_applications/web_app_filter.h"
+ #include "chrome/browser/web_applications/web_app_provider.h"
+ #include "chrome/browser/web_applications/web_app_registrar.h"
+@@ -34,6 +35,8 @@
+ #include "chrome/browser/badging/badge_manager_delegate_mac.h"
+ #elif BUILDFLAG(IS_WIN)
+ #include "chrome/browser/badging/badge_manager_delegate_win.h"
++#elif BUILDFLAG(IS_LINUX)
++#include "chrome/browser/badging/badge_manager_delegate_linux.h"
+ #endif
+ 
+ using web_app::WebAppProvider;
+@@ -69,6 +72,8 @@
+   SetDelegate(std::make_unique<BadgeManagerDelegateMac>(profile, this));
+ #elif BUILDFLAG(IS_WIN)
+   SetDelegate(std::make_unique<BadgeManagerDelegateWin>(profile, this));
++#elif BUILDFLAG(IS_LINUX)
++  SetDelegate(std::make_unique<BadgeManagerDelegateLinux>(profile, this));
+ #endif
+ }
+ 
+@@ -203,6 +208,8 @@
+   else
+     badged_apps_[app_id] = value.value();
+ 
++  web_app::SetAppTrayBadge(profile_, app_id, value.has_value());
++
+   if (!delegate_)
+     return;
+ 
+--- a/chrome/browser/ui/views/frame/browser_view.cc
++++ b/chrome/browser/ui/views/frame/browser_view.cc
+@@ -246,6 +246,7 @@
+ #include "chrome/browser/ui/waap/initial_web_ui_manager.h"
+ #include "chrome/browser/ui/waap/initial_webui_window_metrics_manager.h"
+ #include "chrome/browser/ui/web_applications/app_browser_controller.h"
++#include "chrome/browser/ui/web_applications/app_tray.h"
+ #include "chrome/browser/ui/webui/top_chrome/webui_contents_preload_manager.h"
+ #include "chrome/browser/ui/window_feature_controller/window_feature_controller.h"
+ #include "chrome/browser/ui/window_metadata/window_metadata_controller.h"
+@@ -5303,6 +5304,11 @@
+     return views::CloseRequestResult::kCannotClose;
+   }
+ 
++  // oganesson: a tray app's last window hides instead (app_tray.h).
++  if (web_app::MaybeHideToTray(browser_)) {
++    return views::CloseRequestResult::kCannotClose;
++  }
++
+   // Give beforeunload handlers, the user, or policy the chance to cancel the
+   // close before we hide the window below.
+   if (!UnloadController::From(browser_)->HandleBeforeClose()) {
+--- a/chrome/browser/ui/browser_commands.cc
++++ b/chrome/browser/ui/browser_commands.cc
+@@ -129,6 +129,7 @@
+ #include "chrome/browser/ui/views/tabs/organizer/organizer_panel_utils.h"
+ #include "chrome/browser/ui/waap/initial_webui_window_metrics_manager.h"
+ #include "chrome/browser/ui/web_applications/app_browser_controller.h"
++#include "chrome/browser/ui/web_applications/app_tray.h"
+ #include "chrome/browser/ui/web_applications/web_app_launch_utils.h"
+ #include "chrome/browser/ui/web_applications/web_app_tabbed_utils.h"
+ #include "chrome/browser/ui/webui/tab_search/tab_search.mojom.h"
+@@ -1480,6 +1481,12 @@
+ void CloseTab(BrowserWindowInterface* browser) {
+   base::RecordAction(UserMetricsAction("CloseTab_Accelerator"));
+ 
++  // oganesson: on a tray app's last tab, hides its window (app_tray.h).
++  if (browser->GetTabStripModel()->count() == 1 &&
++      web_app::MaybeHideToTray(browser)) {
++    return;
++  }
++
+   tabs::TabInterface* active_tab = browser->GetTabStripModel()->GetActiveTab();
+   if (!active_tab) {
+     return;
+--- a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
++++ b/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
+@@ -54,6 +54,7 @@
+ #include "chrome/browser/ui/views/frame/contents_web_view.h"
+ #include "chrome/browser/ui/views/status_bubble_views.h"
+ #include "chrome/browser/ui/web_applications/app_browser_controller.h"
++#include "chrome/browser/ui/web_applications/app_tray.h"
+ #include "chrome/browser/ui/web_applications/out_of_scope_links.h"
+ #include "chrome/browser/web_applications/web_app_provider.h"
+ #include "chrome/browser/web_applications/web_app_registrar.h"
+@@ -755,6 +756,7 @@
+     return;
+   }
+   browser_->GetTabStripModel()->ActivateTabAt(index);
++  web_app::ShowFromTray(&browser_.get());
+   window_->Activate();
+ }
+ 
+--- a/chrome/browser/ui/web_applications/web_app_browser_controller.cc
++++ b/chrome/browser/ui/web_applications/web_app_browser_controller.cc
+@@ -39,6 +39,7 @@
+ #include "chrome/browser/web_applications/proto/web_app.pb.h"
+ #include "chrome/browser/web_applications/ui_manager/update_dialog_types.h"
+ #include "chrome/browser/web_applications/url_pattern_with_regex_matcher.h"
++#include "chrome/browser/ui/web_applications/app_tray.h"
+ #include "chrome/browser/web_applications/user_app_scope.h"
+ #include "chrome/browser/web_applications/web_app_command_scheduler.h"
+ #include "chrome/browser/web_applications/web_app_constants.h"
+@@ -129,6 +130,7 @@
+   install_manager_observation_.Observe(&provider.install_manager());
+   registrar_observation_.Observe(&provider.registrar_unsafe());
+   PerformDigitalAssetLinkVerification(browser);
++  OnAppWindowCreated(browser, this->app_id());
+ 
+   if (AppUsesWindowControlsOverlay()) {
+     per_window_wco_enabled_ =
+@@ -150,7 +152,9 @@
+   }
+ }
+ 
+-WebAppBrowserController::~WebAppBrowserController() = default;
++WebAppBrowserController::~WebAppBrowserController() {
++  OnAppWindowDestroyed(browser());
++}
+ 
+ WebAppBrowserController* WebAppBrowserController::From(
+     BrowserWindowInterface* browser) {
+--- a/chrome/browser/ui/web_applications/web_app_launch_process.cc
++++ b/chrome/browser/ui/web_applications/web_app_launch_process.cc
+@@ -27,6 +27,7 @@
+ #include "chrome/browser/ui/web_applications/web_app_launch_navigation_handle_user_data.h"
+ #include "chrome/browser/ui/web_applications/web_app_launch_utils.h"
+ #include "chrome/browser/web_applications/os_integration/os_integration_manager.h"
++#include "chrome/browser/ui/web_applications/app_tray.h"
+ #include "chrome/browser/web_applications/user_app_start_url.h"
+ #include "chrome/browser/web_applications/web_app.h"
+ #include "chrome/browser/web_applications/web_app_registrar.h"
+@@ -238,7 +239,12 @@
+     is_new_browser = true;
+   }
+   base::WeakPtr<BrowserWindowInterface> browser_weak = browser->GetWeakPtr();
+-  browser->GetWindow()->Show();
++  // oganesson: a tray app started at login stays in the tray (app_tray.h).
++  if (!is_new_browser ||
++      params_->launch_source != apps::LaunchSource::kFromOsLogin ||
++      !IsTrayApp(*profile_->GetPrefs(), params_->app_id)) {
++    browser->GetWindow()->Show();
++  }
+   if (!browser_weak) {
+     return nullptr;
+   }
+@@ -251,6 +257,16 @@
+       !existing_tab ||
+       navigation_disposition != WindowOpenDisposition::CURRENT_TAB;
+ 
++  // oganesson: a tray app's window stays as it was, unless the launch has a
++  // URL of its own.
++  if (!open_in_new_window && !is_new_browser && !share_target &&
++      !is_file_handling && IsTrayApp(*profile_->GetPrefs(), params_->app_id) &&
++      launch_url ==
++          GetUserAppStartUrl(*profile_->GetPrefs(), params_->app_id,
++                             registrar_->GetAppLaunchUrl(params_->app_id))) {
++    return existing_tab;
++  }
++
+   auto* const app_controller = web_app::AppBrowserController::From(browser);
+   if (app_controller && app_controller->IsUrlInHomeTabScope(launch_url)) {
+     // Navigations to the home tab URL in tabbed apps should happen in the home
+@@ -395,7 +411,8 @@
+ WindowOpenDisposition WebAppLaunchProcess::GetNavigationDisposition(
+     bool is_new_browser) const {
+   // For prevent-close, we always want to focus the existing window
+-  if (registrar_->IsPreventCloseEnabled(params_->app_id)) {
++  if (registrar_->IsPreventCloseEnabled(params_->app_id) ||
++      IsTrayApp(*profile_->GetPrefs(), params_->app_id)) {
+     return WindowOpenDisposition::CURRENT_TAB;
+   }
+ 
+@@ -468,7 +485,8 @@
+   // instead continue to find the existing browser window.
+   if (!registrar_->IsTabbedWindowModeEnabled(params_->app_id) &&
+       GetLaunchClientMode() == LaunchHandler::ClientMode::kNavigateNew &&
+-      !registrar_->IsPreventCloseEnabled(params_->app_id)) {
++      !registrar_->IsPreventCloseEnabled(params_->app_id) &&
++      !IsTrayApp(*profile_->GetPrefs(), params_->app_id)) {
+     return nullptr;
+   }
+ 
+--- a/chrome/browser/ui/web_applications/BUILD.gn
++++ b/chrome/browser/ui/web_applications/BUILD.gn
+@@ -155,6 +155,7 @@
+       "diagnostics/web_app_icon_health_checks.cc",
+       "navigation_capturing_process.cc",
+       "navigation_capturing_redirection_throttle.cc",
++      "app_tray.cc",
+       "out_of_scope_links.cc",
+       "share_target_utils.cc",
+       "tabbed_web_app_navigation_throttle.cc",
+@@ -199,6 +200,7 @@
+       "//chrome/browser/web_applications:features",
+       "//chrome/browser/web_applications/app_service",
+       "//chrome/browser/web_applications/isolated_web_apps/window_management",
++      "//chrome/browser/status_icons",
+       "//chrome/browser/web_share_target",
+       "//components/infobars/content",
+       "//components/keep_alive_registry",
+--- a/chrome/browser/resources/app_settings/BUILD.gn
++++ b/chrome/browser/resources/app_settings/BUILD.gn
+@@ -32,6 +32,8 @@
+     "scope_rules_item.ts",
+     "start_url_item.html.ts",
+     "start_url_item.ts",
++    "tray_item.html.ts",
++    "tray_item.ts",
+     "supported_links_dialog.html.ts",
+     "supported_links_dialog.ts",
+     "supported_links_item.html.ts",
+--- a/chrome/browser/resources/app_settings/app.ts
++++ b/chrome/browser/resources/app_settings/app.ts
+@@ -12,6 +12,7 @@
+ import './run_on_os_login_item.js';
+ import './scope_rules_item.js';
+ import './start_url_item.js';
++import './tray_item.js';
+ import './permission_item.js';
+ import './window_mode_item.js';
+ import './icons.html.js';
+--- a/chrome/browser/resources/app_settings/app.html.ts
++++ b/chrome/browser/resources/app_settings/app.html.ts
+@@ -51,6 +51,9 @@
+         login-mode-label="$i18n{appManagementRunOnOsLoginModeLabel}"
+         .app="${this.app_}">
+     </app-management-run-on-os-login-item>
++    <app-management-tray-item class="permission-card-row separated-row"
++        .app="${this.app_}">
++    </app-management-tray-item>
+     <app-management-window-mode-item class="permission-card-row separated-row"
+         window-mode-label="$i18n{appManagementWindowModeLabel}"
+         .app="${this.app_}">
+--- a/ui/webui/resources/cr_components/app_management/app_management.mojom
++++ b/ui/webui/resources/cr_components/app_management/app_management.mojom
+@@ -261,6 +261,10 @@
+   // Sets it, empty for the manifest's; returns why it is invalid, keeping the
+   // old one, or an empty string.
+   SetStartUrl(string app_id, string url) => (string error);
++  // Whether the app keeps running in the tray when its window closes, and
++  // sets it.
++  GetTrayApp(string app_id) => (bool enabled);
++  SetTrayApp(string app_id, bool enabled);
+   // Called when the user clicks on the system notification settings link for an
+   // app with the given `app_id`, when that link was displayed because
+   // `show_system_notifications_settings_link` was true for the app.
+--- a/chrome/browser/ui/webui/app_management/app_management_page_handler_base.h
++++ b/chrome/browser/ui/webui/app_management/app_management_page_handler_base.h
+@@ -64,6 +64,9 @@
+   void SetStartUrl(const std::string& app_id,
+                    const std::string& url,
+                    SetStartUrlCallback callback) override;
++  void GetTrayApp(const std::string& app_id,
++                  GetTrayAppCallback callback) override;
++  void SetTrayApp(const std::string& app_id, bool enabled) override;
+ 
+  protected:
+   AppManagementPageHandlerBase(
+--- a/chrome/browser/ui/views/status_icons/status_icon_linux_wrapper.cc
++++ b/chrome/browser/ui/views/status_icons/status_icon_linux_wrapper.cc
+@@ -138,12 +138,12 @@
+ void StatusIconLinuxWrapper::OnImplInitializationFailed() {
+   switch (status_icon_type_) {
+ #if BUILDFLAG(USE_DBUS)
++    // oganesson: no StatusNotifierItem host, so no icon. The fallback, an
++    // XEmbed tray window, gets no X window without an X11 tray, and its
++    // compositor then fails a DCHECK (x11_software_bitmap_presenter.cc).
+     case kTypeDbus:
+       status_icon_dbus_.reset();
+-      status_icon_linux_ = std::make_unique<StatusIconButtonLinux>();
+-      status_icon_type_ = kTypeWindowed;
+-      status_icon_linux_->SetDelegate(this);
+-      return;
++      [[fallthrough]];
+ #endif
+     case kTypeWindowed:
+       status_icon_linux_.reset();
