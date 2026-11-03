@@ -1,0 +1,38 @@
+# enable_background_mode=false (flags.gn): browser_tests' one dependency on background mode that
+# no flag guards, and System settings' "Continue running background apps" switch, whose pref
+# isn't registered without it.
+--- a/chrome/browser/extensions/BUILD.gn
++++ b/chrome/browser/extensions/BUILD.gn
+@@ -3175,14 +3175,12 @@
+ 
+     if (!is_chromeos) {
+       # Chrome OS doesn't use background mode or download bubbles.
+-      deps += [
+-        "//chrome/browser/background/extensions",
+-        "//chrome/browser/download/bubble",
+-      ]
++      deps += [ "//chrome/browser/download/bubble" ]
+     }
+ 
+     if (enable_background_mode) {
+       sources += [ "background_app_browsertest.cc" ]
++      deps += [ "//chrome/browser/background/extensions" ]
+     }
+ 
+     if (use_aura) {
+--- a/chrome/browser/resources/settings/system_page/system_page.html.ts
++++ b/chrome/browser/resources/settings/system_page/system_page.html.ts
+@@ -20,13 +20,6 @@
+     </cr-link-row>
+     <div class="hr"></div>
+   ` : ''}
+-<if expr="not is_macosx">
+-  <settings-toggle-button
+-      pref-key="background_mode.enabled"
+-      label="$i18n{backgroundAppsLabel}">
+-  </settings-toggle-button>
+-  <div class="hr"></div>
+-</if>
+   <settings-toggle-button id="hardwareAcceleration"
+       pref-key="hardware_acceleration_mode.enabled"
+       label="$i18n{hardwareAccelerationLabel}">
