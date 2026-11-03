@@ -56,7 +56,7 @@ An installed app's settings page has a "Keep running in the tray" switch, off by
 - **One window.** Launching the app while it has a window (its desktop entry, the app list) shows that window, keeping its page. A launch with its own URL (a shortcut in the desktop entry, a protocol or file handler) navigates that window there.
 - **Quitting.** Quit in the icon's menu closes the app's windows. So does quitting the browser (Ctrl+Shift+Q, Exit), and uninstalling the app. Turning the switch off shows a hidden window again.
 - **Notifications.** A page that focuses its window (`window.focus()`, `clients.focus()` from a notification click) shows it from the tray.
-- **At login.** An app set to "Open at sign-in" starts hidden in the tray.
+- **At login.** An app set to "Start app when you sign in" starts hidden in the tray.
 - **Hidden pages.** A hidden window's page runs as a background tab's does: Chromium throttles its timers, and chat and mail apps keep their connections.
 - **Storage.** Per app, in the profile pref `oganesson.web_apps.tray_apps`, kept like the scope rules.
 
