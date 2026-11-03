@@ -247,6 +247,20 @@ class GesturesTest(BrowserTest):
         self.assertEqual(first.eval('location.href'), self.server.url('/b'))
         self.browser.close_window(target)
 
+    def test_dialog_in_a_background_tab(self):
+        # A passkey dialog stays with its tab, hidden while another tab shows,
+        # and leaves gestures on in that other tab. WebAuthn needs a secure
+        # context, so localhost.
+        url = self.server.url('/a', 'localhost')
+        page = self.browser.new_tab(url)
+        wait_for(lambda: page.eval('location.href') == url and
+                 page.eval('document.readyState') == 'complete', what=url)
+        page.eval('navigator.credentials.get({publicKey: {challenge: new Uint8Array(16)}})'
+                  '.catch(() => {}), 0')
+        self.browser.wait_view('AuthenticatorRequestDialogView')
+        self.assert_goes_back(self.server.url('/a'), self.server.url('/b'))
+        self.browser.close_target(page)
+
     def test_split_view(self):
         # The stroke acts on the focused pane (a click focuses a pane).
         left = self.visit(self.server.url('/a'), self.server.url('/split'))

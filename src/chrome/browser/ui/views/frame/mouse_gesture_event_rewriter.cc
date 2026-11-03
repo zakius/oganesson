@@ -57,10 +57,12 @@
 
 namespace {
 
+// A tab's dialog stays hidden while another tab shows, so only a shown dialog
+// blocks the window.
 bool WidgetHasChildModalDialog(views::Widget* parent_widget) {
   for (views::Widget* widget :
        views::Widget::GetAllChildWidgets(parent_widget->GetNativeView())) {
-    if (widget != parent_widget && widget->IsModal()) {
+    if (widget != parent_widget && widget->IsModal() && widget->IsVisible()) {
       return true;
     }
   }
