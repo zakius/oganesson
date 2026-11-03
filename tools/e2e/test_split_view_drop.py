@@ -3,7 +3,9 @@ on the panel that appears there opens in a new split, wherever on the panel it
 drops. Runs on Wayland, where the compositor only drops on a target that took
 the drag at the last pointer motion."""
 
+import shutil
 import time
+import unittest
 
 from harness import BrowserTest, Server, wait_for
 
@@ -20,6 +22,8 @@ class SplitViewDropTest(BrowserTest):
 
     @classmethod
     def setUpClass(cls):
+        if not shutil.which('labwc'):
+            raise unittest.SkipTest('needs labwc')
         cls.server = Server({
             '/': (200, {'Content-Type': 'text/html'}, PAGE),
             '/target': (200, {'Content-Type': 'text/html'}, b'<title>target</title>'),
