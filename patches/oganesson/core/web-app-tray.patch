@@ -317,3 +317,19 @@
  #endif
      case kTypeWindowed:
        status_icon_linux_.reset();
+--- a/chrome/browser/ui/views/status_icons/status_icon_linux_dbus.cc
++++ b/chrome/browser/ui/views/status_icons/status_icon_linux_dbus.cc
+@@ -179,9 +179,11 @@
+ bool ShouldWriteIconToFile() {
+   auto env = base::Environment::Create();
+   switch (base::nix::GetDesktopEnvironment(env.get())) {
++    // oganesson: gnome-shell-extension-appindicator scales pixmaps to the
++    // panel now, and on Ubuntu 26.10 (GNOME 51) can't read the files
++    // ("Failed to recognize image format"), so the icon shows as "...".
+     case base::nix::DESKTOP_ENVIRONMENT_GNOME:
+-      // gnome-shell-extension-appindicator doesn't downsize icons when they're
+-      // given as DBus pixmaps.  But it does when icons are given as files.
++      return false;
+     case base::nix::DESKTOP_ENVIRONMENT_PANTHEON:
+       // wingpanel-indicator-ayatana only supports file icons.
+       return true;

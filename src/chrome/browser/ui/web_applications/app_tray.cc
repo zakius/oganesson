@@ -170,8 +170,11 @@ class TrayApp : public StatusIconObserver,
     }
     icon_ = bitmaps.begin()->second;
     const WebAppRegistrar& registrar = provider->registrar_unsafe();
+    // With its badge at once: a second image right after would replace the
+    // first while the tray still loads it.
     status_icon_ = tray->CreateStatusIcon(
-        StatusTray::OTHER_ICON, gfx::ImageSkia::CreateFrom1xBitmap(icon_),
+        StatusTray::OTHER_ICON,
+        BadgedIcon(icon_, Badged().contains(AppKey(profile_.get(), app_id_))),
         base::UTF8ToUTF16(registrar.GetAppShortName(app_id_)));
     if (!status_icon_) {
       return;
@@ -192,7 +195,6 @@ class TrayApp : public StatusIconObserver,
     menu->AddItem(kQuitCommand,
                   l10n_util::GetStringUTF16(IDS_OGANESSON_TRAY_QUIT));
     status_icon_->SetContextMenu(std::move(menu));
-    UpdateBadge();
   }
 
   void RemoveIcon() {
