@@ -3,3 +3,8 @@
 enterprise_telomere_reporting=false
 # Chromium 155 can't turn off Compose, supervised users, Lens or Enterprise client certificates:
 # other targets depend on them unconditionally, or assert them.
+
+# Background mode: "Continue running background apps when closed", which kept the browser running
+# for extensions with the background permission. An installed web app marked to run in the tray
+# keeps it running instead (docs/web-apps.md); the tray itself doesn't need this flag.
+enable_background_mode=false

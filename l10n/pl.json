@@ -65,6 +65,11 @@
     "message": "Pokazuj ikonę dźwięku na kartach"
   },
   {
+    "name": "IDS_OGANESSON_TRAY_QUIT",
+    "source": "Quit",
+    "message": "Zakończ"
+  },
+  {
     "name": "IDS_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER",
     "source": "Open link in default browser",
     "message": "Otwórz link w domyślnej przeglądarce"

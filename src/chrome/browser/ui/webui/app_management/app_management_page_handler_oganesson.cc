@@ -2,13 +2,14 @@
 // You can use, redistribute, and/or modify this source code under
 // the terms of the GPL-3.0 license that can be found in the LICENSE file.
 
-// The app settings page's handlers for the user's scope rules and start URL
-// of a web app (app_management.mojom).
+// The app settings page's handlers for the user's scope rules, start URL and
+// tray setting of a web app (app_management.mojom).
 
 #include <string>
 #include <utility>
 
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/web_applications/app_tray.h"
 #include "chrome/browser/ui/webui/app_management/app_management_page_handler_base.h"
 #include "chrome/browser/web_applications/user_app_scope.h"
 #include "chrome/browser/web_applications/user_app_start_url.h"
@@ -59,4 +60,14 @@ void AppManagementPageHandlerBase::SetStartUrl(const std::string& app_id,
   }
   std::move(callback).Run(
       web_app::SetUserAppStartUrl(*profile_->GetPrefs(), app_id, url));
+}
+
+void AppManagementPageHandlerBase::GetTrayApp(const std::string& app_id,
+                                              GetTrayAppCallback callback) {
+  std::move(callback).Run(web_app::IsTrayApp(*profile_->GetPrefs(), app_id));
+}
+
+void AppManagementPageHandlerBase::SetTrayApp(const std::string& app_id,
+                                              bool enabled) {
+  web_app::SetTrayApp(profile_, app_id, enabled);
 }

@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Copyright 2026 The oganesson Authors. GPL-3.0, see the LICENSE file. -->
 <grit-part>
+  <message name="IDS_OGANESSON_TRAY_QUIT" desc="The last item in the menu of an installed web app's tray icon, which closes the app's window for good instead of hiding it in the tray">
+    Quit
+  </message>
   <if expr="not use_titlecase">
           <message name="IDS_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER" desc="The name of the command in an installed web app's window to open a link in the system default browser, which comes to the front">
             Open link in default browser
