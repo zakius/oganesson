@@ -1,13 +1,33 @@
 # oganesson's fixes to Helium's utils/, applied to the assembled tree (oganesson.py's
 # helium_tree()):
 # clone.py moves an existing checkout to the pinned tag in place, keeping out/, so a new
-# Chromium version rebuilds incrementally; downloads.py checks the cache again before unpacking;
+# Chromium version rebuilds incrementally, and pins two dependencies to commits their mirrors
+# still have; downloads.py checks the cache again before unpacking;
 # domain_substitution.py keeps file modes; helium_version.py makes the version Chromium's own;
 # name_substitution_utils.py gives every rewritten
 # .xtb translation its source message's new fingerprint. With their tests.
 --- a/utils/clone.py
 +++ b/utils/clone.py
-@@ -136,8 +136,11 @@
+@@ -80,7 +80,18 @@
+                 'name': 'src',
+                 'url': 'https://chromium.googlesource.com/chromium/src',
+                 'managed': True,
++                # oganesson: Chromium 156 pins commits that these googlesource mirrors don't
++                # have (HTTP 500 on fetch, 404 on gitiles; their branches end in September
++                # 2026), so the mirrors' newest: search engine definitions of 2026-09-16, one
++                # commit past 155's, and the clang-format scripts, which the build doesn't run
++                # (a variable, as webpagereplay's DEPS fetches them too).
++                'custom_deps': {
++                    'src/third_party/search_engines_data/resources':
++                    'https://chromium.googlesource.com/external/search_engines_data.git'
++                    '@effde84e73491653b245b68ac65835ad2fc4e1de',
++                },
+                 'custom_vars': {
++                    'clang_format_revision': '47dce8466cd71943f64df3860e608957d6e20007',
+                     'checkout_configuration': 'small',
+                     'checkout_pgo_profiles': True,
+                     'checkout_android': False,
+@@ -136,8 +147,11 @@
      args = parser.parse_args()
      if args.output.resolve().name != 'src':
          parser.error('the output directory must be named src for gclient hooks')
