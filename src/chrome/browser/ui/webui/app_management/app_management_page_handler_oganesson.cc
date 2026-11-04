@@ -8,10 +8,10 @@
 #include <string>
 #include <utility>
 
+#include "chrome/browser/app_links/app_scope_rules.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/web_applications/app_tray.h"
 #include "chrome/browser/ui/webui/app_management/app_management_page_handler_base.h"
-#include "chrome/browser/web_applications/user_app_scope.h"
 #include "chrome/browser/web_applications/user_app_start_url.h"
 #include "chrome/browser/web_applications/web_app_provider.h"
 #include "chrome/browser/web_applications/web_app_registrar.h"
@@ -21,8 +21,8 @@ void AppManagementPageHandlerBase::GetScopeRules(
     const std::string& app_id,
     GetScopeRulesCallback callback) {
   std::move(callback).Run(
-      web_app::GetUserAppScopeRules(*profile_->GetPrefs(), app_id),
-      web_app::IsUserAppScopeStrict(*profile_->GetPrefs(), app_id));
+      app_links::GetUserAppScopeRules(*profile_->GetPrefs(), app_id),
+      app_links::IsUserAppScopeStrict(*profile_->GetPrefs(), app_id));
 }
 
 void AppManagementPageHandlerBase::SetScopeRules(
@@ -31,9 +31,9 @@ void AppManagementPageHandlerBase::SetScopeRules(
     bool strict,
     SetScopeRulesCallback callback) {
   std::string error =
-      web_app::SetUserAppScopeRules(*profile_->GetPrefs(), app_id, rules);
+      app_links::SetUserAppScopeRules(*profile_->GetPrefs(), app_id, rules);
   if (error.empty()) {
-    web_app::SetUserAppScopeStrict(*profile_->GetPrefs(), app_id, strict);
+    app_links::SetUserAppScopeStrict(*profile_->GetPrefs(), app_id, strict);
   }
   std::move(callback).Run(error);
 }

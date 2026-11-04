@@ -9,24 +9,6 @@
  // Image items.
  #define IDC_CONTENT_CONTEXT_SAVEIMAGEAS 50120
  #define IDC_CONTENT_CONTEXT_COPYIMAGELOCATION 50121
---- a/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
-+++ b/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
-@@ -103,6 +103,7 @@
- #include "chrome/browser/ui/read_anything/read_anything_side_panel_navigation_throttle.h"
- #include "chrome/browser/ui/search/chrome_search_navigation_throttle.h"
- #include "chrome/browser/ui/search/new_tab_page_navigation_throttle.h"
-+#include "chrome/browser/ui/web_applications/out_of_scope_links.h"
- #include "chrome/browser/ui/web_applications/tabbed_web_app_navigation_throttle.h"
- #include "chrome/browser/ui/web_applications/webui_web_app_navigation_throttle.h"
- #include "chrome/browser/ui/webui/image/image_navigation_throttle.h"
-@@ -494,6 +495,7 @@ void CreateAndAddChromeThrottlesForNavigation(
-   NewTabPageNavigationThrottle::MaybeCreateAndAdd(registry);
- 
-   web_app::TabbedWebAppNavigationThrottle::MaybeCreateAndAdd(registry);
-+  web_app::MaybeAddOutOfScopeLinkThrottle(registry);
- 
-   web_app::WebUIWebAppNavigationThrottle::MaybeCreateAndAdd(registry);
- 
 --- a/chrome/browser/renderer_context_menu/render_view_context_menu.cc
 +++ b/chrome/browser/renderer_context_menu/render_view_context_menu.cc
 @@ -146,6 +146,7 @@
@@ -204,7 +186,7 @@
  #include "chrome/browser/web_applications/proto/web_app.pb.h"
  #include "chrome/browser/web_applications/ui_manager/update_dialog_types.h"
  #include "chrome/browser/web_applications/url_pattern_with_regex_matcher.h"
-+#include "chrome/browser/web_applications/user_app_scope.h"
++#include "chrome/browser/app_links/app_scope_rules.h"
  #include "chrome/browser/web_applications/web_app_command_scheduler.h"
  #include "chrome/browser/web_applications/web_app_constants.h"
  #include "chrome/browser/web_applications/web_app_filter.h"
@@ -212,7 +194,7 @@
  #endif  // BUILDFLAG(IS_CHROMEOS)
  
    std::optional<WebAppScope> scope = registrar().GetEffectiveScope(app_id());
-+  if (std::optional<bool> in_scope = UserAppScopeOverride(
++  if (std::optional<bool> in_scope = app_links::UserAppScopeOverride(
 +          *browser()->GetProfile()->GetPrefs(), app_id(), url)) {
 +    return *in_scope;
 +  }
@@ -308,7 +290,7 @@
    const webapps::AppId* app_id =
        web_app::WebAppTabHelper::GetAppId(web_contents);
 +  // oganesson: in an app window, the window's app, also on a page out of its
-+  // scope, which user scope rules make common (user_app_scope.h).
++  // scope, which user scope rules make common (app_links/app_scope_rules.h).
 +  const WebAppTabHelper* tab_helper =
 +      WebAppTabHelper::FromWebContents(web_contents);
 +  if (tab_helper && tab_helper->window_app_id()) {
@@ -349,12 +331,10 @@
    AppManagementPageHandlerBase(
 --- a/chrome/browser/web_applications/BUILD.gn
 +++ b/chrome/browser/web_applications/BUILD.gn
-@@ -323,6 +323,10 @@ source_set("web_applications") {
+@@ -323,6 +323,8 @@ source_set("web_applications") {
      "scope_extension_info.h",
      "url_pattern_with_regex_matcher.cc",
      "url_pattern_with_regex_matcher.h",
-+    "user_app_scope.cc",
-+    "user_app_scope.h",
 +    "user_app_start_url.cc",
 +    "user_app_start_url.h",
      "user_display_mode.cc",
@@ -364,7 +344,7 @@
      "//components/site_engagement/core/mojom:mojo_bindings",
      "//components/sync",
      "//components/ukm",
-+    "//components/url_pattern",
++    "//chrome/browser/app_links",
      "//components/user_manager",
      "//components/web_package",
      "//components/webapps/browser",
@@ -374,7 +354,7 @@
  #include "chrome/browser/web_applications/proto/web_app_install_state.pb.h"
  #include "chrome/browser/web_applications/proto/web_app_os_integration_state.pb.h"
  #include "chrome/browser/web_applications/url_pattern_with_regex_matcher.h"
-+#include "chrome/browser/web_applications/user_app_scope.h"
++#include "chrome/browser/app_links/app_scope_rules.h"
  #include "chrome/browser/web_applications/web_app.h"
  #include "chrome/browser/web_applications/web_app_constants.h"
  #include "chrome/browser/web_applications/web_app_filter.h"
@@ -383,8 +363,8 @@
      return 0;
    }
 -  return scope->GetScopeScore(url);
-+  return GetUserAppScopeScore(*profile_->GetPrefs(), app_id, url,
-+                              scope->GetScopeScore(url));
++  return app_links::GetUserAppScopeScore(*profile_->GetPrefs(), app_id, url,
++                                         scope->GetScopeScore(url));
  }
  
  int WebAppRegistrar::GetUrlInAppScopeScore(const GURL& url,
@@ -393,17 +373,18 @@
      return 0;
    }
 -  return scope->GetScopeScore(url, {.exclude_scope_extensions = true});
-+  return GetUserAppScopeScore(
++  return app_links::GetUserAppScopeScore(
 +      *profile_->GetPrefs(), app_id, url,
 +      scope->GetScopeScore(url, {.exclude_scope_extensions = true}));
  }
  
  bool WebAppRegistrar::IsSystemApp(const webapps::AppId& app_id) const {
-@@ -1071,6 +1075,7 @@ std::optional<webapps::AppId> WebAppRegistrar::FindBestAppWithUrlInScope(
+@@ -1071,6 +1075,8 @@ std::optional<webapps::AppId> WebAppRegistrar::FindBestAppWithUrlInScope(
      }
  
      int score = scope->GetScopeScore(url, options.scope_score_options);
-+    score = GetUserAppScopeScore(*profile_->GetPrefs(), app_id, url, score);
++    score = app_links::GetUserAppScopeScore(*profile_->GetPrefs(), app_id,
++                                            url, score);
      if (score > 0 && score > best_score) {
        best_app_id = app_id;
        best_score = score;
@@ -412,9 +393,9 @@
      std::optional<WebAppScope> scope = GetEffectiveScope(app_id);
      if (scope.has_value() &&
 -        scope->GetScopeScore(url, scope_score_options) > 0) {
-+        GetUserAppScopeScore(*profile_->GetPrefs(), app_id, url,
-+                             scope->GetScopeScore(url, scope_score_options)) >
-+            0) {
++        app_links::GetUserAppScopeScore(
++            *profile_->GetPrefs(), app_id, url,
++            scope->GetScopeScore(url, scope_score_options)) > 0) {
        all_controlling_apps.insert_or_assign(app_id, GetAppShortName(app_id));
      }
    }
@@ -433,7 +414,7 @@
 +    return false;
 +  }
 +  // oganesson: the manifests' scopes, as FindInstalledAppWithUrlInScope()
-+  // has them before the user's scope rules (user_app_scope.h) apply.
++  // has them before the user's scope rules (app_links/app_scope_rules.h) apply.
 +  const web_app::WebAppRegistrar& registrar = provider->registrar_unsafe();
 +  for (const webapps::AppId& app_id :
 +       registrar.GetAppIds(web_app::WebAppFilter::InstalledInChrome())) {
@@ -447,40 +428,6 @@
  }
  
  bool WebappsClientDesktop::IsUrlControlledBySeenManifest(
---- a/content/browser/web_contents/web_contents_impl.cc
-+++ b/content/browser/web_contents/web_contents_impl.cc
-@@ -291,6 +291,18 @@ namespace content {
- 
- namespace {
- 
-+// WebContents user data: see IsNewWindowForFormPost().
-+const char kNewWindowForFormPostKey = 0;
-+
-+}  // namespace
-+
-+// Declared in content/public/browser/new_window_form_post.h.
-+CONTENT_EXPORT bool IsNewWindowForFormPost(WebContents* contents) {
-+  return contents->GetUserData(&kNewWindowForFormPostKey);
-+}
-+
-+namespace {
-+
- // These values are persisted to logs. Entries should not be renumbered and
- // numeric values should never be reused.
- //
-@@ -5915,6 +5927,12 @@ FrameTree* WebContentsImpl::CreateNewWindow(
-                              false,  // started_from_context_menu
-                              true);  // renderer_initiated
- 
-+  if (params.form_submission_post_data) {
-+    new_contents_impl->SetUserData(
-+        &kNewWindowForFormPostKey,
-+        std::make_unique<base::SupportsUserData::Data>());
-+  }
-+
-   if (!params.opener_suppressed) {
-     return &new_contents_impl->GetPrimaryFrameTree();
-   }
 --- a/ui/webui/resources/cr_components/app_management/app_management.mojom
 +++ b/ui/webui/resources/cr_components/app_management/app_management.mojom
 @@ -250,6 +250,17 @@ interface PageHandler {

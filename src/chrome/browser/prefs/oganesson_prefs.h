@@ -8,7 +8,6 @@
 #include "base/values.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/ui/web_applications/app_tray.h"
-#include "chrome/browser/web_applications/user_app_scope.h"
 #include "chrome/browser/web_applications/user_app_start_url.h"
 #include "chrome/common/oganesson_pref_names.h"
 #include "chrome/common/pref_names.h"
@@ -30,8 +29,6 @@ inline void RegisterOganessonProfilePrefs(
   registry->RegisterListPref(prefs::kToolbarItems);
   registry->RegisterListPref(prefs::kToolbarHiddenItems);
   omnibox::RegisterSuggestionSourcePrefs(registry);
-  registry->RegisterDictionaryPref(web_app::kUserAppScopeRules);
-  registry->RegisterDictionaryPref(web_app::kUserAppStrictScope);
   registry->RegisterDictionaryPref(web_app::kUserAppStartUrls);
   registry->RegisterDictionaryPref(web_app::kTrayApps);
   registry->RegisterBooleanPref(prefs::kFirefoxSyncInstantTabs, true);

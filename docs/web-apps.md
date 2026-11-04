@@ -14,7 +14,7 @@ A link in an installed web app's window that leads out of the app's scope opens 
 - **No prerendering in app windows.** A page activated from a prerender skips the check, so app windows don't prerender, and a tab opened in an app ("Open in app") drops the pages it prerendered (Helium's uBO keeps preloading off anyway). The e2e harness can't test this: any attached DevTools session turns prerendering off.
 - **Normal tabs** are not affected.
 
-Code: `src/chrome/browser/ui/web_applications/out_of_scope_links.cc`, hooked in by `patches/oganesson/core/web-apps.patch`; the check before the address changes, `src/third_party/blink/renderer/core/html/oganesson_app_links.cc`, by `patches/oganesson/core/app-address-changes.patch`. Verified by `./oganesson.py test web_app_links`.
+Code: shared with tennessine in dubna, `dubna/src/chrome/browser/app_links/app_links.cc` (the decisions, the throttle and the host the page asks) and `dubna/src/third_party/blink/renderer/core/html/app_links.cc` (the check before the address changes), hooked in by `dubna/patches/app-links.patch`. The desktop side is `src/chrome/browser/app_links/platform/desktop_platform.cc` and `src/chrome/browser/ui/web_applications/out_of_scope_links.cc` (new windows, the context menu and the default browser), hooked in by `patches/oganesson/core/web-apps.patch`. Verified by `./oganesson.py test web_app_links`.
 
 ## Scope rules
 
@@ -33,7 +33,7 @@ An installed app's settings page (`chrome://app-settings/<id>`) has a "Pages tha
 - **What doesn't.** Installing and updating apps use the manifest's scope only, as does the install icon's check whether a page's app is already installed.
 - **Saving.** Save checks every pattern. An invalid one is rejected with a message naming it, and the rules saved before stay. An empty card removes the rules.
 - **Storage.** Per app, in the profile pref `oganesson.web_apps.user_scope_rules`. App updates and restarts keep them; they are not synced, and stay if the app is uninstalled, for a reinstall.
-Code: `src/chrome/browser/web_applications/user_app_scope.cc` and `src/chrome/browser/resources/app_settings/scope_rules_item.ts`, hooked in by `patches/oganesson/core/web-apps.patch`. In normal tabs, the rules apply through `WebAppRegistrar`, whose URL-to-app matching (`FindBestAppWithUrlInScope`, `IsUrlInAppScope`, `IsUrlInAppExtendedScope`, `FindAppThatCapturesLinksInScope`, `GetAllAppsControllingUrl`) goes through `GetUserAppScopeScore()`; `WebappsClientDesktop::IsAppFullyInstalledForSiteUrl` checks the manifests' scopes only. Verified by `./oganesson.py test web_app_links`.
+Code: `dubna/src/chrome/browser/app_links/app_scope_rules.cc` (shared with tennessine, which edits them in Settings → Web apps) and `src/chrome/browser/resources/app_settings/scope_rules_item.ts`, hooked in by `patches/oganesson/core/web-apps.patch`. In normal tabs, the rules apply through `WebAppRegistrar`, whose URL-to-app matching (`FindBestAppWithUrlInScope`, `IsUrlInAppScope`, `IsUrlInAppExtendedScope`, `FindAppThatCapturesLinksInScope`, `GetAllAppsControllingUrl`) goes through `GetUserAppScopeScore()`; `WebappsClientDesktop::IsAppFullyInstalledForSiteUrl` checks the manifests' scopes only. Verified by `./oganesson.py test web_app_links`.
 
 ## Start address
 

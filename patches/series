@@ -25,7 +25,7 @@ oganesson/core/mru-tab-cycling.patch
 oganesson/settings/shortcut-capture.patch
 oganesson/core/webstore-prodversion.patch
 oganesson/core/web-apps.patch
-oganesson/core/app-address-changes.patch
+../dubna/patches/app-links.patch
 oganesson/core/web-app-tray.patch
 oganesson/core/no-background-mode.patch
 oganesson/core/firefox-tab-behavior.patch
