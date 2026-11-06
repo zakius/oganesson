@@ -1050,15 +1050,16 @@ class DiyAppTest(WebAppTest):
                                                       if item['Title'] == title), None),
                                         what=title))
         # The dialog ignores clicks for a moment after it shows or moves:
-        # click Install again while it is still there.
+        # click Install again while it is still there. Since Chromium 157 a
+        # bubble then offers to open the tab in the app.
         installed = lambda: tab.eval('!matchMedia("(display-mode: browser)").matches')
 
         def click_install():
             if installed():
                 return True
-            buttons = browser.views('MdTextButton', Text='Install')
-            if buttons:
-                browser.click_view(browser.wait_view('MdTextButton', Text='Install'))
+            for text in ('Install', 'Open tab in app'):
+                if any(v.visible for v in browser.views('MdTextButton', Text=text)):
+                    browser.click_view(browser.wait_view('MdTextButton', Text=text))
             return installed()
         # The tab moves to the app's new window.
         wait_for(click_install, timeout=30, interval=1, what='the app window')
