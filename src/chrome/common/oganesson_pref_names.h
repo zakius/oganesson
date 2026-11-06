@@ -15,6 +15,9 @@ inline constexpr char kMouseGestures[] = "oganesson.mouse_gestures";
 // A boolean pref set to true if tabs show the icon for audio playing.
 inline constexpr char kShowTabAudioIndicator[] =
     "oganesson.tabs.show_audio_indicator";
+// A boolean pref set to false to hide the close buttons on tabs.
+inline constexpr char kShowTabCloseButtons[] =
+    "oganesson.tabs.show_close_buttons";
 
 // Settings > Behavior > Tab behavior's knobs (docs/tab-behavior.md). Helium's
 // kNewTabNextToActive, Firefox's browser.tabs.insertAfterCurrent, is the

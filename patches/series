@@ -57,3 +57,6 @@ oganesson/ui/status-bubble-full-url.patch
 oganesson/core/reading-mode.patch
 oganesson/ui/send-to-device.patch
 oganesson/ui/close-synced-tab.patch
+oganesson/settings/shortcut-toggles.patch
+oganesson/core/tab-close-buttons.patch
+oganesson/settings/tab-close-buttons-settings.patch

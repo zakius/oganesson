@@ -5,6 +5,7 @@ Polymer bindings of restore-autofill-page.patch and hid Autofill), so these
 check the rendered page, not the source.
 """
 
+import json
 import unittest
 
 from harness import BrowserTest, wait_for
@@ -27,6 +28,27 @@ class SettingsInventoryTest(BrowserTest):
         shown = page.eval(f"[...{VISIBLE_MENU_ITEMS}]"
                           ".filter(a => a.getClientRects().length).map(a => a.id)")
         self.assertEqual(shown, MENU)
+
+    def test_shortcut_switches_only_on_shortcuts_page(self):
+        ids = ['copyPageUrlShortcut', 'verticalCollapseShortcut']
+        page = self.browser.new_tab('chrome://settings/system/shortcuts')
+        root = f"({FIND})('settings-browser-shortcuts-page')?.shadowRoot"
+        wait_for(lambda: page.eval(f"!!{root}?.querySelector('#copyPageUrlShortcut')"),
+                 what='the shortcut switches')
+        self.assertEqual(page.eval(f"{json.dumps(ids)}.map(id => !!{root}.getElementById(id))"),
+                         [True, True])
+        page = self.browser.new_tab('chrome://settings/appearance')
+        behavior = f"({FIND})('settings-appearance-behavior-page')?.shadowRoot"
+        wait_for(lambda: page.eval(f"!!{behavior}?.querySelector('#tabCyclingMRU')"),
+                 what='the behavior page')
+        self.assertEqual(page.eval(f"{json.dumps(ids)}.map(id => !!{behavior}.getElementById(id))"),
+                         [False, False])
+
+    def test_browser_traffic_row_icon(self):
+        page = self.browser.new_tab('chrome://settings/privacy')
+        row = f"({FIND})('settings-privacy-page')?.shadowRoot?.querySelector('#heliumServicesLinkRow')"
+        wait_for(lambda: page.eval(f"!!{row}"), what='the Browser traffic row')
+        self.assertEqual(page.eval(f"{row}.startIcon"), 'cr:download')
 
     def test_crash_reports_on_browser_traffic(self):
         page = self.browser.new_tab('chrome://settings/updates')

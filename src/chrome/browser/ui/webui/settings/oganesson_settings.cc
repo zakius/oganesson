@@ -39,6 +39,7 @@ void AddOganessonSettings(content::WebUI* web_ui,
       profile, web_ui->GetWebContents()));
   static constexpr webui::LocalizedString kTabStrings[] = {
       {"showTabAudioIndicator", IDS_OGANESSON_SHOW_TAB_AUDIO_INDICATOR},
+      {"showTabCloseButtons", IDS_OGANESSON_SHOW_TAB_CLOSE_BUTTONS},
       // Settings > Behavior > Tab behavior.
       {"tabBehavior", IDS_OGANESSON_TAB_BEHAVIOR},
       {"tabBehaviorCustom", IDS_OGANESSON_TAB_BEHAVIOR_CUSTOM},
