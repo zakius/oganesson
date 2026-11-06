@@ -3,8 +3,8 @@
 # for download: oganesson-<commit>-linux-x64.tar.xz in DEST/<version>, and
 # the same build as .deb and .rpm packages and the tarball they are made from
 # (oganesson-<version>-x86_64-x86-64-v2_linux.tar.xz, which
-# linux/publish-repo.sh uploads), made in the packager image
-# (linux/package/Dockerfile, tagged oganesson-packager). <version> is the
+# linux/publish-repo.sh uploads), made in the packager images
+# (linux/package/deb.Dockerfile and rpm.Dockerfile). <version> is the
 # packages' version-release; DEST/latest links to the one just packed.
 # Usage: linux/pack.sh [OUT_DIR] [DEST]   (default: the release build, work/dl)
 #        linux/pack.sh --prune DEST [KEEP]   (only the pruning below)
@@ -24,7 +24,7 @@ if [ "${1:-}" = --prune ]; then prune "$2" "${3:-}"; exit; fi
 root="$(cd "$(dirname "$0")/.." && pwd -P)"
 out="$(realpath "${1:-$root/work/helium-linux/build/src/out/Release}")"
 dest="$(realpath -m "${2:-$root/work/dl}")"
-# The packager image sees the repository at /oganesson, so OUT_DIR must be in it.
+# The packager images see the repository at /oganesson, so OUT_DIR must be in it.
 case "$out" in "$root"/*) ;; *) echo "pack.sh: $out is outside $root" >&2; exit 1 ;; esac
 name="oganesson-$(git -C "$root" rev-parse --short HEAD)-linux-x64"
 
@@ -56,9 +56,17 @@ version="$(cat "$root/helium/chromium_version.txt")-$release"
 # The x86 filter makes the binary's calls and jumps compress better: about 1%
 # off the archive, more than -9e alone gains.
 tar -C "$stage" -cf - "$name" | xz -T0 --x86 --lzma2=preset=9e > "$stage/packages/$name.tar.xz"
-docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp \
-    -e PKG_RELEASE="$release" -e PACKAGES="/oganesson/${stage#"$root"/}/packages" -v "$root:/oganesson" oganesson-packager \
-    bash /oganesson/linux/package/package.sh "/oganesson/${out#"$root"/}" x86-64-v2 tarball deb rpm
+packages="/oganesson/${stage#"$root"/}/packages"
+for format in deb rpm; do
+    docker build -q -t "oganesson-$format-packager" -f "$root/linux/package/$format.Dockerfile" \
+        "$root/linux/package" > /dev/null
+done
+run=(docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -e PKG_RELEASE="$release"
+     -e PACKAGES="$packages" -v "$root:/oganesson")
+"${run[@]}" oganesson-rpm-packager bash /oganesson/linux/package/package.sh \
+    "/oganesson/${out#"$root"/}" x86-64-v2 tarball rpm
+"${run[@]}" -e TARBALL="$packages/oganesson-$(cat "$root/helium/chromium_version.txt")-x86_64-x86-64-v2_linux.tar.xz" \
+    oganesson-deb-packager bash /oganesson/linux/package/package.sh / x86-64-v2 deb
 
 # DEST/<version> appears only once all the files are in it: they are copied
 # to <version>.part first, so a full DEST keeps the old folders.

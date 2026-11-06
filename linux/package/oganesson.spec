@@ -1,5 +1,6 @@
 # From helium-linux's package/helium-bin.spec, for oganesson's tarball. Built
-# with debbuild for the .deb and rpmbuild for the .rpm (linux/package/package.sh).
+# with rpmbuild in the rpm.Dockerfile image (linux/package/package.sh); the
+# .deb is made without a spec.
 %global debug_package %{nil}
 %global __strip /bin/true
 %global _build_id_links none
@@ -14,28 +15,13 @@ URL:     https://github.com/zakius/oganesson
 Source0: %{tarball}.tar.xz
 Source1: oganesson.metainfo.xml
 
-%if 0%{?debbuild}
-Packager: oganesson
-Provides: www-browser
-# Given when the .deb is made on another architecture, where debbuild can't
-# run ldd on the binaries: the Depends of the .deb made with the build.
-%if 0%{?deb_depends:1}
-Requires: %{deb_depends}
-%endif
-%endif
-
-Recommends: ca-certificates, xdg-utils
-%if 0%{?debbuild}
-Recommends: fonts-liberation, libvulkan1
-%else
-Recommends: liberation-fonts, vulkan-loader
+Recommends: ca-certificates, xdg-utils, liberation-fonts, vulkan-loader
 # Requires from the binaries' libraries, as dpkg-shlibdeps does for the .deb,
 # except the ones the package carries and the Qt shims, which the browser
 # loads only when Qt is installed. It provides no libraries to the system.
 AutoProv: no
 %global __requires_exclude_from ^/opt/oganesson/libqt[56]_shim\\.so$
 %global __requires_exclude ^lib(EGL|GLESv2|vk_swiftshader|vulkan|oganesson_sync)\\.so
-%endif
 
 %description
 A desktop Chromium browser built on Helium. It adds mouse gestures, a toolbar whose items
@@ -54,17 +40,13 @@ mkdir -p %{buildroot}%{og_base} %{buildroot}%{_bindir} \
          %{buildroot}%{_datadir}/applications %{buildroot}%{_datadir}/metainfo \
          %{buildroot}%{_datadir}/icons/hicolor/256x256/apps
 cp -a . %{buildroot}%{og_base}
-%if 0%{?debbuild}
-sed -Ei "s/(CHROME_VERSION_EXTRA=).*/\1deb/" %{buildroot}%{og_base}/oganesson-wrapper
-%else
 sed -Ei "s/(CHROME_VERSION_EXTRA=).*/\1rpm/" %{buildroot}%{og_base}/oganesson-wrapper
-%endif
 install -m 644 product_logo_256.png \
     %{buildroot}%{_datadir}/icons/hicolor/256x256/apps/oganesson.png
 install -m 644 oganesson.desktop %{buildroot}%{_datadir}/applications/
 install -m 644 %{SOURCE1} \
     %{buildroot}%{_datadir}/metainfo/io.github.zakius.oganesson.metainfo.xml
-ln -sf %{og_base}/oganesson-wrapper %{buildroot}%{_bindir}/oganesson
+ln -sf ../..%{og_base}/oganesson-wrapper %{buildroot}%{_bindir}/oganesson
 
 %files
 %defattr(-,root,root,-)
