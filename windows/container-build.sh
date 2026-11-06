@@ -131,8 +131,11 @@ fetch_linux_dep() {
     read -r url rev < <(python3 - "$_src_dir/DEPS" "src/$path" <<'PY'
 import re, sys
 deps, path = open(sys.argv[1]).read(), sys.argv[2]
-m = re.search(re.escape(f"'{path}'") + r": \{\s*'url': Var\('chromium_git'\) \+ '([^']+)' \+ '@' \+ '([0-9a-f]{40})'", deps)
-print('https://chromium.googlesource.com' + m.group(1), m.group(2))
+m = re.search(re.escape(f"'{path}'") + r": \{\s*'url': Var\('chromium_git'\) \+ '([^']+)' \+ '@' \+ "
+              r"(?:'([0-9a-f]{40})'|Var\('(\w+)'\))", deps)
+# The commit, or the vars entry that holds it.
+rev = m.group(2) or re.search(rf"'{m.group(3)}':\s*'([0-9a-f]{{40}})'", deps).group(1)
+print('https://chromium.googlesource.com' + m.group(1), rev)
 PY
 )
     if [ "$(git -C "$_src_dir/$path" rev-parse -q HEAD 2>/dev/null)" != "$rev" ]; then
@@ -143,6 +146,7 @@ PY
     fi
 }
 fetch_linux_dep third_party/fontconfig/src  # Skia's fontconfig, for generate_colors_info
+fetch_linux_dep third_party/lss  # base's rand_util_posix.cc, for the host tools, since Chromium 157
 # Dawn's generators run Go: the CIPD package for this host, at Dawn's version.
 fetch_linux_cipd() {
     local path=$1 package=$2 version
