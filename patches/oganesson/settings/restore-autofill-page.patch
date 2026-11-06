@@ -61,11 +61,11 @@
            <cr-ripple></cr-ripple>
          </a>
 +        <a role="menuitem" id="autofill" href="/autofill"
-+            on-click="onAutofillClick_"
-+            class="cr-nav-menu-item"
-+            hidden="[[!pageVisibility_.yourSavedInfo]]">
++            @click="${this.onAutofillClick_}"
++            ?hidden="${this.shouldHideMenuItem_(this.pageVisibility_?.yourSavedInfo)}"
++            class="cr-nav-menu-item">
 +          <cr-icon icon="settings:password-manager"></cr-icon>
-+          $i18n{autofillPageTitle}
++          <span class="menu-label">$i18n{autofillPageTitle}</span>
 +          <cr-ripple></cr-ripple>
 +        </a>
          <a role="menuitem" id="privacy" href="/privacy"

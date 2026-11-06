@@ -51,6 +51,15 @@ interface BrowserTrafficState {
   browserUpdates: string;
 }
 
+// helium::CrashReportingMode: -1 off, 0 ask each time, 1 automatic. Setup
+// and this page offer only the first two.
+const CRASH_REPORTS_OFF = -1;
+
+interface CrashReportsState {
+  mode: number;
+  managed: boolean;
+}
+
 // Events from the dom-repeats, whose items are named by `as`.
 type PresetEvent<E extends Event = Event> = E&{model: {preset: string}};
 type RowEvent = Event&{model: {row: BrowserTrafficRow}};
@@ -389,6 +398,22 @@ export class BrowserTrafficElement extends BrowserTrafficElementBase {
             </div>
           </div>
         </template>
+
+        <!-- Setup asks this in its own privacy step. -->
+        <div id="crashReports" class="cr-row hr" hidden="[[setup]]">
+          <div class="flex cr-padded-text">
+            <div>[[i18n('setupCrashReports')]]</div>
+            <div class="secondary">[[crashDescription_]]</div>
+          </div>
+          <select id="crashReportsSelect" class="md-select"
+              aria-label$="[[i18n('setupCrashReports')]]"
+              value="[[crashReports_.mode]]"
+              disabled="[[crashReports_.managed]]"
+              on-change="onCrashReportsChange_">
+            <option value="-1">[[i18n('setupOff')]]</option>
+            <option value="0">[[i18n('setupAskEachTime')]]</option>
+          </select>
+        </div>
       </div>`;
   }
 
@@ -440,6 +465,15 @@ export class BrowserTrafficElement extends BrowserTrafficElementBase {
       },
       testResult_: String,
       testClass_: String,
+      crashReports_: {
+        type: Object,
+        value: () => ({mode: CRASH_REPORTS_OFF, managed: false}),
+      },
+      crashDescription_: {
+        type: String,
+        value: () => loadTimeData.getStringF('setupCrashReportsDescription',
+                                             'Helium'),
+      },
     };
   }
 
@@ -453,6 +487,8 @@ export class BrowserTrafficElement extends BrowserTrafficElementBase {
   declare private serverInvalid_: boolean;
   declare private testResult_: string;
   declare private testClass_: string;
+  declare private crashReports_: CrashReportsState;
+  declare private crashDescription_: string;
 
   override connectedCallback() {
     super.connectedCallback();
@@ -460,6 +496,16 @@ export class BrowserTrafficElement extends BrowserTrafficElementBase {
                           (state: BrowserTrafficState) => this.state_ = state);
     sendWithPromise<BrowserTrafficState>('getBrowserTraffic')
         .then(state => this.state_ = state);
+    this.addWebUiListener('helium-crash-reporting-change',
+                          (state: CrashReportsState) =>
+                              this.crashReports_ = state);
+    sendWithPromise<CrashReportsState>('getHeliumCrashReporting')
+        .then(state => this.crashReports_ = state);
+  }
+
+  private onCrashReportsChange_(e: Event) {
+    const mode = Number((e.target as HTMLSelectElement).value);
+    chrome.send('setHeliumCrashReportingMode', [mode]);
   }
 
   private presetDescription_(state: BrowserTrafficState): string {
