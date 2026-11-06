@@ -26,6 +26,11 @@ export GNUPGHOME="${GNUPGHOME:-$config/gnupg}"
 key="$(gpg --list-secret-keys --with-colons 'oganesson packages' | awk -F: '/^fpr/ { print $10; exit }')"
 [ -n "$key" ] || { echo "publish-repo.sh: no signing key in $GNUPGHOME" >&2; exit 1; }
 
+# repo-build.sh can run for minutes without output, as when it builds the
+# packager images; without keepalives the cloud network drops the idle
+# connection and ssh waits on it forever.
+keepalive=(-o ServerAliveInterval=15 -o ServerAliveCountMax=8)
+
 upload="$root/work/repo-upload"
 rm -rf "$upload"
 mkdir -p "$upload/src" "$upload/tools"
@@ -52,19 +57,19 @@ gpgkey=https://$REPO_DOMAIN/oganesson.asc
 # dnf keeps metadata for 48 hours by default; builds come out several times a day.
 metadata_expire=1h
 REPO
-ssh "$host" mkdir -p "$dir"
-rsync -a --delete "$upload/src" "$upload/tools" "$target/"
-ssh "$host" "cd $dir && cp tools/repo-compose.yaml compose.yaml &&
+ssh "${keepalive[@]}" "$host" mkdir -p "$dir"
+rsync -a --delete -e "ssh ${keepalive[*]}" "$upload/src" "$upload/tools" "$target/"
+ssh "${keepalive[@]}" "$host" "cd $dir && cp tools/repo-compose.yaml compose.yaml &&
     echo REPO_DOMAIN=$REPO_DOMAIN > .env && docker compose up -d --quiet-pull"
-ssh "$host" bash "$dir/tools/repo-build.sh" "$dir"
+ssh "${keepalive[@]}" "$host" bash "$dir/tools/repo-build.sh" "$dir"
 
 sign="$root/work/repo-sign"
 rm -rf "$sign"
 mkdir -p "$sign"
-scp -q "$target/next/deb/Release" "$target/next/rpm/repodata/repomd.xml" "$sign/"
+scp -q "${keepalive[@]}" "$target/next/deb/Release" "$target/next/rpm/repodata/repomd.xml" "$sign/"
 gpg --batch --yes -u "$key" --clearsign -o "$sign/InRelease" "$sign/Release"
 gpg --batch --yes -u "$key" -abs -o "$sign/Release.gpg" "$sign/Release"
 gpg --batch --yes -u "$key" --detach-sign --armor -o "$sign/repomd.xml.asc" "$sign/repomd.xml"
-scp -q "$sign/InRelease" "$sign/Release.gpg" "$target/next/deb/"
-scp -q "$sign/repomd.xml.asc" "$target/next/rpm/repodata/"
-ssh "$host" "cd $dir && rsync -a --delete --delay-updates next/ www/ && ls www/deb/*.deb"
+scp -q "${keepalive[@]}" "$sign/InRelease" "$sign/Release.gpg" "$target/next/deb/"
+scp -q "${keepalive[@]}" "$sign/repomd.xml.asc" "$target/next/rpm/repodata/"
+ssh "${keepalive[@]}" "$host" "cd $dir && rsync -a --delete --delay-updates next/ www/ && ls www/deb/*.deb"
