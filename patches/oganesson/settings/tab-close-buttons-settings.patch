@@ -1,0 +1,14 @@
+--- a/chrome/browser/resources/settings/appearance_page/appearance_page.html.ts
++++ b/chrome/browser/resources/settings/appearance_page/appearance_page.html.ts
+@@ -163,6 +163,11 @@
+         label="$i18n{showTabAudioIndicator}">
+     </settings-toggle-button>
+ 
++    <settings-toggle-button class="hr" id="showTabCloseButtons"
++        pref-key="oganesson.tabs.show_close_buttons"
++        label="$i18n{showTabCloseButtons}">
++    </settings-toggle-button>
++
+     ${this.showCtrlTabMru_ ? html`
+       <settings-toggle-button class="hr" id="ctrlTabMru"
+           pref-key="browser.ctrl_tab_mru" label="$i18n{ctrlTabMru}">

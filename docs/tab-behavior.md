@@ -65,6 +65,12 @@ Tabs don't show the sound icon for a page playing audio unless Settings → Appe
 
 `TabAlertController::UpdateAlertState` asks `src/chrome/browser/ui/tabs/alert/oganesson_tab_alerts.cc` before it activates an alert, so the horizontal and vertical tab strips, hover cards, the tab's accessible name and tab search all follow the setting. A per-profile pref observer re-evaluates open tabs when the setting changes. `patches/oganesson/core/tab-audio-indicator.patch` holds the hook; `patches/oganesson/settings/tab-audio-indicator-settings.patch` adds the switch.
 
+## Close buttons
+
+Settings → Appearance → "Show close buttons on tabs" (`oganesson.tabs.show_close_buttons`, on by default) shows or hides the close button on every tab, in the horizontal and vertical tab strips. It replaces ungoogled-chromium's `hide-tab-close-buttons` flag, which `patches/oganesson/core/tab-close-buttons.patch` removes from chrome://flags. With the buttons hidden, tabs close with Ctrl+W, a middle-click, a gesture or the tab's context menu.
+
+`Tab::UpdateIconVisibility` and `TabViewVerticalLayout::IsChildVisible` ask `src/chrome/browser/ui/views/tabs/oganesson_tab_close_buttons.cc` as they lay out a tab. A per-profile pref observer lays out that profile's windows again when the setting changes. `patches/oganesson/settings/tab-close-buttons-settings.patch` adds the switch.
+
 ## Split view drop target
 
 Dragging a link to the left or right side of the page shows Chromium's split view drop target, a panel with a "+". Dropping the link anywhere on the panel opens it in a new split on that side.

@@ -1,0 +1,96 @@
+# Settings > Appearance > "Show close buttons on tabs" (oganesson.tabs.show_close_buttons,
+# src/.../views/tabs/oganesson_tab_close_buttons.cc) replaces ungoogled-chromium's
+# hide-tab-close-buttons flag in the horizontal and vertical tab strips (docs/tab-behavior.md).
+--- a/chrome/browser/ui/views/tabs/BUILD.gn
++++ b/chrome/browser/ui/views/tabs/BUILD.gn
+@@ -261,11 +261,27 @@
+   ]
+ }
+ 
++source_set("oganesson_tab_close_buttons") {
++  sources = [
++    "oganesson_tab_close_buttons.cc",
++    "oganesson_tab_close_buttons.h",
++  ]
++  deps = [
++    "//base",
++    "//chrome/browser/profiles:profile",
++    "//chrome/browser/ui/browser_window",
++    "//components/prefs",
++    "//ui/base",
++    "//ui/views",
++  ]
++}
++
+ source_set("tab_impl") {
+   sources = [ "tab.cc" ]
+ 
+   deps = [
+     ":base",
++    ":oganesson_tab_close_buttons",
+     ":tab",
+     ":tab_strip",
+     ":tab_style_views",
+--- a/chrome/browser/ui/views/tabs/common/BUILD.gn
++++ b/chrome/browser/ui/views/tabs/common/BUILD.gn
+@@ -126,6 +126,7 @@
+     "//chrome/browser/ui/views/frame:glass_frame_service",
+     "//chrome/browser/ui/views/frame:themed_background",
+     "//chrome/browser/ui/views/tabs:base",
++    "//chrome/browser/ui/views/tabs:oganesson_tab_close_buttons",
+     "//chrome/browser/ui/views/tabs:tab",
+     "//chrome/browser/ui/views/tabs:tab_group",
+     "//chrome/browser/ui/views/tabs:tab_style_views",
+--- a/chrome/browser/ui/views/tabs/common/tab_view_vertical_layout.cc
++++ b/chrome/browser/ui/views/tabs/common/tab_view_vertical_layout.cc
+@@ -9,6 +9,7 @@
+ #include "chrome/browser/ui/layout_constants.h"
+ #include "chrome/browser/ui/tabs/vertical_tab_strip_state.h"
+ #include "chrome/browser/ui/views/tabs/common/tab_view.h"
++#include "chrome/browser/ui/views/tabs/oganesson_tab_close_buttons.h"
+ #include "chrome/browser/ui/views/tabs/shared/tab_strip_types.h"
+ #include "chrome/browser/ui/views/tabs/tab/alert_indicator_button.h"
+ #include "chrome/browser/ui/views/tabs/tab/tab_close_button.h"
+@@ -175,7 +176,8 @@
+       return false;
+     }
+ 
+-    if (base::CommandLine::ForCurrentProcess()->HasSwitch("hide-tab-close-buttons")) {
++    const tabs::TabInterface* tab = TabView().GetTabInterface();
++    if (tab && !OganessonShowsTabCloseButtons(tab->GetBrowserWindowInterface())) {
+       return false;
+     }
+ 
+--- a/chrome/browser/ui/views/tabs/tab.cc
++++ b/chrome/browser/ui/views/tabs/tab.cc
+@@ -45,6 +45,7 @@
+ #include "chrome/browser/ui/views/frame/browser_view.h"
+ #include "chrome/browser/ui/views/tabs/browser_tab_strip_controller.h"
+ #include "chrome/browser/ui/views/tabs/dragging/tab_drag_controller.h"
++#include "chrome/browser/ui/views/tabs/oganesson_tab_close_buttons.h"
+ #include "chrome/browser/ui/views/tabs/shared/tab_strip_types.h"
+ #include "chrome/browser/ui/views/tabs/tab/alert_indicator_button.h"
+ #include "chrome/browser/ui/views/tabs/tab/glow_hover_controller.h"
+@@ -1376,7 +1377,8 @@
+   const bool should_show_close_button =
+       !IsLockedForOnTask(controller_->GetBrowserWindowInterface());
+ #else
+-  const bool should_show_close_button = !base::CommandLine::ForCurrentProcess()->HasSwitch("hide-tab-close-buttons");
++  const bool should_show_close_button =
++      OganessonShowsTabCloseButtons(controller_->GetBrowserWindowInterface());
+ #endif  // BUILDFLAG(IS_CHROMEOS)
+ 
+   if (IsActive()) {
+--- a/chrome/browser/ungoogled_flag_entries.h
++++ b/chrome/browser/ungoogled_flag_entries.h
+@@ -72,10 +72,6 @@
+      "Tab Hover Cards",
+      "Allows removing the tab hover cards or using a tooltip as a replacement. ungoogled-chromium flag.",
+      kOsDesktop, MULTI_VALUE_TYPE(kTabHoverCards)},
+-    {"hide-tab-close-buttons",
+-     "Hide tab close buttons",
+-     "Hides the close buttons on tabs. ungoogled-chromium flag.",
+-     kOsDesktop, SINGLE_VALUE_TYPE("hide-tab-close-buttons")},
+     {"disable-grease-tls",
+      "Disable GREASE for TLS",
+      "Turn off GREASE (Generate Random Extensions And Sustain Extensibility) for TLS connections. ungoogled-chromium flag.",

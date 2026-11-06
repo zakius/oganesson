@@ -65,6 +65,11 @@
     "message": "Pokazuj ikonę dźwięku na kartach"
   },
   {
+    "name": "IDS_OGANESSON_SHOW_TAB_CLOSE_BUTTONS",
+    "source": "Show close buttons on tabs",
+    "message": "Pokazuj przyciski zamykania na kartach"
+  },
+  {
     "name": "IDS_OGANESSON_TRAY_QUIT",
     "source": "Quit",
     "message": "Zakończ"

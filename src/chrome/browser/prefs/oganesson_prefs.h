@@ -21,6 +21,7 @@ inline void RegisterOganessonProfilePrefs(
   registry->RegisterDictionaryPref(prefs::kMouseGestures,
                                    base::DictValue().Set("L", IDC_BACK));
   registry->RegisterBooleanPref(prefs::kShowTabAudioIndicator, false);
+  registry->RegisterBooleanPref(prefs::kShowTabCloseButtons, true);
   registry->RegisterIntegerPref(prefs::kTabLinkPosition,
                                 prefs::kTabLinksAfterRelated);
   registry->RegisterBooleanPref(prefs::kTabSelectRelatedOnClose, false);

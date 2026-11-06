@@ -7,4 +7,7 @@
   <message name="IDS_OGANESSON_SHOW_TAB_AUDIO_INDICATOR" desc="Label for the toggle in Settings, Appearance, that shows or hides the speaker icon on tabs that play sound. The icon for a muted tab shows either way.">
     Show sound icon on tabs
   </message>
+  <message name="IDS_OGANESSON_SHOW_TAB_CLOSE_BUTTONS" desc="Label for the toggle in Settings, Appearance, that shows or hides the close button (the X) on tabs. With it off, tabs still close with the keyboard, a middle-click or the tab's context menu.">
+    Show close buttons on tabs
+  </message>
 </grit-part>
