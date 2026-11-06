@@ -1,15 +1,14 @@
---- a/chrome/browser/resources/settings/autofill_page/autofill_page.html
-+++ b/chrome/browser/resources/settings/autofill_page/autofill_page.html
-@@ -120,12 +120,16 @@
-   </template>
+--- a/chrome/browser/resources/settings/autofill_page/autofill_page.html.ts
++++ b/chrome/browser/resources/settings/autofill_page/autofill_page.html.ts
+@@ -64,11 +64,15 @@ export function getHtml(this: SettingsAutofillPageElement) {
+   ` : ''}
  </div>
  
 -<settings-section page-title="$i18n{yourSavedInfoAutofillSettingsLabel}">
 +<!-- Autofill AI and Wallet pass detection need a Google account. -->
 +<settings-section page-title="$i18n{yourSavedInfoAutofillSettingsLabel}"
 +    hidden>
-   <collapsible-autofill-settings-card prefs="{{prefs}}">
-   </collapsible-autofill-settings-card>
+   <collapsible-autofill-settings-card></collapsible-autofill-settings-card>
  </settings-section>
  
 -<settings-section page-title="$i18n{yourSavedInfoRelatedServicesTitle}">
@@ -18,20 +17,10 @@
 +    hidden>
    <div route-path="default">
      <cr-link-row id="passwordManagerButton" label="$i18n{localPasswordManager}"
-         on-click="onPasswordManagerRelatedServiceClick_"
---- a/chrome/browser/resources/settings/people_page/people_page.ts
-+++ b/chrome/browser/resources/settings/people_page/people_page.ts
-@@ -14,6 +14,7 @@
- import 'chrome://resources/cr_elements/icons.html.js';
- import 'chrome://resources/cr_elements/policy/cr_policy_indicator.js';
- import '../controls/settings_toggle_button.js';
-+import '../autofill_page/firefox_sync.js';
- // <if expr="not is_chromeos">
- import './sync_account_control.js';
- // </if>
+         @click="${this.onPasswordManagerRelatedServiceClick_}"
 --- a/chrome/browser/resources/settings/people_page/people_page.html.ts
 +++ b/chrome/browser/resources/settings/people_page/people_page.html.ts
-@@ -10,7 +10,9 @@
+@@ -10,7 +10,9 @@ import type {SettingsPeoplePageElement} from './people_page.js';
  
  export function getHtml(this: SettingsPeoplePageElement) {
    return html`<!--_html_template_start_-->
@@ -42,3 +31,13 @@
        <div>
  
  <if expr="not is_chromeos">
+--- a/chrome/browser/resources/settings/people_page/people_page.ts
++++ b/chrome/browser/resources/settings/people_page/people_page.ts
+@@ -14,6 +14,7 @@ import 'chrome://resources/cr_elements/cr_toast/cr_toast.js';
+ import 'chrome://resources/cr_elements/icons.html.js';
+ import 'chrome://resources/cr_elements/policy/cr_policy_indicator.js';
+ import '../controls/settings_toggle_button.js';
++import '../autofill_page/firefox_sync.js';
+ // <if expr="not is_chromeos">
+ import './sync_account_control.js';
+ // </if>

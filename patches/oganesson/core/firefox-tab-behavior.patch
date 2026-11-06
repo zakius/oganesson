@@ -1,14 +1,14 @@
 --- a/chrome/browser/extensions/api/tabs/tabs_api.cc
 +++ b/chrome/browser/extensions/api/tabs/tabs_api.cc
-@@ -43,6 +43,7 @@
+@@ -41,6 +41,7 @@
  #include "chrome/browser/ui/recently_audible_helper.h"
  #include "chrome/browser/ui/tabs/tab_enums.h"
  #include "chrome/browser/ui/tabs/tab_muted_utils.h"
 +#include "chrome/browser/ui/tabs/tab_strip_model_oganesson.h"
- #include "chrome/browser/web_applications/web_app_helpers.h"
  #include "chrome/common/pref_names.h"
  #include "chrome/common/webui_url_constants.h"
-@@ -2392,8 +2393,13 @@ void TabsCreateFunction::OpenTabInBrowser(BrowserWindowInterface& browser,
+ #include "components/pref_registry/pref_registry_syncable.h"
+@@ -1123,8 +1124,13 @@ void TabsCreateFunction::OpenTabInBrowser(BrowserWindowInterface& browser,
    options.index = index_;
    options.split_with_tab_id = split_with_tab_id_;
  
@@ -24,7 +24,7 @@
      return;
 --- a/chrome/browser/ui/tabs/BUILD.gn
 +++ b/chrome/browser/ui/tabs/BUILD.gn
-@@ -372,6 +372,7 @@ if (!is_android) {
+@@ -377,6 +377,7 @@ if (!is_android) {
        "tab_close_types_data.cc",
        "tab_strip_model.cc",
        "tab_strip_model_delegate.cc",
@@ -42,7 +42,7 @@
  #include "chrome/browser/ui/tabs/tab_change_type.h"
  #include "chrome/browser/ui/tabs/tab_close_types_data.h"
  #include "chrome/browser/ui/tabs/tab_enums.h"
-@@ -1786,7 +1787,10 @@ void TabStripModel::AddTab(std::unique_ptr<tabs::TabModel> tab,
+@@ -1788,7 +1789,10 @@ void TabStripModel::AddTab(std::unique_ptr<tabs::TabModel> tab,
    // closed we'll jump back to the parent tab.
    bool inherit_opener = (add_types & ADD_INHERIT_OPENER) == ADD_INHERIT_OPENER;
  
@@ -54,7 +54,7 @@
                                                    ui::PAGE_TRANSITION_LINK) &&
        (add_types & ADD_FORCE_INDEX) == 0) {
      // We assume tabs opened via link clicks are part of the same task as their
-@@ -6107,6 +6111,11 @@ std::optional<int> TabStripModel::DetermineNewSelectedIndex(
+@@ -6125,6 +6129,11 @@ std::optional<int> TabStripModel::DetermineNewSelectedIndex(
    const gfx::Range block_tabs =
        gfx::Range(start_index, start_index + block_size);
  
@@ -68,7 +68,7 @@
    // tabs the user is allowed to activate while that group is focused; when it
 --- a/chrome/browser/ui/tabs/tab_strip_model.h
 +++ b/chrome/browser/ui/tabs/tab_strip_model.h
-@@ -931,6 +931,11 @@ class TabStripModel {
+@@ -934,6 +934,11 @@ class TabStripModel {
        const content::WebContents* contents) const;
  
   private:
@@ -77,6 +77,6 @@
 +  std::unique_ptr<class OganessonTabRules> oganesson_tab_rules_;
 +  tabs::TabHandle oganesson_next_opener_;
 +
-   FRIEND_TEST_ALL_PREFIXES(TabStripModelTest, GetIndicesClosedByCommand);
+   FRIEND_TEST_ALL_PREFIXES(TabStripModelTest, HasIndicesClosedByCommand);
    // Temporary private API.
    FRIEND_TEST_ALL_PREFIXES(TabStripModelTest, FindGroupIdFor);

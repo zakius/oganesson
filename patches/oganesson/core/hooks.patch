@@ -10,7 +10,7 @@
        </if>
 --- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
 +++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
-@@ -21,6 +21,7 @@
+@@ -20,6 +20,7 @@
  #include "chrome/browser/content_settings/generated_permission_prompting_behavior_pref.h"
  #include "chrome/browser/extensions/api/settings_private/generated_prefs.h"
  #include "chrome/browser/extensions/api/settings_private/generated_prefs_factory.h"
@@ -18,7 +18,7 @@
  #include "chrome/browser/extensions/settings_api_helpers.h"
  #include "chrome/browser/glic/glic_pref_names.h"
  #include "chrome/browser/metrics/profile_pref_names.h"
-@@ -1485,6 +1486,7 @@ const PrefsUtil::TypedPrefMap& PrefsUtil::GetAllowlistedKeys() {
+@@ -1480,6 +1481,7 @@ const PrefsUtil::TypedPrefMap& PrefsUtil::GetAllowlistedKeys() {
    // Dictation / Voice typing prefs
    (*s_allowlist)[prefs::kVoiceTypingHotkey] = settings_api::PrefType::kString;
  
@@ -28,7 +28,7 @@
  
 --- a/chrome/browser/prefs/browser_prefs.cc
 +++ b/chrome/browser/prefs/browser_prefs.cc
-@@ -63,6 +63,7 @@
+@@ -62,6 +62,7 @@
  #include "chrome/browser/platform_experience/prefs.h"
  #include "chrome/browser/prefs/chrome_pref_service_factory.h"
  #include "chrome/browser/prefs/incognito_mode_prefs.h"
@@ -36,7 +36,7 @@
  #include "chrome/browser/prefs/session_startup_pref.h"
  #include "chrome/browser/preloading/prefetch/prefetch_service/prefetch_origin_decider.h"
  #include "chrome/browser/preloading/prefetch/search_prefetch/search_prefetch_service.h"
-@@ -1853,6 +1854,7 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
+@@ -2101,6 +2102,7 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
  
  #if !BUILDFLAG(IS_ANDROID)
    indigo::prefs::RegisterProfilePrefs(registry);
@@ -46,8 +46,8 @@
    RegisterSafetyHubProfilePrefs(registry);
 --- a/chrome/browser/resources/settings/BUILD.gn
 +++ b/chrome/browser/resources/settings/BUILD.gn
-@@ -501,6 +501,21 @@ build_webui("build") {
-     ts_files += [ "autofill_page/passwords/passkeys_browser_proxy.ts" ]
+@@ -559,6 +559,21 @@ build_webui("build") {
+     ]
    }
  
 +  ts_files += [
@@ -70,7 +70,7 @@
    icons_html_files = [ "privacy_page/security/fingerprint_icons.html" ]
 --- a/chrome/browser/ui/webui/settings/BUILD.gn
 +++ b/chrome/browser/ui/webui/settings/BUILD.gn
-@@ -157,6 +157,24 @@ source_set("impl") {
+@@ -162,6 +162,24 @@ source_set("impl") {
      "brave_importer_observer.cc",
      "browser_lifetime_handler.cc",
      "browser_shortcuts_handler.cc",
@@ -94,10 +94,10 @@
 +    "shortcuts_page_handler.h",
      "captions_handler.cc",
      "custom_home_pages_table_model.cc",
-     "dictation_handler.cc",
+     "device_tab_visibility_handler.cc",
 --- a/chrome/browser/ui/webui/settings/settings_ui.cc
 +++ b/chrome/browser/ui/webui/settings/settings_ui.cc
-@@ -76,6 +76,7 @@
+@@ -77,6 +77,7 @@
  #include "chrome/browser/ui/webui/settings/helium_crash_reporting_handler.h"
  #include "chrome/browser/ui/webui/settings/import_data_handler.h"
  #include "chrome/browser/ui/webui/settings/metrics_reporting_handler.h"
@@ -105,7 +105,7 @@
  #include "chrome/browser/ui/webui/settings/omnibox_everywhere_settings_handler.h"
  #include "chrome/browser/ui/webui/settings/on_startup_handler.h"
  #include "chrome/browser/ui/webui/settings/password_manager_handler.h"
-@@ -491,6 +492,7 @@ SettingsUI::SettingsUI(content::WebUI* web_ui)
+@@ -500,6 +501,7 @@ SettingsUI::SettingsUI(content::WebUI* web_ui)
  #endif
  
    AddLocalizedStrings(html_source, profile, web_ui->GetWebContents());

@@ -1,6 +1,6 @@
 --- a/chrome/browser/resources/settings/appearance_page/appearance_page.html.ts
 +++ b/chrome/browser/resources/settings/appearance_page/appearance_page.html.ts
-@@ -191,6 +191,11 @@
+@@ -154,6 +154,11 @@ export function getHtml(this: SettingsAppearancePageElement) {
          ?hidden="${this.showOrganizerPanelEnabled_}">
      </settings-toggle-button>
  
@@ -11,4 +11,4 @@
 +
      ${this.showCtrlTabMru_ ? html`
        <settings-toggle-button class="hr" id="ctrlTabMru"
-           pref-key="browser.ctrl_tab_mru"
+           pref-key="browser.ctrl_tab_mru" label="$i18n{ctrlTabMru}">

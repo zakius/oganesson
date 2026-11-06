@@ -1,6 +1,6 @@
 --- a/chrome/browser/resources/settings/autofill_page/autofill_page.ts
 +++ b/chrome/browser/resources/settings/autofill_page/autofill_page.ts
-@@ -184,7 +184,8 @@ export class SettingsAutofillPageElement extends
+@@ -177,7 +177,8 @@ export class SettingsAutofillPageElement extends
              id: YourSavedInfoDataChip.PASSKEYS,
              label: this.i18n('passkeysLabel'),
              icon: 'settings20:passkey',
@@ -44,7 +44,7 @@
          '/privacy', 'privacy', loadTimeData.getString('privacyPageTitle'));
 --- a/chrome/browser/resources/settings/settings_main/settings_main.html
 +++ b/chrome/browser/resources/settings/settings_main/settings_main.html
-@@ -70,7 +70,8 @@
+@@ -69,7 +69,8 @@
      </div>
    </template>
  
@@ -56,7 +56,7 @@
            routes_.AUTOFILL, lastRoute_, inSearchMode_)]]">
 --- a/chrome/browser/resources/settings/settings_menu/settings_menu.html
 +++ b/chrome/browser/resources/settings/settings_menu/settings_menu.html
-@@ -105,6 +105,14 @@
+@@ -22,6 +22,14 @@
            <span class="menu-label">$i18n{appearanceBehaviorPageTitle}</span>
            <cr-ripple></cr-ripple>
          </a>
@@ -69,5 +69,5 @@
 +          <cr-ripple></cr-ripple>
 +        </a>
          <a role="menuitem" id="privacy" href="/privacy"
-             hidden="[[!pageVisibility_.privacy]]"
+             ?hidden="${this.shouldHideMenuItem_(this.pageVisibility_?.privacy)}"
              class="cr-nav-menu-item">

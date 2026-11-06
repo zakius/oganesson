@@ -80,7 +80,8 @@ The model is my own code in dubna (`components/browser_traffic`), not a copy of 
 
 - `helium/core/ridiculous-google-compat-exceptions` (Helium 0.19.2): keeps Google sign-in, session cookies and security-key enrollment working under domain substitution. My decision, 2026-10-09.
 - `upstream-fixes/tab-restore-live-tabs` (Helium 0.19.1): kept, vendored before `helium/core/lazy-session-restore`. My decision, 2026-10-08. Helium 0.20.1.1 removed it in its refresh for Chromium 156.
-- `upstream-fixes/wasm-interpreter-fixes` (Helium 0.20.1.1): a V8 build fix for the WebAssembly interpreter. Carried as Helium ships it, 2026-10-22.
+- `upstream-fixes/wasm-interpreter-fixes` (Helium 0.20.1.1): a V8 build fix for the WebAssembly interpreter. Carried as Helium ships it, 2026-10-22. Helium 0.21.1.1 removed it in its refresh for Chromium 157.
+- `helium/core/disable-actions-for-browser-commands` (Helium 0.21.1.1): turns off Chromium 157's move of browser commands to the Action API until Helium's own commands move. No visible change. Carried as Helium ships it, 2026-11-06.
 - `ungoogled-chromium/add-flag-to-hide-window-buttons` (Helium 0.20.1.1): adds the `--hide-window-buttons` switch only; window buttons stay by default. Carried as Helium ships it, 2026-10-22.
 - `helium/core/disable-annoying-infobars` (Helium 0.19.1): kept, and it also hides the PDF infobar. My decision, 2026-10-08.
 - `helium/core/prioritize-platform-policy-loading` (Helium 0.18.2): uBlock Origin reads its managed settings at startup in milliseconds, not seconds. My decision, 2026-10-02.

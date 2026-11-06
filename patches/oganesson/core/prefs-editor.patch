@@ -1,6 +1,6 @@
 --- a/chrome/browser/ui/webui/BUILD.gn
 +++ b/chrome/browser/ui/webui/BUILD.gn
-@@ -52,6 +52,7 @@ source_set("configs") {
+@@ -46,6 +46,7 @@ source_set("configs") {
      ":ntp_tiles_internals_ui",
      ":onboarding",
      ":signin_internals_ui",
@@ -11,14 +11,14 @@
 --- a/chrome/browser/ui/webui/chrome_web_ui_configs.cc
 +++ b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
 @@ -49,6 +49,7 @@
- #include "chrome/browser/ui/webui/omnibox/omnibox_ui.h"
+ #include "chrome/browser/ui/webui/omnibox_internals/omnibox_internals_ui.h"
  #include "chrome/browser/ui/webui/onboarding/onboarding_page_ui.h"
  #include "chrome/browser/ui/webui/policy/policy_ui.h"
 +#include "chrome/browser/ui/webui/prefs_editor/prefs_editor_ui.h"
  #include "chrome/browser/ui/webui/predictors/predictors_ui.h"
  #include "chrome/browser/ui/webui/regional_capabilities_internals/regional_capabilities_internals_ui.h"
  #include "chrome/browser/ui/webui/saved_tab_groups_unsupported/saved_tab_groups_unsupported_ui.h"
-@@ -476,6 +477,7 @@ void RegisterChromeWebUIConfigs() {
+@@ -479,6 +480,7 @@ void RegisterChromeWebUIConfigs() {
  
  #if BUILDFLAG(ENABLE_DICE_SUPPORT)
    map.AddWebUIConfig(std::make_unique<CrossDeviceSigninQrBubbleUIConfig>());
@@ -28,7 +28,7 @@
  #endif  // BUILDFLAG(ENABLE_DICE_SUPPORT)
 --- a/chrome/common/webui_url_constants.cc
 +++ b/chrome/common/webui_url_constants.cc
-@@ -173,6 +173,7 @@ base::span<const base::cstring_view> ChromeURLHosts() {
+@@ -172,6 +172,7 @@ base::span<const base::cstring_view> ChromeURLHosts() {
        kChromeUIPredictorsHost,
        kChromeUIPrefsInternalsHost,
        kChromeUIProfileInternalsHost,

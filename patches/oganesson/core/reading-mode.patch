@@ -5,7 +5,7 @@
 # with the rules-based algorithm.
 --- a/chrome/renderer/BUILD.gn
 +++ b/chrome/renderer/BUILD.gn
-@@ -346,6 +346,8 @@
+@@ -347,6 +347,8 @@ static_library("renderer") {
      deps += [ "//chrome/common/wallet:mojo_bindings" ]
    } else {
      sources += [
@@ -14,7 +14,7 @@
        "accessibility/phrase_segmentation/base_phrase_segmenter.cc",
        "accessibility/phrase_segmentation/base_phrase_segmenter.h",
        "accessibility/phrase_segmentation/dependency_parser_model.cc",
-@@ -362,6 +364,23 @@
+@@ -363,6 +365,23 @@ static_library("renderer") {
        "accessibility/phrase_segmentation/tokenized_sentence.h",
        "accessibility/phrase_segmentation/tokenizer.cc",
        "accessibility/phrase_segmentation/tokenizer.h",
@@ -38,138 +38,9 @@
        "media/chrome_speech_recognition_client.cc",
        "media/chrome_speech_recognition_client.h",
        "password_manager/remote_actor_credential_sharing_extension.cc",
---- a/chrome/renderer/chrome_render_frame_observer.cc
-+++ b/chrome/renderer/chrome_render_frame_observer.cc
-@@ -88,6 +88,7 @@
- #include "url/url_constants.h"
- 
- #if !BUILDFLAG(IS_ANDROID)
-+#include "chrome/renderer/accessibility/read_anything/read_anything_app_controller.h"
- #include "chrome/renderer/searchbox/searchbox_extension.h"
- #endif  // !BUILDFLAG(IS_ANDROID)
- 
-@@ -386,6 +387,14 @@
-     SearchBoxExtension::Install(render_frame()->GetWebFrame());
-   }
- 
-+  // Install ReadAnythingAppController on render frames with the Read Anything
-+  // url, which is chrome-untrusted. ReadAnythingAppController installs v8
-+  // bindings in the chrome.readingMode namespace which are consumed by
-+  // read_anything/app.ts, the resource of the Read Anything WebUI.
-+  if (render_frame()->GetWebFrame()->GetDocument().Url() ==
-+      chrome::kChromeUIUntrustedReadAnythingSidePanelURL) {
-+    ReadAnythingAppController::Install(render_frame());
-+  }
- #endif  // !BUILDFLAG(IS_ANDROID)
- #if BUILDFLAG(ENABLE_GUEST_VIEW) && !BUILDFLAG(ENABLE_EXTENSIONS_CORE)
-   guest_view::SlimWebViewBindings::MaybeInstall(*render_frame());
---- a/chrome/renderer/accessibility/ax_tree_distiller.h
-+++ b/chrome/renderer/accessibility/ax_tree_distiller.h
-@@ -15,7 +15,6 @@
- #include "content/public/renderer/render_frame_observer.h"
- #include "mojo/public/cpp/bindings/remote.h"
- #include "services/metrics/public/cpp/ukm_source_id.h"
--#include "services/screen_ai/public/mojom/screen_ai_service.mojom.h"
- #include "ui/accessibility/ax_node_id_forward.h"
- #include "ui/accessibility/ax_tree_id.h"
- #include "ui/accessibility/ax_tree_update_forward.h"
-@@ -38,9 +37,8 @@
- //  A class that distills an AXTreeUpdate. The main API is
- //  AXTreeDistiller::Distill(), which kicks off the distillation. Once a
- //  distilled AXTree is ready, calls a callback.
--//  If ChromeScreenAI library is available, the distillation is performed by the
--//  Screen2x ML model in the utility process. Otherwise, distillation is done
--//  using rules defined in this file.
-+//  Distillation is done using rules defined in this file: this build has no
-+//  Screen2x ML model (ungoogled-chromium's disable-ai.patch).
- //
- class AXTreeDistiller : public content::RenderFrameObserver {
-   using OnAXTreeDistilledCallback = base::RepeatingCallback<void(
-@@ -55,17 +53,14 @@
-   AXTreeDistiller(const AXTreeDistiller&) = delete;
-   AXTreeDistiller& operator=(const AXTreeDistiller&) = delete;
- 
--  // Distills the AXTree. |tree| and |snapshot| are duplicates of each other;
--  // the algorithm requires the data in |tree| form while Screen2x requires it
--  // in |snapshot| form.
--  // When ChromeScreenAI library is available, this operation is done in the
--  // utility process by Screen2x. Otherwise, it is done by a rules-based
--  // algorithm in this process.
-+  // Distills the AXTree with a rules-based algorithm in this process.
-+  // |snapshot| duplicates |tree| and is unused: it was Screen2x's input.
-   virtual void Distill(const ui::AXTree& tree,
-                        const ui::AXTreeUpdate& snapshot,
-                        const ukm::SourceId ukm_source_id);
- 
--  void ScreenAIServiceReady();
-+  // Without Screen2x there is no service to wait for.
-+  void ScreenAIServiceReady() {}
- 
-   // content::RenderFrameObserver:
-   void OnDestruct() override {}
-@@ -80,59 +75,12 @@
-   void RecordRulesMetrics(const ukm::SourceId ukm_source_id,
-                           base::TimeDelta elapsed_time,
-                           bool success);
--  void RecordScreen2xMetrics(const ukm::SourceId ukm_source_id,
--                             base::TimeDelta elapsed_time,
--                             bool success);
--
--  // Passes |snapshot| to the Screen2x ML model, which identifes the main
--  // content nodes and calls |ProcessScreen2xResult()| on completion.
--  // |content_node_ids_algorithm| are the content nodes identified by the
--  // algorithm. They are passed along to the screen2x callback.
--  // |merged_start_time| is the time when Distill started and is used for
--  // RecordMergedMetrics.
--  void DistillViaScreen2x(
--      const ui::AXTree& tree,
--      const ui::AXTreeUpdate& snapshot,
--      const ukm::SourceId ukm_source_id,
--      base::TimeTicks merged_start_time,
--      std::vector<ui::AXNodeID>* content_node_ids_algorithm);
--
--  // Called by the Screen2x service from the utility process. Merges the result
--  // from the algorithm with the result from Screen2x and passes the merged
--  // vector to the callback. |screen2x_start_time| is the time when
--  // DistillViaScreen2x started and |merged_start_time| is the time when
--  // Distill started and is used for RecordScreen2xMetrics.
--  void ProcessScreen2xResult(
--      const ui::AXTreeID& tree_id,
--      const ukm::SourceId ukm_source_id,
--      base::TimeTicks screen2x_start_time,
--      base::TimeTicks merged_start_time,
--      std::vector<ui::AXNodeID> content_node_ids_algorithm,
--      const std::vector<ui::AXNodeID>& content_node_ids_screen2x);
--
--  // Called when the main content extractor is disconnected. Runs the callback
--  // with an empty list of content node IDs.
--  void OnMainContentExtractorDisconnected();
--
--  // Record time it takes for the merged algorithm (distillation via algorithm
--  // and via Screen2x) to run.
--  void RecordMergedMetrics(const ukm::SourceId ukm_source_id,
--                           base::TimeDelta elapsed_time,
--                           bool success);
--
-   // TODO(crbug.com/40802192): Ensure this is called even if ScreenAIService is
-   // disconnected.
-   OnAXTreeDistilledCallback on_ax_tree_distilled_callback_;
- 
-   std::unique_ptr<ukm::MojoUkmRecorder> ukm_recorder_;
- 
--  // ScreenAI service is successfully initialized.
--  bool screen_ai_service_ready_ = false;
--
--  // The remote of the Screen2x main content extractor. The receiver lives in
--  // the utility process.
--  mojo::Remote<screen_ai::mojom::Screen2xMainContentExtractor>
--      main_content_extractor_;
-   base::WeakPtrFactory<AXTreeDistiller> weak_ptr_factory_{this};
- };
- 
 --- a/chrome/renderer/accessibility/ax_tree_distiller.cc
 +++ b/chrome/renderer/accessibility/ax_tree_distiller.cc
-@@ -155,23 +155,8 @@
+@@ -155,23 +155,8 @@ AXTreeDistiller::~AXTreeDistiller() = default;
  void AXTreeDistiller::Distill(const ui::AXTree& tree,
                                const ui::AXTreeUpdate& snapshot,
                                const ukm::SourceId ukm_source_id) {
@@ -193,7 +64,7 @@
    on_ax_tree_distilled_callback_.Run(tree.GetAXTreeID(), content_node_ids);
  }
  
-@@ -208,112 +193,3 @@
+@@ -208,112 +193,3 @@ void AXTreeDistiller::RecordRulesMetrics(ukm::SourceId ukm_source_id,
          .Record(ukm_recorder_.get());
    }
  }
@@ -306,6 +177,110 @@
 -        .Record(ukm_recorder_.get());
 -  }
 -}
+--- a/chrome/renderer/accessibility/ax_tree_distiller.h
++++ b/chrome/renderer/accessibility/ax_tree_distiller.h
+@@ -15,7 +15,6 @@
+ #include "content/public/renderer/render_frame_observer.h"
+ #include "mojo/public/cpp/bindings/remote.h"
+ #include "services/metrics/public/cpp/ukm_source_id.h"
+-#include "services/screen_ai/public/mojom/screen_ai_service.mojom.h"
+ #include "ui/accessibility/ax_node_id_forward.h"
+ #include "ui/accessibility/ax_tree_id.h"
+ #include "ui/accessibility/ax_tree_update_forward.h"
+@@ -38,9 +37,8 @@ class MojoUkmRecorder;
+ //  A class that distills an AXTreeUpdate. The main API is
+ //  AXTreeDistiller::Distill(), which kicks off the distillation. Once a
+ //  distilled AXTree is ready, calls a callback.
+-//  If ChromeScreenAI library is available, the distillation is performed by the
+-//  Screen2x ML model in the utility process. Otherwise, distillation is done
+-//  using rules defined in this file.
++//  Distillation is done using rules defined in this file: this build has no
++//  Screen2x ML model (ungoogled-chromium's disable-ai.patch).
+ //
+ class AXTreeDistiller : public content::RenderFrameObserver {
+   using OnAXTreeDistilledCallback = base::RepeatingCallback<void(
+@@ -55,17 +53,14 @@ class AXTreeDistiller : public content::RenderFrameObserver {
+   AXTreeDistiller(const AXTreeDistiller&) = delete;
+   AXTreeDistiller& operator=(const AXTreeDistiller&) = delete;
+ 
+-  // Distills the AXTree. |tree| and |snapshot| are duplicates of each other;
+-  // the algorithm requires the data in |tree| form while Screen2x requires it
+-  // in |snapshot| form.
+-  // When ChromeScreenAI library is available, this operation is done in the
+-  // utility process by Screen2x. Otherwise, it is done by a rules-based
+-  // algorithm in this process.
++  // Distills the AXTree with a rules-based algorithm in this process.
++  // |snapshot| duplicates |tree| and is unused: it was Screen2x's input.
+   virtual void Distill(const ui::AXTree& tree,
+                        const ui::AXTreeUpdate& snapshot,
+                        const ukm::SourceId ukm_source_id);
+ 
+-  void ScreenAIServiceReady();
++  // Without Screen2x there is no service to wait for.
++  void ScreenAIServiceReady() {}
+ 
+   // content::RenderFrameObserver:
+   void OnDestruct() override {}
+@@ -80,59 +75,12 @@ class AXTreeDistiller : public content::RenderFrameObserver {
+   void RecordRulesMetrics(const ukm::SourceId ukm_source_id,
+                           base::TimeDelta elapsed_time,
+                           bool success);
+-  void RecordScreen2xMetrics(const ukm::SourceId ukm_source_id,
+-                             base::TimeDelta elapsed_time,
+-                             bool success);
+-
+-  // Passes |snapshot| to the Screen2x ML model, which identifes the main
+-  // content nodes and calls |ProcessScreen2xResult()| on completion.
+-  // |content_node_ids_algorithm| are the content nodes identified by the
+-  // algorithm. They are passed along to the screen2x callback.
+-  // |merged_start_time| is the time when Distill started and is used for
+-  // RecordMergedMetrics.
+-  void DistillViaScreen2x(
+-      const ui::AXTree& tree,
+-      const ui::AXTreeUpdate& snapshot,
+-      const ukm::SourceId ukm_source_id,
+-      base::TimeTicks merged_start_time,
+-      std::vector<ui::AXNodeID>* content_node_ids_algorithm);
+-
+-  // Called by the Screen2x service from the utility process. Merges the result
+-  // from the algorithm with the result from Screen2x and passes the merged
+-  // vector to the callback. |screen2x_start_time| is the time when
+-  // DistillViaScreen2x started and |merged_start_time| is the time when
+-  // Distill started and is used for RecordScreen2xMetrics.
+-  void ProcessScreen2xResult(
+-      const ui::AXTreeID& tree_id,
+-      const ukm::SourceId ukm_source_id,
+-      base::TimeTicks screen2x_start_time,
+-      base::TimeTicks merged_start_time,
+-      std::vector<ui::AXNodeID> content_node_ids_algorithm,
+-      const std::vector<ui::AXNodeID>& content_node_ids_screen2x);
+-
+-  // Called when the main content extractor is disconnected. Runs the callback
+-  // with an empty list of content node IDs.
+-  void OnMainContentExtractorDisconnected();
+-
+-  // Record time it takes for the merged algorithm (distillation via algorithm
+-  // and via Screen2x) to run.
+-  void RecordMergedMetrics(const ukm::SourceId ukm_source_id,
+-                           base::TimeDelta elapsed_time,
+-                           bool success);
+-
+   // TODO(crbug.com/40802192): Ensure this is called even if ScreenAIService is
+   // disconnected.
+   OnAXTreeDistilledCallback on_ax_tree_distilled_callback_;
+ 
+   std::unique_ptr<ukm::MojoUkmRecorder> ukm_recorder_;
+ 
+-  // ScreenAI service is successfully initialized.
+-  bool screen_ai_service_ready_ = false;
+-
+-  // The remote of the Screen2x main content extractor. The receiver lives in
+-  // the utility process.
+-  mojo::Remote<screen_ai::mojom::Screen2xMainContentExtractor>
+-      main_content_extractor_;
+   base::WeakPtrFactory<AXTreeDistiller> weak_ptr_factory_{this};
+ };
+ 
 --- a/chrome/renderer/accessibility/read_anything/read_anything_node_utils.cc
 +++ b/chrome/renderer/accessibility/read_anything/read_anything_node_utils.cc
 @@ -9,6 +9,7 @@
@@ -316,7 +291,7 @@
  #include "services/strings/grit/services_strings.h"
  #include "ui/accessibility/accessibility_features.h"
  #include "ui/accessibility/ax_enum_util.h"
-@@ -61,6 +62,7 @@
+@@ -66,6 +67,7 @@ bool IsIgnored(const ui::AXNode* const ax_node, bool is_pdf) {
      // The text content of the aforementioned `kBanner` or `kContentInfo` node
      // is the same as the text content of its child static text node.
      const ui::AXNode* const parent = ax_node->GetParent();
@@ -324,15 +299,15 @@
      if (const std::string_view text = ax_node->GetTextContentUTF8();
          text == l10n_util::GetStringUTF8(IDS_PDF_OCR_RESULT_BEGIN)) {
        if (role == ax::mojom::Role::kBanner ||
-@@ -71,6 +73,7 @@
+@@ -76,6 +78,7 @@ bool IsIgnored(const ui::AXNode* const ax_node, bool is_pdf) {
                 parent && parent->GetRole() == ax::mojom::Role::kContentInfo) {
        return true;
      }
 +#endif
-     if (features::IsPdfAccessibilityHeuristicEnhancementsEnabled()) {
-       if (IsHeaderFooterRole(role) ||
-           (parent && IsHeaderFooterRole(parent->GetRole()))) {
-@@ -147,10 +150,12 @@
+   }
+ 
+   // Ignore interactive elements, except for text fields and aria-related
+@@ -159,10 +162,12 @@ std::string GetHtmlTagForPDF(const ui::AXNode* ax_node,
      // Add a line break after each page of an inaccessible PDF for readability
      // since there is no other formatting included in the OCR output.
      case ax::mojom::Role::kContentInfo:
@@ -345,3 +320,28 @@
        [[fallthrough]];
      default:
        return html_tag.empty() ? "span" : html_tag;
+--- a/chrome/renderer/chrome_render_frame_observer.cc
++++ b/chrome/renderer/chrome_render_frame_observer.cc
+@@ -89,6 +89,7 @@
+ #include "url/url_constants.h"
+ 
+ #if !BUILDFLAG(IS_ANDROID)
++#include "chrome/renderer/accessibility/read_anything/read_anything_app_controller.h"
+ #endif  // !BUILDFLAG(IS_ANDROID)
+ 
+ #if BUILDFLAG(SAFE_BROWSING_AVAILABLE)
+@@ -397,6 +398,14 @@ void ChromeRenderFrameObserver::DidClearWindowObject() {
+ #endif
+ 
+ #if !BUILDFLAG(IS_ANDROID)
++  // Install ReadAnythingAppController on render frames with the Read Anything
++  // url, which is chrome-untrusted. ReadAnythingAppController installs v8
++  // bindings in the chrome.readingMode namespace which are consumed by
++  // read_anything/app.ts, the resource of the Read Anything WebUI.
++  if (render_frame()->GetWebFrame()->GetDocument().Url() ==
++      chrome::kChromeUIUntrustedReadAnythingSidePanelURL) {
++    ReadAnythingAppController::Install(render_frame());
++  }
+ #endif  // !BUILDFLAG(IS_ANDROID)
+ #if BUILDFLAG(ENABLE_GUEST_VIEW) && !BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+   guest_view::SlimWebViewBindings::MaybeInstall(*render_frame());

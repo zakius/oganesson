@@ -5,7 +5,7 @@
 # (src/chrome/browser/badging/badge_manager_delegate_linux.cc), and every badge marks the tray icon.
 --- a/chrome/browser/badging/BUILD.gn
 +++ b/chrome/browser/badging/BUILD.gn
-@@ -28,6 +28,10 @@
+@@ -28,6 +28,10 @@ source_set("badging") {
    if (is_mac) {
      sources += [ "badge_manager_delegate_mac.h" ]
    }
@@ -16,10 +16,11 @@
  }
  
  source_set("impl") {
-@@ -64,6 +68,15 @@
+@@ -63,6 +67,15 @@ source_set("impl") {
+     sources += [ "badge_manager_delegate_mac.cc" ]
      deps += [ "//chrome/browser/apps/app_shim" ]
    }
- 
++
 +  if (is_linux) {
 +    sources += [ "badge_manager_delegate_linux.cc" ]
 +    deps += [
@@ -28,10 +29,9 @@
 +      "//dbus",
 +    ]
 +  }
-+
-   public_deps = [ "//chrome/browser:browser_public_dependencies" ]
  }
  
+ source_set("test_support") {
 --- a/chrome/browser/badging/badge_manager.cc
 +++ b/chrome/browser/badging/badge_manager.cc
 @@ -15,6 +15,7 @@
@@ -51,7 +51,7 @@
  #endif
  
  using web_app::WebAppProvider;
-@@ -69,6 +72,8 @@
+@@ -69,6 +72,8 @@ BadgeManager::BadgeManager(Profile* profile)
    SetDelegate(std::make_unique<BadgeManagerDelegateMac>(profile, this));
  #elif BUILDFLAG(IS_WIN)
    SetDelegate(std::make_unique<BadgeManagerDelegateWin>(profile, this));
@@ -60,7 +60,7 @@
  #endif
  }
  
-@@ -203,6 +208,8 @@
+@@ -203,6 +208,8 @@ void BadgeManager::UpdateBadge(const webapps::AppId& app_id,
    else
      badged_apps_[app_id] = value.value();
  
@@ -69,39 +69,50 @@
    if (!delegate_)
      return;
  
---- a/chrome/browser/ui/views/frame/browser_view.cc
-+++ b/chrome/browser/ui/views/frame/browser_view.cc
-@@ -246,6 +246,7 @@
- #include "chrome/browser/ui/waap/initial_web_ui_manager.h"
- #include "chrome/browser/ui/waap/initial_webui_window_metrics_manager.h"
- #include "chrome/browser/ui/web_applications/app_browser_controller.h"
-+#include "chrome/browser/ui/web_applications/app_tray.h"
- #include "chrome/browser/ui/webui/top_chrome/webui_contents_preload_manager.h"
- #include "chrome/browser/ui/window_feature_controller/window_feature_controller.h"
- #include "chrome/browser/ui/window_metadata/window_metadata_controller.h"
-@@ -5303,6 +5304,11 @@
-     return views::CloseRequestResult::kCannotClose;
-   }
- 
-+  // oganesson: a tray app's last window hides instead (app_tray.h).
-+  if (web_app::MaybeHideToTray(browser_)) {
-+    return views::CloseRequestResult::kCannotClose;
-+  }
-+
-   // Give beforeunload handlers, the user, or policy the chance to cancel the
-   // close before we hide the window below.
-   if (!UnloadController::From(browser_)->HandleBeforeClose()) {
+--- a/chrome/browser/resources/app_settings/BUILD.gn
++++ b/chrome/browser/resources/app_settings/BUILD.gn
+@@ -32,6 +32,8 @@ build_webui("build") {
+     "scope_rules_item.ts",
+     "start_url_item.html.ts",
+     "start_url_item.ts",
++    "tray_item.html.ts",
++    "tray_item.ts",
+     "supported_links_dialog.html.ts",
+     "supported_links_dialog.ts",
+     "supported_links_item.html.ts",
+--- a/chrome/browser/resources/app_settings/app.html.ts
++++ b/chrome/browser/resources/app_settings/app.html.ts
+@@ -51,6 +51,9 @@ export function getHtml(this: AppElement) {
+         login-mode-label="$i18n{appManagementRunOnOsLoginModeLabel}"
+         .app="${this.app_}">
+     </app-management-run-on-os-login-item>
++    <app-management-tray-item class="permission-card-row separated-row"
++        .app="${this.app_}">
++    </app-management-tray-item>
+     <app-management-window-mode-item class="permission-card-row separated-row"
+         window-mode-label="$i18n{appManagementWindowModeLabel}"
+         .app="${this.app_}">
+--- a/chrome/browser/resources/app_settings/app.ts
++++ b/chrome/browser/resources/app_settings/app.ts
+@@ -12,6 +12,7 @@ import './more_permissions_item.js';
+ import './run_on_os_login_item.js';
+ import './scope_rules_item.js';
+ import './start_url_item.js';
++import './tray_item.js';
+ import './permission_item.js';
+ import './window_mode_item.js';
+ import './icons.html.js';
 --- a/chrome/browser/ui/browser_commands.cc
 +++ b/chrome/browser/ui/browser_commands.cc
-@@ -129,6 +129,7 @@
- #include "chrome/browser/ui/views/tabs/organizer/organizer_panel_utils.h"
+@@ -130,6 +130,7 @@
+ #include "chrome/browser/ui/views/frame/browser_view.h"
  #include "chrome/browser/ui/waap/initial_webui_window_metrics_manager.h"
  #include "chrome/browser/ui/web_applications/app_browser_controller.h"
 +#include "chrome/browser/ui/web_applications/app_tray.h"
  #include "chrome/browser/ui/web_applications/web_app_launch_utils.h"
  #include "chrome/browser/ui/web_applications/web_app_tabbed_utils.h"
  #include "chrome/browser/ui/webui/tab_search/tab_search.mojom.h"
-@@ -1480,6 +1481,12 @@
+@@ -1485,6 +1486,12 @@ void NewTabFromClipboardURL(BrowserWindowInterface* browser) {
  void CloseTab(BrowserWindowInterface* browser) {
    base::RecordAction(UserMetricsAction("CloseTab_Accelerator"));
  
@@ -124,7 +135,7 @@
  #include "chrome/browser/ui/web_applications/out_of_scope_links.h"
  #include "chrome/browser/web_applications/web_app_provider.h"
  #include "chrome/browser/web_applications/web_app_registrar.h"
-@@ -755,6 +756,7 @@
+@@ -749,6 +750,7 @@ void BrowserWebContentsDelegate::ActivateContents(
      return;
    }
    browser_->GetTabStripModel()->ActivateTabAt(index);
@@ -132,6 +143,81 @@
    window_->Activate();
  }
  
+--- a/chrome/browser/ui/views/frame/browser_view.cc
++++ b/chrome/browser/ui/views/frame/browser_view.cc
+@@ -246,6 +246,7 @@
+ #include "chrome/browser/ui/waap/initial_web_ui_manager.h"
+ #include "chrome/browser/ui/waap/initial_webui_window_metrics_manager.h"
+ #include "chrome/browser/ui/web_applications/app_browser_controller.h"
++#include "chrome/browser/ui/web_applications/app_tray.h"
+ #include "chrome/browser/ui/webui/top_chrome/webui_contents_preload_manager.h"
+ #include "chrome/browser/ui/window_feature_controller/window_feature_controller.h"
+ #include "chrome/browser/ui/window_metadata/window_metadata_controller.h"
+@@ -5300,6 +5301,11 @@ views::CloseRequestResult BrowserView::OnWindowCloseRequested() {
+     return views::CloseRequestResult::kCannotClose;
+   }
+ 
++  // oganesson: a tray app's last window hides instead (app_tray.h).
++  if (web_app::MaybeHideToTray(browser_)) {
++    return views::CloseRequestResult::kCannotClose;
++  }
++
+   // Give beforeunload handlers, the user, or policy the chance to cancel the
+   // close before we hide the window below.
+   if (!UnloadController::From(browser_)->HandleBeforeClose()) {
+--- a/chrome/browser/ui/views/status_icons/status_icon_linux_dbus.cc
++++ b/chrome/browser/ui/views/status_icons/status_icon_linux_dbus.cc
+@@ -179,9 +179,11 @@ DbusToolTip MakeDbusToolTip(const std::string& text) {
+ bool ShouldWriteIconToFile() {
+   auto env = base::Environment::Create();
+   switch (base::nix::GetDesktopEnvironment(env.get())) {
++    // oganesson: gnome-shell-extension-appindicator scales pixmaps to the
++    // panel now, and on Ubuntu 26.10 (GNOME 51) can't read the files
++    // ("Failed to recognize image format"), so the icon shows as "...".
+     case base::nix::DESKTOP_ENVIRONMENT_GNOME:
+-      // gnome-shell-extension-appindicator doesn't downsize icons when they're
+-      // given as DBus pixmaps.  But it does when icons are given as files.
++      return false;
+     case base::nix::DESKTOP_ENVIRONMENT_PANTHEON:
+       // wingpanel-indicator-ayatana only supports file icons.
+       return true;
+--- a/chrome/browser/ui/views/status_icons/status_icon_linux_wrapper.cc
++++ b/chrome/browser/ui/views/status_icons/status_icon_linux_wrapper.cc
+@@ -138,12 +138,12 @@ ui::MenuModel* StatusIconLinuxWrapper::GetMenuModel() const {
+ void StatusIconLinuxWrapper::OnImplInitializationFailed() {
+   switch (status_icon_type_) {
+ #if BUILDFLAG(USE_DBUS)
++    // oganesson: no StatusNotifierItem host, so no icon. The fallback, an
++    // XEmbed tray window, gets no X window without an X11 tray, and its
++    // compositor then fails a DCHECK (x11_software_bitmap_presenter.cc).
+     case kTypeDbus:
+       status_icon_dbus_.reset();
+-      status_icon_linux_ = std::make_unique<StatusIconButtonLinux>();
+-      status_icon_type_ = kTypeWindowed;
+-      status_icon_linux_->SetDelegate(this);
+-      return;
++      [[fallthrough]];
+ #endif
+     case kTypeWindowed:
+       status_icon_linux_.reset();
+--- a/chrome/browser/ui/web_applications/BUILD.gn
++++ b/chrome/browser/ui/web_applications/BUILD.gn
+@@ -155,6 +155,7 @@ source_set("impl") {
+       "diagnostics/web_app_icon_health_checks.cc",
+       "navigation_capturing_process.cc",
+       "navigation_capturing_redirection_throttle.cc",
++      "app_tray.cc",
+       "out_of_scope_links.cc",
+       "share_target_utils.cc",
+       "tabbed_web_app_navigation_throttle.cc",
+@@ -200,6 +201,7 @@ source_set("impl") {
+       "//chrome/browser/web_applications:features",
+       "//chrome/browser/web_applications/app_service",
+       "//chrome/browser/web_applications/isolated_web_apps/window_management",
++      "//chrome/browser/status_icons",
+       "//chrome/browser/web_share_target",
+       "//components/infobars/content",
+       "//components/keep_alive_registry",
 --- a/chrome/browser/ui/web_applications/web_app_browser_controller.cc
 +++ b/chrome/browser/ui/web_applications/web_app_browser_controller.cc
 @@ -39,6 +39,7 @@
@@ -142,7 +228,7 @@
  #include "chrome/browser/app_links/app_scope_rules.h"
  #include "chrome/browser/web_applications/web_app_command_scheduler.h"
  #include "chrome/browser/web_applications/web_app_constants.h"
-@@ -129,6 +130,7 @@
+@@ -129,6 +130,7 @@ WebAppBrowserController::WebAppBrowserController(
    install_manager_observation_.Observe(&provider.install_manager());
    registrar_observation_.Observe(&provider.registrar_unsafe());
    PerformDigitalAssetLinkVerification(browser);
@@ -150,7 +236,7 @@
  
    if (AppUsesWindowControlsOverlay()) {
      per_window_wco_enabled_ =
-@@ -150,7 +152,9 @@
+@@ -150,7 +152,9 @@ WebAppBrowserController::WebAppBrowserController(
    }
  }
  
@@ -171,7 +257,7 @@
  #include "chrome/browser/web_applications/user_app_start_url.h"
  #include "chrome/browser/web_applications/web_app.h"
  #include "chrome/browser/web_applications/web_app_registrar.h"
-@@ -238,7 +239,12 @@
+@@ -247,7 +248,12 @@ content::WebContents* WebAppLaunchProcess::Run() {
      is_new_browser = true;
    }
    base::WeakPtr<BrowserWindowInterface> browser_weak = browser->GetWeakPtr();
@@ -185,7 +271,7 @@
    if (!browser_weak) {
      return nullptr;
    }
-@@ -251,6 +257,16 @@
+@@ -260,6 +266,16 @@ content::WebContents* WebAppLaunchProcess::Run() {
        !existing_tab ||
        navigation_disposition != WindowOpenDisposition::CURRENT_TAB;
  
@@ -202,7 +288,7 @@
    auto* const app_controller = web_app::AppBrowserController::From(browser);
    if (app_controller && app_controller->IsUrlInHomeTabScope(launch_url)) {
      // Navigations to the home tab URL in tabbed apps should happen in the home
-@@ -395,7 +411,8 @@
+@@ -411,7 +427,8 @@ std::tuple<GURL, bool /*is_file_handling*/> WebAppLaunchProcess::GetLaunchUrl(
  WindowOpenDisposition WebAppLaunchProcess::GetNavigationDisposition(
      bool is_new_browser) const {
    // For prevent-close, we always want to focus the existing window
@@ -212,7 +298,7 @@
      return WindowOpenDisposition::CURRENT_TAB;
    }
  
-@@ -468,7 +485,8 @@
+@@ -484,7 +501,8 @@ BrowserWindowInterface* WebAppLaunchProcess::MaybeFindBrowserForLaunch() const {
    // instead continue to find the existing browser window.
    if (!registrar_->IsTabbedWindowModeEnabled(params_->app_id) &&
        GetLaunchClientMode() == LaunchHandler::ClientMode::kNavigateNew &&
@@ -222,60 +308,21 @@
      return nullptr;
    }
  
---- a/chrome/browser/ui/web_applications/BUILD.gn
-+++ b/chrome/browser/ui/web_applications/BUILD.gn
-@@ -155,6 +155,7 @@
-       "diagnostics/web_app_icon_health_checks.cc",
-       "navigation_capturing_process.cc",
-       "navigation_capturing_redirection_throttle.cc",
-+      "app_tray.cc",
-       "out_of_scope_links.cc",
-       "share_target_utils.cc",
-       "tabbed_web_app_navigation_throttle.cc",
-@@ -199,6 +200,7 @@
-       "//chrome/browser/web_applications:features",
-       "//chrome/browser/web_applications/app_service",
-       "//chrome/browser/web_applications/isolated_web_apps/window_management",
-+      "//chrome/browser/status_icons",
-       "//chrome/browser/web_share_target",
-       "//components/infobars/content",
-       "//components/keep_alive_registry",
---- a/chrome/browser/resources/app_settings/BUILD.gn
-+++ b/chrome/browser/resources/app_settings/BUILD.gn
-@@ -32,6 +32,8 @@
-     "scope_rules_item.ts",
-     "start_url_item.html.ts",
-     "start_url_item.ts",
-+    "tray_item.html.ts",
-+    "tray_item.ts",
-     "supported_links_dialog.html.ts",
-     "supported_links_dialog.ts",
-     "supported_links_item.html.ts",
---- a/chrome/browser/resources/app_settings/app.ts
-+++ b/chrome/browser/resources/app_settings/app.ts
-@@ -12,6 +12,7 @@
- import './run_on_os_login_item.js';
- import './scope_rules_item.js';
- import './start_url_item.js';
-+import './tray_item.js';
- import './permission_item.js';
- import './window_mode_item.js';
- import './icons.html.js';
---- a/chrome/browser/resources/app_settings/app.html.ts
-+++ b/chrome/browser/resources/app_settings/app.html.ts
-@@ -51,6 +51,9 @@
-         login-mode-label="$i18n{appManagementRunOnOsLoginModeLabel}"
-         .app="${this.app_}">
-     </app-management-run-on-os-login-item>
-+    <app-management-tray-item class="permission-card-row separated-row"
-+        .app="${this.app_}">
-+    </app-management-tray-item>
-     <app-management-window-mode-item class="permission-card-row separated-row"
-         window-mode-label="$i18n{appManagementWindowModeLabel}"
-         .app="${this.app_}">
+--- a/chrome/browser/ui/webui/app_management/app_management_page_handler_base.h
++++ b/chrome/browser/ui/webui/app_management/app_management_page_handler_base.h
+@@ -64,6 +64,9 @@ class AppManagementPageHandlerBase : public app_management::mojom::PageHandler,
+   void SetStartUrl(const std::string& app_id,
+                    const std::string& url,
+                    SetStartUrlCallback callback) override;
++  void GetTrayApp(const std::string& app_id,
++                  GetTrayAppCallback callback) override;
++  void SetTrayApp(const std::string& app_id, bool enabled) override;
+ 
+  protected:
+   AppManagementPageHandlerBase(
 --- a/ui/webui/resources/cr_components/app_management/app_management.mojom
 +++ b/ui/webui/resources/cr_components/app_management/app_management.mojom
-@@ -261,6 +261,10 @@
+@@ -261,6 +261,10 @@ interface PageHandler {
    // Sets it, empty for the manifest's; returns why it is invalid, keeping the
    // old one, or an empty string.
    SetStartUrl(string app_id, string url) => (string error);
@@ -286,50 +333,3 @@
    // Called when the user clicks on the system notification settings link for an
    // app with the given `app_id`, when that link was displayed because
    // `show_system_notifications_settings_link` was true for the app.
---- a/chrome/browser/ui/webui/app_management/app_management_page_handler_base.h
-+++ b/chrome/browser/ui/webui/app_management/app_management_page_handler_base.h
-@@ -64,6 +64,9 @@
-   void SetStartUrl(const std::string& app_id,
-                    const std::string& url,
-                    SetStartUrlCallback callback) override;
-+  void GetTrayApp(const std::string& app_id,
-+                  GetTrayAppCallback callback) override;
-+  void SetTrayApp(const std::string& app_id, bool enabled) override;
- 
-  protected:
-   AppManagementPageHandlerBase(
---- a/chrome/browser/ui/views/status_icons/status_icon_linux_wrapper.cc
-+++ b/chrome/browser/ui/views/status_icons/status_icon_linux_wrapper.cc
-@@ -138,12 +138,12 @@
- void StatusIconLinuxWrapper::OnImplInitializationFailed() {
-   switch (status_icon_type_) {
- #if BUILDFLAG(USE_DBUS)
-+    // oganesson: no StatusNotifierItem host, so no icon. The fallback, an
-+    // XEmbed tray window, gets no X window without an X11 tray, and its
-+    // compositor then fails a DCHECK (x11_software_bitmap_presenter.cc).
-     case kTypeDbus:
-       status_icon_dbus_.reset();
--      status_icon_linux_ = std::make_unique<StatusIconButtonLinux>();
--      status_icon_type_ = kTypeWindowed;
--      status_icon_linux_->SetDelegate(this);
--      return;
-+      [[fallthrough]];
- #endif
-     case kTypeWindowed:
-       status_icon_linux_.reset();
---- a/chrome/browser/ui/views/status_icons/status_icon_linux_dbus.cc
-+++ b/chrome/browser/ui/views/status_icons/status_icon_linux_dbus.cc
-@@ -179,9 +179,11 @@
- bool ShouldWriteIconToFile() {
-   auto env = base::Environment::Create();
-   switch (base::nix::GetDesktopEnvironment(env.get())) {
-+    // oganesson: gnome-shell-extension-appindicator scales pixmaps to the
-+    // panel now, and on Ubuntu 26.10 (GNOME 51) can't read the files
-+    // ("Failed to recognize image format"), so the icon shows as "...".
-     case base::nix::DESKTOP_ENVIRONMENT_GNOME:
--      // gnome-shell-extension-appindicator doesn't downsize icons when they're
--      // given as DBus pixmaps.  But it does when icons are given as files.
-+      return false;
-     case base::nix::DESKTOP_ENVIRONMENT_PANTHEON:
-       // wingpanel-indicator-ayatana only supports file icons.
-       return true;

@@ -13,6 +13,7 @@
 import 'chrome://resources/cr_elements/cr_button/cr_button.js';
 import 'chrome://resources/cr_elements/cr_checkbox/cr_checkbox.js';
 import 'chrome://resources/cr_elements/md_select.css.js';
+import '/shared/settings/prefs/prefs.js';
 import '../privacy_page/browser_traffic_page.js';
 import '../settings_shared.css.js';
 
@@ -177,6 +178,8 @@ export class SettingsSetupPageElement extends SettingsSetupPageElementBase {
           margin-inline: calc(-1 * var(--cr-section-padding));
         }
       </style>
+      <!-- Settings keeps no prefs element of its own: each page has one. -->
+      <settings-prefs id="prefs" prefs="{{prefs}}"></settings-prefs>
       <div id="window">
         <nav aria-hidden="true">
           <template is="dom-repeat" items="[[steps_]]" as="step">
@@ -510,7 +513,7 @@ export class SettingsSetupPageElement extends SettingsSetupPageElementBase {
                       'setupDefaultWindows'));
   }
 
-  // The prefs come with Settings' prefs element, after connectedCallback.
+  // The prefs come with the prefs element, after connectedCallback.
   static get observers() {
     return ['prefsChanged_(prefs.*)'];
   }

@@ -1,6 +1,6 @@
 --- a/chrome/browser/resources/history/externs.ts
 +++ b/chrome/browser/resources/history/externs.ts
-@@ -48,6 +48,8 @@
+@@ -47,6 +47,8 @@ export interface ForeignSession {
    tag: string;
    timestamp: number;
    windows: ForeignSessionWindow[];
@@ -31,7 +31,7 @@
    height: 1px;
 --- a/chrome/browser/resources/history/synced_device_card.html.ts
 +++ b/chrome/browser/resources/history/synced_device_card.html.ts
-@@ -41,6 +41,10 @@
+@@ -41,6 +41,10 @@ export function getHtml(this: HistorySyncedDeviceCardElement) {
                  search-term="${this.searchTerm}">
              </history-searched-label>
            </a>
@@ -44,7 +44,7 @@
              ?hidden="${!this.isWindowSeparatorIndex_(index)}">
 --- a/chrome/browser/resources/history/synced_device_card.ts
 +++ b/chrome/browser/resources/history/synced_device_card.ts
-@@ -75,6 +75,9 @@
+@@ -75,6 +75,9 @@ export class HistorySyncedDeviceCardElement extends CrLitElement {
  
        // Internal identifier for the device.
        sessionTag: {type: String},
@@ -54,7 +54,7 @@
      };
    }
  
-@@ -85,6 +88,7 @@
+@@ -85,6 +88,7 @@ export class HistorySyncedDeviceCardElement extends CrLitElement {
    accessor searchTerm: string = '';
    accessor separatorIndexes: number[] = [];
    accessor sessionTag: string = '';
@@ -62,7 +62,7 @@
  
    override updated(changedProperties: PropertyValues<this>) {
      super.updated(changedProperties);
-@@ -203,6 +207,18 @@
+@@ -203,6 +207,18 @@ export class HistorySyncedDeviceCardElement extends CrLitElement {
      e.stopPropagation();  // Prevent cr-collapse.
    }
  
@@ -83,7 +83,7 @@
          SYNCED_TABS_HISTOGRAM_NAME, SyncedTabsHistogram.LINK_RIGHT_CLICKED,
 --- a/chrome/browser/resources/history/synced_device_manager.html.ts
 +++ b/chrome/browser/resources/history/synced_device_manager.html.ts
-@@ -21,6 +21,7 @@
+@@ -21,6 +21,7 @@ export function getHtml(this: HistorySyncedDeviceManagerElement) {
          .tabs="${syncedDevice.tabs}"
          .separatorIndexes="${syncedDevice.separatorIndexes}"
          .searchTerm="${this.searchTerm}" .sessionTag="${syncedDevice.tag}"
@@ -93,7 +93,7 @@
      </history-synced-device-card>
 --- a/chrome/browser/resources/history/synced_device_manager.ts
 +++ b/chrome/browser/resources/history/synced_device_manager.ts
-@@ -38,6 +38,7 @@
+@@ -38,6 +38,7 @@ interface ForeignDeviceInternal {
    timestamp: number;
    tabs: ForeignSessionTab[];
    tag: string;
@@ -101,7 +101,7 @@
  }
  
  declare global {
-@@ -243,6 +244,7 @@
+@@ -243,6 +244,7 @@ export class HistorySyncedDeviceManagerElement extends
        timestamp: session.timestamp,
        tabs: tabs,
        tag: session.tag,
@@ -111,7 +111,7 @@
  
 --- a/chrome/browser/ui/webui/cr_components/history/history_util.cc
 +++ b/chrome/browser/ui/webui/cr_components/history/history_util.cc
-@@ -47,6 +47,7 @@
+@@ -47,6 +47,7 @@ content::WebUIDataSource* HistoryUtil::PopulateCommonSourceForHistory(
        {"deleteSuccess", IDS_HISTORY_REMOVE_PAGE_SUCCESS},
        {"deleteConfirm", IDS_HISTORY_DELETE_PRIOR_VISITS_CONFIRM_BUTTON},
        {"deleteSession", IDS_HISTORY_OTHER_SESSIONS_HIDE_FOR_NOW},
@@ -129,8 +129,8 @@
 +#include "chrome/browser/firefox_sync/firefox_sync_service_factory.h"
  #include "chrome/browser/profiles/profile.h"
  #include "chrome/browser/sessions/session_restore.h"
- #include "chrome/browser/sync/device_info_sync_service_factory.h"
-@@ -333,6 +335,26 @@
+ #include "chrome/browser/sync/session_sync_service_factory.h"
+@@ -264,6 +266,26 @@ void ForeignSessionHandler::DeleteForeignSession(
    }
  }
  
@@ -157,8 +157,8 @@
  void ForeignSessionHandler::SetForeignSessionCollapsed(
      const std::string& session_tag,
      bool collapsed) {
-@@ -457,6 +479,18 @@
-       total_tab_count += session_tab_count;
+@@ -332,6 +354,18 @@ ForeignSessionHandler::GetForeignSessionsInternal() {
+       }
  
        session_mojom->windows = std::move(windows);
 +      if (firefox_sync::FirefoxSyncService* firefox_sync =
@@ -175,10 +175,10 @@
 +      }
        session_list.push_back(std::move(session_mojom));
      }
- 
+   }
 --- a/chrome/browser/ui/webui/history/foreign_session_handler.h
 +++ b/chrome/browser/ui/webui/history/foreign_session_handler.h
-@@ -91,6 +91,8 @@
+@@ -89,6 +89,8 @@ class ForeignSessionHandler : public history::mojom::ForeignSessionPageHandler {
                               int32_t tab_id,
                               ui::mojom::ClickModifiersPtr modifiers) override;
    void DeleteForeignSession(const std::string& session_tag) override;
@@ -186,10 +186,10 @@
 +                              int32_t tab_id) override;
    void SetForeignSessionCollapsed(const std::string& session_tag,
                                    bool collapsed) override;
-   void ShowUi() override;
+ 
 --- a/ui/webui/resources/cr_components/history/foreign_sessions.mojom
 +++ b/ui/webui/resources/cr_components/history/foreign_sessions.mojom
-@@ -31,6 +31,8 @@
+@@ -30,6 +30,8 @@ struct ForeignSession {
    double timestamp;
    bool collapsed;
    array<ForeignSessionWindow> windows;
@@ -198,7 +198,7 @@
  };
  
  // Used by the WebUI page to bootstrap bidirectional communication.
-@@ -56,6 +58,9 @@
+@@ -55,6 +57,9 @@ interface ForeignSessionPageHandler {
    // Delete a foreign session.
    DeleteForeignSession(string session_tag);
  
@@ -207,4 +207,4 @@
 +
    // Sets the collapsed state of a foreign session.
    SetForeignSessionCollapsed(string session_tag, bool collapsed);
- 
+ };

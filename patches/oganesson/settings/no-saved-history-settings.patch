@@ -1,19 +1,20 @@
 --- a/chrome/browser/resources/settings/privacy_page/privacy_page.html
 +++ b/chrome/browser/resources/settings/privacy_page/privacy_page.html
-@@ -27,5 +27,6 @@
+@@ -25,6 +25,7 @@
+           role-description="$i18n{subpageArrowRoleDescription}">
        </cr-link-row>
-     </template>
-+    <settings-history-saving prefs="{{prefs}}"></settings-history-saving>
-     <template is="dom-if" if="[[false]]">
+     ` : ''}
++    <settings-history-saving></settings-history-saving>
+     ${false ? html`
      <cr-link-row id="thirdPartyCookiesLinkRow"
          start-icon="privacy:cookie"
 --- a/chrome/browser/resources/settings/privacy_page/privacy_page.ts
 +++ b/chrome/browser/resources/settings/privacy_page/privacy_page.ts
-@@ -16,6 +16,7 @@ import '../icons.html.js';
+@@ -13,6 +13,7 @@ import 'chrome://resources/cr_elements/cr_toast/cr_toast.js';
+ import '../icons.html.js';
  import '../privacy_icons.html.js';
  import '../settings_page/settings_section.js';
- import '../settings_shared.css.js';
 +import './history_saving.js';
  import './privacy_guide/privacy_guide_dialog.js';
  
- import {PrefsMixin} from '/shared/settings/prefs/prefs_mixin.js';
+ import {PrefServiceObserverMixinLit} from '/shared/settings/prefs2/pref_service_observer_mixin_lit.js';

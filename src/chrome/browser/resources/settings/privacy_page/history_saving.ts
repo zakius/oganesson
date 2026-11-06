@@ -9,10 +9,11 @@
 import '../controls/settings_toggle_button.js';
 import '../settings_shared.css.js';
 
+import {PrefServiceObserverMixin} from '/shared/settings/prefs2/pref_service_observer_mixin.js';
 import {I18nMixin} from 'chrome://resources/cr_elements/i18n_mixin.js';
 import {html, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
-const SettingsHistorySavingElementBase = I18nMixin(PolymerElement);
+const SettingsHistorySavingElementBase = I18nMixin(PrefServiceObserverMixin(PolymerElement));
 
 export class SettingsHistorySavingElement extends
     SettingsHistorySavingElementBase {
@@ -24,18 +25,18 @@ export class SettingsHistorySavingElement extends
     return html`
       <style include="settings-shared"></style>
       <settings-toggle-button id="browsingHistory" class="hr"
-          pref="{{prefs.history.saving_disabled}}"
+          pref-key="history.saving_disabled"
           label="[[i18n('historySavingDisabled')]]"
           sub-label="[[i18n('historySavingDisabledDescription')]]">
       </settings-toggle-button>
       <settings-toggle-button id="keepClosedTabs" class="hr"
-          hidden="[[!prefs.history.saving_disabled.value]]"
-          pref="{{prefs.oganesson.history.keep_closed_tabs}}"
+          hidden="[[!savingDisabledPref_.value]]"
+          pref-key="oganesson.history.keep_closed_tabs"
           label="[[i18n('keepClosedTabs')]]"
           sub-label="[[i18n('keepClosedTabsDescription')]]">
       </settings-toggle-button>
       <settings-toggle-button id="downloadHistory" class="hr"
-          pref="{{prefs.oganesson.downloads.saving_disabled}}"
+          pref-key="oganesson.downloads.saving_disabled"
           label="[[i18n('downloadHistorySavingDisabled')]]"
           sub-label="[[i18n('downloadHistorySavingDisabledDescription')]]">
       </settings-toggle-button>`;
@@ -43,14 +44,16 @@ export class SettingsHistorySavingElement extends
 
   static get properties() {
     return {
-      prefs: {
-        type: Object,
-        notify: true,
-      },
+      savingDisabledPref_: Object,
     };
   }
 
-  declare prefs: Record<string, unknown>;
+  declare private savingDisabledPref_: chrome.settingsPrivate.PrefObject<boolean>|undefined;
+
+  override connectedCallback() {
+    super.connectedCallback();
+    this.mirrorPref('history.saving_disabled', 'savingDisabledPref_');
+  }
 }
 
 declare global {
