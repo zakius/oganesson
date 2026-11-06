@@ -35,11 +35,10 @@ for version in "$dl"/[0-9]*-1.[0-9]*/; do
     compgen -G "$version"'oganesson-*_linux.tar.xz' > /dev/null || continue
     mkdir "$upload/src/$(basename "$version")"
     ln "$version"oganesson-*_linux.tar.xz "$upload/src/$(basename "$version")/"
-    # debbuild finds these with ldd, which can't run x86 binaries on the server.
+    # dpkg-shlibdeps can't look these up on the server, which has no x86 libraries.
     dpkg-deb -f "$version"oganesson_*.deb Depends > "$upload/src/$(basename "$version")/depends"
 done
 cp -a "$root/linux/package/." "$upload/tools/"
-cp "$root/linux/helium-linux/docker/package.Dockerfile" "$upload/tools/"
 gpg --armor --export "$key" > "$upload/tools/oganesson.asc"
 cat > "$upload/tools/oganesson.repo" <<REPO
 [oganesson]

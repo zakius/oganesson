@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
-# Packages a release build (runs in the packager container, see Dockerfile).
-# Based on helium-linux's scripts/package.sh and package/mkdeb.sh.
+# Packages a release build. Based on helium-linux's scripts/package.sh.
 #
 #   package.sh <out folder> <target> <format>...
 #
-# formats: tarball appimage deb rpm. Output: $PACKAGES, default work/packages/
-# With TARBALL (a tarball this script made) and VERSION, the deb and rpm are
-# made from that tarball and <out folder> is unused: linux/publish-repo.sh
-# packages this way on the repository server, an arm64 host. There, DEPENDS
-# (the Depends of the .deb made with the build) replaces debbuild's ldd scan.
+# formats: tarball and rpm run in the rpm.Dockerfile image, deb in the
+# deb.Dockerfile image. Output: $PACKAGES, default work/packages/
+# The deb and rpm are made from the tarball: the one made in the same run, or
+# TARBALL (a tarball this script made) with VERSION, and then <out folder> is
+# unused. With DEPENDS, the .deb's Depends are not looked up: linux/publish-repo.sh
+# packages on the repository server, an arm64 host, with those of the .deb made
+# with the build.
 set -euo pipefail
 
 out="$(realpath "$1")"
@@ -58,59 +59,109 @@ else
     find "$dir" -type f -exec file {} + | awk -F: '/ELF/ {print $1}' \
         | xargs strip --strip-unneeded
 
-    if want tarball || want deb || want rpm; then
-        # The x86 filter makes the binary's calls and jumps compress better:
-        # about 1% off the archive, more than -9e alone gains.
-        tar -C "$stage" -cf - "$tarball" | xz -T0 --x86 --lzma2=preset=9e > "$stage/$tarball.tar.xz"
-    fi
+    # The x86 filter makes the binary's calls and jumps compress better:
+    # about 1% off the archive, more than -9e alone gains.
+    tar -C "$stage" -cf - "$tarball" | xz -T0 --x86 --lzma2=preset=9e > "$stage/$tarball.tar.xz"
     if want tarball; then
         cp "$stage/$tarball.tar.xz" "$packages/"
     fi
 fi
 
-if want appimage; then
-    app="$stage/oganesson.AppDir"
-    mkdir -p "$app/opt/oganesson" "$app/usr/share/icons/hicolor/256x256/apps"
-    cp -a "$dir/." "$app/opt/oganesson/"
-    cp "$repo/resources/oganesson.desktop" "$app/"
-    sed -e 's|/opt/helium/helium|/opt/oganesson/oganesson|' \
-        -e 's/helium-appimage/oganesson-appimage/g' -e 's/Helium/oganesson/g' \
-        "$helium_linux/package/helium-wrapper-appimage.sh" > "$app/AppRun"
-    chmod 755 "$app/AppRun"
-    cp "$dir/product_logo_256.png" "$app/oganesson.png"
-    cp "$dir/product_logo_256.png" "$app/usr/share/icons/hicolor/256x256/apps/oganesson.png"
-    # No update information: oganesson has no update feed.
-    APPIMAGETOOL_APP_NAME=oganesson VERSION="$version" \
-        appimagetool "$app" "$packages/$name.AppImage"
+if want deb; then
+    # dpkg-shlibdeps finds the package's own files under debian/<package>,
+    # whose DEBIAN folder marks the root.
+    root="$stage/debian/oganesson"
+    base="$root/opt/oganesson"
+    mkdir -p "$root/DEBIAN" "$root/opt" "$root/usr/bin" "$root/usr/share/applications" \
+        "$root/usr/share/metainfo" "$root/usr/share/icons/hicolor/256x256/apps"
+    tar -C "$root/opt" -xf "$stage/$tarball.tar.xz"
+    mv "$root/opt/$tarball" "$base"
+    sed -Ei 's/(CHROME_VERSION_EXTRA=).*/\1deb/' "$base/oganesson-wrapper"
+    ln -s ../../opt/oganesson/oganesson-wrapper "$root/usr/bin/oganesson"
+    install -m 644 "$base/oganesson.desktop" "$root/usr/share/applications/"
+    install -m 644 "$base/product_logo_256.png" \
+        "$root/usr/share/icons/hicolor/256x256/apps/oganesson.png"
+    install -m 644 "$linux/package/oganesson.metainfo.xml" \
+        "$root/usr/share/metainfo/io.github.zakius.oganesson.metainfo.xml"
+
+    if [ -z "${DEPENDS:-}" ]; then
+        # The libraries the binaries link, except the Qt shims, which the
+        # browser loads only when Qt is installed. The ones the package
+        # carries are found under $root and left out. GTK is loaded at run
+        # time, so no binary links it.
+        # --warnings=1 leaves out "could avoid a useless dependency" only: the
+        # build links against Chromium's sysroot, whose glibc 2.31 still has
+        # pthread and dl functions in libpthread.so.0 and libdl.so.2. Since
+        # glibc 2.34 they are in libc.so.6, and all three are libc6's.
+        printf 'Source: oganesson\n\nPackage: oganesson\nArchitecture: amd64\n' \
+            > "$stage/debian/control"
+        elves=()
+        while read -r elf; do
+            elves+=("-e$elf")
+        done < <(find "$base" -type f ! -name 'libqt*_shim.so' -exec file {} + \
+            | awk -F: '/ELF/ {print $1}')
+        shlibs="$(cd "$stage" && DEB_HOST_ARCH=amd64 DEB_HOST_GNU_TYPE=x86_64-linux-gnu \
+            DEB_HOST_MULTIARCH=x86_64-linux-gnu dpkg-shlibdeps -O --warnings=1 "${elves[@]}")"
+        DEPENDS="${shlibs#shlibs:Depends=}, libgtk-3-0t64 | libgtk-4-1"
+    fi
+    cat > "$root/DEBIAN/control" <<EOF
+Package: oganesson
+Version: ${version}-${PKG_RELEASE:-1}
+Architecture: amd64
+Maintainer: oganesson
+Installed-Size: $(du -sk --exclude=DEBIAN "$root" | cut -f1)
+Section: web
+Priority: optional
+Homepage: https://github.com/zakius/oganesson
+Provides: www-browser
+Depends: ${DEPENDS}
+Recommends: ca-certificates, xdg-utils, fonts-liberation, libvulkan1
+Description: Chromium browser with mouse gestures and Firefox Sync
+ A desktop Chromium browser built on Helium. It adds mouse gestures, a toolbar
+ whose items move and hide, and Firefox tab placement and close selection. It
+ also has Firefox-compatible Sync, controls for installed web apps, and
+ switches that stop saving history.
+EOF
+    # The desktop database and icon cache are updated by dpkg triggers of
+    # desktop-file-utils and the icon themes; only the AppArmor profile is ours.
+    cat > "$root/DEBIAN/postinst" <<'EOF'
+#!/bin/sh
+set -e
+if [ "$1" = configure ] && command -v apparmor_parser > /dev/null 2>&1 \
+        && [ -d /etc/apparmor.d ]; then
+    cp /opt/oganesson/apparmor.cfg /etc/apparmor.d/oganesson
+    apparmor_parser -r -W -T /etc/apparmor.d/oganesson || :
+fi
+EOF
+    cat > "$root/DEBIAN/postrm" <<'EOF'
+#!/bin/sh
+set -e
+if { [ "$1" = remove ] || [ "$1" = purge ]; } && [ -f /etc/apparmor.d/oganesson ]; then
+    if command -v apparmor_parser > /dev/null 2>&1; then
+        apparmor_parser -R /etc/apparmor.d/oganesson || :
+    fi
+    rm -f /etc/apparmor.d/oganesson
+fi
+EOF
+    chmod 755 "$root/DEBIAN/postinst" "$root/DEBIAN/postrm"
+    # xz -9: dpkg-deb's default -6 makes the .deb about 4 MB bigger. The tier
+    # goes in the file name; both tiers are the same package.
+    dpkg-deb --root-owner-group -Zxz -z9 --build "$root" \
+        "$packages/oganesson_${version}-${target}_amd64.deb" > /dev/null
 fi
 
-spec() {  # <tool> <topdir> [defines...]
-    local tool="$1" top="$2"
-    shift 2
-    mkdir -p "$top"/{BUILD,SOURCES,SPECS,DEBS,RPMS}
-    ln -sf "$stage/$tarball.tar.xz" "$top/SOURCES/"
-    cp "$repo/linux/package/oganesson.metainfo.xml" "$top/SOURCES/"
-    "$tool" --define "_topdir $top" --define "version ${version}" \
-        --define "pkgrelease ${PKG_RELEASE:-1}" \
-        --define "tarball $tarball" "$@" -bb "$repo/linux/package/oganesson.spec"
-}
-if want deb; then
-    depends=()
-    if [ -n "${DEPENDS:-}" ]; then
-        depends=(--define "deb_depends $DEPENDS" --define "__ldd true")
-    fi
-    # xz -9: dpkg-deb's default -6 makes the .deb about 4 MB bigger.
-    spec debbuild "$stage/deb" --define "debbuild 1" --define "_arch amd64" \
-        --define "dist %{nil}" --define "__dpkg_deb dpkg-deb -Zxz -z9" "${depends[@]}"
-    # The tier goes in the file name; both tiers are the same package.
-    mv "$stage"/deb/DEBS/*/*.deb "$packages/oganesson_${version}-${target}_amd64.deb"
-fi
 if want rpm; then
+    top="$stage/rpm"
+    mkdir -p "$top"/{BUILD,SOURCES,SPECS,RPMS}
+    ln -sf "$stage/$tarball.tar.xz" "$top/SOURCES/"
+    cp "$linux/package/oganesson.metainfo.xml" "$top/SOURCES/"
     # xz -9, multithreaded: about 10 MB smaller than Fedora's own zstd -19, for a
-    # few seconds more unpacking at install. Debian's rpmbuild otherwise falls
-    # back to gzip -9.
-    spec rpmbuild "$stage/rpm" --define "dist %{nil}" --define "_binary_payload w9T0.xzdio" \
-        --target x86_64
-    mv "$stage"/rpm/RPMS/*/*.rpm "$packages/oganesson-${version}-${target}.x86_64.rpm"
+    # few seconds more unpacking at install. The spec has no %changelog to take
+    # file times from.
+    rpmbuild --quiet --define "_topdir $top" --define "version ${version}" \
+        --define "pkgrelease ${PKG_RELEASE:-1}" --define "tarball $tarball" \
+        --define "dist %{nil}" --define "_binary_payload w9T0.xzdio" \
+        --define "source_date_epoch_from_changelog 0" \
+        --target x86_64 -bb "$linux/package/oganesson.spec"
+    mv "$top"/RPMS/*/*.rpm "$packages/oganesson-${version}-${target}.x86_64.rpm"
 fi
-ls -l "$packages"
