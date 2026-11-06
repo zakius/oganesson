@@ -35,13 +35,13 @@ class SettingsInventoryTest(BrowserTest):
         wait_for(lambda: page.eval(f"!!{select}?.getClientRects().length"),
                  what='the crash reports row')
         self.assertEqual(page.eval(f"{select}.value"), '-1')
-        page.eval(f"{select}.value = '0';"
-                  f"{select}.dispatchEvent(new Event('change'))")
+        choose = (f"(value) => {{ const s = {select}; s.value = value;"
+                  " s.dispatchEvent(new Event('change')); }")
+        page.eval(f"({choose})('0')")
         mode = ("import('chrome://resources/js/cr.js').then(cr => "
                 "cr.sendWithPromise('getHeliumCrashReporting')).then(s => s.mode)")
         wait_for(lambda: page.eval(mode) == 0, what='crash reports set to ask each time')
-        page.eval(f"{select}.value = '-1';"
-                  f"{select}.dispatchEvent(new Event('change'))")
+        page.eval(f"({choose})('-1')")
         wait_for(lambda: page.eval(mode) == -1, what='crash reports back off')
 
 
