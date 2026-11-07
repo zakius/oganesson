@@ -72,9 +72,11 @@ class ToolbarTest(BrowserTest):
               extensionId: list.find(e => e.name === 'Toolbar test').id,
               pinnedToToolbar: true}))""")
         self.browser.close_target(settings)
-        # New pinned icons go just before the extensions button.
-        puzzle = self.browser.wait_view('ExtensionsToolbarButton')
-        self.assertLess(self.action().bounds['x'], puzzle.bounds['x'])
+        # New pinned icons go just before the extensions button, once the
+        # toolbar lays the new icon out.
+        wait_for(lambda: self.action().bounds['x'] <
+                 self.browser.wait_view('ExtensionsToolbarButton').bounds['x'],
+                 what='the action left of the extensions button')
 
     def test_2_extension_action_moves_left_of_back(self):
         back = self.back()
@@ -181,24 +183,35 @@ class TabSearchButtonTest(BrowserTest):
         return [v.bounds for v in self.browser.views('WebUIBubbleDialogView') if v.visible]
 
     def test_2_click_opens_tab_search_under_it(self):
-        button = self.tab_search().bounds
         self.browser.click_view(self.tab_search())
         search = self.browser.page('chrome://tab-search.top-chrome')
         wait_for(lambda: search.eval("document.visibilityState == 'visible'"),
                  what='tab search shown')
         # A click on the button closes the bubble only once the bubble is active.
         wait_for(lambda: search.eval('document.hasFocus()'), what='tab search focused')
-        # It grows to fit its list, and a click while it grows can be lost.
-        bubble = self.browser.wait_settled(
-            lambda: [v for v in self.browser.views('WebUIBubbleDialogView') if v.visible],
-            what='the tab search bubble')[0].bounds
         # Its top edge on the button's bottom, right edges aligned. With a
         # shadow (always on Wayland, never on Xvfb) the bubble draws a 1 DIP
         # border around these contents, and the border's edges are the ones
-        # aligned.
+        # aligned. It grows to fit its list and follows the button as the
+        # toolbar settles, so the two are read together until they line up.
         border = 1 if WAYLAND else 0
-        self.assertEqual(bubble['y'] - border, button['y'] + button['height'])
-        self.assertEqual(bubble['x'] + bubble['width'] + border, button['x'] + button['width'])
+
+        def edges():
+            button = self.tab_search().bounds
+            bubble = self.browser.wait_settled(
+                lambda: [v for v in self.browser.views('WebUIBubbleDialogView') if v.visible],
+                what='the tab search bubble')[0].bounds
+            return ((bubble['y'] - border, bubble['x'] + bubble['width'] + border),
+                    (button['y'] + button['height'], button['x'] + button['width']))
+        found = {}
+
+        def aligned():
+            found['edges'] = edges()
+            return found['edges'][0] == found['edges'][1]
+        try:
+            wait_for(aligned, what='the bubble under the button')
+        except AssertionError:
+            self.assertEqual(*found['edges'])
 
     def test_2b_second_click_closes_it(self):
         self.browser.click_view(self.tab_search())
