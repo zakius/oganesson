@@ -1,17 +1,16 @@
-# Releases oganesson when a push to main changes the browser, or by hand: builds, tests and
-# publishes Linux and Windows as README "Releasing" does, then posts a GitHub release with the
-# packages and notes from the commits since the previous one. It runs on the project's own build
-# machine (runner label "oganesson"), in the main checkout, which has the build tree and the
-# publish settings. Pull requests start nothing: a runner on this machine must never run their code.
+# Releases oganesson when a release-* tag is pushed, or by hand: builds, tests and publishes Linux
+# and Windows as README "Releasing" does, then posts a GitHub release with the packages and notes
+# from the commits since the previous one. A merge to main releases nothing. The run releases main's
+# tip, which must contain the tagged commit. It runs on the project's own build machine (runner
+# label "oganesson"), in the main checkout, which has the build tree and the publish settings. Pull
+# requests start nothing: a runner on this machine must never run their code.
 name: Release
 on:
   push:
-    branches: [main]
-    paths-ignore: ['docs/**', '**.md', '.github/**', 'tools/e2e/**', 'tools/hooks/**', 'windows/vm/**']
+    tags: ['release-*']
   workflow_dispatch:
-# One run at a time, and GitHub keeps only the newest waiting run. A run whose commit is no longer
-# main's tip skips its build and publish too (see "Still main's tip"), so merges in quick succession
-# release once, from the last of them.
+# One run at a time, and GitHub keeps only the newest waiting run, so several tags pushed during a
+# run start one more release, not one each.
 concurrency:
   group: release
   cancel-in-progress: false
@@ -21,42 +20,24 @@ permissions:
 # at a time on the machine, whichever repo's release starts it.
 jobs:
   release:
-    # While the RELEASE_HOLD repository variable lists unfinished tasks, a push starts nothing: the
-    # last task to land runs tools/release-hold.sh, which empties it and starts the release by hand.
-    if: github.event_name == 'workflow_dispatch' || vars.RELEASE_HOLD == ''
     runs-on: [self-hosted, oganesson]
     timeout-minutes: 1440
     steps:
-      - name: Still main's tip
+      - name: Main checkout at main's tip
         run: |
           : "${MAIN:?must be set in the .env of the runner}" "${BUILDS_LOCK:?must be set in the .env of the runner}"
           cd "$MAIN"
-          git fetch -q origin main
-          if [ "$(git rev-parse origin/main)" != "$GITHUB_SHA" ]; then
-            echo "::notice::main moved past $GITHUB_SHA; the run for the newer commit releases"
-            echo SUPERSEDED=1 >> "$GITHUB_ENV"
+          git fetch -q origin main --tags
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$GITHUB_REF_NAME is not on main; tag a commit of main"
+            exit 1
           fi
-      - name: Main checkout at this commit
-        if: env.SUPERSEDED != '1'
-        run: |
-          cd "$MAIN"
-          git fetch -q origin --tags
-          git merge -q --ff-only "$GITHUB_SHA"
+          git merge -q --ff-only origin/main
           git submodule update --init -q
+          echo "RELEASE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
       - name: Linux build and browser tests
-        if: env.SUPERSEDED != '1'
         run: cd "$MAIN" && flock "$BUILDS_LOCK" sh -c './oganesson.py build --release && ./oganesson.py test --release'
-      - name: Still main's tip, before publishing
-        if: env.SUPERSEDED != '1'
-        run: |
-          cd "$MAIN"
-          git fetch -q origin main
-          if [ "$(git rev-parse origin/main)" != "$GITHUB_SHA" ]; then
-            echo "::notice::main moved past $GITHUB_SHA; the run for the newer commit releases"
-            echo SUPERSEDED=1 >> "$GITHUB_ENV"
-          fi
       - name: Linux packages
-        if: env.SUPERSEDED != '1'
         run: |
           cd "$MAIN" && linux/pack.sh
           version="$(cat helium/chromium_version.txt)"
@@ -67,7 +48,6 @@ jobs:
       # The GitHub release comes first: it holds the files, and the repository and the site point
       # at them.
       - name: GitHub release, with the Linux packages
-        if: env.SUPERSEDED != '1'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -81,15 +61,13 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "${assets[@]}" --clobber
           else
-            gh release create "$TAG" "${assets[@]}" --target "$GITHUB_SHA" \
+            gh release create "$TAG" "${assets[@]}" --target "$RELEASE_SHA" \
                 --title "oganesson $VERSION ($RELEASE)" --notes-file work/release-notes.md
           fi
       - name: Linux packages, to the repository
-        if: env.SUPERSEDED != '1'
         run: cd "$MAIN" && linux/publish-repo.sh
       - name: Windows build, to the GitHub release and the site
         id: windows
-        if: env.SUPERSEDED != '1'
         # A Windows failure (helium-windows behind, say) doesn't hold back Linux's release.
         continue-on-error: true
         env:
@@ -101,7 +79,7 @@ jobs:
           gh release upload "$TAG" "$win"/*-installer.exe "$win"/*-windows-x64.zip --clobber
           windows/publish.sh
       - name: GitHub release, noting a failed Windows build
-        if: env.SUPERSEDED != '1' && steps.windows.outcome != 'success'
+        if: steps.windows.outcome != 'success'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
