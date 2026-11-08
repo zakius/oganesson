@@ -1,6 +1,6 @@
 # Product scope
 
-Linux x86-64 first. Keep mouse gestures, movable toolbar items, full Chromium uBlock Origin, hidden tab close buttons, middle-click on empty tab-bar space to open a tab, Firefox tab placement and close selection, Firefox Sync, and installed web app (PWA) controls: out-of-scope links open in the default browser, per-app scope rules, and a per-app start address. Keep tab containers, shared with tennessine through dubna ([docs](docs/containers.md)); their sync is to come from Multi-Account Containers' own `storage.sync`, not from a containers engine of ours.
+Linux x86-64 first. Keep mouse gestures, movable toolbar items, full Chromium uBlock Origin, hidden tab close buttons, middle-click on empty tab-bar space to open a tab, Firefox tab placement and close selection, Firefox Sync, and installed web app (PWA) controls: out-of-scope links open in the default browser, per-app scope rules, and a per-app start address. Keep tab containers, shared with tennessine through dubna ([docs](docs/containers.md)); they sync through Multi-Account Containers' own `storage.sync` data, not a containers engine of ours ([docs](docs/firefox-sync.md#containers)).
 
 Keep Chromium's existing extension support and Helium's Manifest V2/uBO maintenance. Translation additions, Firefox theme APIs, and unrelated visual changes are outside this fork's scope.
 

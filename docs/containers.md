@@ -28,6 +28,10 @@ The same Settings page has Traffic Control's rules: sites that match a rule open
 
 A navigation that a rule sends elsewhere stops, and its page opens in a new tab in the rule's container beside its tab. The tab it started in closes when it was an empty new tab. A tab that browses within one site stays where it is, unless the address was typed, so a page the user opened in another container on purpose stays there. Reloads, back and forward, and restored tabs never move.
 
+## Sync
+
+Containers and Traffic Control's one-site rules (`.example.com`) sync with Firefox's Multi-Account Containers add-on through Firefox Sync, as the add-on's own `storage.sync` data ([Firefox Sync](firefox-sync.md#containers)). Rules with other patterns, temporary containers, and the containers' order stay on this device.
+
 ## How it works
 
 Each container is a storage partition: domain `containers`, named by the container's id. Chromium keeps every navigation of a SiteInstance with a fixed storage partition in that partition, so a tab is in a container from the moment its WebContents is created in it, and stays there. The browser therefore only has to create tabs in the right partition:
@@ -86,7 +90,7 @@ In `patches/oganesson/ui/containers-menus.patch`, each menu adds its submenu in 
 
 ## Not done
 
-- Container sync, the WebExtensions `contextualIdentities` API and a proxy per container are later tasks (goals.md).
+- The WebExtensions `contextualIdentities` API and a proxy per container are later tasks (goals.md).
 - An address bar icon for the tab's container: Chromium's page action framework needs a new action id, icon type, properties and a per-tab controller, four more upstream files. The color line marks container tabs meanwhile.
 - brave-core#40693's Ask choice for new tabs, which needs a menu at each new tab, and the commands and shortcuts to open a new tab in a container of brave-core#38435, which need command ids and accelerator hooks.
 - Zoom levels are per partition, so a container keeps its own zoom levels. Brave makes containers share the default ones with another content hook.
