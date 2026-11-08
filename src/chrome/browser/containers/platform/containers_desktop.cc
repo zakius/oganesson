@@ -136,6 +136,10 @@ void NavigateInContainer(NavigateParams* params, const std::string& id) {
   params->contents_to_insert = content::WebContents::Create(create_params);
   content::WebContents* contents = params->contents_to_insert.get();
   Navigate(params);
+  // Navigate() stopped early and left it to go with `params`.
+  if (params->contents_to_insert) {
+    return;
+  }
   // Loads once in its tab strip, where its tab helpers watch it.
   content::NavigationController::LoadURLParams load(params->url);
   load.transition_type = params->transition;
