@@ -12,7 +12,7 @@ Initial extraction: oganesson-core (since deleted) at `f0b39417cd03c7adf13518027
 
 uBO comes from the pinned Chromium package in `deps.ini`. It is full uBO, not uBO Lite, and not the Firefox XPI. Running the Firefox XPI instead is parked ([goals](../goals.md#parked)).
 
-Firefox Sync keeps the separate Rust library using Mozilla application-services and native C++ store adapters. General Firefox extension compatibility is not a prerequisite for that protocol integration. Sync has no containers engine: containers are parked, and their sync would come from Multi-Account Containers' `storage.sync`.
+Firefox Sync keeps the separate Rust library using Mozilla application-services and native C++ store adapters. General Firefox extension compatibility is not a prerequisite for that protocol integration. Sync has no containers engine: containers ([docs](containers.md)) aren't synced, and their sync would come from Multi-Account Containers' `storage.sync`.
 
 Firefox bookmark keywords and separators stay in the Sync store only. Mouse gestures retain browser commands and standard Chromium extension actions, without Firefox page-action emulation. Tab selection retains Chromium extension opener handling, without Firefox hidden-tab APIs.
 

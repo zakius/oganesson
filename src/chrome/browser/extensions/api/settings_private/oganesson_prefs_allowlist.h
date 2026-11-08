@@ -5,6 +5,7 @@
 #ifndef CHROME_BROWSER_EXTENSIONS_API_SETTINGS_PRIVATE_OGANESSON_PREFS_ALLOWLIST_H_
 #define CHROME_BROWSER_EXTENSIONS_API_SETTINGS_PRIVATE_OGANESSON_PREFS_ALLOWLIST_H_
 
+#include "chrome/browser/containers/container.h"
 #include "chrome/browser/download/download_history_saving.h"
 #include "chrome/browser/extensions/api/settings_private/prefs_util.h"
 #include "chrome/common/extensions/api/settings_private.h"
@@ -39,6 +40,9 @@ inline void AddOganessonPrefsToAllowlist(PrefsUtil::TypedPrefMap& allowlist) {
     allowlist[pref] = PrefType::kBoolean;
   }
   allowlist[::omnibox::kSuggestionOrder] = PrefType::kList;
+  allowlist[::containers::kContainersList] = PrefType::kList;
+  allowlist[::containers::kTrafficControlRules] = PrefType::kList;
+  allowlist[::containers::kNewTabContainer] = PrefType::kString;
 }
 
 }  // namespace extensions

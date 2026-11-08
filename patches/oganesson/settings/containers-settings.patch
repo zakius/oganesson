@@ -1,0 +1,76 @@
+# Settings > Privacy and security > Containers, at chrome://settings/containers
+# (src/.../privacy_page/containers_page.ts): the user's containers and Traffic Control's rules.
+--- a/chrome/browser/resources/settings/lazy_load.ts
++++ b/chrome/browser/resources/settings/lazy_load.ts
+@@ -33,6 +33,7 @@
+ import './privacy_page/security/security_keys_subpage.js';
+ import './privacy_page/security/security_page.js';
+ import './privacy_page/browser_traffic_page.js';
++import './privacy_page/containers_page.js';
+ import './setup_page/setup_page.js';
+ import './privacy_page/services_page.js';
+ import './safety_hub/safety_hub_entry_point.js';
+--- a/chrome/browser/resources/settings/privacy_page/privacy_page.html
++++ b/chrome/browser/resources/settings/privacy_page/privacy_page.html
+@@ -51,6 +51,11 @@
+         sub-label="$i18n{browserTrafficDescription}"
+         @click="${this.onHeliumServicesPageClick_}"
+         role-description="$i18n{subpageArrowRoleDescription}"></cr-link-row>
++    <cr-link-row id="containersLinkRow" start-icon="cr:domain"
++        class="hr" label="$i18n{containersTitle}"
++        sub-label="$i18n{containersDescription}"
++        @click="${this.onContainersPageClick_}"
++        role-description="$i18n{subpageArrowRoleDescription}"></cr-link-row>
+     <cr-toast id="deleteBrowsingDataToast" duration="5000">
+       <div>${this.dbdDeletionConfirmationToastLabel_}</div>
+     </cr-toast>
+--- a/chrome/browser/resources/settings/privacy_page/privacy_page.ts
++++ b/chrome/browser/resources/settings/privacy_page/privacy_page.ts
+@@ -166,6 +166,10 @@
+     this.interactedWithPage_();
+ 
+     Router.getInstance().navigateTo(routes.SITE_SETTINGS);
++  }
++
++  protected onContainersPageClick_() {
++    Router.getInstance().navigateTo(routes.CONTAINERS);
+   }
+ 
+   protected onHeliumServicesPageClick_() {
+--- a/chrome/browser/resources/settings/privacy_page/privacy_page_index.html
++++ b/chrome/browser/resources/settings/privacy_page/privacy_page_index.html
+@@ -28,6 +28,14 @@
+         data-parent-view-id="privacy"
+         route-path$="[[routes_.HELIUM_SERVICES.path]]">
+     </settings-browser-traffic-page>
++  </template>
++
++  <template is="dom-if" if="[[renderView_(
++      routes_.CONTAINERS, currentRoute, inSearchMode)]]">
++    <settings-containers-page slot="view" id="containers"
++        data-parent-view-id="privacy"
++        route-path$="[[routes_.CONTAINERS.path]]">
++    </settings-containers-page>
+   </template>
+ 
+   <!-- Keep entries below sorted based on the route name. -->
+--- a/chrome/browser/resources/settings/route.ts
++++ b/chrome/browser/resources/settings/route.ts
+@@ -24,6 +24,7 @@
+ 
+   // oganesson: Browser traffic replaces Helium's services page.
+   r.HELIUM_SERVICES = r.PRIVACY.createChild('/updates');
++  r.CONTAINERS = r.PRIVACY.createChild('/containers');
+ 
+   const visibility = pageVisibility || {};
+ 
+--- a/chrome/browser/resources/settings/router.ts
++++ b/chrome/browser/resources/settings/router.ts
+@@ -40,6 +40,7 @@
+   GEMINI_ENTERPRISE: Route;
+   GLIC_SECTION: Route;
+   HELIUM_SERVICES: Route;
++  CONTAINERS: Route;
+   HISTORY_SEARCH: Route;
+   IDENTITY_DOCS: Route;
+   INLINE_CUE_MENU: Route;

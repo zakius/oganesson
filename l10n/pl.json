@@ -1148,5 +1148,150 @@
     "name": "IDS_OGANESSON_INSTANT_TABS_DESCRIPTION",
     "source": "Keeps a connection to Mozilla's push server, as Firefox does. Without it, tabs arrive when the browser checks for them.",
     "message": "Utrzymuje połączenie z serwerem powiadomień Mozilli, jak Firefox. Bez tego karty przychodzą, gdy przeglądarka je sprawdza."
+  },
+  {
+    "name": "IDS_OGANESSON_CONTAINERS_OPEN_LINK",
+    "source": "Open link in container",
+    "message": "Otwórz link w kontenerze"
+  },
+  {
+    "name": "IDS_OGANESSON_CONTAINERS_REOPEN",
+    "source": "Reopen in container",
+    "message": "Otwórz ponownie w kontenerze"
+  },
+  {
+    "name": "IDS_OGANESSON_CONTAINERS_NEW_TAB",
+    "source": "New tab in container",
+    "message": "Nowa karta w kontenerze"
+  },
+  {
+    "name": "IDS_OGANESSON_CONTAINERS_OPEN_BOOKMARKS",
+    "source": "Open in container",
+    "message": "Otwórz w kontenerze"
+  },
+  {
+    "name": "IDS_OGANESSON_CONTAINERS_NONE",
+    "source": "No container",
+    "message": "Bez kontenera"
+  },
+  {
+    "name": "IDS_OGANESSON_CONTAINERS_NEW_TEMPORARY",
+    "source": "New temporary container",
+    "message": "Nowy kontener tymczasowy"
+  },
+  {
+    "name": "IDS_OGANESSON_CONTAINERS_MANAGE",
+    "source": "Manage containers…",
+    "message": "Zarządzaj kontenerami…"
+  },
+  {
+    "name": "IDS_OGANESSON_CONTAINERS_PAGE_ACTION",
+    "source": "Container: <ph name=\"CONTAINER\">$1<ex>Work</ex></ph>",
+    "message": "Kontener: <ph name=\"CONTAINER\">$1<ex>Work</ex></ph>"
+  },
+  {
+    "name": "IDS_OGANESSON_CONTAINERS_TITLE",
+    "source": "Containers",
+    "message": "Kontenery"
+  },
+  {
+    "name": "IDS_OGANESSON_CONTAINERS_DESCRIPTION",
+    "source": "Separate cookies and site data for tabs in each container",
+    "message": "Osobne pliki cookie i dane witryn dla kart w każdym kontenerze"
+  },
+  {
+    "name": "IDS_OGANESSON_CONTAINERS_ADD",
+    "source": "Add container",
+    "message": "Dodaj kontener"
+  },
+  {
+    "name": "IDS_OGANESSON_CONTAINERS_EDIT",
+    "source": "Edit container",
+    "message": "Edytuj kontener"
+  },
+  {
+    "name": "IDS_OGANESSON_CONTAINERS_NAME",
+    "source": "Name",
+    "message": "Nazwa"
+  },
+  {
+    "name": "IDS_OGANESSON_CONTAINERS_COLOR",
+    "source": "Color",
+    "message": "Kolor"
+  },
+  {
+    "name": "IDS_OGANESSON_CONTAINERS_ICON",
+    "source": "Icon",
+    "message": "Ikona"
+  },
+  {
+    "name": "IDS_OGANESSON_CONTAINERS_DELETE_TITLE",
+    "source": "Delete <ph name=\"CONTAINER\">$1<ex>Work</ex></ph>?",
+    "message": "Usunąć <ph name=\"CONTAINER\">$1<ex>Work</ex></ph>?"
+  },
+  {
+    "name": "IDS_OGANESSON_CONTAINERS_DELETE_BODY",
+    "source": "Its tabs close, and its cookies and site data are deleted.",
+    "message": "Jego karty zostaną zamknięte, a pliki cookie i dane witryn usunięte."
+  },
+  {
+    "name": "IDS_OGANESSON_CONTAINERS_NONE_YET",
+    "source": "No containers",
+    "message": "Brak kontenerów"
+  },
+  {
+    "name": "IDS_OGANESSON_TRAFFIC_CONTROL_TITLE",
+    "source": "Traffic Control",
+    "message": "Kierowanie ruchu"
+  },
+  {
+    "name": "IDS_OGANESSON_TRAFFIC_CONTROL_DESCRIPTION",
+    "source": "Sites that match a rule always open in its container, whichever tab they start in.",
+    "message": "Witryny pasujące do reguły zawsze otwierają się w jej kontenerze, niezależnie od karty, w której się zaczynają."
+  },
+  {
+    "name": "IDS_OGANESSON_TRAFFIC_CONTROL_ADD",
+    "source": "Add rule",
+    "message": "Dodaj regułę"
+  },
+  {
+    "name": "IDS_OGANESSON_TRAFFIC_CONTROL_EDIT",
+    "source": "Edit rule",
+    "message": "Edytuj regułę"
+  },
+  {
+    "name": "IDS_OGANESSON_TRAFFIC_CONTROL_SITES",
+    "source": "Sites, one per line",
+    "message": "Witryny, po jednej w wierszu"
+  },
+  {
+    "name": "IDS_OGANESSON_TRAFFIC_CONTROL_SITES_INVALID",
+    "source": "Enter sites such as example.com or https://*.example.org/path",
+    "message": "Wpisz witryny, np. example.com lub https://*.example.org/sciezka"
+  },
+  {
+    "name": "IDS_OGANESSON_TRAFFIC_CONTROL_OPEN_IN",
+    "source": "Open in",
+    "message": "Otwieraj w"
+  },
+  {
+    "name": "IDS_OGANESSON_TRAFFIC_CONTROL_NONE",
+    "source": "No container",
+    "message": "Bez kontenera"
+  },
+  {
+    "name": "IDS_OGANESSON_TRAFFIC_CONTROL_TEMPORARY",
+    "source": "New temporary container",
+    "message": "Nowy kontener tymczasowy"
+  },
+  {
+    "name": "IDS_OGANESSON_TRAFFIC_CONTROL_NONE_YET",
+    "source": "No rules",
+    "message": "Brak reguł"
+  },
+  {
+    "name": "IDS_OGANESSON_CONTAINERS_NEW_TABS",
+    "source": "Open new tabs in",
+    "message": "Otwieraj nowe karty w"
   }
 ]

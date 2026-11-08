@@ -1,0 +1,178 @@
+# Containers on the desktop (docs/containers.md): where the browser makes a tab, it makes it in
+# its container (src/chrome/browser/containers/platform/). dubna's containers.patch has the hooks
+# tennessine shares.
+# - chrome_command_ids.h: the command ids of the container submenus.
+# - browser_navigator.cc: a new tab that a page opens without an opener (a link opened in a new
+#   tab, from the page or its context menu) starts in the page's container.
+# - browser_tabrestore.cc: a restored tab, after a restart or reopened, starts in the container
+#   its session saved.
+# - browser_tabstrip.cc: a new tab opens in the container Settings says (brave-core#40693).
+# - startup_tab.h, pinned_tab_codec.cc, startup_browser_creator_impl.cc: pinned tabs, which open
+#   at startup without the session when Settings says to open the new tab page, keep their
+#   container too: one in a container opens now, not deferred without it.
+--- a/chrome/app/chrome_command_ids.h
++++ b/chrome/app/chrome_command_ids.h
+@@ -465,6 +465,13 @@
+ #define IDC_OGANESSON_SEND_TO_ALL_DEVICES 51047
+ #define IDC_OGANESSON_SEND_TO_DEVICE_FIRST 51050
+ #define IDC_OGANESSON_SEND_TO_DEVICE_LAST 51069
++// Containers' submenus.
++#define IDC_OGANESSON_CONTAINERS_NONE 51070
++#define IDC_OGANESSON_CONTAINERS_TEMPORARY 51071
++#define IDC_OGANESSON_CONTAINERS_MANAGE 51072
++#define IDC_OGANESSON_CONTAINERS_SUBMENU 51073
++#define IDC_OGANESSON_CONTAINERS_FIRST 51074
++#define IDC_OGANESSON_CONTAINERS_LAST 51099
+ 
+ // ChromeOS clipboard history
+ #define IDC_CONTENT_PASTE_FROM_CLIPBOARD 51037
+--- a/chrome/browser/ui/browser_tabrestore.cc
++++ b/chrome/browser/ui/browser_tabrestore.cc
+@@ -11,6 +11,7 @@
+ #include "base/containers/span.h"
+ #include "build/build_config.h"
+ #include "chrome/browser/apps/app_service/web_contents_app_id_utils.h"
++#include "chrome/browser/containers/containers_tabs.h"
+ #include "chrome/browser/glic/glic_tab_restore_helper.h"
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/sessions/session_restore.h"
+@@ -72,6 +73,8 @@
+       content::CreateMapWithDefaultSessionStorageNamespace(
+           browser->GetProfile(), session_storage_namespace);
+   WebContents::CreateParams create_params(browser->GetProfile());
++  create_params.site_instance = containers::SiteInstanceToRestore(
++      browser->GetProfile(), navigations, selected_navigation);
+   create_params.initially_hidden = initially_hidden;
+   create_params.desired_renderer_state =
+       WebContents::CreateParams::kNoRendererProcess;
+--- a/chrome/browser/ui/browser_tabstrip.cc
++++ b/chrome/browser/ui/browser_tabstrip.cc
+@@ -8,6 +8,7 @@
+ 
+ #include "base/command_line.h"
+ #include "base/feature_list.h"
++#include "chrome/browser/containers/platform/containers_desktop.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+ #include "chrome/browser/ui/navigator/browser_navigator.h"
+ #include "chrome/browser/ui/navigator/browser_navigator_params.h"
+@@ -64,7 +65,9 @@
+ 
+   params.web_app_navigation_data.emplace();
+   params.web_app_navigation_data->SetNavigationCapturingForceOff(true);
+-  Navigate(&params);
++  // A new tab opens where Settings > Containers says.
++  containers::NavigateInContainer(
++      &params, url.is_empty() ? containers::NewTabContainer(browser) : "");
+ 
+   if (!params.navigated_or_inserted_contents) {
+     return nullptr;
+--- a/chrome/browser/ui/navigator/browser_navigator.cc
++++ b/chrome/browser/ui/navigator/browser_navigator.cc
+@@ -22,6 +22,7 @@
+ #include "chrome/browser/apps/app_service/web_contents_app_id_utils.h"
+ #include "chrome/browser/apps/link_capturing/link_capturing_tab_data.h"
+ #include "chrome/browser/browser_about_handler.h"
++#include "chrome/browser/containers/containers_tabs.h"
+ #include "chrome/browser/firefox_about_urls.h"
+ #include "chrome/browser/picture_in_picture/picture_in_picture_window_manager.h"
+ #include "chrome/browser/platform_util.h"
+@@ -575,6 +576,10 @@
+       params.opener ? params.opener->GetSiteInstance()
+                     : tab_util::GetSiteInstanceForNewTab(
+                           params.browser->GetProfile(), url);
++  if (!params.opener) {
++    containers::InheritContainer(params.source_site_instance.get(), url,
++                                 initial_site_instance_for_new_contents);
++  }
+ 
+   WebContents::CreateParams create_params(
+       params.browser->GetProfile(), initial_site_instance_for_new_contents);
+--- a/chrome/browser/ui/startup/startup_browser_creator_impl.cc
++++ b/chrome/browser/ui/startup/startup_browser_creator_impl.cc
+@@ -43,6 +43,7 @@
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
+ #include "chrome/browser/ui/browser_window/public/create_browser_window.h"
+ #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
++#include "chrome/browser/containers/platform/containers_desktop.h"
+ #include "chrome/browser/ui/navigator/browser_navigator.h"
+ #include "chrome/browser/ui/navigator/browser_navigator_params.h"
+ #include "chrome/browser/ui/startup/infobar_utils.h"
+@@ -473,7 +474,8 @@
+ 
+     // Pinned tabs from the startup-tab provider do not pass through the session
+     // restore tab loader, so add background ones without loading them.
+-    if (!first_tab && tab.type == StartupTab::Type::kPinned) {
++    if (!first_tab && tab.type == StartupTab::Type::kPinned &&
++        tab.container.empty()) {
+       AddDeferredPinnedStartupTab(browser, tab.url);
+       continue;
+     }
+@@ -508,7 +510,7 @@
+     }
+ #endif  // BUILDFLAG(ENABLE_RLZ)
+ 
+-    Navigate(&params);
++    containers::NavigateInContainer(&params, tab.container);
+     first_tab = false;
+   }
+   if (!browser->GetTabStripModel()->GetActiveWebContents() &&
+--- a/chrome/browser/ui/startup/startup_tab.h
++++ b/chrome/browser/ui/startup/startup_tab.h
+@@ -5,6 +5,7 @@
+ #ifndef CHROME_BROWSER_UI_STARTUP_STARTUP_TAB_H_
+ #define CHROME_BROWSER_UI_STARTUP_STARTUP_TAB_H_
+ 
++#include <string>
+ #include <vector>
+ 
+ #include "url/gurl.h"
+@@ -31,6 +32,9 @@
+   // True if this tab was launched from an untrusted external custom protocol
+   // (e.g., google-chrome://) that was stripped on startup.
+   bool is_untrusted_launch = false;
++
++  // The id of the tab's container, if it is in one (a pinned tab).
++  std::string container;
+ };
+ 
+ using StartupTabs = std::vector<StartupTab>;
+--- a/chrome/browser/ui/tabs/pinned_tab_codec.cc
++++ b/chrome/browser/ui/tabs/pinned_tab_codec.cc
+@@ -12,6 +12,7 @@
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
++#include "chrome/browser/containers/containers_tabs.h"
+ #include "chrome/browser/ui/tabs/tab_strip_model.h"
+ #include "chrome/common/pref_names.h"
+ #include "components/pref_registry/pref_registry_syncable.h"
+@@ -48,7 +49,8 @@
+     NavigationEntry* entry =
+         web_contents->GetController().GetLastCommittedEntry();
+     if (entry) {
+-      serialized_tabs.Append(EncodeTab(entry->GetURL()));
++      serialized_tabs.Append(std::move(EncodeTab(entry->GetURL())
++          .Set("container", containers::ContainerIdOf(web_contents))));
+     }
+   }
+ }
+@@ -101,7 +103,7 @@
+   base::ListValue& values = update.Get();
+   values.clear();
+   for (const auto& tab : tabs) {
+-    values.Append(EncodeTab(tab.url));
++    values.Append(std::move(EncodeTab(tab.url).Set("container", tab.container)));
+   }
+ }
+ 
+@@ -120,6 +122,10 @@
+     }
+     std::optional<StartupTab> tab = DecodeTab(serialized_tab.GetDict());
+     if (tab.has_value()) {
++      if (const std::string* container =
++              serialized_tab.GetDict().FindString("container")) {
++        tab->container = *container;
++      }
+       results.push_back(tab.value());
+     }
+   }

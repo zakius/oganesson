@@ -1,6 +1,6 @@
 # oganesson
 
-oganesson is a desktop Chromium browser built on [Helium](https://github.com/imputnet/helium). It adds mouse gestures, a toolbar whose items move and hide, and Firefox tab placement and close selection. It also has Firefox-compatible Sync, controls for installed web apps, and switches that stop saving history. It runs on Linux x86-64 and Windows x64. Its Android sibling is [tennessine](https://github.com/zakius/tennessine), and the code the two share is in [dubna](https://github.com/zakius/dubna).
+oganesson is a desktop Chromium browser built on [Helium](https://github.com/imputnet/helium). It adds mouse gestures, a toolbar whose items move and hide, and Firefox tab placement and close selection. It also has Firefox-compatible Sync, controls for installed web apps, tab containers, and switches that stop saving history. It runs on Linux x86-64 and Windows x64. Its Android sibling is [tennessine](https://github.com/zakius/tennessine), and the code the two share is in [dubna](https://github.com/zakius/dubna).
 
 > **Highly volatile.** This is a personal project. Features change or disappear without notice, some may misbehave, updates can break things, and development may stop at any moment. Use it knowing that.
 
@@ -15,6 +15,7 @@ Where an extension does the job well, the job stays with the extension. Content 
 - Firefox's tab placement and close selection, with Chromium's as a preset and each rule a setting.
 - Firefox-compatible Sync for passwords, bookmarks, history, tabs, addresses and cards. It works best with a self-hosted sync server.
 - Installed web apps that open outside links in the default browser.
+- Containers: separate cookies and site data for the tabs of each container, as Firefox and Brave have, with rules that open chosen sites in a container.
 - Switches that stop saving browsing and download history.
 
 oganesson is not privacy-paranoid. It keeps features that some privacy-focused browsers remove, because they are useful: the built-in password manager, Sync, and Google among the search engines. Each one is yours to skip. DuckDuckGo is the default search engine, Sync stays off until you sign in, and saving passwords can be turned off in settings. If you don't trust a feature, don't use it.
@@ -93,7 +94,7 @@ windows/publish.sh                      # to dubna.zakius.xyz/windows, with SHA2
 
 ## Docs
 
-[Architecture](docs/architecture.md), [Helium patch decisions](docs/helium-patch-decisions.md), [Firefox-compatible Sync](docs/firefox-sync.md), [mouse gestures](docs/mouse-gestures.md), [toolbar](docs/toolbar.md), [tab behavior](docs/tab-behavior.md), [installed web apps](docs/web-apps.md), [address bar suggestions](docs/omnibox.md), [autoplay](docs/autoplay.md), [packages](docs/packages.md), [Windows](docs/windows.md), [updating](docs/updating.md).
+[Architecture](docs/architecture.md), [Helium patch decisions](docs/helium-patch-decisions.md), [Firefox-compatible Sync](docs/firefox-sync.md), [mouse gestures](docs/mouse-gestures.md), [toolbar](docs/toolbar.md), [tab behavior](docs/tab-behavior.md), [installed web apps](docs/web-apps.md), [containers](docs/containers.md), [address bar suggestions](docs/omnibox.md), [autoplay](docs/autoplay.md), [packages](docs/packages.md), [Windows](docs/windows.md), [updating](docs/updating.md).
 
 ## License
 
