@@ -42,6 +42,7 @@ inline void AddOganessonPrefsToAllowlist(PrefsUtil::TypedPrefMap& allowlist) {
   allowlist[::omnibox::kSuggestionOrder] = PrefType::kList;
   allowlist[::containers::kContainersList] = PrefType::kList;
   allowlist[::containers::kTrafficControlRules] = PrefType::kList;
+  allowlist[::containers::kNewTabContainer] = PrefType::kString;
 }
 
 }  // namespace extensions

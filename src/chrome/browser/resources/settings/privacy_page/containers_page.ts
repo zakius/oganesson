@@ -45,6 +45,7 @@ type ChoiceEvent = Event&{model: {item: string}};
 
 const CONTAINERS_PREF = 'containers.list';
 const RULES_PREF = 'containers.traffic_control';
+const NEW_TAB_PREF = 'containers.new_tab';
 // A rule's container that is a new temporary one each time.
 const TEMPORARY = 'temporary';
 
@@ -168,6 +169,27 @@ export class SettingsContainersPageElement extends
         </template>
         <div class="cr-row" hidden="[[containers_.length]]">
           [[i18n('containersNoneYet')]]
+        </div>
+
+        <div class="cr-row">
+          <div class="flex cr-padded-text">[[i18n('containersNewTabs')]]</div>
+          <select class="md-select" id="newTabs"
+              aria-label="[[i18n('containersNewTabs')]]"
+              on-change="onNewTabsChange_">
+            <option value="" selected$="[[isEqual_('', newTabs_)]]">
+              [[i18n('trafficControlNone')]]
+            </option>
+            <template is="dom-repeat" items="[[containers_]]">
+              <option value="[[item.id]]"
+                  selected$="[[isEqual_(item.id, newTabs_)]]">
+                [[item.name]]
+              </option>
+            </template>
+            <option value="temporary"
+                selected$="[[isEqual_('temporary', newTabs_)]]">
+              [[i18n('trafficControlTemporary')]]
+            </option>
+          </select>
         </div>
 
         <div class="cr-row continuation">
@@ -310,6 +332,8 @@ export class SettingsContainersPageElement extends
       routePath: String,
       containers_: {type: Array, value: () => []},
       rules_: {type: Array, value: () => []},
+      // Where new tabs open: a container's id, 'temporary', or ''.
+      newTabs_: {type: String, value: ''},
       colors_: {
         type: Array,
         value: () => loadTimeData.getString('containerColors').split(','),
@@ -330,6 +354,7 @@ export class SettingsContainersPageElement extends
   declare routePath: string;
   declare private containers_: Container[];
   declare private rules_: TrafficRule[];
+  declare private newTabs_: string;
   declare private colors_: string[];
   declare private icons_: string[];
   declare private editing_: Container|null;
@@ -343,6 +368,9 @@ export class SettingsContainersPageElement extends
     super.connectedCallback();
     this.addPrefObserver<Container[]>(CONTAINERS_PREF, pref => {
       this.containers_ = (pref.value || []).map(c => ({...c}));
+    });
+    this.addPrefObserver<string>(NEW_TAB_PREF, pref => {
+      this.newTabs_ = pref.value || '';
     });
     this.addPrefObserver<TrafficRule[]>(RULES_PREF, pref => {
       this.rules_ = (pref.value || []).map(r => ({...r}));
@@ -451,6 +479,11 @@ export class SettingsContainersPageElement extends
     const id = this.deleting_!.id;
     this.setContainers_(this.containers_.filter(c => c.id !== id));
     this.deleting_ = null;
+  }
+
+  private onNewTabsChange_(e: Event) {
+    PrefService.getInstance().setPrefValue(
+        NEW_TAB_PREF, (e.target as HTMLSelectElement).value);
   }
 
   private onAddRuleClick_() {

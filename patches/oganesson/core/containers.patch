@@ -6,6 +6,7 @@
 #   tab, from the page or its context menu) starts in the page's container.
 # - browser_tabrestore.cc: a restored tab, after a restart or reopened, starts in the container
 #   its session saved.
+# - browser_tabstrip.cc: a new tab opens in the container Settings says (brave-core#40693).
 # - startup_tab.h, pinned_tab_codec.cc, startup_browser_creator_impl.cc: pinned tabs, which open
 #   at startup without the session when Settings says to open the new tab page, keep their
 #   container too.
@@ -44,6 +45,27 @@
    create_params.initially_hidden = initially_hidden;
    create_params.desired_renderer_state =
        WebContents::CreateParams::kNoRendererProcess;
+--- a/chrome/browser/ui/browser_tabstrip.cc
++++ b/chrome/browser/ui/browser_tabstrip.cc
+@@ -8,6 +8,7 @@
+ 
+ #include "base/command_line.h"
+ #include "base/feature_list.h"
++#include "chrome/browser/containers/platform/containers_desktop.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+ #include "chrome/browser/ui/navigator/browser_navigator.h"
+ #include "chrome/browser/ui/navigator/browser_navigator_params.h"
+@@ -64,7 +65,9 @@
+ 
+   params.web_app_navigation_data.emplace();
+   params.web_app_navigation_data->SetNavigationCapturingForceOff(true);
+-  Navigate(&params);
++  // A new tab opens where Settings > Containers says.
++  containers::NavigateInContainer(
++      &params, url.is_empty() ? containers::NewTabContainer(browser) : "");
+ 
+   if (!params.navigated_or_inserted_contents) {
+     return nullptr;
 --- a/chrome/browser/ui/navigator/browser_navigator.cc
 +++ b/chrome/browser/ui/navigator/browser_navigator.cc
 @@ -22,6 +22,7 @@

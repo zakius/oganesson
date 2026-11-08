@@ -51,6 +51,10 @@ content::WebContents* OpenInContainer(BrowserWindowInterface* browser,
                                       WindowOpenDisposition disposition,
                                       content::WebContents* source = nullptr);
 
+// The container that a new tab of `browser` opens in, as Settings says: an
+// id, or empty.
+std::string NewTabContainer(BrowserWindowInterface* browser);
+
 // Opens the new tab page in container `id` of `browser`.
 void NewTabInContainer(BrowserWindowInterface* browser, const std::string& id);
 

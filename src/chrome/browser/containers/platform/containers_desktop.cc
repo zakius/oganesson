@@ -81,6 +81,7 @@ void AddSettingsStrings(content::WebUIDataSource* source) {
       {"containersDeleteTitle", IDS_OGANESSON_CONTAINERS_DELETE_TITLE},
       {"containersDeleteBody", IDS_OGANESSON_CONTAINERS_DELETE_BODY},
       {"containersNoneYet", IDS_OGANESSON_CONTAINERS_NONE_YET},
+      {"containersNewTabs", IDS_OGANESSON_CONTAINERS_NEW_TABS},
       {"trafficControlTitle", IDS_OGANESSON_TRAFFIC_CONTROL_TITLE},
       {"trafficControlDescription", IDS_OGANESSON_TRAFFIC_CONTROL_DESCRIPTION},
       {"trafficControlAdd", IDS_OGANESSON_TRAFFIC_CONTROL_ADD},
@@ -157,6 +158,12 @@ content::WebContents* OpenInContainer(BrowserWindowInterface* browser,
   }
   NavigateInContainer(&params, id);
   return params.navigated_or_inserted_contents;
+}
+
+std::string NewTabContainer(BrowserWindowInterface* browser) {
+  ContainersService* service =
+      ContainersServiceFactory::GetForProfile(browser->GetProfile());
+  return service ? service->NewTabContainer() : std::string();
 }
 
 void NewTabInContainer(BrowserWindowInterface* browser, const std::string& id) {

@@ -56,6 +56,9 @@
   <message name="IDS_OGANESSON_CONTAINERS_NONE_YET" desc="Settings, Containers page: shown when the user has no containers.">
     No containers
   </message>
+  <message name="IDS_OGANESSON_CONTAINERS_NEW_TABS" desc="Settings, Containers page: label of the choice of where new tabs open: outside containers, in a container, or in a new temporary container.">
+    Open new tabs in
+  </message>
   <message name="IDS_OGANESSON_TRAFFIC_CONTROL_TITLE" desc="Settings, Containers page: title of the section of Traffic Control rules, which open matching sites in a chosen container.">
     Traffic Control
   </message>

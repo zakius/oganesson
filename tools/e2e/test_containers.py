@@ -251,7 +251,22 @@ class ContainersTest(BrowserTest):
         self.assertEqual(self.cookie(second), '')
         self.browser.close_target(second)
 
-    def test_7_delete_container(self):
+    def test_7_new_tabs_open_in_a_container(self):
+        self.set_pref('containers.new_tab', 'work')
+        try:
+            before = self.pages()
+            self.browser.key('ctrl+t')
+            target = wait_for(lambda: next((t for t in self.browser.targets()
+                                            if t['type'] == 'page' and t['id'] not in before),
+                                           None), what='the new tab')
+            page = Page(target)
+            page.call('Page.navigate', url=self.url('/page'))
+            self.assertEqual(self.cookie(page), 'in=work')
+            self.browser.close_target(page)
+        finally:
+            self.set_pref('containers.new_tab', '')
+
+    def test_8_delete_container(self):
         personal = next(c for c in self.get_pref('containers.list') if c['name'] == 'Personal')
         folder = storage_folder(self.browser.profile, personal['id'])
         wait_for(folder.exists, what="Personal's storage")

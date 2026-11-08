@@ -1288,5 +1288,10 @@
     "name": "IDS_OGANESSON_TRAFFIC_CONTROL_NONE_YET",
     "source": "No rules",
     "message": "Brak reguł"
+  },
+  {
+    "name": "IDS_OGANESSON_CONTAINERS_NEW_TABS",
+    "source": "Open new tabs in",
+    "message": "Otwieraj nowe karty w"
   }
 ]
