@@ -224,9 +224,16 @@ void ContainersMenu::ExecuteCommand(int command_id, int event_flags) {
       return;
   }
   const size_t index = command_id - IDC_OGANESSON_CONTAINERS_FIRST;
-  // The container may be gone while the menu was open.
-  if (index < ids_.size() && service->Get(ids_[index])) {
-    open_.Run(ids_[index]);
+  if (index >= ids_.size()) {
+    return;
+  }
+  // The container may have been deleted while the menu was open. Get() still
+  // finds it while its storage is being deleted.
+  for (const Container& container : service->GetContainers()) {
+    if (container.id == ids_[index]) {
+      open_.Run(ids_[index]);
+      return;
+    }
   }
 }
 
