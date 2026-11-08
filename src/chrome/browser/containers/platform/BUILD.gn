@@ -1,0 +1,33 @@
+# Copyright 2026 The oganesson Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# Containers on the desktop: dubna's containers_platform.h, and the menus and
+# the tab line that patches/oganesson/ui/containers.patch shows. dubna's
+# containers.patch makes the browser depend on this.
+source_set("platform") {
+  sources = [
+    "containers_desktop.cc",
+    "containers_desktop.h",
+    "containers_menu.cc",
+    "containers_menu.h",
+    "desktop_platform.cc",
+  ]
+  public_deps = [ "//chrome/browser/containers" ]
+  deps = [
+    "//base",
+    "//chrome/app:command_ids",
+    "//chrome/app:generated_resources",
+    "//chrome/app/vector_icons",
+    "//chrome/browser/profiles:profile",
+    "//components/bookmarks/browser",
+    "//components/sessions",
+    "//components/tabs:public",
+    "//components/vector_icons",
+    "//content/public/browser",
+    "//ui/base",
+    "//ui/gfx",
+    "//ui/menus",
+    "//url",
+  ]
+}

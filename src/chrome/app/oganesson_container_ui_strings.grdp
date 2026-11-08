@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright 2026 The oganesson Authors. GPL-3.0, see the LICENSE file. -->
+<!-- Containers: separate cookies and site data within one profile. -->
+<grit-part>
+  <message name="IDS_OGANESSON_CONTAINERS_OPEN_LINK" desc="Link context menu: submenu that opens the link in a new tab in a container the user picks. A container keeps its own cookies and site data.">
+    Open link in container
+  </message>
+  <message name="IDS_OGANESSON_CONTAINERS_REOPEN" desc="Tab context menu: submenu that reopens the tab in a container the user picks, in place of the tab.">
+    Reopen in container
+  </message>
+  <message name="IDS_OGANESSON_CONTAINERS_NEW_TAB" desc="New Tab button's context menu: submenu that opens a new tab in a container the user picks.">
+    New tab in container
+  </message>
+  <message name="IDS_OGANESSON_CONTAINERS_OPEN_BOOKMARKS" desc="Bookmark context menu: submenu that opens the bookmarks in new tabs in a container the user picks.">
+    Open in container
+  </message>
+  <message name="IDS_OGANESSON_CONTAINERS_NONE" desc="Container submenus: opens the page outside containers, with the profile's own cookies and site data.">
+    No container
+  </message>
+  <message name="IDS_OGANESSON_CONTAINERS_NEW_TEMPORARY" desc="Container submenus: opens the page in a new temporary container, whose cookies and site data are deleted once its tabs are closed.">
+    New temporary container
+  </message>
+  <message name="IDS_OGANESSON_CONTAINERS_MANAGE" desc="Container submenus: opens Settings' page of containers.">
+    Manage containers…
+  </message>
+  <message name="IDS_OGANESSON_CONTAINERS_PAGE_ACTION" desc="Tooltip of the address bar icon of a tab that is in a container. Clicking the icon opens a menu to reopen the tab in another container.">
+    Container: <ph name="CONTAINER">$1<ex>Work</ex></ph>
+  </message>
+  <message name="IDS_OGANESSON_CONTAINERS_TITLE" desc="Settings: title of the page and of the row that opens it, under Privacy and security.">
+    Containers
+  </message>
+  <message name="IDS_OGANESSON_CONTAINERS_DESCRIPTION" desc="Settings: description of the Containers row.">
+    Separate cookies and site data for tabs in each container
+  </message>
+  <message name="IDS_OGANESSON_CONTAINERS_ADD" desc="Settings, Containers page: button that adds a container.">
+    Add container
+  </message>
+  <message name="IDS_OGANESSON_CONTAINERS_EDIT" desc="Settings, Containers page: title of the dialog that changes a container.">
+    Edit container
+  </message>
+  <message name="IDS_OGANESSON_CONTAINERS_NAME" desc="Settings, Containers page: label of the container's name field.">
+    Name
+  </message>
+  <message name="IDS_OGANESSON_CONTAINERS_COLOR" desc="Settings, Containers page: label of the container's colors to pick from.">
+    Color
+  </message>
+  <message name="IDS_OGANESSON_CONTAINERS_ICON" desc="Settings, Containers page: label of the container's icons to pick from.">
+    Icon
+  </message>
+  <message name="IDS_OGANESSON_CONTAINERS_DELETE_TITLE" desc="Settings, Containers page: title of the dialog that confirms deleting a container.">
+    Delete <ph name="CONTAINER">$1<ex>Work</ex></ph>?
+  </message>
+  <message name="IDS_OGANESSON_CONTAINERS_DELETE_BODY" desc="Settings, Containers page: what deleting a container does.">
+    Its tabs close, and its cookies and site data are deleted.
+  </message>
+  <message name="IDS_OGANESSON_CONTAINERS_NONE_YET" desc="Settings, Containers page: shown when the user has no containers.">
+    No containers
+  </message>
+  <message name="IDS_OGANESSON_TRAFFIC_CONTROL_TITLE" desc="Settings, Containers page: title of the section of Traffic Control rules, which open matching sites in a chosen container.">
+    Traffic Control
+  </message>
+  <message name="IDS_OGANESSON_TRAFFIC_CONTROL_DESCRIPTION" desc="Settings, Containers page: what Traffic Control rules do.">
+    Sites that match a rule always open in its container, whichever tab they start in.
+  </message>
+  <message name="IDS_OGANESSON_TRAFFIC_CONTROL_ADD" desc="Settings, Containers page: button that adds a Traffic Control rule.">
+    Add rule
+  </message>
+  <message name="IDS_OGANESSON_TRAFFIC_CONTROL_EDIT" desc="Settings, Containers page: title of the dialog that changes a Traffic Control rule.">
+    Edit rule
+  </message>
+  <message name="IDS_OGANESSON_TRAFFIC_CONTROL_SITES" desc="Settings, Traffic Control rule dialog: label of the field of site patterns, one per line.">
+    Sites, one per line
+  </message>
+  <message name="IDS_OGANESSON_TRAFFIC_CONTROL_SITES_INVALID" desc="Settings, Traffic Control rule dialog: error under the sites field when a line isn't a valid pattern.">
+    Enter sites such as example.com or https://*.example.org/path
+  </message>
+  <message name="IDS_OGANESSON_TRAFFIC_CONTROL_OPEN_IN" desc="Settings, Traffic Control rule dialog: label of the container the sites open in.">
+    Open in
+  </message>
+  <message name="IDS_OGANESSON_TRAFFIC_CONTROL_NONE" desc="Settings, Traffic Control: a rule's target that opens sites outside containers.">
+    No container
+  </message>
+  <message name="IDS_OGANESSON_TRAFFIC_CONTROL_TEMPORARY" desc="Settings, Traffic Control: a rule's target that opens sites in a new temporary container each time.">
+    New temporary container
+  </message>
+  <message name="IDS_OGANESSON_TRAFFIC_CONTROL_NONE_YET" desc="Settings, Containers page: shown when there are no Traffic Control rules.">
+    No rules
+  </message>
+</grit-part>

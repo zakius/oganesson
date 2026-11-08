@@ -5,6 +5,8 @@
 <grit-part>
   <part file="oganesson_autoplay_strings.grdp" />
   <part file="oganesson_browser_traffic_strings.grdp" />
+  <part file="oganesson_container_ui_strings.grdp" />
+  <part file="oganesson_containers_strings.grdp" />
   <part file="oganesson_firefox_sync_strings.grdp" />
   <part file="oganesson_history_strings.grdp" />
   <part file="oganesson_import_strings.grdp" />

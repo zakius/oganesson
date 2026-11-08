@@ -61,3 +61,6 @@ oganesson/settings/shortcut-toggles.patch
 oganesson/core/tab-close-buttons.patch
 oganesson/settings/tab-close-buttons-settings.patch
 oganesson/ui/app-window-modal-dialog.patch
+../dubna/patches/containers.patch
+oganesson/core/containers.patch
+oganesson/ui/containers-menus.patch
