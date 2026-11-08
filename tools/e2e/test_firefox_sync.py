@@ -69,6 +69,10 @@ class FirefoxSyncTest(BrowserTest):
         return page.eval(f"({FIND})('settings-firefox-sync').firefoxSync_")
 
     def sync_now(self, page):
+        # A sync already running, as one a pref change started, would end the
+        # wait below though it may have begun before this test's changes.
+        wait_for(lambda: not self.status(page).get('syncing'), timeout=60,
+                 what='the running sync')
         before = self.status(page).get('lastSync')
         page.eval("chrome.send('firefoxSyncNow')")
         wait_for(lambda: self.status(page).get('lastSync') != before and
