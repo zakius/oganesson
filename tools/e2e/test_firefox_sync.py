@@ -1,5 +1,6 @@
 """Firefox Sync in the browser, against tools/fake_firefox_sync.py: sign-in
-from settings, then bookmarks, passwords, and history sync. A bookmark edited
+from settings, then bookmarks, passwords, and history sync, and containers
+between two browsers. A bookmark edited
 mid-sync keeps the edit, and signing out drops held sync and sign-in
 replies. Firefox bookmark separators stay in Firefox. Password
 changes and edits made mid-sync are retained; a login with empty
@@ -26,7 +27,7 @@ import time
 import unittest
 from pathlib import Path
 
-from harness import BINARY, BrowserTest, Server, wait_for
+from harness import BINARY, Browser, BrowserTest, Server, wait_for
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 try:
@@ -605,6 +606,141 @@ class FirefoxSyncTest(BrowserTest):
         self.browser.start()
         self.assertEqual(deletions, [])
 
+
+
+class FirefoxSyncContainersTest(BrowserTest):
+    """Containers and Traffic Control's one-site rules go between two
+    browsers through the extension-storage collection, in Multi-Account
+    Containers' format, and an edit as the add-on makes it in Firefox comes
+    down. Steps run in order and build on each other."""
+    settings = FirefoxSyncTest.settings
+    status = FirefoxSyncTest.status
+    sync_now = FirefoxSyncTest.sync_now
+    MAC = '@testpilot-containers'
+    TRAVEL = '6f1d2c3b-4a5e-4f60-8a7b-9c0d1e2f3a4b'
+
+    @classmethod
+    def setUpClass(cls):
+        if not fake_firefox_sync:
+            raise unittest.SkipTest(f'the fake sync server needs {MISSING}')
+        cls.server, base, cls.fake = fake_firefox_sync.serve()
+        cls.browser_env = {'OGANESSON_FXA_SERVER': base,
+                           'OGANESSON_PUSH_SERVER': cls.fake.push.url}
+        super().setUpClass()
+        cls.other = Browser(env=cls.browser_env)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.other.stop(failed=cls.failed)
+        super().tearDownClass()
+        cls.server.shutdown()
+
+    def sync_page(self, browser):
+        page = browser.new_tab('chrome://settings/people')
+        wait_for(lambda: page.eval(f"!!({FIND})('settings-firefox-sync')"), what='settings')
+        return page
+
+    def sign_in(self, browser):
+        page = self.sync_page(browser)
+        page.eval("chrome.send('firefoxSyncSignIn')")
+        wait_for(lambda: self.status(page).get('signedIn'), timeout=30, what='the sign-in')
+        wait_for(lambda: not self.status(page).get('syncing') and self.status(page).get('lastSync'),
+                 timeout=60, what='the first sync')
+        return page
+
+    def pref(self, page, name, value=None):
+        if value is not None:
+            page.eval(f'chrome.settingsPrivate.setPref({json.dumps(name)}, {json.dumps(value)})')
+        return page.eval(f'chrome.settingsPrivate.getPref({json.dumps(name)}).then(p => p.value)')
+
+    def area(self):
+        """The add-on's area on the server, and its record's id."""
+        bundle = self.fake.bundle('extension-storage')
+        for bso in list(self.fake.collections.get('extension-storage', {}).values()):
+            record = json.loads(decrypt(bundle, bso['payload']))
+            if record.get('extId') == self.MAC:
+                return json.loads(record['data']), record['id']
+        return {}, None
+
+    def firefox_put(self, area, record_id):
+        record = {'id': record_id, 'extId': self.MAC, 'data': json.dumps(area)}
+        self.fake.put('extension-storage', {
+            'id': record_id,
+            'payload': encrypt(self.fake.bundle('extension-storage'), json.dumps(record))},
+            self.fake.now())
+
+    def containers_type(self, page):
+        return next(t for t in self.status(page)['types'] if t['name'] == 'extension-storage')
+
+    def test_1_waits_for_firefox_to_sync_add_ons(self):
+        page = self.sign_in(self.browser)
+        # meta/global doesn't list the collection until a Firefox syncs Add-ons.
+        self.assertIn('Add-ons', self.containers_type(page)['error'])
+        self.fake.add_engine('extension-storage')
+        self.sync_now(page)
+        self.assertEqual(self.containers_type(page).get('error'), '')
+        area, _ = self.area()
+        self.assertEqual(sorted(v['name'] for k, v in area.items() if k.startswith('identity@@_')),
+                         ['Banking', 'Personal', 'Shopping', 'Work'])
+
+    def test_2_container_and_site_go_up(self):
+        page = self.sync_page(self.browser)
+        listed = self.pref(page, 'containers.list')
+        self.pref(page, 'containers.list', listed + [
+            {'id': self.TRAVEL, 'name': 'Travel', 'icon': 'vacation', 'color': 'pink'}])
+        self.pref(page, 'containers.traffic_control', [
+            {'url_filter': '.trip.example', 'container': self.TRAVEL, 'enabled': True},
+            # Patterns the add-on can't hold stay here.
+            {'url_filter': 'example.org', 'container': self.TRAVEL, 'enabled': True}])
+        self.sync_now(page)
+        area, _ = self.area()
+        self.assertEqual(area[f'identity@@_{self.TRAVEL}']['name'], 'Travel')
+        self.assertEqual(area['siteContainerMap@@_trip.example']['identityMacAddonUUID'],
+                         self.TRAVEL)
+        self.assertEqual([k for k in area if k.startswith('siteContainerMap@@_')],
+                         ['siteContainerMap@@_trip.example'])
+        self.assertEqual(self.containers_type(page)['count'], 5)
+
+    def test_3_second_browser_gets_them(self):
+        page = self.sign_in(self.other)
+        wait_for(lambda: self.pref(page, 'containers.list') and
+                 any(c['id'] == self.TRAVEL for c in self.pref(page, 'containers.list')),
+                 timeout=60, what='Travel in the second browser')
+        # Its own Personal, Work, Banking and Shopping are Firefox's by name.
+        names = sorted(c['name'] for c in self.pref(page, 'containers.list'))
+        self.assertEqual(names, ['Banking', 'Personal', 'Shopping', 'Travel', 'Work'])
+        self.assertEqual(self.pref(page, 'containers.traffic_control'),
+                         [{'url_filter': '.trip.example', 'container': self.TRAVEL,
+                           'enabled': True}])
+
+    def test_4_edits_go_both_ways(self):
+        # The second browser renames Travel; Firefox assigns a site to Work.
+        other = self.sync_page(self.other)
+        listed = self.pref(other, 'containers.list')
+        for container in listed:
+            if container['id'] == self.TRAVEL:
+                container['name'] = 'Trips'
+        self.pref(other, 'containers.list', listed)
+        wait_for(lambda: not self.status(other).get('syncing'), timeout=30, what='idle')
+        self.sync_now(other)
+        area, record_id = self.area()
+        work = next(v['macAddonUUID'] for k, v in area.items()
+                    if k.startswith('identity@@_') and v['name'] == 'Work')
+        area['siteContainerMap@@_mail.example.com'] = {
+            'userContextId': '2', 'neverAsk': False, 'identityMacAddonUUID': work,
+            'hostname': 'mail.example.com'}
+        self.firefox_put(area, record_id)
+
+        page = self.sync_page(self.browser)
+        self.sync_now(page)
+        names = sorted(c['name'] for c in self.pref(page, 'containers.list'))
+        self.assertEqual(names, ['Banking', 'Personal', 'Shopping', 'Trips', 'Work'])
+        work_id = next(c['id'] for c in self.pref(page, 'containers.list') if c['name'] == 'Work')
+        rules = self.pref(page, 'containers.traffic_control')
+        self.assertIn({'url_filter': '.mail.example.com', 'container': work_id, 'enabled': True},
+                      rules)
+        self.assertIn({'url_filter': 'example.org', 'container': self.TRAVEL, 'enabled': True},
+                      rules)
 
 
 class FirefoxSyncFailuresTest(BrowserTest):
