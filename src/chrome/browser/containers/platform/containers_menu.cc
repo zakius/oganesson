@@ -22,6 +22,7 @@
 #include "components/bookmarks/browser/bookmark_node.h"
 #include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/web_contents.h"
+#include "ui/base/accelerators/menu_label_accelerator_util.h"
 #include "url/gurl.h"
 
 namespace containers {
@@ -102,6 +103,10 @@ void ContainersMenu::AppendForNewTab(ui::SimpleMenuModel* menu,
                                      int command_id,
                                      BrowserWindowInterface* browser,
                                      std::unique_ptr<ContainersMenu>& slot) {
+  // Incognito and guest windows have no containers.
+  if (!ContainersServiceFactory::GetForProfile(browser->GetProfile())) {
+    return;
+  }
   menu->AddSeparator(ui::NORMAL_SEPARATOR);
   Append(menu, command_id, IDS_OGANESSON_CONTAINERS_NEW_TAB,
          browser->GetProfile(), std::string(),
@@ -189,8 +194,10 @@ void ContainersMenu::Append(ui::SimpleMenuModel* menu,
     if (container.id == current) {
       continue;
     }
-    model.AddItemWithIcon(next, base::UTF8ToUTF16(container.name),
-                          IconOf(container));
+    model.AddItemWithIcon(
+        next,
+        ui::EscapeMenuLabelAmpersands(base::UTF8ToUTF16(container.name)),
+        IconOf(container));
     submenu->ids_.push_back(container.id);
   }
   model.AddItemWithStringId(IDC_OGANESSON_CONTAINERS_TEMPORARY,
@@ -224,9 +231,16 @@ void ContainersMenu::ExecuteCommand(int command_id, int event_flags) {
       return;
   }
   const size_t index = command_id - IDC_OGANESSON_CONTAINERS_FIRST;
-  // The container may be gone while the menu was open.
-  if (index < ids_.size() && service->Get(ids_[index])) {
-    open_.Run(ids_[index]);
+  if (index >= ids_.size()) {
+    return;
+  }
+  // The container may have been deleted while the menu was open. Get() still
+  // finds it while its storage is being deleted.
+  for (const Container& container : service->GetContainers()) {
+    if (container.id == ids_[index]) {
+      open_.Run(ids_[index]);
+      return;
+    }
   }
 }
 

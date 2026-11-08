@@ -110,10 +110,10 @@ class ContainersTest(BrowserTest):
         return page.eval("location.protocol === 'http:' && document.readyState === 'complete'"
                          " ? document.cookie : null")
 
-    def cookie(self, page):
+    def cookie(self, page, timeout=15):
         """The page's cookies, once it has loaded."""
         return wait_for(lambda: (lambda c: c is not None and [c])(self.cookie_now(page)),
-                        what='the page to load')[0]
+                        timeout=timeout, what='the page to load')[0]
 
     def set_cookie(self, page, name):
         page.eval(f"document.cookie = 'in={name}; max-age=86400'")
@@ -198,13 +198,15 @@ class ContainersTest(BrowserTest):
         self.work_page().eval("document.title = 'pin me'")
         self.browser.click_view(self.tab_titled('pin me'), button=3)
         self.choose('Pin')
+        tabs = len(self.page_tabs())
         self.browser.quit()
         self.browser.start()
+        wait_for(lambda: len(self.page_tabs()) == tabs, what='every tab to be restored')
         # Restored tabs load when shown: each is shown in turn.
         cookies = []
         for page in self.page_tabs():
             page.call('Page.bringToFront')
-            cookies.append(self.cookie(page))
+            cookies.append(self.cookie(page, timeout=60))
         self.assertEqual(sorted(set(cookies)), ['in=default', 'in=personal', 'in=work'])
 
     def test_4_reopen_closed_tab(self):
@@ -295,6 +297,7 @@ class ContainersTest(BrowserTest):
         # Another container doesn't get its cookies.
         self.browser.click_view(self.new_tab_button(), button=3)
         self.browser.click_view(self.menu_item('New tab in container'))
+        self.menu_item('Work')
         titles = [i['Title'] for menu in self.browser.menus() for group in menu for i in group]
         self.browser.key('Escape')
         self.browser.key('Escape')

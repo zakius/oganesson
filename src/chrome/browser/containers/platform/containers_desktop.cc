@@ -136,6 +136,10 @@ void NavigateInContainer(NavigateParams* params, const std::string& id) {
   params->contents_to_insert = content::WebContents::Create(create_params);
   content::WebContents* contents = params->contents_to_insert.get();
   Navigate(params);
+  // Navigate() stopped early and left it to go with `params`.
+  if (params->contents_to_insert) {
+    return;
+  }
   // Loads once in its tab strip, where its tab helpers watch it.
   content::NavigationController::LoadURLParams load(params->url);
   load.transition_type = params->transition;
@@ -177,6 +181,10 @@ void ReopenTabsInContainer(const std::vector<tabs::TabInterface*>& tabs,
     BrowserWindowInterface* browser = tab->GetBrowserWindowInterface();
     TabStripModel* model = browser->GetTabStripModel();
     content::WebContents* old_contents = tab->GetContents();
+    // Already there: reopening would only lose its history.
+    if (ContainerIdOf(old_contents) == id) {
+      continue;
+    }
     const bool pinned = tab->IsPinned();
     content::WebContents* contents = OpenInContainer(
         browser, old_contents->GetLastCommittedURL(), id,
