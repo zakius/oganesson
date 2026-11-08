@@ -64,3 +64,4 @@ oganesson/ui/app-window-modal-dialog.patch
 ../dubna/patches/containers.patch
 oganesson/core/containers.patch
 oganesson/ui/containers-menus.patch
+oganesson/settings/containers-settings.patch
