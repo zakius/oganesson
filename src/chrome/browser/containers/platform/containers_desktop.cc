@@ -181,6 +181,10 @@ void ReopenTabsInContainer(const std::vector<tabs::TabInterface*>& tabs,
     BrowserWindowInterface* browser = tab->GetBrowserWindowInterface();
     TabStripModel* model = browser->GetTabStripModel();
     content::WebContents* old_contents = tab->GetContents();
+    // Already there: reopening would only lose its history.
+    if (ContainerIdOf(old_contents) == id) {
+      continue;
+    }
     const bool pinned = tab->IsPinned();
     content::WebContents* contents = OpenInContainer(
         browser, old_contents->GetLastCommittedURL(), id,
