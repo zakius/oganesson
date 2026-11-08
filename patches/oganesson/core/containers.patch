@@ -9,7 +9,7 @@
 # - browser_tabstrip.cc: a new tab opens in the container Settings says (brave-core#40693).
 # - startup_tab.h, pinned_tab_codec.cc, startup_browser_creator_impl.cc: pinned tabs, which open
 #   at startup without the session when Settings says to open the new tab page, keep their
-#   container too.
+#   container too: one in a container opens now, not deferred without it.
 --- a/chrome/app/chrome_command_ids.h
 +++ b/chrome/app/chrome_command_ids.h
 @@ -465,6 +465,13 @@
@@ -97,7 +97,17 @@
  #include "chrome/browser/ui/navigator/browser_navigator.h"
  #include "chrome/browser/ui/navigator/browser_navigator_params.h"
  #include "chrome/browser/ui/startup/infobar_utils.h"
-@@ -508,7 +509,7 @@
+@@ -473,7 +474,8 @@
+ 
+     // Pinned tabs from the startup-tab provider do not pass through the session
+     // restore tab loader, so add background ones without loading them.
+-    if (!first_tab && tab.type == StartupTab::Type::kPinned) {
++    if (!first_tab && tab.type == StartupTab::Type::kPinned &&
++        tab.container.empty()) {
+       AddDeferredPinnedStartupTab(browser, tab.url);
+       continue;
+     }
+@@ -508,7 +510,7 @@
      }
  #endif  // BUILDFLAG(ENABLE_RLZ)
  
