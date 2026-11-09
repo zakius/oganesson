@@ -1,0 +1,112 @@
+# Containers' address bar icon (src/chrome/browser/containers/platform/container_page_action.h):
+# a page action of its own id, whose browser action opens the tab's containers menu, and a
+# per-tab controller in TabFeatures that shows the container's icon.
+--- a/chrome/browser/ui/actions/chrome_action_id.h
++++ b/chrome/browser/ui/actions/chrome_action_id.h
+@@ -567,6 +567,7 @@
+   E(kActionShowAiOverlayDialog) \
+   E(kActionAutofillPayment) \
+   E(kActionWalletReminderNotice) \
++  E(kActionShowContainer) \
+   E(kActionTtcToolbar) \
+ 
+ #define SUBMENU_ACTION_IDS                                                     \
+--- a/chrome/browser/ui/browser_actions.cc
++++ b/chrome/browser/ui/browser_actions.cc
+@@ -23,6 +23,7 @@
+ #include "chrome/app/chrome_command_ids.h"
+ #include "chrome/app/vector_icons/vector_icons.h"
+ #include "chrome/browser/browsing_data/browsing_data_important_sites_util.h"
++#include "chrome/browser/containers/platform/container_page_action.h"
+ #include "chrome/browser/contextual_cueing/contextual_cueing_controller.h"
+ #include "chrome/browser/contextual_cueing/features.h"
+ #include "chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.h"
+@@ -912,6 +913,9 @@
+                   ? kCreditCardIcon
+                   : kCreditCardChromeRefreshOldIcon))
+           .Build());
++
++  root_action_item_->AddChild(
++      containers::ContainerPageAction::CreateActionItem(bwi));
+ }
+ 
+ void BrowserActions::InitializeChromeMenuActions() {
+--- a/chrome/browser/ui/page_action/action_ids.h
++++ b/chrome/browser/ui/page_action/action_ids.h
+@@ -55,6 +55,7 @@
+     kActionShowPaymentsChurnedUsersBubble,
+     kActionFakePageActionForDebug,
+     kActionWalletReminderNotice,
++    kActionShowContainer,
+ 
+     // Add any new page actions before this line to ensure that the bookmark
+     // star is always the right-most page action.
+--- a/chrome/browser/ui/page_action/page_action_icon_type.h
++++ b/chrome/browser/ui/page_action/page_action_icon_type.h
+@@ -62,7 +62,8 @@
+   kPaymentsChurnedUsers = 47,
+   kFakePageActionForDebug = 48,
+   kWalletReminderNotice = 49,
+-  kMaxValue = kWalletReminderNotice,
++  kContainer = 50,
++  kMaxValue = kContainer,
+ };
+ // LINT.ThenChange(//tools/metrics/histograms/metadata/page/enums.xml:PageActionIconType)
+ 
+--- a/chrome/browser/ui/page_action/page_action_properties_provider.cc
++++ b/chrome/browser/ui/page_action/page_action_properties_provider.cc
+@@ -342,6 +342,14 @@
+             .element_identifier = kPageActionWalletReminderNoticeElementId,
+         },
+     },
++    {
++        kActionShowContainer,
++        {
++            .histogram_name = "Container",
++            .is_ephemeral = false,
++            .type = PageActionIconType::kContainer,
++        },
++    },
+ });
+ // LINT.ThenChange(//components/browser_apis/ui_controllers/toolbar/toolbar_ui_api_data_model.mojom:PageActionId,//chrome/browser/ui/page_action/action_ids.h:kActionIds)
+ 
+--- a/chrome/browser/ui/tabs/public/tab_features.h
++++ b/chrome/browser/ui/tabs/public/tab_features.h
+@@ -179,6 +179,10 @@
+ class ClientHintsWebContentsObserver;
+ }  // namespace client_hints
+ 
++namespace containers {
++class ContainerPageAction;
++}  // namespace containers
++
+ namespace content {
+ class WebContents;
+ }  // namespace content
+@@ -689,6 +693,7 @@
+   // Manages the Cookie Controls page action.
+   std::unique_ptr<CookieControlsPageActionController>
+       cookie_controls_page_action_controller_;
++  std::unique_ptr<containers::ContainerPageAction> container_page_action_;
+ 
+   // Manages the Lens Overlay Homework page action.
+   std::unique_ptr<LensOverlayHomeworkPageActionController>
+--- a/chrome/browser/ui/tabs/tab_features.cc
++++ b/chrome/browser/ui/tabs/tab_features.cc
+@@ -26,6 +26,7 @@
+ #include "chrome/browser/commerce/in_stock_notification/in_stock_notification_manager.h"
+ #include "chrome/browser/commerce/shopping_service_factory.h"
+ #include "chrome/browser/complex_tasks/task_tab_helper.h"
++#include "chrome/browser/containers/platform/container_page_action.h"
+ #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
+ #include "chrome/browser/content_settings/mixed_content_settings_tab_helper.h"
+ #include "chrome/browser/content_settings/page_specific_content_settings_delegate.h"
+@@ -560,6 +561,8 @@
+             tab, tab, *profile, *page_action_controller_);
+     cookie_controls_page_action_controller_->Init();
+   }
++  container_page_action_ = std::make_unique<containers::ContainerPageAction>(
++      tab, *page_action_controller_);
+ 
+   if (page_action_controller_->ActionExists(kActionLensOverlayHomework)) {
+     lens_overlay_homework_page_action_controller_ =

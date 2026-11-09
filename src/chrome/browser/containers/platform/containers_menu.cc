@@ -82,20 +82,36 @@ void ContainersMenu::AppendForTabs(ui::SimpleMenuModel* menu,
     return;
   }
   Append(menu, command_id, IDS_OGANESSON_CONTAINERS_REOPEN, model->profile(),
-         current,
-         base::BindRepeating(
-             [](const std::vector<base::WeakPtr<tabs::TabInterface>>& tabs,
-                const std::string& id) {
-               std::vector<tabs::TabInterface*> alive;
-               for (const auto& tab : tabs) {
-                 if (tab) {
-                   alive.push_back(tab.get());
-                 }
-               }
-               ReopenTabsInContainer(alive, id);
-             },
-             std::move(tabs)),
-         slot);
+         current, ReopenCallback(std::move(tabs)), slot);
+}
+
+// static
+std::unique_ptr<ContainersMenu> ContainersMenu::ForTab(tabs::TabInterface* tab) {
+  BrowserWindowInterface* browser = tab->GetBrowserWindowInterface();
+  content::WebContents* contents = tab->GetContents();
+  if (!browser || !contents ||
+      !contents->GetLastCommittedURL().SchemeIsHTTPOrHTTPS()) {
+    return nullptr;
+  }
+  return Create(browser->GetProfile(), ContainerIdOf(contents),
+                ReopenCallback({tab->GetWeakPtr()}));
+}
+
+// static
+ContainersMenu::OpenCallback ContainersMenu::ReopenCallback(
+    std::vector<base::WeakPtr<tabs::TabInterface>> tabs) {
+  return base::BindRepeating(
+      [](const std::vector<base::WeakPtr<tabs::TabInterface>>& tabs,
+         const std::string& id) {
+        std::vector<tabs::TabInterface*> alive;
+        for (const auto& tab : tabs) {
+          if (tab) {
+            alive.push_back(tab.get());
+          }
+        }
+        ReopenTabsInContainer(alive, id);
+      },
+      std::move(tabs));
 }
 
 // static
@@ -173,9 +189,23 @@ void ContainersMenu::Append(ui::SimpleMenuModel* menu,
                             const std::string& current,
                             OpenCallback open,
                             std::unique_ptr<ContainersMenu>& slot) {
+  std::unique_ptr<ContainersMenu> submenu =
+      Create(profile, current, std::move(open));
+  if (!submenu) {
+    return;
+  }
+  slot = std::move(submenu);
+  menu->AddSubMenuWithStringId(command_id, label, &slot->model_);
+}
+
+// static
+std::unique_ptr<ContainersMenu> ContainersMenu::Create(
+    Profile* profile,
+    const std::string& current,
+    OpenCallback open) {
   ContainersService* service = ContainersServiceFactory::GetForProfile(profile);
   if (!service) {
-    return;
+    return nullptr;
   }
   auto submenu =
       base::WrapUnique(new ContainersMenu(profile, std::move(open)));
@@ -205,8 +235,7 @@ void ContainersMenu::Append(ui::SimpleMenuModel* menu,
   model.AddSeparator(ui::NORMAL_SEPARATOR);
   model.AddItemWithStringId(IDC_OGANESSON_CONTAINERS_MANAGE,
                             IDS_OGANESSON_CONTAINERS_MANAGE);
-  slot = std::move(submenu);
-  menu->AddSubMenuWithStringId(command_id, label, &slot->model_);
+  return submenu;
 }
 
 ContainersMenu::ContainersMenu(Profile* profile, OpenCallback open)

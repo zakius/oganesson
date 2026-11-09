@@ -37,6 +37,9 @@ struct Container;
 // The container's icon in its color, `size` pixels square.
 ui::ImageModel IconOf(const Container& container, int size = 16);
 
+// The same icon as an image, for views that would recolor a vector icon.
+ui::ImageModel IconImageOf(const Container& container, int size = 16);
+
 // Navigate(), with the new tab in container `id`, or outside containers when
 // `id` is empty. For a new tab or window: `params` has no contents yet.
 void NavigateInContainer(NavigateParams* params, const std::string& id);

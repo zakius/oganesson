@@ -148,6 +148,11 @@ ui::ImageModel IconOf(const Container& container, int size) {
                                         container.color_value(), size);
 }
 
+ui::ImageModel IconImageOf(const Container& container, int size) {
+  return ui::ImageModel::FromImageSkia(gfx::CreateVectorIcon(
+      VectorIconOf(container.icon), size, container.color_value()));
+}
+
 void NavigateInContainer(NavigateParams* params, const std::string& id) {
   if (id.empty()) {
     Navigate(params);

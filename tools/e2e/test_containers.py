@@ -1,6 +1,7 @@
 """Containers (docs/containers.md): each container keeps its own cookies and
 site storage. Tabs get into one from the menus, keep it for the links they
 open and across a restart, and Traffic Control rules move pages into one.
+The address bar shows the tab's container.
 
 The tests are steps of one session, in order. A tab's container shows in its
 cookies: each tab sets a cookie named after where it is.
@@ -303,6 +304,28 @@ class ContainersTest(BrowserTest):
         self.browser.key('Escape')
         self.assertNotIn('Personal', titles)
         self.assertIn('Work', titles)
+
+    def container_icons(self):
+        return [v for v in self.browser.views('PageActionView')
+                if v.visible and v['TooltipText'].startswith('Container: ')]
+
+    def test_9_address_bar_icon(self):
+        work = self.new_tab_in('Work')
+        icon = self.browser.wait_view(
+            'PageActionView', match=lambda v: v['TooltipText'] == 'Container: Work')
+        # A click opens the menu to reopen the tab in another container.
+        self.browser.click_view(icon)
+        self.menu_item('No container')
+        titles = [i['Title'] for menu in self.browser.menus() for group in menu for i in group]
+        self.browser.key('Escape')
+        self.assertNotIn('Work', titles)
+        self.assertIn('Manage containers…', titles)
+        # A tab outside containers has none.
+        other = self.browser.new_tab(self.url('/other'))
+        wait_for(lambda: other.eval('document.title') == 'other', what='the page')
+        wait_for(lambda: not self.container_icons(), what='no container icon')
+        self.browser.close_target(other)
+        self.browser.close_target(work)
 
 
 class ContainersVerticalTabsTest(BrowserTest):

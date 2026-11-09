@@ -7,6 +7,8 @@
 # containers.patch makes the browser depend on this.
 source_set("platform") {
   sources = [
+    "container_page_action.cc",
+    "container_page_action.h",
     "containers_desktop.cc",
     "containers_desktop.h",
     "containers_menu.cc",
@@ -27,7 +29,9 @@ source_set("platform") {
     "//content/public/browser",
     "//ui/base",
     "//ui/gfx",
+    "//ui/actions",
     "//ui/menus",
+    "//ui/views",
     "//url",
   ]
 }

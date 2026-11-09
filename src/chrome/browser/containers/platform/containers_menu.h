@@ -11,6 +11,7 @@
 
 #include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
+#include "base/memory/weak_ptr.h"
 #include "ui/menus/simple_menu_model.h"
 
 class BrowserWindowInterface;
@@ -24,6 +25,10 @@ class BookmarkNode;
 
 namespace content {
 class WebContents;
+}
+
+namespace tabs {
+class TabInterface;
 }
 
 namespace containers {
@@ -67,9 +72,15 @@ class ContainersMenu : public ui::SimpleMenuModel::Delegate {
                                VectorExperimental>>& selection,
       std::unique_ptr<ContainersMenu>& slot);
 
+  // The menu of the address bar's container icon of `tab`: the containers to
+  // reopen it in. Null when the tab can't move.
+  static std::unique_ptr<ContainersMenu> ForTab(tabs::TabInterface* tab);
+
   ContainersMenu(const ContainersMenu&) = delete;
   ContainersMenu& operator=(const ContainersMenu&) = delete;
   ~ContainersMenu() override;
+
+  ui::SimpleMenuModel* model() { return &model_; }
 
   // ui::SimpleMenuModel::Delegate:
   void ExecuteCommand(int command_id, int event_flags) override;
@@ -77,7 +88,15 @@ class ContainersMenu : public ui::SimpleMenuModel::Delegate {
  private:
   ContainersMenu(Profile* profile, OpenCallback open);
 
-  // Adds the submenu to `menu` with `label`, leaving out container `current`.
+  // The menu of the containers, leaving out container `current`, or null
+  // when `profile` has no containers.
+  static std::unique_ptr<ContainersMenu> Create(Profile* profile,
+                                                const std::string& current,
+                                                OpenCallback open);
+  // Reopens `tabs` in the container chosen.
+  static OpenCallback ReopenCallback(
+      std::vector<base::WeakPtr<tabs::TabInterface>> tabs);
+  // Adds the menu of Create() to `menu` as a submenu with `label`.
   static void Append(ui::SimpleMenuModel* menu,
                      int command_id,
                      int label,
