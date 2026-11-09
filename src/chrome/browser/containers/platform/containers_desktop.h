@@ -7,7 +7,9 @@
 
 #include <string>
 #include <string_view>
+#include <vector>
 
+#include "base/memory/weak_ptr.h"
 #include "ui/base/models/image_model.h"
 #include "ui/base/window_open_disposition.h"
 
@@ -17,6 +19,7 @@ struct NavigateParams;
 class Profile;
 
 namespace content {
+class NavigationHandle;
 class WebContents;
 class WebUIDataSource;
 }  // namespace content
@@ -42,7 +45,16 @@ ui::ImageModel IconImageOf(const Container& container, int size = 16);
 
 // Navigate(), with the new tab in container `id`, or outside containers when
 // `id` is empty. For a new tab or window: `params` has no contents yet.
-void NavigateInContainer(NavigateParams* params, const std::string& id);
+// Returns the new tab's navigation.
+base::WeakPtr<content::NavigationHandle> NavigateInContainer(
+    NavigateParams* params,
+    const std::string& id);
+
+// Navigate() for a page the user opens from the active tab of
+// `params->browser`, as Alt+Enter in the address bar or a link dropped on the
+// tab strip: a new tab or window opens in the active tab's container.
+base::WeakPtr<content::NavigationHandle> NavigateFromActiveTab(
+    NavigateParams* params);
 
 // Opens `url` in a new tab or window of `browser`, as `disposition` says, in
 // container `id`, or outside containers when `id` is empty. `source`, the tab

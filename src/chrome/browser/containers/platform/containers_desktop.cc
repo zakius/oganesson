@@ -28,6 +28,7 @@
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_ui_data_source.h"
+#include "content/public/common/url_utils.h"
 #include "ui/base/webui/web_ui_util.h"
 #include "ui/gfx/color_utils.h"
 #include "ui/gfx/image/image_skia.h"
@@ -153,10 +154,11 @@ ui::ImageModel IconImageOf(const Container& container, int size) {
       VectorIconOf(container.icon), size, container.color_value()));
 }
 
-void NavigateInContainer(NavigateParams* params, const std::string& id) {
+base::WeakPtr<content::NavigationHandle> NavigateInContainer(
+    NavigateParams* params,
+    const std::string& id) {
   if (id.empty()) {
-    Navigate(params);
-    return;
+    return Navigate(params);
   }
   Profile* profile = params->browser->GetProfile();
   content::WebContents::CreateParams create_params(
@@ -168,15 +170,31 @@ void NavigateInContainer(NavigateParams* params, const std::string& id) {
   Navigate(params);
   // Navigate() stopped early and left it to go with `params`.
   if (params->contents_to_insert) {
-    return;
+    return nullptr;
   }
   // Loads once in its tab strip, where its tab helpers watch it.
   content::NavigationController::LoadURLParams load(params->url);
   load.transition_type = params->transition;
   load.initiator_origin = params->initiator_origin;
   load.referrer = params->referrer;
-  contents->GetController().LoadURLWithParams(load);
+  load.extra_headers = params->extra_headers;
   params->navigated_or_inserted_contents = contents;
+  return contents->GetController().LoadURLWithParams(load);
+}
+
+base::WeakPtr<content::NavigationHandle> NavigateFromActiveTab(
+    NavigateParams* params) {
+  content::WebContents* active =
+      params->browser->GetTabStripModel()->GetActiveWebContents();
+  const bool new_contents =
+      params->disposition == WindowOpenDisposition::NEW_FOREGROUND_TAB ||
+      params->disposition == WindowOpenDisposition::NEW_BACKGROUND_TAB ||
+      params->disposition == WindowOpenDisposition::NEW_WINDOW;
+  // The browser's own pages stay outside containers, as restored ones do.
+  if (!active || !new_contents || content::HasWebUIScheme(params->url)) {
+    return Navigate(params);
+  }
+  return NavigateInContainer(params, ContainerIdOf(active));
 }
 
 content::WebContents* OpenInContainer(BrowserWindowInterface* browser,

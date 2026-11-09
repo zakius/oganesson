@@ -30,8 +30,13 @@ namespace containers {
 
 namespace {
 
-// A tab with nothing to keep: no history, and a blank or new tab page.
+// A tab with nothing to keep: no history, and a blank or new tab page. A
+// popup that a page holds as window.opener (an OAuth popup) is kept: closing
+// it would cut the page off from it.
 bool IsEmptyTab(content::WebContents* contents) {
+  if (contents->HasOpener()) {
+    return false;
+  }
   content::NavigationController& controller = contents->GetController();
   if (controller.CanGoBack() || controller.GetEntryCount() > 1) {
     return false;

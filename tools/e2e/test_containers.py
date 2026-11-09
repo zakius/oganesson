@@ -1,7 +1,8 @@
 """Containers (docs/containers.md): each container keeps its own cookies and
 site storage. Tabs get into one from the menus, keep it for the links they
 open and across a restart, and Traffic Control rules move pages into one.
-The address bar shows the tab's container.
+The address bar shows the tab's container. A link dropped on the tab strip
+and Alt+Enter in the address bar stay in the tab's container.
 
 The tests are steps of one session, in order. A tab's container shows in its
 cookies: each tab sets a cookie named after where it is.
@@ -9,6 +10,7 @@ cookies: each tab sets a cookie named after where it is.
 
 import hashlib
 import json
+import time
 import unittest
 
 from harness import BrowserTest, Page, Server, wait_for
@@ -46,7 +48,8 @@ class ContainersTest(BrowserTest):
     @classmethod
     def setUpClass(cls):
         cls.server = Server({'/page': (200, {'Content-Type': 'text/html'}, PAGE),
-                             '/other': (200, {'Content-Type': 'text/html'}, OTHER)})
+                             '/other': (200, {'Content-Type': 'text/html'}, OTHER),
+                             '/popup': (200, {'Content-Type': 'text/html'}, OTHER)})
         super().setUpClass()
 
     @classmethod
@@ -243,6 +246,16 @@ class ContainersTest(BrowserTest):
         # The tab it left keeps its page.
         self.assertEqual(default.eval('location.pathname'), '/page')
         self.browser.close_target(page)
+        # A popup that its page holds as window.opener (an OAuth popup): its
+        # page opens in the rule's container, and the popup stays open.
+        before = self.pages()
+        default.eval(f"self.popup = window.open({json.dumps(self.url('/popup', 'localhost'))}); 1")
+        page = wait_for(lambda: self.loaded_in(before, '/popup', 'in=work'),
+                        what="the rule's tab")
+        self.assertFalse(default.eval('popup.closed'))
+        default.eval('popup.close()')
+        self.browser.close_target(page)
+        wait_for(lambda: self.pages().keys() == before.keys(), what='the popup to close')
         # A form post stays in its tab, with its data: a reopened page has none.
         before = self.pages()
         default.eval("const form = document.createElement('form'); form.method = 'post';"
@@ -256,6 +269,19 @@ class ContainersTest(BrowserTest):
         self.assertEqual(self.pages().keys(), before.keys())
         self.browser.close_target(default)
         self.set_pref('containers.traffic_control', [])
+
+    def loaded_in(self, before, url_part, cookie):
+        """A new tab, not in `before`, that has loaded `url_part` with
+        `cookie`, or None."""
+        for target in self.browser.targets():
+            if (target['type'] != 'page' or target['id'] in before
+                    or url_part not in target['url']):
+                continue
+            page = Page(target)
+            if self.cookie_now(page) == cookie:
+                return page
+            page.close()
+        return None
 
     def test_6_temporary_containers(self):
         first = self.new_tab_in('New temporary container')
@@ -336,6 +362,42 @@ class ContainersTest(BrowserTest):
         wait_for(lambda: other.eval('document.title') == 'other', what='the page')
         wait_for(lambda: not self.container_icons(), what='no container icon')
         self.browser.close_target(other)
+        self.browser.close_target(work)
+
+    # Step 8's restart left the restored tabs unloaded: the steps below open
+    # a Work tab of their own.
+
+    def test_9a_dropped_link_stays_in_the_container(self):
+        work = self.new_tab_in('Work')
+        contents = self.browser.wait_view('ContentsWebView').bounds
+        x, y = work.eval('(() => { const r = document.getElementById("link")'
+                         '.getBoundingClientRect(); return [r.x + 5, r.y + r.height / 2]; })()')
+        start = (contents['x'] + int(x), contents['y'] + int(y))
+        # Past the end of the tabs, so the link opens in a new tab there.
+        button = self.new_tab_button().bounds
+        end = (button['x'] + button['width'] + 60, button['y'] + button['height'] // 2)
+        before = self.pages()
+        self.browser.xdotool('mousemove', str(start[0]), str(start[1]), 'mousedown', '1')
+        for step in range(1, 21):
+            self.browser.xdotool('mousemove', str(start[0] + (end[0] - start[0]) * step // 20),
+                                 str(start[1] + (end[1] - start[1]) * step // 20))
+            time.sleep(0.05)
+        time.sleep(0.5)
+        self.browser.xdotool('mouseup', '1')
+        page = wait_for(lambda: self.loaded_in(before, '/other?link', 'in=work'),
+                        what='the dropped link in Work')
+        self.browser.close_target(page)
+        self.browser.close_target(work)
+
+    def test_9b_alt_enter_stays_in_the_container(self):
+        work = self.new_tab_in('Work')
+        before = self.pages()
+        self.browser.key('ctrl+l')
+        self.browser.xdotool('type', '--delay', '20', self.url('/other?alt'))
+        self.browser.key('alt+Return')
+        page = wait_for(lambda: self.loaded_in(before, '/other?alt', 'in=work'),
+                        what='the address in Work')
+        self.browser.close_target(page)
         self.browser.close_target(work)
 
 

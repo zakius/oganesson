@@ -14,7 +14,7 @@ The code is a port of Brave's containers (`brave-core` main of 2026-11-08, MPL-2
 
 A container tab has a line in the container's color along its bottom, as in Firefox, in the horizontal and the vertical tab strip. The address bar shows its container's icon, with the container's name in the tooltip; a click on it opens the menu to reopen the tab in another container.
 
-A link a container tab opens stays in the container, whether it opens in the same tab, a new tab (middle click, `target=_blank`, `window.open`, with or without `noopener`) or a new window. New tabs from the New Tab button or a bookmark open outside containers, unless Settings says otherwise (below).
+A link a container tab opens stays in the container, whether it opens in the same tab, a new tab (middle click, `target=_blank`, `window.open`, with or without `noopener`) or a new window. So do a link dropped on the tab strip and an address opened with Alt+Enter while a container tab is shown. New tabs from the New Tab button or a bookmark open outside containers, unless Settings says otherwise (below).
 
 **Settings > Privacy and security > Containers** (`chrome://settings/containers`) lists the containers: add one, change its name, color or icon, or delete it. A new profile has Firefox's four: Personal, Work, Banking and Shopping. Its **Open new tabs in** says where the New Tab button and Ctrl+T open a tab: outside containers (the default), in a container, or in a new temporary container each time, as Brave's pull request brave-core#40693 does without its Ask choice.
 
@@ -26,7 +26,7 @@ A temporary container gets a name such as "Temporary 2" and a random color. Its 
 
 The same Settings page has Traffic Control's rules: sites that match a rule open in its container, a new temporary container each time, or outside containers, whichever tab they start in. A rule's sites are patterns of the URL blocklist policy's format (`example.com`, `https://*.example.org/path`), one per line; lines that start with `#` are comments. The first enabled rule that matches wins.
 
-A navigation that a rule sends elsewhere stops, and its page opens in a new tab in the rule's container beside its tab. The tab it started in closes when it was an empty new tab. A tab that browses within one site stays where it is, unless the address was typed, so a page the user opened in another container on purpose stays there. Reloads, back and forward, and restored tabs never move.
+A navigation that a rule sends elsewhere stops, and its page opens in a new tab in the rule's container beside its tab. The tab it started in closes when it was an empty new tab, unless a page holds it as its `window.opener` (an OAuth popup). A tab that browses within one site stays where it is, unless the address was typed, so a page the user opened in another container on purpose stays there. Reloads, back and forward, and restored tabs never move.
 
 ## Sync
 
@@ -40,6 +40,7 @@ Each container is a storage partition: domain `containers`, named by the contain
 |---|---|
 | The menus, Traffic Control, pinned tabs at startup | `NavigateInContainer()` creates the WebContents in the container's partition and inserts it. |
 | A link to a new tab without an opener (middle click, the context menu's "Open link in new tab") | `browser_navigator.cc` takes the container of the page that opens it (`InheritContainer()`). |
+| A link dropped on the tab strip, Alt+Enter in the address bar | `NavigateFromActiveTab()` opens it in the active tab's container. |
 | A window a page opens without an opener (`target=_blank`, `noopener`) | `web_contents_impl.cc` keeps the page's partition, for container partitions only, as content does for guests. |
 | A window a page opens with an opener (`window.open`) | Chromium already uses the opener's SiteInstance. |
 | A restored tab, after a restart or reopened | `browser_tabrestore.cc` asks `SiteInstanceToRestore()`, which reads the container that the session saved. |
@@ -83,6 +84,7 @@ Desktop, in `patches/oganesson/core/containers.patch`:
 | `chrome/browser/ui/browser_tabrestore.cc` | 3 | A restored tab's SiteInstance. |
 | `chrome/browser/ui/browser_tabstrip.cc` | 5 | A new tab opens in the container Settings says. |
 | `chrome/browser/ui/startup/startup_tab.h`, `pinned_tab_codec.cc`, `startup_browser_creator_impl.cc` | 16 | Pinned tabs at startup keep their container. |
+| `chrome/browser/ui/browser_commands.cc` (Alt+Enter), `views/frame/browser_root_view.cc` (a dropped link) | 4 | `NavigateFromActiveTab()` instead of `Navigate()`. |
 
 In `patches/oganesson/ui/containers-menus.patch`, each menu adds its submenu in 3 to 4 lines and keeps it in one member: `render_view_context_menu.cc/.h`, `tab_menu_model.cc/.h`, `new_tab_button_menu_model.cc/.h` (upstream's New Tab button menu) and `bookmark_context_menu_controller.cc/.h`. Each submenu item takes an upstream command id whose enablement fits, as Send to device does, so no menu's enablement code changes. `tab.cc` and the vertical strip's `tabs/common/tab_view.cc` draw the color line (1 line each).
 
