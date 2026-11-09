@@ -4,6 +4,7 @@ open and across a restart, and Traffic Control rules move pages into one.
 The address bar shows the tab's container. A link dropped on the tab strip
 and Alt+Enter in the address bar stay in the tab's container, the New Tab
 button can ask where to open, and commands open a new tab in a container.
+A site's zoom level is the same in every container.
 
 The tests are steps of one session, in order. A tab's container shows in its
 cookies: each tab sets a cookie named after where it is.
@@ -460,6 +461,27 @@ class ContainersTest(BrowserTest):
             self.assertIn("New tab in the current tab's container", settings.eval(page_text))
         finally:
             self.browser.close_target(settings)
+
+    def test_9e_zoom_is_shared(self):
+        # A site's zoom level is the same in every container, as in Firefox.
+        url = self.url('/other?zoom', 'localhost')
+        default = self.browser.new_tab(url)
+        wait_for(lambda: default.eval('document.title') == 'other', what='the page')
+        ratio = default.eval('devicePixelRatio')
+        default.call('Page.bringToFront')
+        self.browser.key('ctrl+equal')
+        wait_for(lambda: default.eval('devicePixelRatio') > ratio, what='the zoom')
+        zoomed = default.eval('devicePixelRatio')
+        try:
+            work = self.new_tab_in('Work')
+            work.call('Page.navigate', url=url)
+            wait_for(lambda: work.eval('document.title') == 'other', what='the page in Work')
+            wait_for(lambda: work.eval('devicePixelRatio') == zoomed, what="the site's zoom in Work")
+            self.browser.close_target(work)
+        finally:
+            default.call('Page.bringToFront')
+            self.browser.key('ctrl+0')
+            self.browser.close_target(default)
 
 
 class ContainersTabLineTest(BrowserTest):

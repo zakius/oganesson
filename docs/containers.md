@@ -71,6 +71,7 @@ Lines are the lines a patch adds or changes, includes counted. Shared, in `dubna
 |---|---|---|
 | `content/browser/web_contents/web_contents_impl.cc` | 5 | A window opened without an opener gets a new default SiteInstance: no upstream hook gives it a partition. |
 | `content/browser/renderer_host/navigation_entry_impl.cc` | 11 | The partition a page committed in, which the session handler saves. The public `NavigationEntry` doesn't tell its SiteInstance. |
+| `content/browser/host_zoom_map_impl.cc` | 8 | Containers share the default partition's zoom levels, as in Firefox: Chromium keeps a `HostZoomMap` per partition. |
 | `components/permissions/permission_util.cc` | 7 | Notifications: Chromium blocks them in a partition that isn't the site's own. |
 | `chrome/browser/profiles/chrome_browser_main_extra_parts_profiles.cc` | 2 | Builds the service factory at startup, which registers the prefs. |
 | `chrome/browser/chrome_content_browser_client_navigation_throttles.cc` | 2 | Traffic Control's throttle. |
@@ -99,4 +100,3 @@ In `patches/oganesson/ui/containers-menus.patch`, each menu adds its submenu in 
 ## Not done
 
 - The WebExtensions `contextualIdentities` API and a proxy per container are later tasks (goals.md).
-- Zoom levels are per partition, so a container keeps its own zoom levels. Brave makes containers share the default ones with another content hook.
