@@ -143,4 +143,7 @@
   <message name="IDS_OGANESSON_TRAFFIC_CONTROL_NONE_YET" desc="Settings, Containers page: shown when there are no Traffic Control rules.">
     No rules
   </message>
+  <message name="IDS_OGANESSON_CONTAINERS_NEW_TABS_ASK" desc="Settings, Containers page: a choice of where new tabs open: a click on the New Tab button shows the menu of containers to open the tab in.">
+    Ask every time
+  </message>
 </grit-part>

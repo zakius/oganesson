@@ -37,6 +37,12 @@ namespace containers {
 
 struct Container;
 
+// Settings' "Ask every time" for new tabs, a value of the pref
+// containers.new_tab: the New Tab button shows the containers menu
+// (AskForNewTab()). ContainersService::NewTabContainer() knows no container
+// by this id, so Ctrl+T opens a tab outside containers.
+inline constexpr char kAskForNewTab[] = "ask";
+
 // The container's icon in its color, `size` pixels square.
 ui::ImageModel IconOf(const Container& container, int size = 16);
 

@@ -104,6 +104,7 @@ void AddSettingsStrings(content::WebUIDataSource* source) {
       {"containersDeleteBody", IDS_OGANESSON_CONTAINERS_DELETE_BODY},
       {"containersNoneYet", IDS_OGANESSON_CONTAINERS_NONE_YET},
       {"containersNewTabs", IDS_OGANESSON_CONTAINERS_NEW_TABS},
+      {"containersNewTabsAsk", IDS_OGANESSON_CONTAINERS_NEW_TABS_ASK},
       {"trafficControlTitle", IDS_OGANESSON_TRAFFIC_CONTROL_TITLE},
       {"trafficControlDescription", IDS_OGANESSON_TRAFFIC_CONTROL_DESCRIPTION},
       {"trafficControlAdd", IDS_OGANESSON_TRAFFIC_CONTROL_ADD},

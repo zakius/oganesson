@@ -1383,5 +1383,10 @@
     "name": "IDS_OGANESSON_CONTAINERS_NEW_TABS",
     "source": "Open new tabs in",
     "message": "Otwieraj nowe karty w"
+  },
+  {
+    "name": "IDS_OGANESSON_CONTAINERS_NEW_TABS_ASK",
+    "source": "Ask every time",
+    "message": "Pytaj za każdym razem"
   }
 ]

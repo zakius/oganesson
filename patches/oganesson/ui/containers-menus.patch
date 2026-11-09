@@ -1,7 +1,9 @@
 # Containers' menus and tab line (src/chrome/browser/containers/platform/containers_menu.h): a
 # submenu in the link, tab, New Tab button and bookmark context menus, and a line in the
 # container's color under the tab. Each submenu item takes an upstream command id whose
-# enablement fits, as Send to device does.
+# enablement fits, as Send to device does. With Settings' "Ask every time", a click on the New
+# Tab button (tab_strip.cc, and shared/new_tab_button.cc for the vertical strip) shows the menu of
+# containers instead.
 --- a/chrome/browser/renderer_context_menu/render_view_context_menu.cc
 +++ b/chrome/browser/renderer_context_menu/render_view_context_menu.cc
 @@ -132,6 +132,7 @@
@@ -12,7 +14,7 @@
  #include "chrome/browser/ui/read_anything/read_anything_controller.h"
  #include "chrome/browser/ui/read_anything/read_anything_entry_point_controller.h"
  #include "chrome/browser/firefox_sync/platform/send_to_device_menu.h"
-@@ -2120,6 +2121,9 @@
+@@ -2120,6 +2121,9 @@ void RenderViewContextMenu::AppendLinkItems() {
                : vector_icons::kBusinessChromeRefreshOldIcon);
      }
  
@@ -24,18 +26,18 @@
  
 --- a/chrome/browser/renderer_context_menu/render_view_context_menu.h
 +++ b/chrome/browser/renderer_context_menu/render_view_context_menu.h
-@@ -66,6 +66,10 @@
- 
- namespace firefox_sync {
+@@ -68,6 +68,10 @@ namespace firefox_sync {
  class SendToDeviceMenu;
-+}
-+
-+namespace containers {
-+class ContainersMenu;
  }
  
++namespace containers {
++class ContainersMenu;
++}
++
  namespace content {
-@@ -656,6 +660,7 @@
+ class NavigationHandle;
+ class RenderFrameHost;
+@@ -656,6 +660,7 @@ class RenderViewContextMenu
    std::unique_ptr<ui::SimpleMenuModel> split_layout_submenu_;
  
    std::unique_ptr<firefox_sync::SendToDeviceMenu> send_to_device_menu_;
@@ -53,7 +55,7 @@
  #include "chrome/browser/bookmarks/bookmark_merged_surface_service_factory.h"
  #include "chrome/browser/bookmarks/bookmark_model_factory.h"
  #include "chrome/browser/bookmarks/managed_bookmark_service_factory.h"
-@@ -301,6 +302,10 @@
+@@ -301,6 +302,10 @@ void BookmarkContextMenuController::BuildMenu() {
      }
    }
  
@@ -66,18 +68,18 @@
    // be disabled.
 --- a/chrome/browser/ui/bookmarks/bookmark_context_menu_controller.h
 +++ b/chrome/browser/ui/bookmarks/bookmark_context_menu_controller.h
-@@ -23,6 +23,10 @@
- class BookmarkMergedSurfaceService;
+@@ -24,6 +24,10 @@ class BookmarkMergedSurfaceService;
  struct BookmarkParentFolder;
  class BookmarkUIOperationsHelperMergedSurfaces;
-+
+ 
 +namespace containers {
 +class ContainersMenu;
 +}
- 
++
  // An interface implemented by an object that performs actions on the actual
  // menu for the controller.
-@@ -145,6 +149,7 @@
+ class BookmarkContextMenuControllerDelegate {
+@@ -145,6 +149,7 @@ class BookmarkContextMenuController
    const raw_ptr<BookmarkMergedSurfaceService> bookmark_service_;
    std::unique_ptr<ui::SimpleMenuModel> menu_model_;
    std::unique_ptr<ui::SimpleMenuModel> submenu_model_;
@@ -95,7 +97,7 @@
  #include "chrome/browser/ui/tabs/existing_tab_group_sub_menu_model.h"
  #include "chrome/browser/ui/tabs/existing_window_sub_menu_model.h"
  #include "chrome/browser/ui/tabs/features.h"
-@@ -524,6 +525,10 @@
+@@ -524,6 +525,10 @@ void TabMenuModel::Build(int index) {
    AddItemWithStringId(TabStripModel::CommandDuplicate,
                        IDS_TAB_CXMENU_DUPLICATE);
    SetElementIdentifierAt(GetItemCount() - 1, kDuplicateMenuItem);
@@ -108,18 +110,18 @@
    AddItemWithStringId(
 --- a/chrome/browser/ui/tabs/tab_menu_model.h
 +++ b/chrome/browser/ui/tabs/tab_menu_model.h
-@@ -15,6 +15,10 @@
- 
- namespace firefox_sync {
+@@ -17,6 +17,10 @@ namespace firefox_sync {
  class SendToDeviceMenu;
-+}
-+
-+namespace containers {
-+class ContainersMenu;
  }
  
++namespace containers {
++class ContainersMenu;
++}
++
  #if BUILDFLAG(ENABLE_EXTENSIONS)
-@@ -106,6 +110,7 @@
+ namespace extensions {
+ class ContextMenuMatcher;
+@@ -106,6 +110,7 @@ class TabMenuModel : public ui::SimpleMenuModel {
    std::unique_ptr<ui::SimpleMenuModel> glic_tab_sub_menu_model_;
    std::unique_ptr<ui::SimpleMenuModel> send_tab_to_self_submenu_;
    std::unique_ptr<firefox_sync::SendToDeviceMenu> send_to_device_menu_;
@@ -137,7 +139,7 @@
  #include "chrome/browser/dictation/dictation_keyed_service.h"
  #include "chrome/browser/glic/browser_ui/tab_underline_controller.h"
  #include "chrome/browser/glic/browser_ui/tab_underline_view.h"
-@@ -852,6 +853,7 @@
+@@ -852,6 +853,7 @@ void TabView::OnPaint(gfx::Canvas* canvas) {
    }
  
    tab_styling()->PaintTab(canvas);
@@ -145,6 +147,26 @@
  
    views::View::OnPaint(canvas);
  }
+--- a/chrome/browser/ui/views/tabs/shared/new_tab_button.cc
++++ b/chrome/browser/ui/views/tabs/shared/new_tab_button.cc
+@@ -6,6 +6,7 @@
+ 
+ #include "base/feature_list.h"
+ #include "build/build_config.h"
++#include "chrome/browser/containers/platform/containers_menu.h"
+ #include "chrome/browser/ui/actions/chrome_action_id.h"
+ #include "chrome/browser/ui/browser_actions.h"
+ #include "chrome/browser/ui/browser_commands.h"
+@@ -132,6 +133,9 @@ void NewTabButton::NotifyClick(const ui::Event& event) {
+     }
+   }
+ #endif
++  if (containers::ContainersMenu::AskForNewTab(browser_, this)) {
++    return;
++  }
+   TabStripFlatEdgeButton::NotifyClick(event);
+ }
+ 
 --- a/chrome/browser/ui/views/tabs/shared/new_tab_button_menu_model.cc
 +++ b/chrome/browser/ui/views/tabs/shared/new_tab_button_menu_model.cc
 @@ -9,6 +9,7 @@
@@ -155,7 +177,7 @@
  #include "chrome/browser/ui/browser_commands.h"
  #include "chrome/browser/ui/browser_window.h"
  #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
-@@ -46,6 +47,8 @@
+@@ -46,6 +47,8 @@ NewTabButtonMenuModel::NewTabButtonMenuModel(BrowserWindowInterface* browser)
  
    AddSeparator(ui::NORMAL_SEPARATOR);
    AddNewSplitTabItem();
@@ -166,18 +188,18 @@
  NewTabButtonMenuModel::~NewTabButtonMenuModel() = default;
 --- a/chrome/browser/ui/views/tabs/shared/new_tab_button_menu_model.h
 +++ b/chrome/browser/ui/views/tabs/shared/new_tab_button_menu_model.h
-@@ -10,6 +10,10 @@
- #include "ui/menus/simple_menu_model.h"
+@@ -11,6 +11,10 @@
  
  class BrowserWindowInterface;
-+
+ 
 +namespace containers {
 +class ContainersMenu;
 +}
- 
++
  class NewTabButtonMenuModel : public ui::SimpleMenuModel,
                                public ui::SimpleMenuModel::Delegate {
-@@ -33,6 +37,7 @@
+  public:
+@@ -33,6 +37,7 @@ class NewTabButtonMenuModel : public ui::SimpleMenuModel,
    void AddNewSplitTabItem();
  
    raw_ptr<BrowserWindowInterface> browser_;
@@ -195,7 +217,7 @@
  #include "chrome/browser/dictation/dictation_keyed_service.h"
  #include "chrome/browser/glic/browser_ui/tab_underline_controller.h"
  #include "chrome/browser/glic/browser_ui/tab_underline_view.h"
-@@ -923,6 +924,7 @@
+@@ -923,6 +924,7 @@ void Tab::PaintChildren(const views::PaintInfo& info) {
  
  void Tab::OnPaint(gfx::Canvas* canvas) {
    tab_style_views()->PaintTab(canvas);
@@ -203,3 +225,23 @@
  }
  
  void Tab::AddedToWidget() {
+--- a/chrome/browser/ui/views/tabs/tab_strip.cc
++++ b/chrome/browser/ui/views/tabs/tab_strip.cc
+@@ -29,6 +29,7 @@
+ #include "base/time/time.h"
+ #include "base/types/to_address.h"
+ #include "build/build_config.h"
++#include "chrome/browser/containers/platform/containers_menu.h"
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/ui/browser_commands.h"
+ #include "chrome/browser/ui/browser_element_identifiers.h"
+@@ -1232,6 +1233,9 @@ void TabStrip::NewTabButtonPressed(const ui::Event& event) {
+       return;
+     }
+   }
++  if (containers::ContainersMenu::AskForNewTab(browser, this)) {
++    return;
++  }
+   controller_->CreateNewTab(NewTabTypes::kNewTabButton);
+ }
+ 

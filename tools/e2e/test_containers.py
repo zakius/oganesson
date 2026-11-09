@@ -2,7 +2,8 @@
 site storage. Tabs get into one from the menus, keep it for the links they
 open and across a restart, and Traffic Control rules move pages into one.
 The address bar shows the tab's container. A link dropped on the tab strip
-and Alt+Enter in the address bar stay in the tab's container.
+and Alt+Enter in the address bar stay in the tab's container, and the New
+Tab button can ask where to open.
 
 The tests are steps of one session, in order. A tab's container shows in its
 cookies: each tab sets a cookie named after where it is.
@@ -399,6 +400,33 @@ class ContainersTest(BrowserTest):
                         what='the address in Work')
         self.browser.close_target(page)
         self.browser.close_target(work)
+
+    def test_9c_ask_for_new_tabs(self):
+        self.set_pref('containers.new_tab', 'ask')
+        try:
+            before = self.pages()
+            self.browser.click_view(self.new_tab_button())
+            self.menu_item('No container')
+            self.choose('Work')
+            target = wait_for(lambda: next((t for t in self.browser.targets()
+                                            if t['type'] == 'page' and t['id'] not in before),
+                                           None), what='the new tab')
+            page = Page(target)
+            page.call('Page.navigate', url=self.url('/page'))
+            self.assertEqual(self.cookie(page), 'in=work')
+            self.browser.close_target(page)
+            # Ctrl+T opens a tab outside containers.
+            before = self.pages()
+            self.browser.key('ctrl+t')
+            target = wait_for(lambda: next((t for t in self.browser.targets()
+                                            if t['type'] == 'page' and t['id'] not in before),
+                                           None), what='the new tab')
+            page = Page(target)
+            page.call('Page.navigate', url=self.url('/page'))
+            self.assertEqual(self.cookie(page), 'in=default')
+            self.browser.close_target(page)
+        finally:
+            self.set_pref('containers.new_tab', '')
 
 
 class ContainersTabLineTest(BrowserTest):

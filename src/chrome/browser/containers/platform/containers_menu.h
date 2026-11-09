@@ -31,6 +31,10 @@ namespace tabs {
 class TabInterface;
 }
 
+namespace views {
+class View;
+}
+
 namespace containers {
 
 // A submenu of containers: "No container" (unless that is where the tab is),
@@ -75,6 +79,12 @@ class ContainersMenu : public ui::SimpleMenuModel::Delegate {
   // The menu of the address bar's container icon of `tab`: the containers to
   // reopen it in. Null when the tab can't move.
   static std::unique_ptr<ContainersMenu> ForTab(tabs::TabInterface* tab);
+
+  // With Settings' "Ask every time" for new tabs, shows the menu of where a
+  // new tab of `browser` opens at the pointer, over `source`, and returns
+  // true. Otherwise returns false, and the New Tab button opens a tab.
+  static bool AskForNewTab(BrowserWindowInterface* browser,
+                           views::View* source);
 
   ContainersMenu(const ContainersMenu&) = delete;
   ContainersMenu& operator=(const ContainersMenu&) = delete;

@@ -16,7 +16,7 @@ A container tab has a line in the container's color along its bottom, as in Fire
 
 A link a container tab opens stays in the container, whether it opens in the same tab, a new tab (middle click, `target=_blank`, `window.open`, with or without `noopener`) or a new window. So do a link dropped on the tab strip and an address opened with Alt+Enter while a container tab is shown. New tabs from the New Tab button or a bookmark open outside containers, unless Settings says otherwise (below).
 
-**Settings > Privacy and security > Containers** (`chrome://settings/containers`) lists the containers: add one, change its name, color or icon, or delete it. A new profile has Firefox's four: Personal, Work, Banking and Shopping. Its **Open new tabs in** says where the New Tab button and Ctrl+T open a tab: outside containers (the default), in a container, or in a new temporary container each time, as Brave's pull request brave-core#40693 does without its Ask choice.
+**Settings > Privacy and security > Containers** (`chrome://settings/containers`) lists the containers: add one, change its name, color or icon, or delete it. A new profile has Firefox's four: Personal, Work, Banking and Shopping. Its **Open new tabs in** says where the New Tab button and Ctrl+T open a tab: outside containers (the default), in a container, or in a new temporary container each time, as Brave's pull request brave-core#40693 does. With its **Ask every time**, a click on the New Tab button shows the menu of containers, with **No container** first, and Ctrl+T opens a tab outside containers.
 
 Deleting a container closes its tabs and forgets its closed tabs. Its cookies and site data are deleted then, or at the next start when a tab of it stayed open (a page that asks before it closes) or the last session, which the user can still restore, had a tab in it.
 
@@ -58,7 +58,7 @@ All per profile, in `container.h`:
 | `containers.list` | The user's containers, in order: `{id, name, icon, color}`. Icons and colors are Firefox's names. |
 | `containers.used` | The containers whose storage may be on disk, by id, with their name, icon and color: used ones of the list, temporary ones, and deleted ones until their storage is gone. |
 | `containers.traffic_control` | Traffic Control's rules, in order: `{url_filter, container, enabled}`. `container` is an id, `temporary`, or empty for outside containers. |
-| `containers.new_tab` | Where new tabs open: an id, `temporary`, or empty. |
+| `containers.new_tab` | Where new tabs open: an id, `temporary`, `ask` (desktop only: the New Tab button asks), or empty. |
 
 The Settings page edits the two lists and `containers.new_tab` through `settingsPrivate`, and the browser follows the prefs: a container gone from the list is a deleted one.
 
@@ -86,7 +86,7 @@ Desktop, in `patches/oganesson/core/containers.patch`:
 | `chrome/browser/ui/startup/startup_tab.h`, `pinned_tab_codec.cc`, `startup_browser_creator_impl.cc` | 16 | Pinned tabs at startup keep their container. |
 | `chrome/browser/ui/browser_commands.cc` (Alt+Enter), `views/frame/browser_root_view.cc` (a dropped link) | 4 | `NavigateFromActiveTab()` instead of `Navigate()`. |
 
-In `patches/oganesson/ui/containers-menus.patch`, each menu adds its submenu in 3 to 4 lines and keeps it in one member: `render_view_context_menu.cc/.h`, `tab_menu_model.cc/.h`, `new_tab_button_menu_model.cc/.h` (upstream's New Tab button menu) and `bookmark_context_menu_controller.cc/.h`. Each submenu item takes an upstream command id whose enablement fits, as Send to device does, so no menu's enablement code changes. `tab.cc` and the vertical strip's `tabs/common/tab_view.cc` draw the color line (1 line each).
+In `patches/oganesson/ui/containers-menus.patch`, each menu adds its submenu in 3 to 4 lines and keeps it in one member: `render_view_context_menu.cc/.h`, `tab_menu_model.cc/.h`, `new_tab_button_menu_model.cc/.h` (upstream's New Tab button menu) and `bookmark_context_menu_controller.cc/.h`. Each submenu item takes an upstream command id whose enablement fits, as Send to device does, so no menu's enablement code changes. `tab.cc` and the vertical strip's `tabs/common/tab_view.cc` draw the color line (1 line each). For "Ask every time", the New Tab button shows the menu of containers (`ContainersMenu::AskForNewTab()`) from `tab_strip.cc` and, for the vertical strip, `tabs/shared/new_tab_button.cc` (4 lines each).
 
 `patches/oganesson/ui/containers-page-action.patch` adds the address bar icon (`container_page_action.cc`), as upstream adds its page actions: an action id (`chrome_action_id.h`, `action_ids.h`), an icon type and properties (`page_action_icon_type.h`, `page_action_properties_provider.cc`), the browser's action that the click runs (`browser_actions.cc`, 3 lines) and the per-tab controller (`tab_features.cc/.h`, 6 lines), 22 lines in all.
 
@@ -95,5 +95,5 @@ In `patches/oganesson/ui/containers-menus.patch`, each menu adds its submenu in 
 ## Not done
 
 - The WebExtensions `contextualIdentities` API and a proxy per container are later tasks (goals.md).
-- brave-core#40693's Ask choice for new tabs, which needs a menu at each new tab, and the commands and shortcuts to open a new tab in a container of brave-core#38435, which need command ids and accelerator hooks.
+- The commands and shortcuts to open a new tab in a container of brave-core#38435, which need command ids and accelerator hooks.
 - Zoom levels are per partition, so a container keeps its own zoom levels. Brave makes containers share the default ones with another content hook.

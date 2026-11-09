@@ -189,6 +189,9 @@ export class SettingsContainersPageElement extends
                 selected$="[[isEqual_('temporary', newTabs_)]]">
               [[i18n('trafficControlTemporary')]]
             </option>
+            <option value="ask" selected$="[[isEqual_('ask', newTabs_)]]">
+              [[i18n('containersNewTabsAsk')]]
+            </option>
           </select>
         </div>
 
@@ -332,7 +335,8 @@ export class SettingsContainersPageElement extends
       routePath: String,
       containers_: {type: Array, value: () => []},
       rules_: {type: Array, value: () => []},
-      // Where new tabs open: a container's id, 'temporary', or ''.
+      // Where new tabs open: a container's id, 'temporary', 'ask' (the New
+      // Tab button shows the containers menu), or ''.
       newTabs_: {type: String, value: ''},
       colors_: {
         type: Array,

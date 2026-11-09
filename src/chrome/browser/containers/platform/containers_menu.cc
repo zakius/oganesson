@@ -8,6 +8,8 @@
 
 #include "base/functional/bind.h"
 #include "base/memory/ptr_util.h"
+#include "base/no_destructor.h"
+#include "base/task/sequenced_task_runner.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/containers/container.h"
@@ -18,11 +20,16 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "components/prefs/pref_service.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/bookmarks/browser/bookmark_node.h"
 #include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/base/accelerators/menu_label_accelerator_util.h"
+#include "ui/base/mojom/menu_source_type.mojom.h"
+#include "ui/display/screen.h"
+#include "ui/views/controls/menu/menu_runner.h"
+#include "ui/views/view.h"
 #include "url/gurl.h"
 
 namespace containers {
@@ -95,6 +102,60 @@ std::unique_ptr<ContainersMenu> ContainersMenu::ForTab(tabs::TabInterface* tab) 
   }
   return Create(browser->GetProfile(), ContainerIdOf(contents),
                 ReopenCallback({tab->GetWeakPtr()}));
+}
+
+// static
+bool ContainersMenu::AskForNewTab(BrowserWindowInterface* browser,
+                                  views::View* source) {
+  Profile* profile = browser->GetProfile();
+  if (profile->GetPrefs()->GetString(kNewTabContainer) != kAskForNewTab) {
+    return false;
+  }
+  // "-" is no container's id: the menu has "No container" and every container.
+  std::unique_ptr<ContainersMenu> menu = Create(
+      profile, "-",
+      base::BindRepeating(
+          [](base::WeakPtr<BrowserWindowInterface> browser,
+             const std::string& id) {
+            if (browser) {
+              NewTabInContainer(browser.get(), id);
+            }
+          },
+          browser->GetWeakPtr()));
+  if (!menu) {
+    return false;
+  }
+  // The open menu, kept until it closes. The runner is destroyed first.
+  struct Open {
+    std::unique_ptr<ContainersMenu> menu;
+    std::unique_ptr<views::MenuRunner> runner;
+    // Counts the menus shown.
+    int shown = 0;
+  };
+  static base::NoDestructor<Open> open;
+  open->runner.reset();
+  open->menu = std::move(menu);
+  open->runner = std::make_unique<views::MenuRunner>(
+      open->menu->model(), views::MenuRunner::HAS_MNEMONICS,
+      base::BindRepeating(
+          [](int closed) {
+            // After the menu has run its command, unless another one opened.
+            base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+                FROM_HERE, base::BindOnce(
+                               [](int closed) {
+                                 if (open->shown == closed) {
+                                   open->runner.reset();
+                                   open->menu.reset();
+                                 }
+                               },
+                               closed));
+          },
+          ++open->shown));
+  open->runner->RunMenuAt(
+      source->GetWidget(), nullptr,
+      gfx::Rect(display::Screen::Get()->GetCursorScreenPoint(), gfx::Size()),
+      views::MenuAnchorPosition::kTopLeft, ui::mojom::MenuSourceType::kMouse);
+  return true;
 }
 
 // static
