@@ -21,6 +21,9 @@ ADDONS = {
         'MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDJnRbHexNTjRkPiiY/aArVJM+iKGwGLV6K7ivyrBfl1hwn8'
         'AjDF2aD2+1AsxJ2LeZL8z7FxJ7WPxJAoIyCfMOULQPV9LJ8Pq8egUMcC5YKvZN4rpIuEvLvWdAtwZlcFj6K2+'
         'Tlq8b5NE5Aj3BJwfRQVHtfdYj92BuW9zflWZPMDwIDAQAB')}, 'self.started = true;', 'L2'),
+    # A dotted permission that Chromium has.
+    'dotted-permission': ({**BACKGROUND_MV2, 'permissions': ['downloads', 'downloads.open']},
+                          'self.started = true;', 'L2'),
     'unknown-key': ({**BACKGROUND_MV2, 'sidebar_action': {'default_panel': 'panel.html'}},
                     'self.started = true;', 'L1'),
     'missing-api': (BACKGROUND_MV2, 'browser.menus.onShown.addListener(() => {});', 'L1'),

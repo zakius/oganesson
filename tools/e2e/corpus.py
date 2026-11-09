@@ -16,7 +16,8 @@ L2  Its background page or service worker starts, if it has one, and nothing
     _permission_features.json) leave out, besides Firefox's own metadata
     (IGNORED_KEYS), and it throws no uncaught error in its first seconds. Such
     an error nearly always comes from an API that isn't there. Any uncaught
-    error counts, so the score errs low. Chromium's own warnings for unknown
+    error counts, so the score errs low, but for RACES, errors whose timing
+    varies between runs. Chromium's own warnings for unknown
     keys don't reach chrome://extensions here, hence the feature files.
 
 A full run writes <dubna>/webextensions/score/oganesson.json: the date, the
@@ -66,6 +67,10 @@ SETTLE = 2
 # The longest error a score keeps.
 ERROR_LENGTH = 300
 UNREADABLE = ('Manifest file is missing or unreadable', 'Manifest is not valid JSON')
+# Uncaught errors that name no missing API and come and go between runs: a
+# message sent at the start before the page that listens for it is up, and a
+# tab gone by the time the add-on asks for it (the runner's own tabs).
+RACES = ('Receiving end does not exist', 'No tab with id')
 
 
 def feature_file(path):
@@ -90,11 +95,13 @@ def feature_file(path):
 
 
 def known(kind):
-    """The names Chromium has for `kind`, 'manifest' (the top-level keys) or
-    'permission'."""
+    """The names Chromium has for `kind`: 'manifest', the top-level keys of a
+    manifest, or 'permission', the permissions (some dotted, as
+    downloads.open)."""
     names = set()
     for pattern in FEATURES:
-        names |= {name.split('.')[0] for name in feature_file(TREE / pattern.format(kind))}
+        for name in feature_file(TREE / pattern.format(kind)):
+            names.add(name.split('.')[0] if kind == 'manifest' else name)
     return names
 
 
@@ -199,10 +206,11 @@ def run_group(items, xpis, work):
             info = installed.get(extension)
             uncaught = [console_message(line) for line in log.splitlines()
                         if 'CONSOLE' in line and f'chrome-extension://{extension}/' in line
-                        and 'Uncaught' in line]
+                        and 'Uncaught' in line and not any(race in line for race in RACES)]
             if info:
                 uncaught += [e['message'] for e in info.get('runtimeErrors', [])
-                             if 'Uncaught' in e['message']]
+                             if 'Uncaught' in e['message']
+                             and not any(race in e['message'] for race in RACES)]
             background = (extension in started) if manifests[item_id].get('background') else None
             found, error = level(load_error, bool(info), background,
                                  unknown(manifests[item_id], keys, permissions), uncaught)
