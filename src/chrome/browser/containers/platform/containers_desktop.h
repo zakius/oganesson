@@ -69,8 +69,9 @@ void AddSettingsStrings(content::WebUIDataSource* source);
 void ShowContainersSettings(Profile* profile);
 
 // Draws the color line of the container `tab` is in along the bottom of
-// `bounds`, as Firefox marks container tabs.
-void PaintTabLine(tabs::TabInterface* tab,
+// `bounds`, as Firefox marks container tabs. Horizontal and vertical tabs
+// both draw it.
+void PaintTabLine(const tabs::TabInterface* tab,
                   const gfx::Rect& bounds,
                   gfx::Canvas* canvas);
 

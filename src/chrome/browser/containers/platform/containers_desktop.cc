@@ -211,9 +211,11 @@ void ShowContainersSettings(Profile* profile) {
   chrome::ShowSettingsSubPageForProfile(profile, "containers");
 }
 
-void PaintTabLine(tabs::TabInterface* tab,
+void PaintTabLine(const tabs::TabInterface* const_tab,
                   const gfx::Rect& bounds,
                   gfx::Canvas* canvas) {
+  // GetBrowserWindowInterface() isn't const.
+  auto* tab = const_cast<tabs::TabInterface*>(const_tab);
   if (!tab || !tab->GetContents()) {
     return;
   }

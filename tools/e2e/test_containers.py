@@ -305,5 +305,47 @@ class ContainersTest(BrowserTest):
         self.assertIn('Work', titles)
 
 
+class ContainersVerticalTabsTest(BrowserTest):
+    """Vertical tabs mark container tabs with the same color line."""
+    prefs = {'helium': {'browser': {'layout': 2}}}  # Helium's vertical layout
+
+    def tab_views(self):
+        """The tabs, top to bottom."""
+        return self.browser.wait_settled(
+            lambda: sorted((v for v in self.browser.views('TabView') if v.visible),
+                           key=lambda v: v.bounds['y']), what='the tabs')
+
+    def line_colors(self, view):
+        """The colors along the bottom of a tab, where the line is."""
+        b = view.bounds
+        bottom = b['y'] + b['height']
+        return {self.browser.pixel(b['x'] + b['width'] // 2, y)
+                for y in range(bottom - 6, bottom)}
+
+    def test_color_line(self):
+        settings = self.browser.new_tab('chrome://settings/containers')
+        try:
+            wait_for(lambda: settings.eval('!!chrome.settingsPrivate'), what='Settings')
+            settings.eval("chrome.settingsPrivate.setPref('containers.new_tab', 'work')")
+            icon = (f"{DEEP}('settings-containers-page')?.shadowRoot"
+                    "?.querySelector('.container-icon')")
+            wait_for(lambda: settings.eval(f'!!{icon}'), what='the containers')
+            # Work's color, as Settings shows it: "rgb(r, g, b)".
+            work = settings.eval(f"getComputedStyle([...{DEEP}('settings-containers-page')"
+                                 ".shadowRoot.querySelectorAll('.container')].find(r => "
+                                 "r.textContent.includes('Work')).querySelector('.container-icon'))"
+                                 ".backgroundColor")
+        finally:
+            self.browser.close_target(settings)
+        color = tuple(int(n) for n in work[work.index('(') + 1:work.index(')')].split(',')[:3])
+        before = len(self.tab_views())
+        self.browser.key('ctrl+t')
+        wait_for(lambda: len(self.tab_views()) == before + 1, what='the new tab')
+        tabs = self.tab_views()
+        wait_for(lambda: color in self.line_colors(self.tab_views()[-1]),
+                 what="the Work tab's line")
+        self.assertNotIn(color, self.line_colors(tabs[0]))
+
+
 if __name__ == '__main__':
     unittest.main()

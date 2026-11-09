@@ -127,6 +127,24 @@
  
    // `tab_strip_` needs to outlive this class.
    raw_ptr<TabStripModel> tab_strip_;
+--- a/chrome/browser/ui/views/tabs/common/tab_view.cc
++++ b/chrome/browser/ui/views/tabs/common/tab_view.cc
+@@ -12,6 +12,7 @@
+ #include "base/metrics/user_metrics.h"
+ #include "base/metrics/user_metrics_action.h"
+ #include "base/time/time.h"
++#include "chrome/browser/containers/platform/containers_desktop.h"
+ #include "chrome/browser/dictation/dictation_keyed_service.h"
+ #include "chrome/browser/glic/browser_ui/tab_underline_controller.h"
+ #include "chrome/browser/glic/browser_ui/tab_underline_view.h"
+@@ -852,6 +853,7 @@
+   }
+ 
+   tab_styling()->PaintTab(canvas);
++  containers::PaintTabLine(GetTabInterface(), GetContentsBounds(), canvas);
+ 
+   views::View::OnPaint(canvas);
+ }
 --- a/chrome/browser/ui/views/tabs/shared/new_tab_button_menu_model.cc
 +++ b/chrome/browser/ui/views/tabs/shared/new_tab_button_menu_model.cc
 @@ -9,6 +9,7 @@

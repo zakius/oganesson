@@ -12,7 +12,7 @@ The code is a port of Brave's containers (`brave-core` main of 2026-11-08, MPL-2
 - **Open in container**: in a bookmark's or bookmark folder's context menu.
 - Each of these menus offers **New temporary container** and **Manage containers…**.
 
-A container tab has a line in the container's color along its bottom, as in Firefox.
+A container tab has a line in the container's color along its bottom, as in Firefox, in the horizontal and the vertical tab strip.
 
 A link a container tab opens stays in the container, whether it opens in the same tab, a new tab (middle click, `target=_blank`, `window.open`, with or without `noopener`) or a new window. New tabs from the New Tab button or a bookmark open outside containers, unless Settings says otherwise (below).
 
@@ -84,7 +84,7 @@ Desktop, in `patches/oganesson/core/containers.patch`:
 | `chrome/browser/ui/browser_tabstrip.cc` | 5 | A new tab opens in the container Settings says. |
 | `chrome/browser/ui/startup/startup_tab.h`, `pinned_tab_codec.cc`, `startup_browser_creator_impl.cc` | 16 | Pinned tabs at startup keep their container. |
 
-In `patches/oganesson/ui/containers-menus.patch`, each menu adds its submenu in 3 to 4 lines and keeps it in one member: `render_view_context_menu.cc/.h`, `tab_menu_model.cc/.h`, `new_tab_button_menu_model.cc/.h` (upstream's New Tab button menu) and `bookmark_context_menu_controller.cc/.h`. Each submenu item takes an upstream command id whose enablement fits, as Send to device does, so no menu's enablement code changes. `tab.cc` draws the color line (1 line).
+In `patches/oganesson/ui/containers-menus.patch`, each menu adds its submenu in 3 to 4 lines and keeps it in one member: `render_view_context_menu.cc/.h`, `tab_menu_model.cc/.h`, `new_tab_button_menu_model.cc/.h` (upstream's New Tab button menu) and `bookmark_context_menu_controller.cc/.h`. Each submenu item takes an upstream command id whose enablement fits, as Send to device does, so no menu's enablement code changes. `tab.cc` and the vertical strip's `tabs/common/tab_view.cc` draw the color line (1 line each).
 
 `patches/oganesson/settings/containers-settings.patch` adds the Settings route, its row under Privacy and security, and the lazy-loaded page, as other pages of ours do.
 
@@ -94,4 +94,3 @@ In `patches/oganesson/ui/containers-menus.patch`, each menu adds its submenu in 
 - An address bar icon for the tab's container: Chromium's page action framework needs a new action id, icon type, properties and a per-tab controller, four more upstream files. The color line marks container tabs meanwhile.
 - brave-core#40693's Ask choice for new tabs, which needs a menu at each new tab, and the commands and shortcuts to open a new tab in a container of brave-core#38435, which need command ids and accelerator hooks.
 - Zoom levels are per partition, so a container keeps its own zoom levels. Brave makes containers share the default ones with another content hook.
-- Vertical tabs show no color line.

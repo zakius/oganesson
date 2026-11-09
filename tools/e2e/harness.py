@@ -724,6 +724,13 @@ class Browser:
     def xdotool(self, *args):
         subprocess.run(['xdotool', *args], env=self.env(), check=True)
 
+    def pixel(self, x, y):
+        """The screen's color at (x, y), as (r, g, b) (ImageMagick's import)."""
+        out = subprocess.run(['import', '-window', 'root', '-crop', f'1x1+{x}+{y}',
+                              '-depth', '8', 'rgb:-'],
+                             env=self.env(), capture_output=True, check=True).stdout
+        return tuple(out[:3])
+
     def click_view(self, view, button=1):
         x, y = view.center
         self.xdotool('mousemove', str(x), str(y), 'click', str(button))
