@@ -339,39 +339,41 @@ class ContainersTest(BrowserTest):
         self.browser.close_target(work)
 
 
-class ContainersVerticalTabsTest(BrowserTest):
-    """Vertical tabs mark container tabs with the same color line."""
-    prefs = {'helium': {'browser': {'layout': 2}}}  # Helium's vertical layout
+class ContainersTabLineTest(BrowserTest):
+    """Tabs in a container have a line in its color, which follows the
+    container's color as it changes."""
+    tab_class = 'Tab'
 
     def tab_views(self):
-        """The tabs, top to bottom."""
+        """The tabs, in order."""
         return self.browser.wait_settled(
-            lambda: sorted((v for v in self.browser.views('TabView') if v.visible),
-                           key=lambda v: v.bounds['y']), what='the tabs')
+            lambda: sorted((v for v in self.browser.views(self.tab_class) if v.visible),
+                           key=lambda v: (v.bounds['y'], v.bounds['x'])), what='the tabs')
 
     def line_colors(self, view):
         """The colors along the bottom of a tab, where the line is."""
         b = view.bounds
         bottom = b['y'] + b['height']
         return {self.browser.pixel(b['x'] + b['width'] // 2, y)
-                for y in range(bottom - 6, bottom)}
+                for y in range(bottom - 10, bottom)}
+
+    def work_color(self, settings):
+        """Work's color, as Settings shows it."""
+        icon = (f"{DEEP}('settings-containers-page')?.shadowRoot"
+                "?.querySelector('.container-icon')")
+        wait_for(lambda: settings.eval(f'!!{icon}'), what='the containers')
+        # "rgb(r, g, b)"
+        work = settings.eval(f"getComputedStyle([...{DEEP}('settings-containers-page')"
+                             ".shadowRoot.querySelectorAll('.container')].find(r => "
+                             "r.textContent.includes('Work')).querySelector('.container-icon'))"
+                             ".backgroundColor")
+        return tuple(int(n) for n in work[work.index('(') + 1:work.index(')')].split(',')[:3])
 
     def test_color_line(self):
         settings = self.browser.new_tab('chrome://settings/containers')
-        try:
-            wait_for(lambda: settings.eval('!!chrome.settingsPrivate'), what='Settings')
-            settings.eval("chrome.settingsPrivate.setPref('containers.new_tab', 'work')")
-            icon = (f"{DEEP}('settings-containers-page')?.shadowRoot"
-                    "?.querySelector('.container-icon')")
-            wait_for(lambda: settings.eval(f'!!{icon}'), what='the containers')
-            # Work's color, as Settings shows it: "rgb(r, g, b)".
-            work = settings.eval(f"getComputedStyle([...{DEEP}('settings-containers-page')"
-                                 ".shadowRoot.querySelectorAll('.container')].find(r => "
-                                 "r.textContent.includes('Work')).querySelector('.container-icon'))"
-                                 ".backgroundColor")
-        finally:
-            self.browser.close_target(settings)
-        color = tuple(int(n) for n in work[work.index('(') + 1:work.index(')')].split(',')[:3])
+        wait_for(lambda: settings.eval('!!chrome.settingsPrivate'), what='Settings')
+        settings.eval("chrome.settingsPrivate.setPref('containers.new_tab', 'work')")
+        color = self.work_color(settings)
         before = len(self.tab_views())
         self.browser.key('ctrl+t')
         wait_for(lambda: len(self.tab_views()) == before + 1, what='the new tab')
@@ -379,6 +381,29 @@ class ContainersVerticalTabsTest(BrowserTest):
         wait_for(lambda: color in self.line_colors(self.tab_views()[-1]),
                  what="the Work tab's line")
         self.assertNotIn(color, self.line_colors(tabs[0]))
+
+        # Work gets another color while its tab is in the background, which
+        # nothing else repaints: the tab's line follows.
+        settings.call('Page.bringToFront')
+        wait_for(lambda: color in self.line_colors(self.tab_views()[-1]),
+                 what="the background Work tab's line")
+        containers = settings.eval("chrome.settingsPrivate.getPref('containers.list')"
+                                   ".then(p => p.value)")
+        work = next(c for c in containers if c['id'] == 'work')
+        work['color'] = 'purple' if work['color'] != 'purple' else 'green'
+        settings.eval("chrome.settingsPrivate.setPref('containers.list', "
+                      f"{json.dumps(containers)})")
+        new_color = wait_for(lambda: (lambda c: c != color and c)(self.work_color(settings)),
+                             what="Work's new color in Settings")
+        wait_for(lambda: new_color in self.line_colors(self.tab_views()[-1]),
+                 what="the Work tab's new line")
+        self.browser.close_target(settings)
+
+
+class ContainersVerticalTabsTest(ContainersTabLineTest):
+    """Vertical tabs mark container tabs with the same color line."""
+    prefs = {'helium': {'browser': {'layout': 2}}}  # Helium's vertical layout
+    tab_class = 'TabView'
 
 
 class ContainersPolishTest(BrowserTest):

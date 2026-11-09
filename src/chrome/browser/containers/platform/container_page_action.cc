@@ -6,6 +6,7 @@
 
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "base/functional/bind.h"
 #include "base/strings/utf_string_conversions.h"
@@ -20,6 +21,8 @@
 #include "chrome/browser/ui/page_action/page_action_controller.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/toolbar_button_provider.h"
+#include "chrome/browser/ui/views/tabs/common/tab_view.h"
+#include "chrome/browser/ui/views/tabs/tab.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/tabs/public/tab_interface.h"
 #include "ui/actions/actions.h"
@@ -28,11 +31,41 @@
 #include "ui/views/bubble/bubble_anchor.h"
 #include "ui/views/controls/menu/menu_runner.h"
 #include "ui/views/view.h"
+#include "ui/views/view_utils.h"
 #include "ui/views/widget/widget.h"
 
 namespace containers {
 
 DEFINE_USER_DATA(ContainerPageAction);
+
+namespace {
+
+// Repaints `tab` in its window's tab strip, horizontal or vertical: Chromium
+// repaints a tab only when its title, icon or state change.
+void RepaintTab(tabs::TabInterface& tab) {
+  BrowserWindowInterface* browser = tab.GetBrowserWindowInterface();
+  BrowserView* browser_view =
+      browser ? BrowserView::GetBrowserViewForBrowser(browser) : nullptr;
+  if (!browser_view) {
+    return;
+  }
+  std::vector<views::View*> views = {browser_view};
+  while (!views.empty()) {
+    views::View* view = views.back();
+    views.pop_back();
+    ::Tab* horizontal = views::AsViewClass<::Tab>(view);
+    ::TabView* vertical = views::AsViewClass<::TabView>(view);
+    if ((horizontal && horizontal->tab_handle().Get() == &tab) ||
+        (vertical && vertical->GetTabInterface() == &tab)) {
+      view->SchedulePaint();
+    }
+    for (views::View* child : view->children()) {
+      views.push_back(child);
+    }
+  }
+}
+
+}  // namespace
 
 ContainerPageAction::ContainerPageAction(
     tabs::TabInterface& tab,
@@ -71,7 +104,11 @@ std::unique_ptr<actions::ActionItem> ContainerPageAction::CreateActionItem(
 }
 
 void ContainerPageAction::OnContainersChanged() {
+  const SkColor before = line_color_;
   Update();
+  if (line_color_ != before) {
+    RepaintTab(*tab_);
+  }
 }
 
 void ContainerPageAction::Update() {
@@ -79,6 +116,7 @@ void ContainerPageAction::Update() {
   std::string id = ContainerIdOf(tab_->GetContents());
   std::optional<Container> container =
       service && !id.empty() ? service->Get(id) : std::nullopt;
+  line_color_ = container ? container->color_value() : SK_ColorTRANSPARENT;
   if (!container) {
     controller_->Hide(kActionShowContainer);
     return;

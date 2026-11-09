@@ -10,6 +10,7 @@
 #include "base/memory/raw_ref.h"
 #include "base/scoped_observation.h"
 #include "chrome/browser/containers/containers_service.h"
+#include "third_party/skia/include/core/SkColor.h"
 #include "ui/base/unowned_user_data/scoped_unowned_user_data.h"
 
 class BrowserWindowInterface;
@@ -37,7 +38,8 @@ class ContainersMenu;
 // The address bar icon of a tab in a container: the container's icon in its
 // color, with its name in the tooltip (Helium's address bar shows page
 // actions as icons only). A click opens the menu to reopen the tab in another
-// container. One per tab, owned by its TabFeatures.
+// container. One per tab, owned by its TabFeatures. It also repaints the tab
+// when its container's color changes, for the tab's line.
 class ContainerPageAction : public ContainersService::Observer {
  public:
   DECLARE_USER_DATA(ContainerPageAction);
@@ -63,6 +65,8 @@ class ContainerPageAction : public ContainersService::Observer {
 
   const raw_ref<tabs::TabInterface> tab_;
   const raw_ref<page_actions::PageActionController> controller_;
+  // The color of the tab's line, transparent for none.
+  SkColor line_color_ = SK_ColorTRANSPARENT;
   base::ScopedObservation<ContainersService, ContainersService::Observer>
       observation_{this};
   // The open menu. The runner is destroyed first.
