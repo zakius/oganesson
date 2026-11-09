@@ -243,6 +243,17 @@ class ContainersTest(BrowserTest):
         # The tab it left keeps its page.
         self.assertEqual(default.eval('location.pathname'), '/page')
         self.browser.close_target(page)
+        # A form post stays in its tab, with its data: a reopened page has none.
+        before = self.pages()
+        default.eval("const form = document.createElement('form'); form.method = 'post';"
+                     f" form.action = {json.dumps(self.url('/other?post', 'localhost'))};"
+                     " form.innerHTML = '<input name=q value=sent>';"
+                     " document.body.append(form); form.submit(); 1")
+        wait_for(lambda: default.eval("location.search + ' ' + document.title") == '?post other',
+                 what='the form post')
+        self.assertEqual(self.server.bodies.get('/other'), b'q=sent')
+        self.assertEqual(self.cookie(default), '')
+        self.assertEqual(self.pages().keys(), before.keys())
         self.browser.close_target(default)
         self.set_pref('containers.traffic_control', [])
 
