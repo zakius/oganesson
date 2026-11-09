@@ -1388,5 +1388,15 @@
     "name": "IDS_OGANESSON_CONTAINERS_NEW_TABS_ASK",
     "source": "Ask every time",
     "message": "Pytaj za każdym razem"
+  },
+  {
+    "name": "IDS_OGANESSON_CONTAINERS_COMMAND_CURRENT",
+    "source": "New tab in the current tab's container",
+    "message": "Nowa karta w kontenerze bieżącej karty"
+  },
+  {
+    "name": "IDS_OGANESSON_CONTAINERS_COMMAND_NTH",
+    "source": "New tab in container <ph name=\"NUMBER\">$1<ex>1</ex></ph>",
+    "message": "Nowa karta w kontenerze <ph name=\"NUMBER\">$1<ex>1</ex></ph>"
   }
 ]

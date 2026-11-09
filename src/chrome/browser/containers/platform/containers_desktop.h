@@ -79,6 +79,15 @@ std::string NewTabContainer(BrowserWindowInterface* browser);
 // Opens the new tab page in container `id` of `browser`.
 void NewTabInContainer(BrowserWindowInterface* browser, const std::string& id);
 
+// The commands that open a new tab in the active tab's container or in one
+// of the user's first nine containers, for `browser` to enable: none for a
+// profile without containers.
+std::vector<int> CommandIds(BrowserWindowInterface* browser);
+
+// Runs command `id` of `browser` if it is one of CommandIds(). Returns whether
+// it was.
+bool ExecuteCommand(BrowserWindowInterface* browser, int id);
+
 // Reopens each tab of `tabs` in container `id` in its place, and closes it.
 void ReopenTabsInContainer(const std::vector<tabs::TabInterface*>& tabs,
                            const std::string& id);

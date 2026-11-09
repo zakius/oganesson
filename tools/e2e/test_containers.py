@@ -2,8 +2,8 @@
 site storage. Tabs get into one from the menus, keep it for the links they
 open and across a restart, and Traffic Control rules move pages into one.
 The address bar shows the tab's container. A link dropped on the tab strip
-and Alt+Enter in the address bar stay in the tab's container, and the New
-Tab button can ask where to open.
+and Alt+Enter in the address bar stay in the tab's container, the New Tab
+button can ask where to open, and commands open a new tab in a container.
 
 The tests are steps of one session, in order. A tab's container shows in its
 cookies: each tab sets a cookie named after where it is.
@@ -428,6 +428,30 @@ class ContainersTest(BrowserTest):
         finally:
             self.set_pref('containers.new_tab', '')
 
+    def test_9d_new_tab_commands(self):
+        # Ctrl+Shift+1 is the first container's: Work, since step 8 deleted
+        # Personal.
+        self.assertEqual(self.get_pref('containers.list')[0]['name'], 'Work')
+        before = self.pages()
+        self.browser.key('ctrl+shift+1')
+        target = wait_for(lambda: next((t for t in self.browser.targets()
+                                        if t['type'] == 'page' and t['id'] not in before),
+                                       None), what='the new tab')
+        page = Page(target)
+        page.call('Page.navigate', url=self.url('/page'))
+        self.assertEqual(self.cookie(page), 'in=work')
+        self.browser.close_target(page)
+        # The shortcuts page lists the commands.
+        settings = self.browser.new_tab('chrome://settings/system/shortcuts')
+        try:
+            page_text = (f"{DEEP}('settings-browser-shortcuts-page')"
+                         "?.shadowRoot?.textContent || ''")
+            wait_for(lambda: 'New tab in container 9' in settings.eval(page_text),
+                     what='the commands on the shortcuts page')
+            self.assertIn("New tab in the current tab's container", settings.eval(page_text))
+        finally:
+            self.browser.close_target(settings)
+
 
 class ContainersTabLineTest(BrowserTest):
     """Tabs in a container have a line in its color, which follows the
@@ -519,3 +543,4 @@ class ContainersPolishTest(BrowserTest):
 
 if __name__ == '__main__':
     unittest.main()
+

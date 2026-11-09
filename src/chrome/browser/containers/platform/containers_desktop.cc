@@ -10,6 +10,7 @@
 #include "base/containers/fixed_flat_map.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_util.h"
+#include "chrome/app/chrome_command_ids.h"
 #include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/containers/container.h"
 #include "chrome/browser/containers/containers_service.h"
@@ -222,6 +223,39 @@ std::string NewTabContainer(BrowserWindowInterface* browser) {
 void NewTabInContainer(BrowserWindowInterface* browser, const std::string& id) {
   OpenInContainer(browser, chrome::GetNewTabURL(browser), id,
                   WindowOpenDisposition::NEW_FOREGROUND_TAB);
+}
+
+std::vector<int> CommandIds(BrowserWindowInterface* browser) {
+  if (!ContainersServiceFactory::GetForProfile(browser->GetProfile())) {
+    return {};
+  }
+  std::vector<int> ids = {IDC_OGANESSON_NEW_TAB_IN_CURRENT_CONTAINER};
+  for (int id = IDC_OGANESSON_NEW_TAB_IN_CONTAINER_FIRST;
+       id <= IDC_OGANESSON_NEW_TAB_IN_CONTAINER_LAST; ++id) {
+    ids.push_back(id);
+  }
+  return ids;
+}
+
+bool ExecuteCommand(BrowserWindowInterface* browser, int id) {
+  if (id == IDC_OGANESSON_NEW_TAB_IN_CURRENT_CONTAINER) {
+    content::WebContents* active =
+        browser->GetTabStripModel()->GetActiveWebContents();
+    NewTabInContainer(browser, active ? ContainerIdOf(active) : std::string());
+    return true;
+  }
+  if (id < IDC_OGANESSON_NEW_TAB_IN_CONTAINER_FIRST ||
+      id > IDC_OGANESSON_NEW_TAB_IN_CONTAINER_LAST) {
+    return false;
+  }
+  ContainersService* service =
+      ContainersServiceFactory::GetForProfile(browser->GetProfile());
+  const size_t index = id - IDC_OGANESSON_NEW_TAB_IN_CONTAINER_FIRST;
+  // A number past the user's containers does nothing.
+  if (service && index < service->GetContainers().size()) {
+    NewTabInContainer(browser, service->GetContainers()[index].id);
+  }
+  return true;
 }
 
 void ReopenTabsInContainer(const std::vector<tabs::TabInterface*>& tabs,

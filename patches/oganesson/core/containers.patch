@@ -1,7 +1,8 @@
 # Containers on the desktop (docs/containers.md): where the browser makes a tab, it makes it in
 # its container (src/chrome/browser/containers/platform/). dubna's containers.patch has the hooks
 # tennessine shares.
-# - chrome_command_ids.h: the command ids of the container submenus.
+# - chrome_command_ids.h: the command ids of the container submenus, and of the commands that
+#   open a new tab in a container.
 # - browser_navigator.cc: a new tab that a page opens without an opener (a link opened in a new
 #   tab, from the page or its context menu) starts in the page's container.
 # - browser_tabrestore.cc: a restored tab, after a restart or reopened, starts in the container
@@ -12,9 +13,12 @@
 #   container too: one in a container opens now, not deferred without it.
 # - browser_commands.cc (Alt+Enter in the address bar), browser_root_view.cc (a link dropped on
 #   the tab strip): a new tab opens in the active tab's container.
+# - browser_command_controller.cc, accelerator_table.cc, browser_shortcut_metadata.cc: the
+#   commands for a new tab in the current tab's container or in the first nine (Ctrl+Shift+1 to
+#   9), listed on the shortcuts page (brave-core#38435).
 --- a/chrome/app/chrome_command_ids.h
 +++ b/chrome/app/chrome_command_ids.h
-@@ -465,6 +465,13 @@
+@@ -465,6 +465,17 @@
  #define IDC_OGANESSON_SEND_TO_ALL_DEVICES 51047
  #define IDC_OGANESSON_SEND_TO_DEVICE_FIRST 51050
  #define IDC_OGANESSON_SEND_TO_DEVICE_LAST 51069
@@ -25,9 +29,71 @@
 +#define IDC_OGANESSON_CONTAINERS_SUBMENU 51073
 +#define IDC_OGANESSON_CONTAINERS_FIRST 51074
 +#define IDC_OGANESSON_CONTAINERS_LAST 51099
++// New tab in the current tab's container, or in the first nine.
++#define IDC_OGANESSON_NEW_TAB_IN_CURRENT_CONTAINER 37110
++#define IDC_OGANESSON_NEW_TAB_IN_CONTAINER_FIRST 37111
++#define IDC_OGANESSON_NEW_TAB_IN_CONTAINER_LAST 37119
  
  // ChromeOS clipboard history
  #define IDC_CONTENT_PASTE_FROM_CLIPBOARD 51037
+--- a/chrome/browser/ui/accelerator_table.cc
++++ b/chrome/browser/ui/accelerator_table.cc
+@@ -109,6 +109,25 @@ const AcceleratorMapping kAcceleratorMap[] = {
+     {ui::VKEY_NUMPAD7, ui::EF_PLATFORM_ACCELERATOR, IDC_SELECT_TAB_6},
+     {ui::VKEY_8, ui::EF_PLATFORM_ACCELERATOR, IDC_SELECT_TAB_7},
+     {ui::VKEY_NUMPAD8, ui::EF_PLATFORM_ACCELERATOR, IDC_SELECT_TAB_7},
++    // A new tab in the first nine containers (containers_desktop.h).
++    {ui::VKEY_1, ui::EF_SHIFT_DOWN | ui::EF_PLATFORM_ACCELERATOR,
++     IDC_OGANESSON_NEW_TAB_IN_CONTAINER_FIRST + 0},
++    {ui::VKEY_2, ui::EF_SHIFT_DOWN | ui::EF_PLATFORM_ACCELERATOR,
++     IDC_OGANESSON_NEW_TAB_IN_CONTAINER_FIRST + 1},
++    {ui::VKEY_3, ui::EF_SHIFT_DOWN | ui::EF_PLATFORM_ACCELERATOR,
++     IDC_OGANESSON_NEW_TAB_IN_CONTAINER_FIRST + 2},
++    {ui::VKEY_4, ui::EF_SHIFT_DOWN | ui::EF_PLATFORM_ACCELERATOR,
++     IDC_OGANESSON_NEW_TAB_IN_CONTAINER_FIRST + 3},
++    {ui::VKEY_5, ui::EF_SHIFT_DOWN | ui::EF_PLATFORM_ACCELERATOR,
++     IDC_OGANESSON_NEW_TAB_IN_CONTAINER_FIRST + 4},
++    {ui::VKEY_6, ui::EF_SHIFT_DOWN | ui::EF_PLATFORM_ACCELERATOR,
++     IDC_OGANESSON_NEW_TAB_IN_CONTAINER_FIRST + 5},
++    {ui::VKEY_7, ui::EF_SHIFT_DOWN | ui::EF_PLATFORM_ACCELERATOR,
++     IDC_OGANESSON_NEW_TAB_IN_CONTAINER_FIRST + 6},
++    {ui::VKEY_8, ui::EF_SHIFT_DOWN | ui::EF_PLATFORM_ACCELERATOR,
++     IDC_OGANESSON_NEW_TAB_IN_CONTAINER_FIRST + 7},
++    {ui::VKEY_9, ui::EF_SHIFT_DOWN | ui::EF_PLATFORM_ACCELERATOR,
++     IDC_OGANESSON_NEW_TAB_IN_CONTAINER_FIRST + 8},
+ #if BUILDFLAG(IS_LINUX)
+     {ui::VKEY_1, ui::EF_ALT_DOWN, IDC_SELECT_TAB_0},
+     {ui::VKEY_NUMPAD1, ui::EF_ALT_DOWN, IDC_SELECT_TAB_0},
+--- a/chrome/browser/ui/browser_command_controller.cc
++++ b/chrome/browser/ui/browser_command_controller.cc
+@@ -27,6 +27,7 @@
+ #include "chrome/app/chrome_command_ids.h"
+ #include "chrome/browser/actor/ui/actor_overlay_web_view.h"
+ #include "chrome/browser/bookmarks/bookmark_model_factory.h"
++#include "chrome/browser/containers/platform/containers_desktop.h"
+ #include "chrome/browser/browser_process.h"
+ #include "chrome/browser/browsing_data/browsing_data_important_sites_util.h"
+ #include "chrome/browser/defaults.h"
+@@ -697,6 +698,9 @@ void BrowserCommandController::HandleCommandWithDisposition(
+     base::TimeTicks time_stamp) {
+   DCHECK(IsCommandEnabled(id)) << "Invalid/disabled command " << id;
+ 
++  if (containers::ExecuteCommand(browser_, id)) {
++    return;
++  }
+   // The order of commands in this switch statement must match the function
+   // declaration order in browser.h!
+   switch (id) {
+@@ -2218,6 +2222,9 @@ void BrowserCommandController::InitCommandState() {
+   command_updater_->UpdateCommandEnabled(IDC_FORCE_PASTE, true);
+   command_updater_->UpdateCommandEnabled(IDC_SCROLL_TO_TOP, true);
+   command_updater_->UpdateCommandEnabled(IDC_SCROLL_TO_BOTTOM, true);
++  for (int id : containers::CommandIds(browser_)) {
++    command_updater_->UpdateCommandEnabled(id, true);
++  }
+   UpdateCommandsForFullscreenMode();
+   UpdateCommandsForContentRestrictionState();
+   UpdateCommandsForBookmarkEditing();
 --- a/chrome/browser/ui/browser_commands.cc
 +++ b/chrome/browser/ui/browser_commands.cc
 @@ -35,6 +35,7 @@
@@ -47,6 +113,46 @@
  
  #if BUILDFLAG(ENABLE_EXTENSIONS)
    Profile* profile = browser->GetProfile();
+--- a/chrome/browser/ui/browser_shortcuts/browser_shortcut_metadata.cc
++++ b/chrome/browser/ui/browser_shortcuts/browser_shortcut_metadata.cc
+@@ -10,6 +10,7 @@
+ #include <vector>
+ 
+ #include "base/check.h"
++#include "base/strings/string_number_conversions.h"
+ #include "build/build_config.h"
+ #include "chrome/app/chrome_command_ids.h"
+ #include "chrome/browser/ui/helium/helium_layout_state_controller.h"
+@@ -76,6 +77,12 @@ std::optional<BrowserShortcutCommandLabel> GetBrowserShortcutCommandLabel(
+   if (ShouldHideBrowserShortcutCommand(command_id)) {
+     return std::nullopt;
+   }
++  if (command_id >= IDC_OGANESSON_NEW_TAB_IN_CONTAINER_FIRST &&
++      command_id <= IDC_OGANESSON_NEW_TAB_IN_CONTAINER_LAST) {
++    return Label(IDS_OGANESSON_CONTAINERS_COMMAND_NTH,
++                 base::NumberToString16(
++                     command_id - IDC_OGANESSON_NEW_TAB_IN_CONTAINER_FIRST + 1));
++  }
+ 
+   switch (command_id) {
+     case IDC_BACK:
+@@ -228,6 +235,8 @@ std::optional<BrowserShortcutCommandLabel> GetBrowserShortcutCommandLabel(
+       return Label(IDS_SHORTCUT_COMMAND_SCROLL_TO_TOP);
+     case IDC_SCROLL_TO_BOTTOM:
+       return Label(IDS_SHORTCUT_COMMAND_SCROLL_TO_BOTTOM);
++    case IDC_OGANESSON_NEW_TAB_IN_CURRENT_CONTAINER:
++      return Label(IDS_OGANESSON_CONTAINERS_COMMAND_CURRENT);
+     case IDC_FOCUS_LOCATION:
+       return Label(IDS_SHORTCUT_COMMAND_FOCUS_LOCATION);
+     case IDC_FOCUS_SEARCH:
+@@ -319,6 +328,7 @@ std::vector<int> GetBrowserShortcutCommandsWithoutDefault(
+   commands.push_back(IDC_TOGGLE_VERTICAL_TABS_COLLAPSE);
+   commands.push_back(IDC_SCROLL_TO_TOP);
+   commands.push_back(IDC_SCROLL_TO_BOTTOM);
++  commands.push_back(IDC_OGANESSON_NEW_TAB_IN_CURRENT_CONTAINER);
+ 
+   commands.push_back(ShouldUseCopyPageUrlLabel(prefs) ? IDC_DEV_TOOLS_INSPECT
+                                                       : IDC_COPY_URL);
 --- a/chrome/browser/ui/browser_tabrestore.cc
 +++ b/chrome/browser/ui/browser_tabrestore.cc
 @@ -11,6 +11,7 @@

@@ -146,4 +146,10 @@
   <message name="IDS_OGANESSON_CONTAINERS_NEW_TABS_ASK" desc="Settings, Containers page: a choice of where new tabs open: a click on the New Tab button shows the menu of containers to open the tab in.">
     Ask every time
   </message>
+  <message name="IDS_OGANESSON_CONTAINERS_COMMAND_CURRENT" desc="Settings, keyboard shortcuts page: command that opens a new tab in the container of the tab that is shown.">
+    New tab in the current tab's container
+  </message>
+  <message name="IDS_OGANESSON_CONTAINERS_COMMAND_NTH" desc="Settings, keyboard shortcuts page: command that opens a new tab in the container at this place in the user's list of containers. $1 is a number from 1 to 9.">
+    New tab in container <ph name="NUMBER">$1<ex>1</ex></ph>
+  </message>
 </grit-part>

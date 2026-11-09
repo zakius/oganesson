@@ -11,6 +11,7 @@ The code is a port of Brave's containers (`brave-core` main of 2026-11-08, MPL-2
 - **Reopen in container**: in a tab's context menu. The tab reopens in its place in the chosen container, or outside containers with **No container**.
 - **Open in container**: in a bookmark's or bookmark folder's context menu.
 - Each of these menus offers **New temporary container** and **Manage containers…**.
+- **Commands**: Ctrl+Shift+1 to Ctrl+Shift+9 open a new tab in the first nine containers of the list. "New tab in the current tab's container" has no shortcut. Settings > System > Keyboard shortcuts lists them, to change their shortcuts.
 
 A container tab has a line in the container's color along its bottom, as in Firefox, in the horizontal and the vertical tab strip. The address bar shows its container's icon, with the container's name in the tooltip; a click on it opens the menu to reopen the tab in another container.
 
@@ -79,12 +80,15 @@ Desktop, in `patches/oganesson/core/containers.patch`:
 
 | File | Lines | Why |
 |---|---|---|
-| `chrome/app/chrome_command_ids.h` | 7 | The submenus' command ids. |
+| `chrome/app/chrome_command_ids.h` | 11 | The submenus' command ids, and the commands'. |
 | `chrome/browser/ui/navigator/browser_navigator.cc` | 5 | A new tab without an opener takes its source page's container. `NavigateParams` has no partition. |
 | `chrome/browser/ui/browser_tabrestore.cc` | 3 | A restored tab's SiteInstance. |
 | `chrome/browser/ui/browser_tabstrip.cc` | 5 | A new tab opens in the container Settings says. |
 | `chrome/browser/ui/startup/startup_tab.h`, `pinned_tab_codec.cc`, `startup_browser_creator_impl.cc` | 16 | Pinned tabs at startup keep their container. |
 | `chrome/browser/ui/browser_commands.cc` (Alt+Enter), `views/frame/browser_root_view.cc` (a dropped link) | 4 | `NavigateFromActiveTab()` instead of `Navigate()`. |
+| `chrome/browser/ui/browser_command_controller.cc` | 7 | Enables and runs the commands (`CommandIds()`, `ExecuteCommand()`). |
+| `chrome/browser/ui/accelerator_table.cc` | 19 | Ctrl+Shift+1 to 9. Chromium uses none of them. |
+| `chrome/browser/ui/browser_shortcuts/browser_shortcut_metadata.cc` | 10 | The commands' names on Helium's shortcuts page. |
 
 In `patches/oganesson/ui/containers-menus.patch`, each menu adds its submenu in 3 to 4 lines and keeps it in one member: `render_view_context_menu.cc/.h`, `tab_menu_model.cc/.h`, `new_tab_button_menu_model.cc/.h` (upstream's New Tab button menu) and `bookmark_context_menu_controller.cc/.h`. Each submenu item takes an upstream command id whose enablement fits, as Send to device does, so no menu's enablement code changes. `tab.cc` and the vertical strip's `tabs/common/tab_view.cc` draw the color line (1 line each). For "Ask every time", the New Tab button shows the menu of containers (`ContainersMenu::AskForNewTab()`) from `tab_strip.cc` and, for the vertical strip, `tabs/shared/new_tab_button.cc` (4 lines each).
 
@@ -95,5 +99,4 @@ In `patches/oganesson/ui/containers-menus.patch`, each menu adds its submenu in 
 ## Not done
 
 - The WebExtensions `contextualIdentities` API and a proxy per container are later tasks (goals.md).
-- The commands and shortcuts to open a new tab in a container of brave-core#38435, which need command ids and accelerator hooks.
 - Zoom levels are per partition, so a container keeps its own zoom levels. Brave makes containers share the default ones with another content hook.
