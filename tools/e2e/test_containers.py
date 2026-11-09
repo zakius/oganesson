@@ -100,9 +100,18 @@ class ContainersTest(BrowserTest):
         return page
 
     def new_tab_button(self):
-        return self.browser.wait_view(
-            'TabStripControlButton',
-            match=lambda v: v.props.get('TooltipText', '').startswith('New tab'))
+        """The New Tab button, once no tab is closing. A closed tab's view
+        shrinks away after its tab has gone, and the button moves with it: a
+        slow frame can hold it still long enough to look settled."""
+        def button():
+            tabs = [v for v in self.browser.views('Tab') if v.visible]
+            pages = [t for t in self.browser.targets() if t['type'] == 'page']
+            if len(tabs) != len(pages):
+                return None
+            return next((v for v in self.browser.views('TabStripControlButton')
+                         if v.visible and v.props.get('TooltipText', '').startswith('New tab')),
+                        None)
+        return self.browser.wait_settled(button, what='the New Tab button, no tab closing')
 
     def page_tabs(self):
         """The test pages' tabs, attached."""
