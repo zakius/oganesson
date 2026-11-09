@@ -47,6 +47,60 @@
   <message name="IDS_OGANESSON_CONTAINERS_ICON" desc="Settings, Containers page: label of the container's icons to pick from.">
     Icon
   </message>
+  <message name="IDS_OGANESSON_CONTAINERS_COLOR_BLUE" desc="Settings, Containers page: name of a container color, read by screen readers on its button.">
+    Blue
+  </message>
+  <message name="IDS_OGANESSON_CONTAINERS_COLOR_TURQUOISE" desc="Settings, Containers page: name of a container color, read by screen readers on its button.">
+    Turquoise
+  </message>
+  <message name="IDS_OGANESSON_CONTAINERS_COLOR_GREEN" desc="Settings, Containers page: name of a container color, read by screen readers on its button.">
+    Green
+  </message>
+  <message name="IDS_OGANESSON_CONTAINERS_COLOR_YELLOW" desc="Settings, Containers page: name of a container color, read by screen readers on its button.">
+    Yellow
+  </message>
+  <message name="IDS_OGANESSON_CONTAINERS_COLOR_ORANGE" desc="Settings, Containers page: name of a container color, read by screen readers on its button.">
+    Orange
+  </message>
+  <message name="IDS_OGANESSON_CONTAINERS_COLOR_RED" desc="Settings, Containers page: name of a container color, read by screen readers on its button.">
+    Red
+  </message>
+  <message name="IDS_OGANESSON_CONTAINERS_COLOR_PINK" desc="Settings, Containers page: name of a container color, read by screen readers on its button.">
+    Pink
+  </message>
+  <message name="IDS_OGANESSON_CONTAINERS_COLOR_PURPLE" desc="Settings, Containers page: name of a container color, read by screen readers on its button.">
+    Purple
+  </message>
+  <message name="IDS_OGANESSON_CONTAINERS_ICON_FINGERPRINT" desc="Settings, Containers page: name of a container icon, read by screen readers on its button. The names are those of Firefox Multi-Account Containers.">
+    Fingerprint
+  </message>
+  <message name="IDS_OGANESSON_CONTAINERS_ICON_BRIEFCASE" desc="Settings, Containers page: name of a container icon, read by screen readers on its button. The names are those of Firefox Multi-Account Containers.">
+    Briefcase
+  </message>
+  <message name="IDS_OGANESSON_CONTAINERS_ICON_DOLLAR" desc="Settings, Containers page: name of a container icon, read by screen readers on its button. The names are those of Firefox Multi-Account Containers.">
+    Dollar sign
+  </message>
+  <message name="IDS_OGANESSON_CONTAINERS_ICON_CART" desc="Settings, Containers page: name of a container icon, read by screen readers on its button. The names are those of Firefox Multi-Account Containers.">
+    Cart
+  </message>
+  <message name="IDS_OGANESSON_CONTAINERS_ICON_CIRCLE" desc="Settings, Containers page: name of a container icon, read by screen readers on its button. The names are those of Firefox Multi-Account Containers.">
+    Circle
+  </message>
+  <message name="IDS_OGANESSON_CONTAINERS_ICON_GIFT" desc="Settings, Containers page: name of a container icon, read by screen readers on its button. The names are those of Firefox Multi-Account Containers.">
+    Gift
+  </message>
+  <message name="IDS_OGANESSON_CONTAINERS_ICON_VACATION" desc="Settings, Containers page: name of a container icon, read by screen readers on its button. The names are those of Firefox Multi-Account Containers.">
+    Vacation
+  </message>
+  <message name="IDS_OGANESSON_CONTAINERS_ICON_PET" desc="Settings, Containers page: name of a container icon, read by screen readers on its button. The names are those of Firefox Multi-Account Containers.">
+    Pet
+  </message>
+  <message name="IDS_OGANESSON_CONTAINERS_ICON_CHILL" desc="Settings, Containers page: name of a container icon, read by screen readers on its button. The names are those of Firefox Multi-Account Containers.">
+    Chill
+  </message>
+  <message name="IDS_OGANESSON_CONTAINERS_ICON_FENCE" desc="Settings, Containers page: name of a container icon, read by screen readers on its button. The names are those of Firefox Multi-Account Containers.">
+    Fence
+  </message>
   <message name="IDS_OGANESSON_CONTAINERS_DELETE_TITLE" desc="Settings, Containers page: title of the dialog that confirms deleting a container.">
     Delete <ph name="CONTAINER">$1<ex>Work</ex></ph>?
   </message>

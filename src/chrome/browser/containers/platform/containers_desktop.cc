@@ -58,14 +58,35 @@ const gfx::VectorIcon& VectorIconOf(std::string_view icon) {
   return it == kIcons.end() ? kCircleFilledIcon : *it->second;
 }
 
+struct Choice {
+  const char* name;
+  // Its name for screen readers.
+  int message;
+};
+
 // The colors the user picks from: Firefox's, but its toolbar gray.
-constexpr const char* kColors[] = {"blue",   "turquoise", "green",
-                                   "yellow", "orange",    "red",
-                                   "pink",   "purple"};
-constexpr const char* kIconNames[] = {"fingerprint", "briefcase", "dollar",
-                                      "cart",        "circle",    "gift",
-                                      "vacation",    "pet",       "chill",
-                                      "fence"};
+constexpr Choice kColors[] = {
+    {"blue", IDS_OGANESSON_CONTAINERS_COLOR_BLUE},
+    {"turquoise", IDS_OGANESSON_CONTAINERS_COLOR_TURQUOISE},
+    {"green", IDS_OGANESSON_CONTAINERS_COLOR_GREEN},
+    {"yellow", IDS_OGANESSON_CONTAINERS_COLOR_YELLOW},
+    {"orange", IDS_OGANESSON_CONTAINERS_COLOR_ORANGE},
+    {"red", IDS_OGANESSON_CONTAINERS_COLOR_RED},
+    {"pink", IDS_OGANESSON_CONTAINERS_COLOR_PINK},
+    {"purple", IDS_OGANESSON_CONTAINERS_COLOR_PURPLE},
+};
+constexpr Choice kIconNames[] = {
+    {"fingerprint", IDS_OGANESSON_CONTAINERS_ICON_FINGERPRINT},
+    {"briefcase", IDS_OGANESSON_CONTAINERS_ICON_BRIEFCASE},
+    {"dollar", IDS_OGANESSON_CONTAINERS_ICON_DOLLAR},
+    {"cart", IDS_OGANESSON_CONTAINERS_ICON_CART},
+    {"circle", IDS_OGANESSON_CONTAINERS_ICON_CIRCLE},
+    {"gift", IDS_OGANESSON_CONTAINERS_ICON_GIFT},
+    {"vacation", IDS_OGANESSON_CONTAINERS_ICON_VACATION},
+    {"pet", IDS_OGANESSON_CONTAINERS_ICON_PET},
+    {"chill", IDS_OGANESSON_CONTAINERS_ICON_CHILL},
+    {"fence", IDS_OGANESSON_CONTAINERS_ICON_FENCE},
+};
 
 }  // namespace
 
@@ -96,8 +117,10 @@ void AddSettingsStrings(content::WebUIDataSource* source) {
   };
   source->AddLocalizedStrings(kStrings);
   std::vector<std::string> colors;
-  for (const char* color : kColors) {
-    colors.push_back(color);
+  for (const Choice& color : kColors) {
+    colors.push_back(color.name);
+    source->AddLocalizedString(base::StrCat({"containerColorName_", color.name}),
+                               color.message);
   }
   source->AddString("containerColors", base::JoinString(colors, ","));
   for (const char* color : {"blue", "turquoise", "green", "yellow", "orange",
@@ -107,12 +130,14 @@ void AddSettingsStrings(content::WebUIDataSource* source) {
         color_utils::SkColorToRgbaString(Container{.color = color}.color_value()));
   }
   std::vector<std::string> icons;
-  for (const char* icon : kIconNames) {
-    icons.push_back(icon);
+  for (const Choice& icon : kIconNames) {
+    icons.push_back(icon.name);
+    source->AddLocalizedString(base::StrCat({"containerIconName_", icon.name}),
+                               icon.message);
     // White on transparent, for the page to use as a mask in any color.
     gfx::ImageSkia image =
-        gfx::CreateVectorIcon(VectorIconOf(icon), 32, SK_ColorWHITE);
-    source->AddString(base::StrCat({"containerIcon_", icon}),
+        gfx::CreateVectorIcon(VectorIconOf(icon.name), 32, SK_ColorWHITE);
+    source->AddString(base::StrCat({"containerIcon_", icon.name}),
                       webui::GetBitmapDataUrl(*image.bitmap()));
   }
   source->AddString("containerIcons", base::JoinString(icons, ","));

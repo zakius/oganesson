@@ -347,5 +347,26 @@ class ContainersVerticalTabsTest(BrowserTest):
         self.assertNotIn(color, self.line_colors(tabs[0]))
 
 
+class ContainersPolishTest(BrowserTest):
+    """Settings names the colors and icons in the user's language."""
+    browser_args = ('--lang=pl',)
+    browser_env = {'LANGUAGE': 'pl'}
+
+    def test_color_and_icon_names(self):
+        page = self.browser.new_tab('chrome://settings/containers')
+        root = f"{DEEP}('settings-containers-page')?.shadowRoot"
+        wait_for(lambda: page.eval(f"!!{root}?.querySelector('#addContainer')"),
+                 what='the containers page')
+        page.eval(f"{root}.querySelector('#addContainer').click()")
+        wait_for(lambda: page.eval(f"!!{root}.querySelector('#colors .choice')"),
+                 what='the container dialog')
+
+        def labels(list_id):
+            return page.eval(f"[...{root}.querySelectorAll('#{list_id} .choice')]"
+                             ".map(b => b.getAttribute('aria-label'))")
+        self.assertIn('Niebieski', labels('colors'))
+        self.assertIn('Odcisk palca', labels('icons'))
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -1225,6 +1225,96 @@
     "message": "Ikona"
   },
   {
+    "name": "IDS_OGANESSON_CONTAINERS_COLOR_BLUE",
+    "source": "Blue",
+    "message": "Niebieski"
+  },
+  {
+    "name": "IDS_OGANESSON_CONTAINERS_COLOR_TURQUOISE",
+    "source": "Turquoise",
+    "message": "Turkusowy"
+  },
+  {
+    "name": "IDS_OGANESSON_CONTAINERS_COLOR_GREEN",
+    "source": "Green",
+    "message": "Zielony"
+  },
+  {
+    "name": "IDS_OGANESSON_CONTAINERS_COLOR_YELLOW",
+    "source": "Yellow",
+    "message": "Żółty"
+  },
+  {
+    "name": "IDS_OGANESSON_CONTAINERS_COLOR_ORANGE",
+    "source": "Orange",
+    "message": "Pomarańczowy"
+  },
+  {
+    "name": "IDS_OGANESSON_CONTAINERS_COLOR_RED",
+    "source": "Red",
+    "message": "Czerwony"
+  },
+  {
+    "name": "IDS_OGANESSON_CONTAINERS_COLOR_PINK",
+    "source": "Pink",
+    "message": "Różowy"
+  },
+  {
+    "name": "IDS_OGANESSON_CONTAINERS_COLOR_PURPLE",
+    "source": "Purple",
+    "message": "Fioletowy"
+  },
+  {
+    "name": "IDS_OGANESSON_CONTAINERS_ICON_FINGERPRINT",
+    "source": "Fingerprint",
+    "message": "Odcisk palca"
+  },
+  {
+    "name": "IDS_OGANESSON_CONTAINERS_ICON_BRIEFCASE",
+    "source": "Briefcase",
+    "message": "Teczka"
+  },
+  {
+    "name": "IDS_OGANESSON_CONTAINERS_ICON_DOLLAR",
+    "source": "Dollar sign",
+    "message": "Znak dolara"
+  },
+  {
+    "name": "IDS_OGANESSON_CONTAINERS_ICON_CART",
+    "source": "Cart",
+    "message": "Koszyk"
+  },
+  {
+    "name": "IDS_OGANESSON_CONTAINERS_ICON_CIRCLE",
+    "source": "Circle",
+    "message": "Koło"
+  },
+  {
+    "name": "IDS_OGANESSON_CONTAINERS_ICON_GIFT",
+    "source": "Gift",
+    "message": "Prezent"
+  },
+  {
+    "name": "IDS_OGANESSON_CONTAINERS_ICON_VACATION",
+    "source": "Vacation",
+    "message": "Wakacje"
+  },
+  {
+    "name": "IDS_OGANESSON_CONTAINERS_ICON_PET",
+    "source": "Pet",
+    "message": "Zwierzę"
+  },
+  {
+    "name": "IDS_OGANESSON_CONTAINERS_ICON_CHILL",
+    "source": "Chill",
+    "message": "Relaks"
+  },
+  {
+    "name": "IDS_OGANESSON_CONTAINERS_ICON_FENCE",
+    "source": "Fence",
+    "message": "Płot"
+  },
+  {
     "name": "IDS_OGANESSON_CONTAINERS_DELETE_TITLE",
     "source": "Delete <ph name=\"CONTAINER\">$1<ex>Work</ex></ph>?",
     "message": "Usunąć <ph name=\"CONTAINER\">$1<ex>Work</ex></ph>?"

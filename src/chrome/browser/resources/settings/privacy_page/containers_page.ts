@@ -235,7 +235,7 @@ export class SettingsContainersPageElement extends
             <span class="label">[[i18n('containersColor')]]</span>
             <div class="choices" id="colors">
               <template is="dom-repeat" items="[[colors_]]">
-                <button class="choice" aria-label="[[item]]"
+                <button class="choice" aria-label="[[colorName_(item)]]"
                     aria-pressed$="[[isEqual_(item, editing_.color)]]"
                     on-click="onColorClick_">
                   <span class="swatch" style$="[[swatchStyle_(item)]]"></span>
@@ -245,7 +245,7 @@ export class SettingsContainersPageElement extends
             <span class="label">[[i18n('containersIcon')]]</span>
             <div class="choices" id="icons">
               <template is="dom-repeat" items="[[icons_]]">
-                <button class="choice" aria-label="[[item]]"
+                <button class="choice" aria-label="[[iconName_(item)]]"
                     aria-pressed$="[[isEqual_(item, editing_.icon)]]"
                     on-click="onIconClick_">
                   <span class="container-icon"
@@ -379,6 +379,15 @@ export class SettingsContainersPageElement extends
 
   private iconStyle_(icon: string, color: string): string {
     return iconStyle(icon, color);
+  }
+
+  // The names screen readers read for a color or icon.
+  private colorName_(color: string): string {
+    return this.i18n('containerColorName_' + color);
+  }
+
+  private iconName_(icon: string): string {
+    return this.i18n('containerIconName_' + icon);
   }
 
   private swatchStyle_(color: string): string {
