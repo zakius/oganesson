@@ -11,7 +11,7 @@ import tempfile
 import time
 from pathlib import Path
 
-from harness import BrowserTest, Server, wait_for
+from harness import BrowserTest, Server, extension_id, wait_for
 from test_firefox_sync import FIND
 
 # An unpacked extension that inspects and arranges the tabs.
@@ -57,7 +57,7 @@ class TabBehaviorTest(BrowserTest):
         shutil.rmtree(cls.folder)
 
     def run_js(self, body):
-        page = self.browser.page('background.js')
+        page = self.browser.extension_background(extension_id(self.folder))
         wait_for(lambda: page.eval('typeof self.chrome?.tabs') == 'object', what='the extension APIs')
         return page.eval(f'(async () => {{ {body} }})()')
 

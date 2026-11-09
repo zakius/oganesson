@@ -33,15 +33,20 @@ What's here:
   `browser_call(method)`, `pipe_call(method)` (PWA); views with `views(cls, **props)`,
   `wait_view(cls, **props)`, `wait_settled(find)`, `menus()`, `ubo_background()`, `wait_ubo_menu()`; real input with `click_view(view)`,
   `click_element(page, selector, button, repeat)`, `key(*keys)`, `xdotool(...)`;
+  add-ons with `extension_background(id)`, `extension_info(id)`,
+  `extension_errors(id)` (with `prefs = DEVELOPER_MODE`), `open_popup(id)`;
   `root`, `profile`, `home` and `log_path` for files.
 - Page: `eval(js)` (awaits promises; a user gesture unless `gesture=False`),
   `click(selector, button)`, `call(method)`.
 - Server: local HTTP(S) `routes`, with `requests`, `headers` and `bodies` seen.
 - wait_for(check): polls until `check()` is truthy.
 - installed_env(folder): `browser_env` for a browser installed as a package.
+- unpack_xpi(xpi, folder): an .xpi unpacked for --load-extension;
+  extension_id(folder): the ID of the add-on loaded from there.
 
 Tests to copy from: test_ubo_restart.py for the bundled uBlock Origin,
-test_tab_behavior.py for a test extension loaded with --load-extension.
+test_tab_behavior.py for a test extension loaded with --load-extension,
+test_harness.py for an add-on from an .xpi, its errors and its popup.
 
 To explore outside a suite, run a script from tools/e2e with
 OGANESSON_BINARY=../../work/helium-linux/build/src/out/Default/oganesson and
@@ -55,6 +60,7 @@ Stdlib only.
 import atexit
 import base64
 import ctypes
+import hashlib
 import http.server
 import json
 import os
@@ -72,6 +78,7 @@ import time
 import unittest
 import urllib.parse
 import urllib.request
+import zipfile
 from pathlib import Path
 
 BINARY = Path(os.environ.get('OGANESSON_BINARY', ''))
@@ -83,6 +90,9 @@ FATAL_MARKERS = ('FATAL:', 'Check failed', 'DanglingPtr', 'Received signal')
 WINDOW = (1300, 850)
 # Helium's bundled uBlock Origin.
 UBO = 'blockjmkbacgjkknlgpkjjiijinjdanf'
+# `prefs` with developer mode on: chrome://extensions then keeps add-ons'
+# runtime errors, which extension_errors() reads.
+DEVELOPER_MODE = {'extensions': {'ui': {'developer_mode': True}}}
 # Browsers not stopped yet, which the harness stops when it exits.
 BROWSERS = set()
 LIBC = ctypes.CDLL(None)
@@ -140,6 +150,23 @@ def wait_for(check, timeout=15, interval=0.05, what='condition'):
         if time.monotonic() > deadline:
             raise AssertionError(f'timed out after {timeout}s waiting for {what}')
         time.sleep(interval)
+
+
+def unpack_xpi(xpi, folder):
+    """Unpacks an add-on's .xpi, a zip archive, into `folder` for
+    --load-extension, and returns the folder."""
+    with zipfile.ZipFile(xpi) as archive:
+        archive.extractall(folder)
+    return Path(folder)
+
+
+def extension_id(folder):
+    """The ID of the add-on loaded with --load-extension=`folder`: as
+    Chromium makes it from the folder's absolute path (crx_file::id_util),
+    the first 16 bytes of its SHA-256 in hex, with the letters a to p for
+    the digits."""
+    digest = hashlib.sha256(str(Path(folder).resolve()).encode()).hexdigest()[:32]
+    return digest.translate(str.maketrans('0123456789abcdef', 'abcdefghijklmnop'))
 
 
 def installed_env(folder):
@@ -704,6 +731,74 @@ class Browser:
             if page:
                 page.close()
         return wait_for(ready, timeout=60, what="uBlock Origin's background page")
+
+    # Add-ons.
+
+    def extension_background(self, extension_id, timeout=15):
+        """Attaches to the add-on's background page or service worker."""
+        prefix = f'chrome-extension://{extension_id}/'
+        target = wait_for(lambda: next((t for t in self.targets() if t['url'].startswith(prefix)
+                                        and t['type'] in ('background_page', 'service_worker')),
+                                       None), timeout=timeout, what=f'the background of {prefix}')
+        return Page(target)
+
+    def extension_info(self, extension_id, collect_errors=False):
+        """What chrome://extensions knows of the add-on (developerPrivate's
+        ExtensionInfo: `name`, `installWarnings`, `manifestErrors`,
+        `runtimeErrors`, ...), from that page in a tab of its own. With
+        `collect_errors`, the page first turns on the add-on's error
+        collection, which an add-on from --load-extension starts without."""
+        page = self.new_tab('chrome://extensions')
+        try:
+            wait_for(lambda: page.eval('!!chrome.developerPrivate'), what='chrome://extensions')
+            if collect_errors:
+                page.eval('chrome.developerPrivate.updateExtensionConfiguration('
+                          f'{{extensionId: {json.dumps(extension_id)}, errorCollection: true}})')
+            return page.eval(f'chrome.developerPrivate.getExtensionInfo({json.dumps(extension_id)})')
+        finally:
+            self.close_target(page)
+
+    def extension_errors(self, extension_id):
+        """The add-on's errors: the warnings and errors chrome://extensions
+        shows, then its console messages (the `CONSOLE` lines of browser.log,
+        of every level, from its start). chrome://extensions keeps runtime
+        errors in developer mode (`prefs = DEVELOPER_MODE`), from the first
+        call of this on."""
+        info = self.extension_info(extension_id, collect_errors=True)
+        errors = info['installWarnings'] + [e['message']
+                                            for e in info['manifestErrors'] + info['runtimeErrors']]
+        source = f'chrome-extension://{extension_id}/'
+        with open(self.log_path, errors='replace') as log:
+            errors += [line for line in log.read().splitlines()
+                       if 'CONSOLE' in line and source in line]
+        return errors
+
+    def open_popup(self, extension_id, title=None):
+        """Opens the add-on's toolbar popup with a real click on its button,
+        which it pins to the toolbar first, and attaches to the popup. The
+        button's tooltip is `title`, the action's title in the manifest, or
+        the add-on's name."""
+        page = self.new_tab('chrome://extensions')
+        try:
+            wait_for(lambda: page.eval('!!chrome.developerPrivate'), what='chrome://extensions')
+            name = page.eval(f'chrome.developerPrivate.getExtensionInfo({json.dumps(extension_id)})'
+                             '.then(info => info.name)')
+            page.eval('chrome.developerPrivate.updateExtensionConfiguration('
+                      f'{{extensionId: {json.dumps(extension_id)}, pinnedToToolbar: true}})')
+        finally:
+            self.close_target(page)
+        tooltip = title or name
+        button = self.wait_settled(lambda: next(
+            (v for v in self.views('ToolbarActionView')
+             if v.visible and tooltip in v.props.values()), None),
+            what=f'the toolbar button {tooltip!r}')
+        prefix = f'chrome-extension://{extension_id}/'
+        before = {t['id'] for t in self.targets()}
+        self.click_view(button)
+        target = wait_for(lambda: next((t for t in self.targets() if t['id'] not in before
+                                        and t['url'].startswith(prefix)), None),
+                          what=f'the popup of {tooltip!r}')
+        return Page(target)
 
     def wait_ubo_menu(self):
         """Waits for uBlock Origin's "Block element" context menu item, which
