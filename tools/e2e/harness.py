@@ -161,11 +161,16 @@ def unpack_xpi(xpi, folder):
 
 
 def extension_id(folder):
-    """The ID of the add-on loaded with --load-extension=`folder`: as
-    Chromium makes it from the folder's absolute path (crx_file::id_util),
-    the first 16 bytes of its SHA-256 in hex, with the letters a to p for
-    the digits."""
-    digest = hashlib.sha256(str(Path(folder).resolve()).encode()).hexdigest()[:32]
+    """The ID of the add-on loaded with --load-extension=`folder`, as Chromium
+    makes it (crx_file::id_util): from the public key in the manifest's "key",
+    or else from the folder's absolute path, the first 16 bytes of its SHA-256
+    in hex, with the letters a to p for the digits."""
+    try:
+        key = json.loads((Path(folder) / 'manifest.json').read_text(encoding='utf-8-sig'))['key']
+        source = base64.b64decode(key, validate=True)
+    except (OSError, ValueError, KeyError, TypeError):
+        source = str(Path(folder).resolve()).encode()
+    digest = hashlib.sha256(source).hexdigest()[:32]
     return digest.translate(str.maketrans('0123456789abcdef', 'abcdefghijklmnop'))
 
 
