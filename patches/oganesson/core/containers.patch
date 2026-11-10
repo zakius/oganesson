@@ -216,15 +216,16 @@
        params.browser->GetProfile(), initial_site_instance_for_new_contents);
 --- a/chrome/browser/ui/startup/startup_browser_creator_impl.cc
 +++ b/chrome/browser/ui/startup/startup_browser_creator_impl.cc
-@@ -43,6 +43,7 @@
+@@ -43,6 +43,8 @@
  #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
  #include "chrome/browser/ui/browser_window/public/create_browser_window.h"
  #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
++#include "chrome/browser/containers/containers_tabs.h"
 +#include "chrome/browser/containers/platform/containers_desktop.h"
  #include "chrome/browser/ui/navigator/browser_navigator.h"
  #include "chrome/browser/ui/navigator/browser_navigator_params.h"
  #include "chrome/browser/ui/startup/infobar_utils.h"
-@@ -473,7 +474,8 @@ BrowserWindowInterface* StartupBrowserCreatorImpl::OpenTabsInBrowser(
+@@ -473,7 +475,8 @@ BrowserWindowInterface* StartupBrowserCreatorImpl::OpenTabsInBrowser(
  
      // Pinned tabs from the startup-tab provider do not pass through the session
      // restore tab loader, so add background ones without loading them.
@@ -234,12 +235,13 @@
        AddDeferredPinnedStartupTab(browser, tab.url);
        continue;
      }
-@@ -508,7 +510,7 @@ BrowserWindowInterface* StartupBrowserCreatorImpl::OpenTabsInBrowser(
+@@ -508,7 +511,8 @@ BrowserWindowInterface* StartupBrowserCreatorImpl::OpenTabsInBrowser(
      }
  #endif  // BUILDFLAG(ENABLE_RLZ)
  
 -    Navigate(&params);
-+    containers::NavigateInContainer(&params, tab.container);
++    containers::NavigateInContainer(
++        &params, containers::ContainerToRestore(profile_, tab.container));
      first_tab = false;
    }
    if (!browser->GetTabStripModel()->GetActiveWebContents() &&

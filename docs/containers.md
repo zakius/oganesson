@@ -19,7 +19,7 @@ A link a container tab opens stays in the container, whether it opens in the sam
 
 **Settings > Privacy and security > Containers** (`chrome://settings/containers`) lists the containers: add one, change its name, color or icon, or delete it. A new profile has Firefox's four: Personal, Work, Banking and Shopping. Its **Open new tabs in** says where the New Tab button and Ctrl+T open a tab: outside containers (the default), in a container, or in a new temporary container each time, as Brave's pull request brave-core#40693 does. With its **Ask every time**, a click on the New Tab button shows the menu of containers, with **No container** first, and Ctrl+T opens a tab outside containers.
 
-Deleting a container closes its tabs and forgets its closed tabs. Its cookies and site data are deleted then, or at the next start when a tab of it stayed open (a page that asks before it closes) or the last session, which the user can still restore, had a tab in it.
+Deleting a container closes its tabs and forgets its closed tabs. Its cookies and site data are deleted then, or at the next start when a tab of it stayed open (a page that asks before it closes) or the last session, which the user can still restore, had a tab in it. A restored tab of a deleted container, from the last session or a pinned tab, opens in a new temporary container, so the deleted container's data is never used again.
 
 A temporary container gets a name such as "Temporary 2" and a random color. Its data is deleted at a start once no tab, closed tab or restorable session uses it.
 
@@ -85,7 +85,7 @@ Desktop, in `patches/oganesson/core/containers.patch`:
 | `chrome/browser/ui/navigator/browser_navigator.cc` | 5 | A new tab without an opener takes its source page's container. `NavigateParams` has no partition. |
 | `chrome/browser/ui/browser_tabrestore.cc` | 3 | A restored tab's SiteInstance. |
 | `chrome/browser/ui/browser_tabstrip.cc` | 5 | A new tab opens in the container Settings says. |
-| `chrome/browser/ui/startup/startup_tab.h`, `pinned_tab_codec.cc`, `startup_browser_creator_impl.cc` | 16 | Pinned tabs at startup keep their container. |
+| `chrome/browser/ui/startup/startup_tab.h`, `pinned_tab_codec.cc`, `startup_browser_creator_impl.cc` | 18 | Pinned tabs at startup keep their container. |
 | `chrome/browser/ui/browser_commands.cc` (Alt+Enter), `views/frame/browser_root_view.cc` (a dropped link) | 4 | `NavigateFromActiveTab()` instead of `Navigate()`. |
 | `chrome/browser/ui/browser_command_controller.cc` | 7 | Enables and runs the commands (`CommandIds()`, `ExecuteCommand()`). |
 | `chrome/browser/ui/accelerator_table.cc` | 19 | Ctrl+Shift+1 to 9. Chromium uses none of them. |

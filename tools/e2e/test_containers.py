@@ -353,6 +353,33 @@ class ContainersTest(BrowserTest):
         self.assertNotIn('Personal', titles)
         self.assertIn('Work', titles)
 
+    def test_8a_deleted_container_is_not_restored(self):
+        # A tab of a container deleted while the browser was closed, as when
+        # a tab stayed open after the deletion, restores in a new temporary
+        # container, not with the deleted container's cookies.
+        listed = self.get_pref('containers.list')
+        gone = {'id': 'gone', 'name': 'Gone', 'icon': 'circle', 'color': 'red'}
+        self.set_pref('containers.list', listed + [gone])
+        page = self.new_tab_in('Gone')
+        page.call('Page.navigate', url=self.url('/page?gone'))
+        wait_for(lambda: page.eval('location.search') == '?gone', what='the page')
+        self.set_cookie(page, 'gone')
+        self.assertEqual(self.cookie(page), 'in=gone')
+        self.browser.quit()
+        preferences = self.browser.profile / 'Default/Preferences'
+        prefs = json.loads(preferences.read_text())
+        prefs['containers']['list'] = [c for c in prefs['containers']['list']
+                                       if c['id'] != 'gone']
+        preferences.write_text(json.dumps(prefs))
+        self.browser.start()
+        page = Page(wait_for(lambda: next((t for t in self.browser.targets()
+                                           if t['type'] == 'page' and t['url'].endswith('?gone')),
+                                          None), what='the restored tab'))
+        page.call('Page.bringToFront')
+        self.assertEqual(self.cookie(page, timeout=60), '')
+        self.assertNotIn('gone', [c['id'] for c in self.get_pref('containers.list')])
+        self.browser.close_target(page)
+
     def container_icons(self):
         return [v for v in self.browser.views('PageActionView')
                 if v.visible and v['TooltipText'].startswith('Container: ')]
