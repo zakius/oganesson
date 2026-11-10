@@ -66,6 +66,8 @@ In the expanded address bar, the text field sits above the rows. When the first 
 
 A match's source comes from its type (`HISTORY_*`, `BOOKMARK_TITLE`, `SEARCH_HISTORY`, `OPEN_TAB`) and, for the shortcuts and most visited providers, from its provider. Shortcuts store a search as `SEARCH_HISTORY` and a page as `HISTORY_URL`, so a past search or page can't come back through them.
 
+Helium (since 0.21.2.1) has its own history and bookmarks switches, `helium.omnibox.autocomplete.history_enabled` and `bookmark_enabled`, checked in the providers. Its "Address bar" section on the Search engine page is hidden (`patches/oganesson/settings/omnibox-suggestions-settings.patch`), so they stay on and the switches here decide.
+
 `HistoryURLProvider` returns early with Browsing history off, keeping only its what-you-typed match. Its history passes would otherwise replace that match with a history match the filter drops, and Enter on a URL would search.
 
 The settings section is `src/chrome/browser/resources/settings/search_page/omnibox_suggestions.ts` (`patches/oganesson/settings/omnibox-suggestions-settings.patch`).

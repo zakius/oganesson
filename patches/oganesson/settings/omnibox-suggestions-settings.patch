@@ -20,12 +20,12 @@
  
 --- a/chrome/browser/resources/settings/search_page/search_page.html.ts
 +++ b/chrome/browser/resources/settings/search_page/search_page.html.ts
-@@ -44,7 +44,7 @@ export function getHtml(this: SettingsSearchPageElement) {
-         <div>${this.confirmationToastLabel_}</div>
-       </cr-toast>
-     </div>
--    <settings-toggle-button id="searchSuggestToggle"
-+    <settings-toggle-button id="searchSuggestToggle" hidden
-         class="hr"
-         pref-key="search.suggest_enabled"
-         label="$i18n{searchSuggestPref}"
+@@ -81,7 +81,7 @@ export function getHtml(this: SettingsSearchPageElement) {
+     ` : ''}
+   </div>
+ </settings-section>
+-<settings-section page-title="$i18n{addressBarPageTitle}">
++<settings-section page-title="$i18n{addressBarPageTitle}" hidden>
+   <settings-toggle-button id="searchSuggestToggle"
+       pref-key="search.suggest_enabled"
+       label="$i18n{searchSuggestPref}"
