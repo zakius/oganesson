@@ -68,9 +68,11 @@ SETTLE = 2
 ERROR_LENGTH = 300
 UNREADABLE = ('Manifest file is missing or unreadable', 'Manifest is not valid JSON')
 # Uncaught errors that name no missing API and come and go between runs: a
-# message sent at the start before the page that listens for it is up, and a
-# tab gone by the time the add-on asks for it (the runner's own tabs).
-RACES = ('Receiving end does not exist', 'No tab with id')
+# message sent at the start before the page that listens for it is up, a
+# reply whose page went away before it answered, and a tab gone by the time
+# the add-on asks for it (the runner's own tabs).
+RACES = ('Receiving end does not exist', 'message channel closed before a response',
+         'No tab with id')
 
 
 def feature_file(path):
