@@ -19,8 +19,13 @@ ADD_ON = {
         'version': '1',
         'browser_specific_settings': {'gecko': {'id': 'firefox-apis@oganesson.test'}},
         'background': {'scripts': ['background.js']},
+        'permissions': ['menus'],
     }),
-    'background.js': 'self.started = true;',
+    'background.js': '''
+        browser.menus.create({id: 'firefox-item', title: 'Firefox menu item', contexts: ['page']});
+        browser.menus.onClicked.addListener(info => { self.clicked = info.menuItemId; });
+        self.started = true;
+    ''',
 }
 
 
@@ -62,6 +67,24 @@ class FirefoxAddOnsTest(BrowserTest):
         self.assertEqual(info['name'], 'oganesson')
         self.assertRegex(info['version'], r'^\d+\.\d+\.\d+\.\d+$')
         self.assertGreaterEqual(int(info['version'].split('.')[0]), 157)
+
+    def test_menus(self):
+        # Firefox's name for contextMenus, with its permission: the item shows
+        # in the page's context menu, and a click reaches the add-on.
+        self.background_eval('true')  # The background has created the item.
+        page = self.browser.new_tab('data:text/html,<body%20style=height:90vh>')
+        try:
+            wait_for(lambda: page.eval("location.protocol == 'data:' && document.readyState == 'complete'"),
+                     what='the page')
+            self.browser.click_element(page, 'body', button=3)
+            item = wait_for(lambda: next((i for menu in self.browser.menus() for group in menu
+                                          for i in group if i['Title'] == 'Firefox menu item'), None),
+                            what='the add-on\'s menu item')
+            self.browser.click_view(item)
+            wait_for(lambda: not self.browser.menus(), what='the menu to close')
+            self.assertEqual(self.background_eval('self.clicked'), 'firefox-item')
+        finally:
+            self.browser.close_target(page)
 
 
 class FirefoxNamedTest(FirefoxAddOnsTest):

@@ -13,7 +13,8 @@ L1  It installs, unpacked with --load-extension (until the .xpi install step
 L2  Its background page or service worker starts, if it has one, and nothing
     names a missing API or manifest key: its manifest has no key or permission
     that the feature files of the build's tree (_manifest_features.json,
-    _permission_features.json) leave out, besides Firefox's own metadata
+    _permission_features.json) and its permission aliases (ALIASES, such as
+    Firefox's "menus" for "contextMenus") leave out, besides Firefox's own metadata
     (IGNORED_KEYS), and it throws no uncaught error in its first seconds. Such
     an error nearly always comes from an API that isn't there. Any uncaught
     error counts, so the score errs low, but for RACES, errors whose timing
@@ -60,6 +61,9 @@ IGNORED_KEYS = ('$schema', 'applications', 'browser_specific_settings', 'develop
 TREE = BINARY.parents[2]
 FEATURES = ('chrome/common/extensions/api/_{}_features.json',
             'extensions/common/api/_{}_features.json')
+# Where Chromium names other names for permissions: Alias("alias", "name").
+ALIASES = ('chrome/common/extensions/permissions/chrome_api_permissions.cc',
+           'extensions/common/permissions/extensions_api_permissions.cc')
 # How long the add-ons of a group get to start their backgrounds, and then
 # to report errors from their start.
 START = 10
@@ -104,6 +108,12 @@ def known(kind):
     for pattern in FEATURES:
         for name in feature_file(TREE / pattern.format(kind)):
             names.add(name.split('.')[0] if kind == 'manifest' else name)
+    if kind == 'permission':
+        for path in ALIASES:
+            text = (TREE / path).read_text()
+            for alias, name in re.findall(r'Alias\("([^"]+)", "([^"]+)"\)', text):
+                if name in names:
+                    names.add(alias)
     return names
 
 
