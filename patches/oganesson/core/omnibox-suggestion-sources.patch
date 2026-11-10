@@ -1,6 +1,6 @@
 --- a/components/omnibox/browser/BUILD.gn
 +++ b/components/omnibox/browser/BUILD.gn
-@@ -347,6 +347,8 @@ static_library("browser") {
+@@ -347,6 +347,8 @@
      "shortcuts_provider.h",
      "suggestion_group_util.cc",
      "suggestion_group_util.h",
@@ -19,7 +19,7 @@
  #include "components/omnibox/browser/tab_group_provider.h"
  #include "components/omnibox/browser/unscoped_extension_provider.h"
  #include "components/omnibox/browser/url_scoring_signals_annotator.h"
-@@ -1651,6 +1652,7 @@ void AutocompleteController::UpdateResult(UpdateType update_type,
+@@ -1607,6 +1608,7 @@
        input_, template_url_service_, triggered_feature_service_, is_lens_active,
        can_show_contextual_suggestions, mia_enabled, is_incognito,
        old_result.default_match_to_preserve);
@@ -27,7 +27,7 @@
  
    if (update_type == UpdateType::kSyncPass) {
      StartExpireTimer();
-@@ -1710,7 +1712,8 @@ void AutocompleteController::AggregateNewMatches() {
+@@ -1666,7 +1668,8 @@
      // previously within `AppendMatches` but here is the only place where it's
      // still needed, and even this should ideally be cleaned up.
      size_t match_index = internal_result_.size();
@@ -39,18 +39,18 @@
        // `associated_keyword` should only be written in
 --- a/components/omnibox/browser/history_url_provider.cc
 +++ b/components/omnibox/browser/history_url_provider.cc
-@@ -39,6 +39,7 @@
+@@ -38,6 +38,7 @@
+ #include "components/omnibox/browser/in_memory_url_index_types.h"
  #include "components/omnibox/browser/keyword_provider.h"
  #include "components/omnibox/browser/omnibox_field_trial.h"
- #include "components/omnibox/browser/omnibox_pref_names.h"
 +#include "components/omnibox/browser/suggestion_sources.h"
  #include "components/omnibox/browser/url_prefix.h"
  #include "components/omnibox/browser/verbatim_match.h"
  #include "components/prefs/pref_service.h"
-@@ -496,6 +497,10 @@ void HistoryURLProvider::Start(const AutocompleteInput& input,
-   if (!client()->GetPrefs()->GetBoolean(omnibox::kAutocompleteHistoryEnabled)) {
+@@ -489,6 +490,10 @@
+ 
+   if (base::CommandLine::ForCurrentProcess()->HasSwitch("omnibox-autocomplete-filtering"))
      return;
-   }
 +  // With history suggestions off, only the what-you-typed match: the history
 +  // passes would replace it with history matches the controller drops.
 +  if (!omnibox::SuggestsFrom(client()->GetPrefs(), omnibox::kSuggestHistory))

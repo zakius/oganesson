@@ -27,6 +27,7 @@ Every other Helium patch is carried, also the ones earlier reviews called indiff
 - `enable-tab-hover-cards` is dropped, since hover-card images are already on by default outside Mac. The ungoogled `add-flag-for-tab-hover-cards` flag (None or Tooltip) is kept.
 - `inox-patchset/modify-default-prefs` is kept. Its list of defaults still needs an audit.
 - `ungoogled-chromium/disable-webstore-urls` is kept. Check at build time that Chrome Web Store installs still work.
+- Helium's address bar switches (`helium/core/omnibox-suggestions`, `helium/settings/omnibox-suggestions-settings`, since Helium 0.21.2.1) are dropped: my Address bar suggestions ([omnibox](omnibox.md)) have history and bookmarks switches, with more sources and an order. Dropping them puts back Chromium's "Improve search suggestions" label on the search suggestions switch, as the docs name it. Decided 2026-11-10.
 - Fingerprint noise (`helium/core/noise/*` and its settings page) is carried and off by default; its page-info UI is dropped.
 
 ## Carried and turned off
@@ -44,7 +45,6 @@ Every other Helium patch is carried, also the ones earlier reviews called indiff
 | `helium/core/change-chromium-branding` | `late/branding` renames Helium to oganesson. |
 | `helium/core/flags-setup`, `add-low-power-framerate-flag`, `bookmark-open-all-confirmation-flag`, `helium/ui/hide-page-actions-flag`, the `ungoogled-chromium/add-flag-*` and `bromite/*-flags` patches | Only add `chrome://flags` entries, off by default. |
 | `helium/settings/remove-autofill`, `helium/ui/app-menu-model` | `oganesson/settings/restore-autofill-page` puts back the Autofill and passwords section of Settings, and `oganesson/ui/passwords-app-menu` the app menu's Passwords and autofill submenu. `helium/settings/reorder-settings-menu` builds on the first. |
-| `helium/core/omnibox-suggestions`, `helium/settings/omnibox-suggestions-settings` | Helium's "Address bar" section on the Search engine page (search suggestions, and its own history and bookmarks switches, `helium.omnibox.autocomplete.*`) is hidden: my Address bar suggestions ([omnibox](omnibox.md)) cover the same with more sources and an order. Its prefs stay on, so its provider checks change nothing. Since Helium 0.21.2.1 (2026-11-10). |
 | `helium/core/update-default-browser-prefs`, `add-default-browser-reject-button`, `remove-dead-toolbar-actions`, `scan-chrome-native-messaging-hosts` | Neutral as they are. |
 
 - Search engines: Helium's whole search group is carried, with ungoogled-chromium's `prepopulated-search-engines` (`restore-google` renames Google's engine and `engine-defaults` updates the regional lists to match, so they go together). New profiles get one engine list everywhere, DuckDuckGo first, and the EU search engine choice screen (`force-eu-search-features`); engines' favicons aren't fetched (`break-favicons`). Decided 2026-10-14.

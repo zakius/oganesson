@@ -301,17 +301,13 @@ class OmniboxSuggestionsTest(BrowserTest):
         wait_for(lambda: self.pref('search.suggest_enabled'), what='search.suggest_enabled')
         self.settings.eval(f"{section}.querySelector('#searchSuggestToggle').click()")
         wait_for(lambda: not self.pref('search.suggest_enabled'), what='search.suggest_enabled')
-        # Moved from the Search engine page, where Helium's "Address bar" section, which has
-        # it and its own history and bookmarks switches, is hidden.
+        # Moved from the Search engine page.
         search = self.browser.new_tab('chrome://settings/search')
         wait_for(lambda: search.eval(f"!!({FIND})('settings-search-page')?.shadowRoot"
                                      "?.querySelector('#openDialogButton')"),
                  what='the Search engine page')
-        for switch in ('searchSuggestToggle', 'localSuggestionsHistoryToggle',
-                       'localSuggestionsBookmarksToggle'):
-            with self.subTest(switch=switch):
-                self.assertFalse(search.eval(f"({FIND})('settings-search-page').shadowRoot"
-                                             f".querySelector('#{switch}').checkVisibility()"))
+        self.assertTrue(search.eval(f"({FIND})('settings-search-page').shadowRoot"
+                                    ".querySelector('#searchSuggestToggle').hidden"))
         self.browser.close_target(search)
 
     def test_8b_settings_order(self):

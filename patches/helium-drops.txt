@@ -3,6 +3,7 @@
 # names (build files, includes): ./oganesson.py check-patches or the build fail otherwise. One per line: path in Helium's series<TAB>reason. Unwanted patches that others
 # build on are carried and turned off instead: docs/helium-patch-decisions.md.
 helium/core/clean-omnibox-suggestions.patch	Do not want
+helium/core/omnibox-suggestions.patch	History and bookmarks switches: oganesson's Address bar suggestions (docs/omnibox.md) have them
 helium/core/degoogle-context-menu.patch	Do not want
 helium/core/disable-bookmarks-bar.patch	Do not want
 helium/core/disable-history-clusters.patch	Do not want
@@ -24,6 +25,7 @@ helium/core/replace-default-profile-name.patch	Do not want
 helium/core/spoof-chrome-ua-brand.patch	Do not want
 helium/core/unbreak-chromium-link.patch	Do not want
 helium/core/disable-password-manager.patch	Do not want
+helium/settings/omnibox-suggestions-settings.patch	Its Address bar section duplicates oganesson's Address bar suggestions (docs/omnibox.md); needs helium/core/omnibox-suggestions
 helium/settings/sync-setup-contract.patch	Do not want
 helium/ui/bangs-ui.patch	needs `add-native-bangs`
 helium/ui/helium-noise-page-info.patch	Do not want
