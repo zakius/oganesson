@@ -152,5 +152,77 @@ class FirefoxSidebarTest(BrowserTest):
             page.close()
 
 
+def mv3_add_on(name, background, files):
+    """A Firefox Manifest V3 add-on whose background is `background`."""
+    manifest = {
+        'manifest_version': 3,
+        'name': f'Firefox MV3 {name} test add-on',
+        'version': '1',
+        'browser_specific_settings': {'gecko': {'id': f'firefox-mv3-{name}@oganesson.test'}},
+        'background': background,
+    }
+    return {'manifest.json': json.dumps(manifest), **files}
+
+
+MV3_ADD_ONS = {
+    # Firefox's own: an event page from scripts, or from a page.
+    'scripts': mv3_add_on('scripts', {'scripts': ['background.js']},
+                          {'background.js': 'self.started = "page";'}),
+    'page': mv3_add_on('page', {'page': 'background.html'},
+                       {'background.html': '<!doctype html><script src="background.js"></script>',
+                        'background.js': 'self.started = "page";'}),
+    # For Firefox and Chromium both: each browser takes its own key.
+    'both': mv3_add_on('both', {'scripts': ['background.js'], 'service_worker': 'worker.js'},
+                       {'background.js': 'self.started = "page";',
+                        'worker.js': 'self.started = "worker";'}),
+}
+
+
+class FirefoxManifestV3Test(BrowserTest):
+    """Firefox's Manifest V3 backgrounds: background.scripts and
+    background.page run as a background page, and a manifest with a service
+    worker too runs the worker, as Chromium does."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.folder = Path(tempfile.mkdtemp(prefix='oganesson-firefox-mv3-'))
+        cls.unpacked = {}
+        for name, files in MV3_ADD_ONS.items():
+            xpi = cls.folder / f'{name}.xpi'
+            with zipfile.ZipFile(xpi, 'w') as archive:
+                for file, text in files.items():
+                    archive.writestr(file, text)
+            cls.unpacked[name] = unpack_xpi(xpi, cls.folder / name)
+        cls.browser_args = ('--load-extension=' + ','.join(str(f) for f in cls.unpacked.values()),)
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(cls.folder)
+
+    def check_background(self, name, kind, started):
+        add_on = extension_id(self.unpacked[name])
+        background = self.browser.extension_background(add_on)
+        try:
+            wait_for(lambda: background.eval('self.started') == started, what=f'the {name} background')
+        finally:
+            background.close()
+        prefix = f'chrome-extension://{add_on}/'
+        self.assertEqual([t['type'] for t in self.browser.targets() if t['url'].startswith(prefix)],
+                         [kind])
+        errors = self.browser.extension_errors(add_on)
+        self.assertFalse([e for e in errors if 'background' in e], errors)
+
+    def test_background_scripts(self):
+        self.check_background('scripts', 'background_page', 'page')
+
+    def test_background_page(self):
+        self.check_background('page', 'background_page', 'page')
+
+    def test_service_worker_too(self):
+        self.check_background('both', 'service_worker', 'worker')
+
+
 if __name__ == '__main__':
     unittest.main()
