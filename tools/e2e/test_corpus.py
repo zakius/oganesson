@@ -24,7 +24,8 @@ ADDONS = {
     # A dotted permission that Chromium has.
     'dotted-permission': ({**BACKGROUND_MV2, 'permissions': ['downloads', 'downloads.open']},
                           'self.started = true;', 'L2'),
-    'unknown-key': ({**BACKGROUND_MV2, 'sidebar_action': {'default_panel': 'panel.html'}},
+    # Firefox's experiment_apis, which Chromium doesn't have.
+    'unknown-key': ({**BACKGROUND_MV2, 'experiment_apis': {}},
                     'self.started = true;', 'L1'),
     'missing-api': (BACKGROUND_MV2, 'browser.menus.onShown.addListener(() => {});', 'L1'),
     'not-json': ('{"manifest_version": 2,', '', None),
@@ -50,5 +51,5 @@ class CorpusTest(unittest.TestCase):
             with self.subTest(name):
                 found, error = results[name]
                 self.assertEqual(found, expected, error)
-        self.assertIn('sidebar_action', results['unknown-key'][1])
+        self.assertIn('experiment_apis', results['unknown-key'][1])
         self.assertIn('Uncaught', results['missing-api'][1])
