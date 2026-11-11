@@ -238,6 +238,44 @@ class ContainersTest(BrowserTest):
         self.assertEqual(self.cookie(page), 'in=work')
         self.browser.close_target(page)
 
+    def test_4a_browser_page_keeps_the_container(self):
+        # A Work tab that shows a browser page restores in Work, after a
+        # restart and reopened: Back loads its site with Work's cookie.
+        work = self.new_tab_in('Work')
+        work.call('Page.navigate', url='chrome://version')
+        wait_for(lambda: work.eval('location.href') == 'chrome://version/',
+                 what='the browser page')
+
+        def back_in_work():
+            page = Page(wait_for(lambda: next((t for t in self.browser.targets()
+                                               if t['url'] == 'chrome://version/'), None),
+                                 timeout=30, what='the restored browser page'))
+            page.call('Page.bringToFront')
+            wait_for(lambda: page.eval('document.readyState') == 'complete',
+                     timeout=60, what='the browser page to load')
+            page.eval('history.back()')
+            wait_for(lambda: page.eval('location.pathname') == '/page', what='Back')
+            self.assertEqual(self.cookie(page), 'in=work')
+            page.call('Page.navigate', url='chrome://version')
+            wait_for(lambda: page.eval('location.href') == 'chrome://version/',
+                     what='the browser page')
+            return page
+
+        tabs = len(self.page_tabs())
+        self.browser.quit()
+        self.browser.start()
+        wait_for(lambda: len(self.page_tabs()) == tabs, what='every tab to be restored')
+        # The other restored tabs load when shown, so the next steps can read them.
+        for other in self.page_tabs():
+            other.call('Page.bringToFront')
+            self.cookie(other, timeout=60)
+        page = back_in_work()
+        self.browser.close_target(page)
+        wait_for(lambda: not [t for t in self.browser.targets()
+                              if t['url'] == 'chrome://version/'], what='the tab to close')
+        self.browser.key('ctrl+shift+t')
+        self.browser.close_target(back_in_work())
+
     def test_5_traffic_control(self):
         # localhost's cookie in Work tells the rule's tab apart.
         before = self.pages()
