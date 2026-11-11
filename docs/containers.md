@@ -21,6 +21,8 @@ A link a container tab opens stays in the container, whether it opens in the sam
 
 Deleting a container closes its tabs and forgets its closed tabs. Its cookies and site data are deleted then, or at the next start when a tab of it stayed open (a page that asks before it closes) or the last session, which the user can still restore, had a tab in it. A restored tab of a deleted container, from the last session or a pinned tab, opens in a new temporary container, so the deleted container's data is never used again.
 
+Sites in a container can show notifications, and a click on one goes to the container's page or service worker. They can't subscribe to push messages: Chromium delivers those to the site outside containers, so the subscription fails with "push service not available".
+
 A temporary container gets a name such as "Temporary 2" and a random color. Its data is deleted at a start once no tab, closed tab or restorable session uses it.
 
 ### Traffic Control
@@ -73,6 +75,9 @@ Lines are the lines a patch adds or changes, includes counted. Shared, in `dubna
 | `content/browser/renderer_host/navigation_entry_impl.cc` | 11 | The partition a page committed in, which the session handler saves. The public `NavigationEntry` doesn't tell its SiteInstance. |
 | `content/browser/host_zoom_map_impl.cc` | 8 | Containers share the default partition's zoom levels, as in Firefox: Chromium keeps a `HostZoomMap` per partition. |
 | `components/permissions/permission_util.cc` | 7 | Notifications: Chromium blocks them in a partition that isn't the site's own. |
+| `content/browser/notifications/notification_id_generator.h`, `.cc`, `content/browser/storage_partition_impl.cc` | 17 | A container's persistent notification has the container's partition in its id. |
+| `content/browser/notifications/notification_event_dispatcher_impl.cc` | 7 | A click on that notification, or its close, goes to the container's service worker: Chromium looks for the worker in the site's own partition. |
+| `content/browser/push_messaging/push_messaging_manager.cc` | 10 | No push subscriptions in containers: Chromium delivers a push message to the site's own partition. |
 | `chrome/browser/profiles/chrome_browser_main_extra_parts_profiles.cc` | 2 | Builds the service factory at startup, which registers the prefs. |
 | `chrome/browser/chrome_content_browser_client_navigation_throttles.cc` | 2 | Traffic Control's throttle. |
 | `chrome/browser/BUILD.gn` | 1 | Links `//chrome/browser/containers/platform`. |

@@ -4,7 +4,9 @@ open and across a restart, and Traffic Control rules move pages into one.
 The address bar shows the tab's container. A link dropped on the tab strip
 and Alt+Enter in the address bar stay in the tab's container, the New Tab
 button can ask where to open, and commands open a new tab in a container.
-A site's zoom level is the same in every container.
+A site's zoom level is the same in every container. A click on a container's
+notification reaches the container's service worker, and push subscriptions
+fail in containers.
 
 The tests are steps of one session, in order. A tab's container shows in its
 cookies: each tab sets a cookie named after where it is.
@@ -22,6 +24,14 @@ PAGE = b'''<!doctype html><title>page</title>
 <a id="link" href="/other?link">link</a>
 <p id="space" style="height: 200px">text</p>'''
 OTHER = b'<!doctype html><title>other</title><p>other</p>'
+# A service worker that tells its pages about a click on its notification.
+WORKER = b'''self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  event.waitUntil(clients.matchAll({includeUncontrolled: true}).then(
+      pages => pages.forEach(page => page.postMessage(event.notification.title))));
+});'''
+# The public key of the Web Push protocol's examples (RFC 8292).
+PUSH_KEY = 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U'
 # The first element matching a selector, through every shadow root.
 DEEP = """(selector => {
   const find = root => {
@@ -51,7 +61,12 @@ class ContainersTest(BrowserTest):
     def setUpClass(cls):
         cls.server = Server({'/page': (200, {'Content-Type': 'text/html'}, PAGE),
                              '/other': (200, {'Content-Type': 'text/html'}, OTHER),
-                             '/popup': (200, {'Content-Type': 'text/html'}, OTHER)})
+                             '/popup': (200, {'Content-Type': 'text/html'}, OTHER),
+                             '/worker.js': (200, {'Content-Type': 'text/javascript'}, WORKER)})
+        # The test server may show notifications (step 9f).
+        site = f'{cls.server.url("")},*'
+        cls.prefs = {**cls.prefs, 'profile': {'content_settings': {'exceptions': {
+            'notifications': {site: {'setting': 1}}}}}}
         super().setUpClass()
 
     @classmethod
@@ -546,6 +561,43 @@ class ContainersTest(BrowserTest):
         finally:
             default.call('Page.bringToFront')
             self.browser.key('ctrl+0')
+            self.browser.close_target(default)
+
+
+    def register_worker(self, page):
+        """Registers WORKER for `page`, whose clicked notifications' titles
+        go into window.clicked."""
+        page.eval("window.clicked = []; navigator.serviceWorker.onmessage ="
+                  " event => window.clicked.push(event.data);"
+                  " navigator.serviceWorker.register('/worker.js')"
+                  ".then(() => navigator.serviceWorker.ready).then(() => true)")
+
+    def test_9f_notifications_and_push(self):
+        # Chromium sends a notification's click to the site's own partition:
+        # a container's notification has to reach the container's worker.
+        default = self.browser.new_tab(self.url('/other?notify'))
+        wait_for(lambda: default.eval('document.title') == 'other', what='the page')
+        work = self.new_tab_in('Work')
+        try:
+            self.register_worker(default)
+            self.register_worker(work)
+            work.eval("navigator.serviceWorker.ready.then(worker =>"
+                      " worker.showNotification('from Work', {requireInteraction: true}))"
+                      ".then(() => true)")
+            popup = self.browser.wait_view('MessagePopupView')
+            self.browser.click_view(popup)
+            wait_for(lambda: work.eval('window.clicked.length'), what='the click in Work')
+            self.assertEqual(work.eval('window.clicked'), ['from Work'])
+            self.assertEqual(default.eval('window.clicked'), [])
+
+            # Push goes to the site's own partition too, so containers have none.
+            error = work.eval(
+                "navigator.serviceWorker.ready.then(worker => worker.pushManager.subscribe("
+                f"{{userVisibleOnly: true, applicationServerKey: '{PUSH_KEY}'}}))"
+                ".then(() => 'subscribed', error => error.message)")
+            self.assertIn('push service not available', error)
+        finally:
+            self.browser.close_target(work)
             self.browser.close_target(default)
 
 
