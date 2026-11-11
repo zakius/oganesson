@@ -224,5 +224,72 @@ class FirefoxManifestV3Test(BrowserTest):
         self.check_background('both', 'service_worker', 'worker')
 
 
+def versioned_add_on(name, version, version_name=None):
+    """A Firefox add-on whose manifest has `version`, and `version_name` if
+    given."""
+    manifest = {
+        'manifest_version': 2,
+        'name': f'Firefox version {name} test add-on',
+        'version': version,
+        'browser_specific_settings': {'gecko': {'id': f'firefox-version-{name}@oganesson.test'}},
+        'background': {'scripts': ['background.js']},
+    }
+    if version_name:
+        manifest['version_name'] = version_name
+    return {'manifest.json': json.dumps(manifest), 'background.js': 'self.started = true;'}
+
+
+VERSIONED_ADD_ONS = {
+    # Mozilla's re-signed builds, the most common suffix in the corpus.
+    'resigned': versioned_add_on('resigned', '1.2resigned1'),
+    # A suffix with more numbers after it, and the manifest's own version_name.
+    'named': versioned_add_on('named', '1.3.4buildid20230720.091143', 'Release 1.3.4'),
+}
+
+
+class FirefoxVersionTest(BrowserTest):
+    """Firefox's versions with a suffix: the add-on loads with the leading
+    numbers as its version, the full string is its version name unless the
+    manifest has one, and the add-on reads its manifest's version as it is."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.folder = Path(tempfile.mkdtemp(prefix='oganesson-firefox-version-'))
+        cls.unpacked = {}
+        for name, files in VERSIONED_ADD_ONS.items():
+            xpi = cls.folder / f'{name}.xpi'
+            with zipfile.ZipFile(xpi, 'w') as archive:
+                for file, text in files.items():
+                    archive.writestr(file, text)
+            cls.unpacked[name] = unpack_xpi(xpi, cls.folder / name)
+        cls.browser_args = ('--load-extension=' + ','.join(str(f) for f in cls.unpacked.values()),)
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(cls.folder)
+
+    def check_version(self, name, manifest_version, version, version_name):
+        add_on = extension_id(self.unpacked[name])
+        background = self.browser.extension_background(add_on)
+        try:
+            wait_for(lambda: background.eval('self.started === true'), what=f'the {name} background')
+            self.assertEqual(background.eval('browser.runtime.getManifest().version'), manifest_version)
+            info = background.eval('browser.management.getSelf()')
+        finally:
+            background.close()
+        self.assertEqual((info['version'], info['versionName']), (version, version_name))
+        self.assertEqual(self.browser.extension_info(add_on)['version'], version_name)
+        errors = self.browser.extension_errors(add_on)
+        self.assertFalse([e for e in errors if 'version' in e], errors)
+
+    def test_suffix(self):
+        self.check_version('resigned', '1.2resigned1', '1.2', '1.2resigned1')
+
+    def test_suffix_with_version_name(self):
+        self.check_version('named', '1.3.4buildid20230720.091143', '1.3.4', 'Release 1.3.4')
+
+
 if __name__ == '__main__':
     unittest.main()
