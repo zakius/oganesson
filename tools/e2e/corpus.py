@@ -188,11 +188,12 @@ def run_group(items, xpis, work):
         ids = {i: extension_id(f) for i, f in folders.items() if f}
         manifests = {i: read_manifest(f) for i, f in folders.items() if f}
         expected = {ids[i] for i, m in manifests.items() if m.get('background')}
-        # Every background that will start, or the end of START.
+        # Every background that will start, or the end of START. One seen once
+        # counts: an add-on may remove itself after its start.
         started = set()
         deadline = time.monotonic() + START
         while time.monotonic() < deadline:
-            started = {t['url'].split('/')[2] for t in browser.targets()
+            started |= {t['url'].split('/')[2] for t in browser.targets()
                        if t['type'] in ('background_page', 'service_worker')
                        and t['url'].startswith('chrome-extension://')}
             if expected <= started:
@@ -224,7 +225,9 @@ def run_group(items, xpis, work):
                              if 'Uncaught' in e['message']
                              and not any(race in e['message'] for race in RACES)]
             background = (extension in started) if manifests[item_id].get('background') else None
-            found, error = level(load_error, bool(info), background,
+            # An add-on whose background started was installed, even when it
+            # is gone by now: some remove themselves (management.uninstallSelf).
+            found, error = level(load_error, bool(info) or extension in started, background,
                                  unknown(manifests[item_id], keys, permissions), uncaught)
             results[item_id] = (found, error and error[:ERROR_LENGTH])
     finally:

@@ -28,6 +28,10 @@ ADDONS = {
     'unknown-key': ({**BACKGROUND_MV2, 'experiment_apis': {}},
                     'self.started = true;', 'L1'),
     'missing-api': (BACKGROUND_MV2, 'browser.menus.onShown.addListener(() => {});', 'L1'),
+    # Its background runs, then removes the add-on, as CTCT Extension does
+    # without its enterprise's consent.
+    'uninstalls-itself': ({**BACKGROUND_MV2, 'permissions': ['management']},
+                          'setTimeout(() => chrome.management.uninstallSelf(), 1000);', 'L2'),
     'not-json': ('{"manifest_version": 2,', '', None),
 }
 
