@@ -1,0 +1,110 @@
+# Firefox's sidebar_action (zakius/oganesson#70, dubna's webextensions/README.md): the add-on's
+# default_panel is its side panel, as Chromium's side_panel key makes one, without the sidePanel
+# permission (src/chrome/common/extensions/api/side_panel/firefox_sidebar_action.cc).
+# - side_panel_info.cc: the side panel manifest handler also reads sidebar_action.
+# - BUILD.gn, _manifest_features.json: the new file, and the key in Manifest V2 and V3.
+# - extension_side_panel_manager.cc: such an add-on gets its side panel entry.
+# - extension_context_menu_model.cc: and "Open side panel" in its toolbar menu.
+--- a/chrome/browser/extensions/extension_context_menu_model.cc
++++ b/chrome/browser/extensions/extension_context_menu_model.cc
+@@ -41,6 +41,7 @@
+ #include "chrome/browser/ui/toolbar/toolbar_actions_model.h"
+ #include "chrome/browser/ui/ui_features.h"
+ #include "chrome/common/extensions/api/side_panel.h"
++#include "chrome/common/extensions/api/side_panel/firefox_sidebar_action.h"
+ #include "chrome/common/pref_names.h"
+ #include "chrome/common/webui_url_constants.h"
+ #include "chrome/grit/branded_strings.h"
+@@ -1049,7 +1050,8 @@
+ void ExtensionContextMenuModel::AddSidePanelEntryIfPresent(
+     const Extension& extension) {
+   if (!extension.permissions_data()->HasAPIPermission(
+-          mojom::APIPermissionID::kSidePanel)) {
++          mojom::APIPermissionID::kSidePanel) &&
++      !IsFirefoxSidebar(extension)) {
+     return;
+   }
+ 
+--- a/chrome/browser/ui/extensions/extension_side_panel_manager.cc
++++ b/chrome/browser/ui/extensions/extension_side_panel_manager.cc
+@@ -9,6 +9,7 @@
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+ #include "chrome/browser/ui/extensions/extension_side_panel_coordinator.h"
++#include "chrome/common/extensions/api/side_panel/firefox_sidebar_action.h"
+ #include "content/public/browser/browser_context.h"
+ #include "extensions/browser/extension_registry.h"
+ #include "extensions/browser/extension_util.h"
+@@ -90,7 +91,8 @@
+ void ExtensionSidePanelManager::MaybeCreateExtensionSidePanelCoordinator(
+     const Extension* extension) {
+   if (!extension->permissions_data()->HasAPIPermission(
+-          mojom::APIPermissionID::kSidePanel)) {
++          mojom::APIPermissionID::kSidePanel) &&
++      !IsFirefoxSidebar(*extension)) {
+     return;
+   }
+ 
+--- a/chrome/common/extensions/api/_manifest_features.json
++++ b/chrome/common/extensions/api/_manifest_features.json
+@@ -47,6 +47,12 @@
+     "extension_types": ["extension"],
+     "min_manifest_version": 3
+   },
++  // oganesson: Firefox's sidebar, the add-on's side panel
++  // (firefox_sidebar_action.h).
++  "sidebar_action": {
++    "channel": "stable",
++    "extension_types": ["extension"]
++  },
+   "storage": {
+     "channel": "stable",
+     "extension_types": [
+--- a/chrome/common/extensions/api/side_panel/side_panel_info.cc
++++ b/chrome/common/extensions/api/side_panel/side_panel_info.cc
+@@ -7,6 +7,7 @@
+ #include "base/files/file_path.h"
+ #include "base/files/file_util.h"
+ #include "chrome/common/extensions/api/side_panel.h"
++#include "chrome/common/extensions/api/side_panel/firefox_sidebar_action.h"
+ #include "extensions/common/file_util.h"
+ #include "extensions/common/manifest.h"
+ #include "extensions/common/manifest_constants.h"
+@@ -29,6 +30,9 @@
+ 
+ std::unique_ptr<SidePanelInfo> ParseFromDictionary(const Extension& extension,
+                                                    std::u16string* error) {
++  if (IsFirefoxSidebar(extension)) {
++    return ParseFirefoxSidebar(extension, error);
++  }
+   SidePanelManifestKeys manifest_keys;
+   if (!SidePanelManifestKeys::ParseFromDictionary(
+           extension.manifest()->available_values(), manifest_keys, *error)) {
+@@ -80,7 +84,8 @@
+ }
+ 
+ base::span<const char* const> SidePanelManifestHandler::Keys() const {
+-  static constexpr const char* kKeys[] = {SidePanelManifestKeys::kSidePanel};
++  static constexpr const char* kKeys[] = {SidePanelManifestKeys::kSidePanel,
++                                          kFirefoxSidebarAction};
+   return kKeys;
+ }
+ 
+--- a/chrome/common/extensions/BUILD.gn
++++ b/chrome/common/extensions/BUILD.gn
+@@ -13,6 +13,7 @@
+     "activity_log_policy_util.h",
+     "api/notifications/notification_style.h",
+     "api/omnibox/omnibox_handler.h",
++    "api/side_panel/firefox_sidebar_action.h",
+     "api/side_panel/side_panel_info.h",
+     "api/storage/storage_schema_manifest_handler.h",
+     "api/sync_vault_provider/sync_vault_provider_manifest_handler.h",
+@@ -34,6 +35,7 @@
+     "activity_log_policy_util.cc",
+     "api/notifications/notification_style.cc",
+     "api/omnibox/omnibox_handler.cc",
++    "api/side_panel/firefox_sidebar_action.cc",
+     "api/side_panel/side_panel_info.cc",
+     "api/storage/storage_schema_manifest_handler.cc",
+     "api/sync_vault_provider/sync_vault_provider_manifest_handler.cc",

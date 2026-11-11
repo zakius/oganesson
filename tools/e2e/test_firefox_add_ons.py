@@ -10,7 +10,7 @@ import unittest
 import zipfile
 from pathlib import Path
 
-from harness import BrowserTest, extension_id, unpack_xpi, wait_for
+from harness import BrowserTest, Page, extension_id, unpack_xpi, wait_for
 
 ADD_ON = {
     'manifest.json': json.dumps({
@@ -96,6 +96,60 @@ class FirefoxNamedTest(FirefoxAddOnsTest):
         info = self.background_eval('browser.runtime.getBrowserInfo()')
         self.assertEqual((info['name'], info['vendor']), ('Firefox', 'Mozilla'))
         self.assertGreaterEqual(int(info['version'].split('.')[0]), 157)
+
+
+SIDEBAR_ADD_ON = {
+    'manifest.json': json.dumps({
+        'manifest_version': 2,
+        'name': 'Firefox sidebar test add-on',
+        'version': '1',
+        'browser_specific_settings': {'gecko': {'id': 'firefox-sidebar@oganesson.test'}},
+        'sidebar_action': {'default_panel': 'panel.html', 'default_title': 'Test sidebar'},
+    }),
+    'panel.html': '<!doctype html><title>Test sidebar</title><p>The sidebar panel</p>',
+}
+
+
+class FirefoxSidebarTest(BrowserTest):
+    """sidebar_action: an add-on with only Firefox's sidebar, as Sidebery and
+    Tree Style Tab have it, opens it as its side panel from its toolbar menu."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.folder = Path(tempfile.mkdtemp(prefix='oganesson-firefox-sidebar-'))
+        xpi = cls.folder / 'add-on.xpi'
+        with zipfile.ZipFile(xpi, 'w') as archive:
+            for name, text in SIDEBAR_ADD_ON.items():
+                archive.writestr(name, text)
+        cls.unpacked = unpack_xpi(xpi, cls.folder / 'unpacked')
+        cls.browser_args = (f'--load-extension={cls.unpacked}',)
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(cls.folder)
+
+    def test_sidebar_action(self):
+        add_on = extension_id(self.unpacked)
+        # The key is known: no "Unrecognized manifest key" warning.
+        errors = self.browser.extension_errors(add_on)
+        self.assertFalse([e for e in errors if 'sidebar_action' in e], errors)
+        button = self.browser.toolbar_button(add_on)
+        self.browser.click_view(button, button=3)
+        item = wait_for(lambda: next((i for menu in self.browser.menus() for group in menu
+                                      for i in group if i['Title'] == 'Open side panel'), None),
+                        what='"Open side panel" in the add-on\'s menu')
+        self.browser.click_view(item)
+        panel = wait_for(lambda: next((t for t in self.browser.targets()
+                                       if t['url'] == f'chrome-extension://{add_on}/panel.html'),
+                                      None), what='the side panel')
+        page = Page(panel)
+        try:
+            wait_for(lambda: page.eval("document.readyState == 'complete'"), what='the panel page')
+            self.assertEqual(page.eval('document.body.innerText'), 'The sidebar panel')
+        finally:
+            page.close()
 
 
 if __name__ == '__main__':

@@ -783,6 +783,19 @@ class Browser:
         which it pins to the toolbar first, and attaches to the popup. The
         button's tooltip is `title`, the action's title in the manifest, or
         the add-on's name."""
+        button = self.toolbar_button(extension_id, title)
+        prefix = f'chrome-extension://{extension_id}/'
+        before = {t['id'] for t in self.targets()}
+        self.click_view(button)
+        target = wait_for(lambda: next((t for t in self.targets() if t['id'] not in before
+                                        and t['url'].startswith(prefix)), None),
+                          what=f'the popup of {extension_id}')
+        return Page(target)
+
+    def toolbar_button(self, extension_id, title=None):
+        """The add-on's toolbar button, which this pins to the toolbar. Its
+        tooltip is `title`, the action's title in the manifest, or the add-on's
+        name."""
         page = self.new_tab('chrome://extensions')
         try:
             wait_for(lambda: page.eval('!!chrome.developerPrivate'), what='chrome://extensions')
@@ -793,17 +806,10 @@ class Browser:
         finally:
             self.close_target(page)
         tooltip = title or name
-        button = self.wait_settled(lambda: next(
+        return self.wait_settled(lambda: next(
             (v for v in self.views('ToolbarActionView')
              if v.visible and tooltip in v.props.values()), None),
             what=f'the toolbar button {tooltip!r}')
-        prefix = f'chrome-extension://{extension_id}/'
-        before = {t['id'] for t in self.targets()}
-        self.click_view(button)
-        target = wait_for(lambda: next((t for t in self.targets() if t['id'] not in before
-                                        and t['url'].startswith(prefix)), None),
-                          what=f'the popup of {tooltip!r}')
-        return Page(target)
 
     def wait_ubo_menu(self):
         """Waits for uBlock Origin's "Block element" context menu item, which
