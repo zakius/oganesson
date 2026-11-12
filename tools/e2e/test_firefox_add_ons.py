@@ -224,6 +224,65 @@ class FirefoxManifestV3Test(BrowserTest):
         self.check_background('both', 'service_worker', 'worker')
 
 
+def module_add_on(manifest_version):
+    """A Firefox add-on whose module background imports another file."""
+    manifest = {
+        'manifest_version': manifest_version,
+        'name': f'Firefox MV{manifest_version} module test add-on',
+        'version': '1',
+        'browser_specific_settings': {'gecko': {'id': f'firefox-module-{manifest_version}@oganesson.test'}},
+        'background': {'scripts': ['background.js'], 'type': 'module'},
+    }
+    return {
+        'manifest.json': json.dumps(manifest),
+        'background.js': "import {name} from './name.js'; self.started = name(import.meta.url);",
+        'name.js': "export function name(url) { return url.split('/').pop(); }",
+    }
+
+
+MODULE_ADD_ONS = {'mv2': module_add_on(2), 'mv3': module_add_on(3)}
+
+
+class FirefoxModuleBackgroundTest(BrowserTest):
+    """A background with "type": "module", in Manifest V2 and V3: its
+    scripts load as modules, so they can import and read import.meta."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.folder = Path(tempfile.mkdtemp(prefix='oganesson-firefox-module-'))
+        cls.unpacked = {}
+        for name, files in MODULE_ADD_ONS.items():
+            xpi = cls.folder / f'{name}.xpi'
+            with zipfile.ZipFile(xpi, 'w') as archive:
+                for file, text in files.items():
+                    archive.writestr(file, text)
+            cls.unpacked[name] = unpack_xpi(xpi, cls.folder / name)
+        cls.browser_args = ('--load-extension=' + ','.join(str(f) for f in cls.unpacked.values()),)
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(cls.folder)
+
+    def check_module(self, name):
+        add_on = extension_id(self.unpacked[name])
+        background = self.browser.extension_background(add_on)
+        try:
+            wait_for(lambda: background.eval('self.started') == 'background.js',
+                     what=f'the {name} module background')
+        finally:
+            background.close()
+        errors = self.browser.extension_errors(add_on)
+        self.assertFalse([e for e in errors if 'background' in e or 'module' in e], errors)
+
+    def test_manifest_v2(self):
+        self.check_module('mv2')
+
+    def test_manifest_v3(self):
+        self.check_module('mv3')
+
+
 def versioned_add_on(name, version, version_name=None):
     """A Firefox add-on whose manifest has `version`, and `version_name` if
     given."""
