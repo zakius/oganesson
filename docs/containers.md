@@ -46,9 +46,11 @@ Each container is a storage partition: domain `containers`, named by the contain
 | A link dropped on the tab strip, Alt+Enter in the address bar | `NavigateFromActiveTab()` opens it in the active tab's container. |
 | A window a page opens without an opener (`target=_blank`, `noopener`) | `web_contents_impl.cc` keeps the page's partition, for container partitions only, as content does for guests. |
 | A window a page opens with an opener (`window.open`) | Chromium already uses the opener's SiteInstance. |
-| A restored tab, after a restart or reopened | `browser_tabrestore.cc` asks `SiteInstanceToRestore()`, which reads the container that the session saved. |
+| A restored tab, after a restart or reopened | `browser_tabrestore.cc` asks `SiteInstanceToRestore()`, which reads the container that the session saved, and `MoveSessionStorageToContainer()` gives it back its sessionStorage. |
 
 Sessions and closed tabs save each page's container as the page's extended info (`sessions::ExtendedInfoHandler`, key `containers.id`), which is upstream's own way to add data to saved navigations. The handler is registered as the first tab goes into a container: Chrome creates the first profile before it sets up its navigation driver, so the service is too early. Brave encodes the container into the saved URL and page state instead (`containers+<id>:https://…`), which needs hooks in sessions, content and Blink. A tab that shows a page of the browser itself (`chrome://`) restores in its container too, as the page loads there when the tab goes to it, so Back reaches the container's sites; Brave restores such a tab outside containers.
+
+A tab's sessionStorage lives in its partition. Chromium saves only the default partition's for sessions and closed tabs, and restores it there, so a container tab would lose its own. The shared hooks save the container's instead (`GetTabSessionStorageNamespace()`), and a restored tab recreates it by the same id in its container's partition.
 
 Pinned tabs that open at startup without the session (Settings > On startup > Open the New Tab page) are saved by `pinned_tab_codec.cc`, which keeps the container next to the URL.
 
@@ -71,7 +73,8 @@ Lines are the lines a patch adds or changes, includes counted. Shared, in `dubna
 
 | File | Lines | Why |
 |---|---|---|
-| `content/browser/web_contents/web_contents_impl.cc` | 5 | A window opened without an opener gets a new default SiteInstance: no upstream hook gives it a partition. |
+| `content/browser/web_contents/web_contents_impl.cc` | 16 | A window opened without an opener gets a new default SiteInstance: no upstream hook gives it a partition. A tab's sessionStorage for sessions: the public `NavigationController` gives only the default partition's. |
+| `chrome/browser/sessions/session_service_base.cc`, `components/sessions/content/content_platform_specific_tab_data.cc` | 6 | Sessions and closed tabs keep a container tab's sessionStorage. |
 | `content/browser/renderer_host/navigation_entry_impl.cc` | 11 | The partition a page committed in, which the session handler saves. The public `NavigationEntry` doesn't tell its SiteInstance. |
 | `content/browser/host_zoom_map_impl.cc` | 8 | Containers share the default partition's zoom levels, as in Firefox: Chromium keeps a `HostZoomMap` per partition. |
 | `components/permissions/permission_util.cc` | 7 | Notifications: Chromium blocks them in a partition that isn't the site's own. |
@@ -88,7 +91,7 @@ Desktop, in `patches/oganesson/core/containers.patch`:
 |---|---|---|
 | `chrome/app/chrome_command_ids.h` | 11 | The submenus' command ids, and the commands'. |
 | `chrome/browser/ui/navigator/browser_navigator.cc` | 5 | A new tab without an opener takes its source page's container. `NavigateParams` has no partition. |
-| `chrome/browser/ui/browser_tabrestore.cc` | 3 | A restored tab's SiteInstance. |
+| `chrome/browser/ui/browser_tabrestore.cc` | 5 | A restored tab's SiteInstance and sessionStorage. |
 | `chrome/browser/ui/browser_tabstrip.cc` | 5 | A new tab opens in the container Settings says. |
 | `chrome/browser/ui/startup/startup_tab.h`, `pinned_tab_codec.cc`, `startup_browser_creator_impl.cc` | 18 | Pinned tabs at startup keep their container. |
 | `chrome/browser/ui/browser_commands.cc` (Alt+Enter), `views/frame/browser_root_view.cc` (a dropped link) | 4 | `NavigateFromActiveTab()` instead of `Navigate()`. |

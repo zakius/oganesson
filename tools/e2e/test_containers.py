@@ -1,6 +1,7 @@
 """Containers (docs/containers.md): each container keeps its own cookies and
 site storage. Tabs get into one from the menus, keep it for the links they
-open and across a restart, and Traffic Control rules move pages into one.
+open and across a restart, with their sessionStorage, and Traffic Control
+rules move pages into one.
 The address bar shows the tab's container. A link dropped on the tab strip
 and Alt+Enter in the address bar stay in the tab's container, the New Tab
 button can ask where to open, and commands open a new tab in a container.
@@ -228,6 +229,9 @@ class ContainersTest(BrowserTest):
         self.work_page().eval("document.title = 'pin me'")
         self.browser.click_view(self.tab_titled('pin me'), button=3)
         self.choose('Pin')
+        # Each tab's sessionStorage says where it is, as its cookie does.
+        for page in self.page_tabs():
+            page.eval("sessionStorage.setItem('in', document.cookie.slice(3))")
         tabs = len(self.page_tabs())
         self.browser.quit()
         self.browser.start()
@@ -236,7 +240,10 @@ class ContainersTest(BrowserTest):
         cookies = []
         for page in self.page_tabs():
             page.call('Page.bringToFront')
-            cookies.append(self.cookie(page, timeout=60))
+            cookie = self.cookie(page, timeout=60)
+            cookies.append(cookie)
+            stored = page.eval("sessionStorage.getItem('in')")
+            self.assertEqual(f'in={stored}', cookie)
         self.assertEqual(sorted(set(cookies)), ['in=default', 'in=personal', 'in=work'])
 
     def test_4_reopen_closed_tab(self):
@@ -245,12 +252,14 @@ class ContainersTest(BrowserTest):
         work.eval(f"window.open({json.dumps(self.url('/other?closed'))}) && 1")
         page = self.new_page(before, '/other?closed')
         wait_for(lambda: page.eval('document.title') == 'other', what='the page')
+        page.eval("sessionStorage.setItem('closed', 'kept')")
         self.browser.close_target(page)
         before = self.pages()
         self.browser.key('ctrl+shift+t')
         page = self.new_page(before, '/other?closed')
         wait_for(lambda: page.eval('document.title') == 'other', what='the reopened tab')
         self.assertEqual(self.cookie(page), 'in=work')
+        self.assertEqual(page.eval("sessionStorage.getItem('closed')"), 'kept')
         self.browser.close_target(page)
 
     def test_4a_browser_page_keeps_the_container(self):

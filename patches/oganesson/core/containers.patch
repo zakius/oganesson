@@ -6,7 +6,7 @@
 # - browser_navigator.cc: a new tab that a page opens without an opener (a link opened in a new
 #   tab, from the page or its context menu) starts in the page's container.
 # - browser_tabrestore.cc: a restored tab, after a restart or reopened, starts in the container
-#   its session saved.
+#   its session saved, with its sessionStorage.
 # - browser_tabstrip.cc: a new tab opens in the container Settings says (brave-core#40693).
 # - startup_tab.h, pinned_tab_codec.cc, startup_browser_creator_impl.cc: pinned tabs, which open
 #   at startup without the session when Settings says to open the new tab page, keep their
@@ -163,12 +163,14 @@
  #include "chrome/browser/glic/glic_tab_restore_helper.h"
  #include "chrome/browser/profiles/profile.h"
  #include "chrome/browser/sessions/session_restore.h"
-@@ -72,6 +73,8 @@ std::unique_ptr<WebContents> CreateRestoredTab(
+@@ -72,6 +73,10 @@
        content::CreateMapWithDefaultSessionStorageNamespace(
            browser->GetProfile(), session_storage_namespace);
    WebContents::CreateParams create_params(browser->GetProfile());
 +  create_params.site_instance = containers::SiteInstanceToRestore(
 +      browser->GetProfile(), navigations, selected_navigation);
++  containers::MoveSessionStorageToContainer(create_params.site_instance.get(),
++                                            session_storage_namespace_map);
    create_params.initially_hidden = initially_hidden;
    create_params.desired_renderer_state =
        WebContents::CreateParams::kNoRendererProcess;
