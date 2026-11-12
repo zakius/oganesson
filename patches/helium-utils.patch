@@ -3,7 +3,8 @@
 # clone.py moves an existing checkout to the pinned tag in place, keeping out/, so a new
 # Chromium version rebuilds incrementally, and pins two dependencies to commits their mirrors
 # still have; downloads.py checks the cache again before unpacking;
-# domain_substitution.py keeps file modes; helium_version.py makes the version Chromium's own;
+# domain_substitution.py keeps file modes and substitutes files in parallel;
+# helium_version.py makes the version Chromium's own;
 # name_substitution_utils.py gives every rewritten
 # .xtb translation its source message's new fingerprint. With their tests.
 --- a/utils/clone.py
@@ -43,7 +44,58 @@
  
 --- a/utils/domain_substitution.py
 +++ b/utils/domain_substitution.py
-@@ -300,8 +300,13 @@
+@@ -15,8 +15,10 @@
+ from pathlib import Path
+ import argparse
+ import collections
++import concurrent.futures
+ import contextlib
+ import io
++import itertools
+ import os
+ import stat
+ import re
+@@ -180,6 +182,14 @@
+         os.utime(path, ns=new_timestamp)
+ 
+ 
++def _substitute_keeping_time(path, pairs):
++    """_substitute_path with _update_timestamp, for a worker process. pairs are the regex
++    pairs as plain tuples: their namedtuple class doesn't pickle."""
++    regex_iter = [DomainRegexList._regex_pair_tuple(*pair) for pair in pairs]
++    with _update_timestamp(path, set_new=True):
++        return _substitute_path(path, regex_iter)
++
++
+ # Public Methods
+ 
+ 
+@@ -213,6 +223,7 @@
+     with tarfile.open(str(domainsub_cache), f'w:{domainsub_cache.suffix[1:]}',
+                       compresslevel=1) if domainsub_cache else open(
+                           os.devnull, 'w', encoding=ENCODING) as cache_tar:
++        paths = []
+         for relative_path in filter(len, files_path.read_text().splitlines()):
+             if _INDEX_HASH_DELIMITER in relative_path:
+                 if domainsub_cache:
+@@ -228,8 +239,14 @@
+             if path.is_symlink():
+                 get_logger().warning('Skipping path that has become a symlink: %s', path)
+                 continue
+-            with _update_timestamp(path, set_new=True):
+-                crc32_hash, orig_content = _substitute_path(path, regex_pairs)
++            paths.append((relative_path, path))
++        # oganesson: the files are substituted in parallel, one process per CPU: one after
++        # another, the 17,000 of them took a minute.
++        with concurrent.futures.ProcessPoolExecutor() as pool:
++            results = pool.map(_substitute_keeping_time, [path for _, path in paths],
++                               itertools.repeat([tuple(pair) for pair in regex_pairs]), chunksize=64)
++            results = list(results)
++        for (relative_path, _), (crc32_hash, orig_content) in zip(paths, results):
+             if crc32_hash is None:
+                 get_logger().info('Path has no substitutions: %s', relative_path)
+                 continue
+@@ -300,8 +317,13 @@
          # Move original files over substituted ones
          get_logger().debug('Moving original files over substituted ones...')
          for relative_path in cache_index_files:
