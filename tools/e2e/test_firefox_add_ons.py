@@ -350,5 +350,61 @@ class FirefoxVersionTest(BrowserTest):
         self.check_version('named', '1.3.4buildid20230720.091143', '1.3.4', 'Release 1.3.4')
 
 
+LOCALE_ADD_ON = {
+    'manifest.json': json.dumps({
+        'manifest_version': 2,
+        'name': 'Firefox locale test add-on',
+        # A message the locale files don't have: Firefox keeps the text.
+        'description': '__MSG_missing_description__',
+        'version': '1',
+        'default_locale': 'en',
+        'browser_specific_settings': {'gecko': {'id': 'firefox-locale@oganesson.test'}},
+        'background': {'scripts': ['background.js']},
+    }),
+    '_locales/en/messages.json': json.dumps({
+        # A name with "-", as Tree Style Tab and Mozilla VPN have.
+        'first-install-body': {'message': 'A dashed name'},
+        # $HOST$ has no placeholder, as in User-Agent Switcher.
+        'greeting': {'message': 'Hello $USER$ from $HOST$.',
+                     'placeholders': {'user': {'content': 'you'}}},
+    }),
+    'background.js': 'self.started = true;',
+}
+
+
+class FirefoxLocaleTest(BrowserTest):
+    """Locale files as Firefox reads them: a message name with "-", a
+    placeholder that the message doesn't define, and an unknown message in
+    the manifest. Chromium refuses to load such an add-on."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.folder = Path(tempfile.mkdtemp(prefix='oganesson-firefox-locale-'))
+        xpi = cls.folder / 'add-on.xpi'
+        with zipfile.ZipFile(xpi, 'w') as archive:
+            for name, text in LOCALE_ADD_ON.items():
+                archive.writestr(name, text)
+        cls.unpacked = unpack_xpi(xpi, cls.folder / 'unpacked')
+        cls.browser_args = (f'--load-extension={cls.unpacked}',)
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(cls.folder)
+
+    def test_messages(self):
+        background = self.browser.extension_background(extension_id(self.unpacked))
+        try:
+            wait_for(lambda: background.eval('self.started === true'), what='the background script')
+            self.assertEqual(background.eval("browser.i18n.getMessage('first-install-body')"),
+                             'A dashed name')
+            self.assertEqual(background.eval("browser.i18n.getMessage('greeting')"), 'Hello you from .')
+            self.assertEqual(background.eval('browser.runtime.getManifest().description'),
+                             '__MSG_missing_description__')
+        finally:
+            background.close()
+
+
 if __name__ == '__main__':
     unittest.main()
