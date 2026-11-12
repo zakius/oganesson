@@ -13,6 +13,7 @@
 #include "chrome/common/pref_names.h"
 #include "components/omnibox/browser/suggestion_sources.h"
 #include "components/pref_registry/pref_registry_syncable.h"
+#include "components/prefs/pref_registry_simple.h"
 
 // The profile prefs of every oganesson feature, for RegisterProfilePrefs in
 // browser_prefs.cc. Header-only, as browser_prefs.cc is its one caller.
@@ -36,6 +37,13 @@ inline void RegisterOganessonProfilePrefs(
   registry->RegisterStringPref(prefs::kFirefoxSyncPushUaid, std::string());
   registry->RegisterStringPref(prefs::kFirefoxSyncPushChannel, std::string());
   registry->RegisterStringPref(prefs::kFirefoxSyncPushEndpoint, std::string());
+}
+
+// The local state prefs of every oganesson feature, for RegisterLocalState in
+// browser_prefs.cc.
+inline void RegisterOganessonLocalStatePrefs(PrefRegistrySimple* registry) {
+  // oganesson_app_icon::kVariants' first.
+  registry->RegisterStringPref(prefs::kAppIcon, "orange");
 }
 
 #endif  // CHROME_BROWSER_PREFS_OGANESSON_PREFS_H_

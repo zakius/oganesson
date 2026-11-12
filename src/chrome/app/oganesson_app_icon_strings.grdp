@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright 2026 The oganesson Authors. GPL-3.0, see the LICENSE file. -->
+<grit-part>
+  <message name="IDS_OGANESSON_APP_ICON" desc="Settings, Appearance: label for the dropdown that chooses the browser's icon, the one its windows, taskbar button, app menu entry and shortcuts show.">
+    App icon
+  </message>
+  <message name="IDS_OGANESSON_APP_ICON_ORANGE" desc="Settings, Appearance: option of the App icon dropdown: the icon in white on an orange square, the default.">
+    Orange
+  </message>
+  <message name="IDS_OGANESSON_APP_ICON_TEAL" desc="Settings, Appearance: option of the App icon dropdown: the icon in white on a dark teal square.">
+    Teal
+  </message>
+  <message name="IDS_OGANESSON_APP_ICON_CRIMSON" desc="Settings, Appearance: option of the App icon dropdown: the icon in white on a dark crimson square.">
+    Crimson
+  </message>
+  <message name="IDS_OGANESSON_APP_ICON_BLACK" desc="Settings, Appearance: option of the App icon dropdown: the icon in white on a black square.">
+    Black
+  </message>
+  <message name="IDS_OGANESSON_APP_ICON_WHITE" desc="Settings, Appearance: option of the App icon dropdown: the icon in black on a white square.">
+    White
+  </message>
+  <message name="IDS_OGANESSON_APP_ICON_CLEAR_WHITE" desc="Settings, Appearance: option of the App icon dropdown: the icon alone, in white, with no square behind it.">
+    No background, white
+  </message>
+  <message name="IDS_OGANESSON_APP_ICON_CLEAR_BLACK" desc="Settings, Appearance: option of the App icon dropdown: the icon alone, in black, with no square behind it.">
+    No background, black
+  </message>
+</grit-part>

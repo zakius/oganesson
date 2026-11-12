@@ -1,0 +1,46 @@
+# Settings > Appearance > App icon (app-icon.patch): a dropdown of the Og icon's variants, under
+# the toolbar row.
+--- a/chrome/browser/resources/settings/appearance_page/appearance_page.html.ts
++++ b/chrome/browser/resources/settings/appearance_page/appearance_page.html.ts
+@@ -62,6 +62,12 @@
+         </cr-button>
+       ` : ''}
+     </div>
++    <div class="cr-row hr" id="appIconRow">
++      <div class="flex cr-padded-text" aria-hidden="true">$i18n{appIcon}</div>
++      <settings-dropdown-menu id="appIcon" label="$i18n{appIcon}"
++          pref-key="oganesson.app_icon" .menuOptions="${this.appIconOptions_}">
++      </settings-dropdown-menu>
++    </div>
+     <div class="hr"
+         ?hidden="${!this.showHr_(
+             this.pageVisibility_.setTheme, this.pageVisibility_.homeButton)}">
+--- a/chrome/browser/resources/settings/appearance_page/appearance_page.ts
++++ b/chrome/browser/resources/settings/appearance_page/appearance_page.ts
+@@ -169,6 +169,7 @@
+       showHoverCardImagesOption_: {type: Boolean},
+       showManagedThemeDialog_: {type: Boolean},
+       glassEffectOptions_: {type: Array},
++      appIconOptions_: {type: Array},
+       tabStripOptions_: {type: Array},
+       showNativeFrameMaterialsOption_: {type: Boolean},
+       showGlassEffectEnabled_: {type: Boolean},
+@@ -251,6 +252,18 @@
+     {value: 24, name: loadTimeData.getString('veryLarge')},
+   ];
+ 
++  // oganesson: oganesson_app_icon::kVariants, the values of
++  // oganesson.app_icon.
++  protected accessor appIconOptions_: DropdownMenuOptionList = [
++    {value: 'orange', name: loadTimeData.getString('appIconOrange')},
++    {value: 'teal', name: loadTimeData.getString('appIconTeal')},
++    {value: 'crimson', name: loadTimeData.getString('appIconCrimson')},
++    {value: 'black', name: loadTimeData.getString('appIconBlack')},
++    {value: 'white', name: loadTimeData.getString('appIconWhite')},
++    {value: 'clear_white', name: loadTimeData.getString('appIconClearWhite')},
++    {value: 'clear_black', name: loadTimeData.getString('appIconClearBlack')},
++  ];
++
+   protected accessor glassEffectOptions_: DropdownMenuOptionList = [
+     {value: 'false', name: loadTimeData.getString('glassEffectClassic')},
+     {value: 'true', name: loadTimeData.getString('glassEffectModern')},
