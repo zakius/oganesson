@@ -49,7 +49,7 @@ The browser keeps its own profile in `~/.config/oganesson`, separate from Helium
 | `src/` | My new files, copied over the Chromium tree after `dubna/src/`. |
 | `resources/` | My branding, laid over Helium's resources. |
 | `l10n/` | Polish translations of my strings. |
-| `tools/` | Patch tools (`check_patches.py`, `regen.py`, `amend.py`, `update_helium.py`), the browser tests (`e2e/`), screenshots for dubna's site (`screenshots.py`), the placeholder branding (`branding_icons.py`), and job helpers. |
+| `tools/` | Patch tools (`check_patches.py`, `regen.py`, `amend.py`, `update_helium.py`), the browser tests (`e2e/`), screenshots for dubna's site (`screenshots.py`), the branding, drawn from the Og glyph (`branding_icons.py`, `og.svg`), and job helpers. |
 | `oganesson.py` | Every command: `build`, `test`, `run`, `check-patches`, `stamp`, `shell`, `snapshot`. |
 
 `oganesson.py` assembles Helium's tree in `work/helium-tree` from the submodule, with `helium-utils.patch` applied, my branding added and the drops left out of its series. Builds and scratch files live in `work/`, which Git ignores.
