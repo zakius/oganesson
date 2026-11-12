@@ -406,5 +406,115 @@ class FirefoxLocaleTest(BrowserTest):
             background.close()
 
 
+SHORTCUTS_ADD_ON = {
+    'manifest.json': json.dumps({
+        'manifest_version': 2,
+        'name': 'Firefox shortcuts test add-on',
+        'version': '1',
+        'browser_specific_settings': {'gecko': {'id': 'firefox-shortcuts@oganesson.test'}},
+        'background': {'scripts': ['background.js']},
+        # Five shortcuts, one more than Chromium takes, each of a kind that
+        # Chromium refuses, as Tab Stash, Tree Style Tab, Tridactyl and
+        # Multi-Account Containers have them.
+        'commands': {
+            'ctrl-alt': {'suggested_key': {'default': 'Ctrl+Alt+Y'}, 'description': 'Ctrl+Alt'},
+            'function-key': {'suggested_key': {'default': 'F9'}, 'description': 'F9'},
+            'shift-function-key': {'suggested_key': {'default': 'Shift+F9'},
+                                   'description': 'Shift+F9'},
+            'mac-ctrl': {'suggested_key': {'default': 'MacCtrl+Shift+Y'},
+                         'description': 'MacCtrl'},
+            'no-description': {'suggested_key': {'default': 'Alt+Shift+5'}},
+            # A key for another platform only, and no key at all.
+            'mac-only': {'suggested_key': {'mac': 'Alt+Shift+M'}, 'description': 'Mac only'},
+            'no-key': {},
+        },
+    }),
+    'background.js': '''
+        self.commands = [];
+        browser.commands.onCommand.addListener(name => self.commands.push(name));
+        self.started = true;
+    ''',
+}
+
+
+class FirefoxShortcutsTest(BrowserTest):
+    """Shortcuts as Firefox reads them: Ctrl+Alt, F1 to F12 alone or with
+    Shift, MacCtrl as Ctrl, more than four shortcuts, and commands without a
+    description or without a key for this platform. Chromium refuses to load
+    such an add-on."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.folder = Path(tempfile.mkdtemp(prefix='oganesson-firefox-shortcuts-'))
+        xpi = cls.folder / 'add-on.xpi'
+        with zipfile.ZipFile(xpi, 'w') as archive:
+            for name, text in SHORTCUTS_ADD_ON.items():
+                archive.writestr(name, text)
+        cls.unpacked = unpack_xpi(xpi, cls.folder / 'unpacked')
+        cls.browser_args = (f'--load-extension={cls.unpacked}',)
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(cls.folder)
+
+    def test_shortcuts(self):
+        background = self.browser.extension_background(extension_id(self.unpacked))
+        try:
+            wait_for(lambda: background.eval('self.started === true'), what='the background script')
+            # Chromium's names, as its shortcuts page writes them: Alt+Ctrl.
+            commands = background.eval(
+                'browser.commands.getAll().then(all => all.map(c => [c.name, c.shortcut, c.description]))')
+            self.assertEqual(sorted(commands), [
+                ['ctrl-alt', 'Alt+Ctrl+Y', 'Ctrl+Alt'],
+                ['function-key', 'F9', 'F9'],
+                ['mac-ctrl', 'Ctrl+Shift+Y', 'MacCtrl'],
+                ['mac-only', '', 'Mac only'],
+                ['no-description', 'Alt+Shift+5', 'no-description'],
+                ['no-key', '', 'no-key'],
+                ['shift-function-key', 'Shift+F9', 'Shift+F9'],
+            ])
+            for keys, name in (('F9', 'function-key'), ('shift+F9', 'shift-function-key'),
+                               ('ctrl+alt+y', 'ctrl-alt'), ('ctrl+shift+y', 'mac-ctrl')):
+                self.browser.key(keys)
+                wait_for(lambda name=name: background.eval(f'self.commands.includes({name!r})'),
+                         what=f'the {name} command from {keys}')
+        finally:
+            background.close()
+
+    def test_shortcuts_page(self):
+        """chrome://extensions/shortcuts takes F1 to F12 alone, and Ctrl+Alt."""
+        page = self.browser.new_tab('chrome://extensions/shortcuts')
+        try:
+            for description, keys, shortcut in (('no-key', 'F2', 'F2'),
+                                                ('Mac only', 'ctrl+alt+u', 'Alt+Ctrl+U')):
+                edit = f"""(function find(root) {{
+                    for (const node of root.querySelectorAll('*')) {{
+                        if (node.localName === 'cr-shortcut-input' &&
+                            node.inputAriaLabel.includes({description!r})) {{
+                            return node.shadowRoot.querySelector('#edit');
+                        }}
+                        const inner = node.shadowRoot && find(node.shadowRoot);
+                        if (inner) return inner;
+                    }}
+                    return null;
+                }})(document)"""
+                wait_for(lambda edit=edit: page.eval(f'!!{edit}'), what=f'the {description} input')
+                page.eval(f'{edit}.click()')
+                self.browser.key(keys)
+                wait_for(lambda description=description, shortcut=shortcut: self.shortcut_of(
+                    description) == shortcut, what=f'{shortcut} for {description}')
+        finally:
+            page.close()
+
+    def shortcut_of(self, description):
+        background = self.browser.extension_background(extension_id(self.unpacked))
+        try:
+            return background.eval(
+                f'browser.commands.getAll().then(all => all.find(c => c.description == {description!r}).shortcut)')
+        finally:
+            background.close()
+
 if __name__ == '__main__':
     unittest.main()
