@@ -7,7 +7,8 @@ and Alt+Enter in the address bar stay in the tab's container, the New Tab
 button can ask where to open, and commands open a new tab in a container.
 A site's zoom level is the same in every container. A click on a container's
 notification reaches the container's service worker, and push subscriptions
-fail in containers.
+fail in containers. A container's sessionStorage that no restored tab uses
+goes at the next start.
 
 The tests are steps of one session, in order. A tab's container shows in its
 cookies: each tab sets a cookie named after where it is.
@@ -15,8 +16,13 @@ cookies: each tab sets a cookie named after where it is.
 
 import hashlib
 import json
+import shutil
+import sqlite3
+import tempfile
 import time
 import unittest
+from contextlib import closing
+from pathlib import Path
 
 from harness import BrowserTest, Page, Server, wait_for
 
@@ -608,6 +614,90 @@ class ContainersTest(BrowserTest):
         finally:
             self.browser.close_target(work)
             self.browser.close_target(default)
+
+
+class ContainersStaleSessionStorageTest(BrowserTest):
+    """A Work tab's sessionStorage stays while a restored tab uses it, and goes
+    from the disk at a start without the last session, as the default
+    partition's does. The SQLite backend holds it here, so the test can read
+    it; both backends share the code that deletes it."""
+    browser_args = ('--enable-features=DomStorageSqlite',)
+    # Continue where you left off, and new tabs open in Work.
+    prefs = {'session': {'restore_on_startup': 1}, 'containers': {'new_tab': 'work'}}
+    NOTE = 'left behind'
+
+    @classmethod
+    def setUpClass(cls):
+        cls.server = Server({'/page': (200, {'Content-Type': 'text/html'}, PAGE)})
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        cls.server.stop()
+
+    def note_on_disk(self):
+        """Whether Work's sessionStorage on disk holds the note, or None while
+        it can't be read. Reads a copy: the browser holds the database, and
+        SQLite may delete its files while the browser runs."""
+        database = storage_folder(self.browser.profile, 'work') / 'SessionStorage'
+        if not database.exists():
+            return False
+        with tempfile.TemporaryDirectory() as copy:
+            try:
+                for suffix in ('', '-wal'):
+                    if Path(f'{database}{suffix}').exists():
+                        shutil.copy(f'{database}{suffix}', f'{copy}/db{suffix}')
+            except FileNotFoundError:
+                return None
+            try:
+                with closing(sqlite3.connect(f'{copy}/db')) as db:
+                    values = [bytes(v) for (v,) in db.execute('SELECT value FROM map_entries')]
+            except sqlite3.DatabaseError:
+                return None
+        return any(self.NOTE.encode(encoding) in value
+                   for value in values for encoding in ('latin-1', 'utf-16-le'))
+
+    def work_page(self):
+        """The test page's tab, loaded and shown."""
+        page = Page(wait_for(lambda: next((t for t in self.browser.targets()
+                                           if t['type'] == 'page'
+                                           and f':{self.server.port}/' in t['url']), None),
+                             timeout=30, what='the Work tab'))
+        page.call('Page.bringToFront')
+        wait_for(lambda: page.eval("document.readyState === 'complete'"), timeout=60,
+                 what='the page to load')
+        return page
+
+    def test_unused_session_storage_goes(self):
+        before = {t['id'] for t in self.browser.targets()}
+        self.browser.key('ctrl+t')
+        page = Page(wait_for(lambda: next((t for t in self.browser.targets()
+                                           if t['type'] == 'page' and t['id'] not in before),
+                                          None), what='the new tab'))
+        page.call('Page.navigate', url=self.server.url('/page'))
+        wait_for(lambda: page.eval('document.title') == 'page', what='the page')
+        page.eval(f"sessionStorage.setItem('note', {json.dumps(self.NOTE)})")
+        self.browser.quit()
+        self.assertTrue(self.note_on_disk(), "the note in Work's sessionStorage")
+
+        # The restored Work tab keeps it.
+        self.browser.start()
+        self.assertEqual(self.work_page().eval("sessionStorage.getItem('note')"), self.NOTE)
+        self.browser.quit()
+        self.assertTrue(self.note_on_disk(), 'the note after the restore')
+
+        # A start without the last session deletes it.
+        preferences = self.browser.profile / 'Default/Preferences'
+        prefs = json.loads(preferences.read_text())
+        prefs['session']['restore_on_startup'] = 5  # the New Tab page
+        preferences.write_text(json.dumps(prefs))
+        self.browser.start()
+        wait_for(lambda: self.note_on_disk() is False, timeout=30,
+                 what="the note to go from Work's sessionStorage")
+        self.browser.quit()
+        self.assertIs(self.note_on_disk(), False)
+        self.browser.start()
 
 
 class ContainersTabLineTest(BrowserTest):

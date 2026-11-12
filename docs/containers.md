@@ -50,7 +50,7 @@ Each container is a storage partition: domain `containers`, named by the contain
 
 Sessions and closed tabs save each page's container as the page's extended info (`sessions::ExtendedInfoHandler`, key `containers.id`), which is upstream's own way to add data to saved navigations. The handler is registered as the first tab goes into a container: Chrome creates the first profile before it sets up its navigation driver, so the service is too early. Brave encodes the container into the saved URL and page state instead (`containers+<id>:https://…`), which needs hooks in sessions, content and Blink. A tab that shows a page of the browser itself (`chrome://`) restores in its container too, as the page loads there when the tab goes to it, so Back reaches the container's sites; Brave restores such a tab outside containers.
 
-A tab's sessionStorage lives in its partition. Chromium saves only the default partition's for sessions and closed tabs, and restores it there, so a container tab would lose its own. The shared hooks save the container's instead (`GetTabSessionStorageNamespace()`), and a restored tab recreates it by the same id in its container's partition.
+A tab's sessionStorage lives in its partition. Chromium saves only the default partition's for sessions and closed tabs, and restores it there, so a container tab would lose its own. The shared hooks save the container's instead (`GetTabSessionStorageNamespace()`), and a restored tab recreates it by the same id in its container's partition. Chromium deletes the sessionStorage that no restored tab uses only in the default partition, once the session is restored or can no longer be; `ContainersService::DeleteStaleSessionData()`, called next to it, does the same in each container's partition that has sessionStorage on disk.
 
 Pinned tabs that open at startup without the session (Settings > On startup > Open the New Tab page) are saved by `pinned_tab_codec.cc`, which keeps the container next to the URL.
 
@@ -94,6 +94,7 @@ Desktop, in `patches/oganesson/core/containers.patch`:
 | `chrome/browser/ui/browser_tabrestore.cc` | 5 | A restored tab's SiteInstance and sessionStorage. |
 | `chrome/browser/ui/browser_tabstrip.cc` | 5 | A new tab opens in the container Settings says. |
 | `chrome/browser/ui/startup/startup_tab.h`, `pinned_tab_codec.cc`, `startup_browser_creator_impl.cc` | 18 | Pinned tabs at startup keep their container. |
+| `chrome/browser/sessions/session_restore.cc`, `chrome/browser/ui/startup/startup_browser_creator_impl.cc` | 5 | A container's sessionStorage that no restored tab uses goes, where Chromium deletes the default partition's. |
 | `chrome/browser/ui/browser_commands.cc` (Alt+Enter), `views/frame/browser_root_view.cc` (a dropped link) | 4 | `NavigateFromActiveTab()` instead of `Navigate()`. |
 | `chrome/browser/ui/browser_command_controller.cc` | 7 | Enables and runs the commands (`CommandIds()`, `ExecuteCommand()`). |
 | `chrome/browser/ui/accelerator_table.cc` | 19 | Ctrl+Shift+1 to 9. Chromium uses none of them. |
