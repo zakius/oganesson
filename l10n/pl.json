@@ -60,6 +60,46 @@
     "message": "Pasek adresu"
   },
   {
+    "name": "IDS_OGANESSON_APP_ICON",
+    "source": "App icon",
+    "message": "Ikona aplikacji"
+  },
+  {
+    "name": "IDS_OGANESSON_APP_ICON_ORANGE",
+    "source": "Orange",
+    "message": "Pomarańczowa"
+  },
+  {
+    "name": "IDS_OGANESSON_APP_ICON_TEAL",
+    "source": "Teal",
+    "message": "Morska"
+  },
+  {
+    "name": "IDS_OGANESSON_APP_ICON_CRIMSON",
+    "source": "Crimson",
+    "message": "Karmazynowa"
+  },
+  {
+    "name": "IDS_OGANESSON_APP_ICON_BLACK",
+    "source": "Black",
+    "message": "Czarna"
+  },
+  {
+    "name": "IDS_OGANESSON_APP_ICON_WHITE",
+    "source": "White",
+    "message": "Biała"
+  },
+  {
+    "name": "IDS_OGANESSON_APP_ICON_CLEAR_WHITE",
+    "source": "No background, white",
+    "message": "Bez tła, biała"
+  },
+  {
+    "name": "IDS_OGANESSON_APP_ICON_CLEAR_BLACK",
+    "source": "No background, black",
+    "message": "Bez tła, czarna"
+  },
+  {
     "name": "IDS_OGANESSON_SHOW_TAB_AUDIO_INDICATOR",
     "source": "Show sound icon on tabs",
     "message": "Pokazuj ikonę dźwięku na kartach"

@@ -1,0 +1,30 @@
+# Copyright 2026 The oganesson Authors
+# You can use, redistribute, and/or modify this source code under
+# the terms of the GPL-3.0 license that can be found in the LICENSE file.
+
+# Settings > Appearance > App icon (docs/app-icon.md).
+source_set("app_icon") {
+  sources = [
+    "oganesson_app_icon.cc",
+    "oganesson_app_icon.h",
+  ]
+  deps = [
+    "//base",
+    "//chrome/browser/ui/browser_window",
+    "//components/prefs",
+    "//ui/base",
+    "//ui/gfx",
+    "//ui/views",
+  ]
+  if (is_linux) {
+    sources += [ "oganesson_app_icon_linux.cc" ]
+    deps += [
+      "//chrome/app/theme:chrome_unscaled_resources",
+      "//chrome/common:channel_info",
+    ]
+  }
+  if (is_win) {
+    sources += [ "oganesson_app_icon_win.cc" ]
+    deps += [ "//chrome/browser/win" ]
+  }
+}

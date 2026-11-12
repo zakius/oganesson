@@ -12,6 +12,10 @@ namespace prefs {
 // {"extension": id, "command": name}.
 inline constexpr char kMouseGestures[] = "oganesson.mouse_gestures";
 
+// In local state: the app icon (Settings > Appearance > App icon), by the name
+// of one of oganesson_app_icon::kVariants.
+inline constexpr char kAppIcon[] = "oganesson.app_icon";
+
 // A boolean pref set to true if tabs show the icon for audio playing.
 inline constexpr char kShowTabAudioIndicator[] =
     "oganesson.tabs.show_audio_indicator";

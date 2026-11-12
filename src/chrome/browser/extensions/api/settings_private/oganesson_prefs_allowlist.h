@@ -22,6 +22,7 @@ namespace extensions {
 // one caller, is.
 inline void AddOganessonPrefsToAllowlist(PrefsUtil::TypedPrefMap& allowlist) {
   using api::settings_private::PrefType;
+  allowlist[::prefs::kAppIcon] = PrefType::kString;
   allowlist[::prefs::kMouseGestures] = PrefType::kDictionary;
   allowlist[::prefs::kShowTabAudioIndicator] = PrefType::kBoolean;
   allowlist[::prefs::kShowTabCloseButtons] = PrefType::kBoolean;

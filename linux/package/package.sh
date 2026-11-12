@@ -39,7 +39,7 @@ else
     chrome_200_percent.pak resources.pak icudtl.dat v8_context_snapshot.bin
     libEGL.so libGLESv2.so libqt5_shim.so libqt6_shim.so libvk_swiftshader.so
     libvulkan.so.1 vk_swiftshader_icd.json liboganesson_sync.so
-    product_logo_256.png"
+    product_logo_256.png app_icons"
 
     dir="$stage/$tarball"
     mkdir -p "$dir/locales"

@@ -40,6 +40,18 @@ void AddOganessonSettings(content::WebUI* web_ui,
   AddOmniboxSuggestionsStrings(html_source);
   web_ui->AddMessageHandler(std::make_unique<ShortcutsPageHandler>(
       profile, web_ui->GetWebContents()));
+  // Appearance > App icon.
+  static constexpr webui::LocalizedString kAppIconStrings[] = {
+      {"appIcon", IDS_OGANESSON_APP_ICON},
+      {"appIconOrange", IDS_OGANESSON_APP_ICON_ORANGE},
+      {"appIconTeal", IDS_OGANESSON_APP_ICON_TEAL},
+      {"appIconCrimson", IDS_OGANESSON_APP_ICON_CRIMSON},
+      {"appIconBlack", IDS_OGANESSON_APP_ICON_BLACK},
+      {"appIconWhite", IDS_OGANESSON_APP_ICON_WHITE},
+      {"appIconClearWhite", IDS_OGANESSON_APP_ICON_CLEAR_WHITE},
+      {"appIconClearBlack", IDS_OGANESSON_APP_ICON_CLEAR_BLACK},
+  };
+  html_source->AddLocalizedStrings(kAppIconStrings);
   static constexpr webui::LocalizedString kTabStrings[] = {
       {"showTabAudioIndicator", IDS_OGANESSON_SHOW_TAB_AUDIO_INDICATOR},
       {"showTabCloseButtons", IDS_OGANESSON_SHOW_TAB_CLOSE_BUTTONS},

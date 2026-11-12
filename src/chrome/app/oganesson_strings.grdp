@@ -3,6 +3,7 @@
 <!-- Every oganesson string, for generated_resources.grd. A part's file must
      be in this folder: grit reads it from the .grd's folder. -->
 <grit-part>
+  <part file="oganesson_app_icon_strings.grdp" />
   <part file="oganesson_autoplay_strings.grdp" />
   <part file="oganesson_browser_traffic_strings.grdp" />
   <part file="oganesson_container_ui_strings.grdp" />

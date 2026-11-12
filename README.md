@@ -49,7 +49,7 @@ The browser keeps its own profile in `~/.config/oganesson`, separate from Helium
 | `src/` | My new files, copied over the Chromium tree after `dubna/src/`. |
 | `resources/` | My branding, laid over Helium's resources. |
 | `l10n/` | Polish translations of my strings. |
-| `tools/` | Patch tools (`check_patches.py`, `regen.py`, `amend.py`, `update_helium.py`), the browser tests (`e2e/`), screenshots for dubna's site (`screenshots.py`), the branding, drawn from the Og glyph (`branding_icons.py`, `og.svg`), and job helpers. |
+| `tools/` | Patch tools (`check_patches.py`, `regen.py`, `amend.py`, `update_helium.py`), the browser tests (`e2e/`), screenshots for dubna's site (`screenshots.py`), the branding and the app icon variants, drawn from the Og glyph (`branding_icons.py`, `og.svg`), and job helpers. |
 | `oganesson.py` | Every command: `build`, `test`, `run`, `check-patches`, `stamp`, `shell`, `snapshot`. |
 
 `oganesson.py` assembles Helium's tree in `work/helium-tree` from the submodule, with `helium-utils.patch` applied, my branding added and the drops left out of its series. Builds and scratch files live in `work/`, which Git ignores.
@@ -94,7 +94,7 @@ windows/publish.sh                      # after the Windows packages join the Gi
 
 ## Docs
 
-[Architecture](docs/architecture.md), [Helium patch decisions](docs/helium-patch-decisions.md), [Firefox-compatible Sync](docs/firefox-sync.md), [mouse gestures](docs/mouse-gestures.md), [toolbar](docs/toolbar.md), [tab behavior](docs/tab-behavior.md), [installed web apps](docs/web-apps.md), [containers](docs/containers.md), [address bar suggestions](docs/omnibox.md), [autoplay](docs/autoplay.md), [packages](docs/packages.md), [Windows](docs/windows.md), [updating](docs/updating.md).
+[Architecture](docs/architecture.md), [Helium patch decisions](docs/helium-patch-decisions.md), [Firefox-compatible Sync](docs/firefox-sync.md), [mouse gestures](docs/mouse-gestures.md), [toolbar](docs/toolbar.md), [tab behavior](docs/tab-behavior.md), [installed web apps](docs/web-apps.md), [containers](docs/containers.md), [address bar suggestions](docs/omnibox.md), [autoplay](docs/autoplay.md), [app icon](docs/app-icon.md), [packages](docs/packages.md), [Windows](docs/windows.md), [updating](docs/updating.md).
 
 ## License
 
