@@ -24,34 +24,71 @@ dir="$dest/$version-$release"
 mkdir -p "$dir"
 name="oganesson-$version-windows-x64"
 
-# The zip: what FILES.cfg lists for official builds, without the installer's files,
-# copied into a folder with the commit's time on each file (copies: the build's own
-# files keep their times, which ninja compares), then zipped by 7-Zip:
-# its deflate makes the zip about 6 MB smaller than Python's zipfile.
-stage="$(mktemp -d)"
+# The zip: what FILES.cfg lists for official builds, without the installer's files, in a
+# folder, each entry with the commit's time. Every file is deflated with Zopfli (pigz -11),
+# in parallel, and chrome.dll with every CPU, as pigz splits it into blocks: smaller than
+# 7-Zip's best deflate, and minutes faster.
 nsi="$(mktemp --suffix=.nsi)"
-trap 'rm -rf "$stage" "$nsi"' EXIT
-python3 - "$src" "$out" "$stage/$name" <<'EOF'
-import os, shutil, sys
+trap 'rm -f "$nsi"' EXIT
+rm -f "$dir/$name.zip"
+python3 - "$src" "$out" "$dir/$name.zip" "$name" <<'EOF'
+import os, subprocess, sys, time, zipfile
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 sys.path.insert(0, '/oganesson/helium/utils')
 import filescfg
-src, out, stage = Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3])
+src, out, zip_path, name = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3], sys.argv[4]
 excluded = {Path(n) for n in ('mini_installer.exe', 'mini_installer_exe_version.rc',
                               'setup.exe', 'oganesson.packed.7z')}
-timestamp = int((src / 'build/util/LASTCHANGE.committime').read_text())
+date_time = time.gmtime(int((src / 'build/util/LASTCHANGE.committime').read_text()))[:6]
+files = []
 for relative in filescfg.filescfg_generator(src / 'chrome/tools/build/win/FILES.cfg', out,
                                             '64bit', excluded):
     path = out / relative
-    for file in [p for p in path.rglob('*') if p.is_file()] if path.is_dir() else [path]:
-        target = stage / file.relative_to(out)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(file, target)
-for path in [stage, *stage.rglob('*')]:
-    os.utime(path, (timestamp, timestamp))
+    files += sorted(p for p in path.rglob('*') if p.is_file()) if path.is_dir() else [path]
+
+
+def deflate(path):
+    """The file's content and its raw deflate stream, out of pigz's zlib header and Adler-32."""
+    data = path.read_bytes()
+    threads = os.cpu_count() if len(data) > 8 << 20 else 1
+    return data, subprocess.run(['pigz', '-11', '-z', '-p', str(threads), '-c'], input=data,
+                                capture_output=True, check=True).stdout[2:-4]
+
+
+class Precompressed:
+    """A compressor for zipfile that returns a stream deflated beforehand."""
+
+    def __init__(self, stream):
+        self.stream = stream
+
+    def compress(self, data):
+        return b''
+
+    def flush(self):
+        return self.stream
+
+
+stock = zipfile._get_compressor
+with ThreadPoolExecutor(os.cpu_count()) as pool, zipfile.ZipFile(zip_path, 'w') as archive:
+    folders = set()
+    for path, (data, stream) in zip(files, pool.map(deflate, files)):
+        entry = Path(name, path.relative_to(out))
+        for folder in reversed(entry.parents[:-1]):
+            if folder not in folders:
+                folders.add(folder)
+                info = zipfile.ZipInfo(f'{folder}/', date_time)
+                info.external_attr = 0o40755 << 16 | 0x10  # a folder, for Windows too
+                archive.writestr(info, b'')
+        info = zipfile.ZipInfo(str(entry), date_time)
+        info.external_attr = 0o100644 << 16 | 0x20  # Windows' archive bit, as 7-Zip sets it
+        # Tiny files that deflate doesn't shrink are stored.
+        if len(stream) < len(data):
+            info.compress_type = zipfile.ZIP_DEFLATED
+            zipfile._get_compressor = lambda kind, level=None: Precompressed(stream)
+        archive.writestr(info, data)
+        zipfile._get_compressor = stock
 EOF
-rm -f "$dir/$name.zip"
-(cd "$stage" && 7z a -tzip -mx=9 -mfb=258 -mpass=15 -mtc=off -bd -bso0 "$dir/$name.zip" "$name")
 
 # The installer: helium-windows' script with our names (the install folder as
 # windows/late/branding.patch has it: no company folder).
