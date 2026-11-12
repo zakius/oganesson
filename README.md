@@ -79,15 +79,15 @@ A build takes the checkout's lock. To keep a build running after the terminal cl
 
 ## Releasing
 
-A merge to main only merges. To release, push a tag whose name starts with `release-` on a commit of main (dubna's [Releases](https://github.com/zakius/dubna#releases) has the command), or start `.github/workflows/release.yml` by hand. The workflow releases main's tip and runs these steps on the build machine's runner. It posts the [GitHub release](https://github.com/zakius/oganesson/releases), with the Linux packages and notes from the commits, before it publishes to the package repository, and adds the Windows packages to it before it publishes them to the site. So several tasks can land one at a time and release in one build. The steps:
+A merge to main only merges. To release, push a tag whose name starts with `release-` on a commit of main (dubna's [Releases](https://github.com/zakius/dubna#releases) has the command), or start `.github/workflows/release.yml` by hand. The workflow releases main's tip and runs these steps on the build machine's runner. It posts the [GitHub release](https://github.com/zakius/oganesson/releases), with the Linux packages and notes from the commits, before it publishes to the package repository, and adds the Windows packages to it before it publishes them to the site. So several tasks can land one at a time and release in one build. The Windows build starts once the Linux tests pass and runs while Linux packs and uploads. The steps:
 
 ```sh
 ./oganesson.py build --release
 ./oganesson.py test --release
+./oganesson.py build --windows          # in the background; packages in work/dl/windows
 linux/pack.sh                           # then the GitHub release, with the Linux packages
-linux/publish-repo.sh
-./oganesson.py build --windows          # packages in work/dl/windows, then added to the GitHub release
-windows/publish.sh                      # to dubna.zakius.xyz/windows, with SHA256SUMS
+linux/publish-repo.sh                   # uploads the new .deb and .rpm
+windows/publish.sh                      # after the Windows packages join the GitHub release
 ```
 
 [docs/packages.md](docs/packages.md) covers the repository. The version is Chromium's, plus the commit time in the release field.

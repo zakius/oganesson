@@ -37,6 +37,15 @@ jobs:
           echo "RELEASE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
       - name: Linux build and browser tests
         run: cd "$MAIN" && flock "$BUILDS_LOCK" sh -c './oganesson.py build --release && ./oganesson.py test --release'
+      # Windows builds while Linux packs and uploads, which leave most CPUs idle. Its own session,
+      # so the step's end doesn't stop it; the job's end does. Its log and exit code go to work/,
+      # for the Windows step to wait on.
+      - name: Windows build, in the background
+        run: |
+          cd "$MAIN"
+          rm -f work/windows-build.code
+          setsid nohup sh -c 'flock "$BUILDS_LOCK" ./oganesson.py build --windows; echo $? > work/windows-build.code' \
+              > work/windows-build.log 2>&1 < /dev/null &
       - name: Linux packages
         run: |
           cd "$MAIN" && linux/pack.sh
@@ -66,7 +75,7 @@ jobs:
           fi
       - name: Linux packages, to the repository
         run: cd "$MAIN" && linux/publish-repo.sh
-      - name: Windows build, to the GitHub release and the site
+      - name: Windows packages, to the GitHub release and the site
         id: windows
         # A Windows failure (helium-windows behind, say) doesn't hold back Linux's release.
         continue-on-error: true
@@ -74,7 +83,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cd "$MAIN"
-          flock "$BUILDS_LOCK" ./oganesson.py build --windows
+          timeout 3h sh -c 'until [ -f work/windows-build.code ]; do sleep 10; done'
+          cat work/windows-build.log
+          [ "$(cat work/windows-build.code)" = 0 ]
           win="work/dl/windows/$VERSION-$RELEASE"
           gh release upload "$TAG" "$win"/*-installer.exe "$win"/*-windows-x64.zip --clobber
           windows/publish.sh
