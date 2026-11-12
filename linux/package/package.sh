@@ -6,10 +6,7 @@
 # formats: tarball and rpm run in the rpm.Dockerfile image, deb in the
 # deb.Dockerfile image. Output: $PACKAGES, default work/packages/
 # The deb and rpm are made from the tarball: the one made in the same run, or
-# TARBALL (a tarball this script made) with VERSION, and then <out folder> is
-# unused. With DEPENDS, the .deb's Depends are not looked up: linux/publish-repo.sh
-# packages on the repository server, an arm64 host, with those of the .deb made
-# with the build.
+# TARBALL (a tarball this script made), and then <out folder> is unused.
 set -euo pipefail
 
 out="$(realpath "$1")"
@@ -24,7 +21,7 @@ helium_linux="$linux/helium-linux"
 packages="${PACKAGES:-$repo/work/packages}"
 # The version the build itself carries (chrome/VERSION): the vendored files,
 # the same ones as the packaging files.
-version=${VERSION:-$(cat "$repo/helium/chromium_version.txt")}
+version=$(cat "$repo/helium/chromium_version.txt")
 name="oganesson-${version}-x86_64-${target}"
 tarball="${name}_linux"
 stage="$(mktemp -d)"
@@ -84,26 +81,23 @@ if want deb; then
     install -m 644 "$linux/package/oganesson.metainfo.xml" \
         "$root/usr/share/metainfo/io.github.zakius.oganesson.metainfo.xml"
 
-    if [ -z "${DEPENDS:-}" ]; then
-        # The libraries the binaries link, except the Qt shims, which the
-        # browser loads only when Qt is installed. The ones the package
-        # carries are found under $root and left out. GTK is loaded at run
-        # time, so no binary links it.
-        # --warnings=1 leaves out "could avoid a useless dependency" only: the
-        # build links against Chromium's sysroot, whose glibc 2.31 still has
-        # pthread and dl functions in libpthread.so.0 and libdl.so.2. Since
-        # glibc 2.34 they are in libc.so.6, and all three are libc6's.
-        printf 'Source: oganesson\n\nPackage: oganesson\nArchitecture: amd64\n' \
-            > "$stage/debian/control"
-        elves=()
-        while read -r elf; do
-            elves+=("-e$elf")
-        done < <(find "$base" -type f ! -name 'libqt*_shim.so' -exec file {} + \
-            | awk -F: '/ELF/ {print $1}')
-        shlibs="$(cd "$stage" && DEB_HOST_ARCH=amd64 DEB_HOST_GNU_TYPE=x86_64-linux-gnu \
-            DEB_HOST_MULTIARCH=x86_64-linux-gnu dpkg-shlibdeps -O --warnings=1 "${elves[@]}")"
-        DEPENDS="${shlibs#shlibs:Depends=}, libgtk-3-0t64 | libgtk-4-1"
-    fi
+    # The libraries the binaries link, except the Qt shims, which the
+    # browser loads only when Qt is installed. The ones the package
+    # carries are found under $root and left out. GTK is loaded at run
+    # time, so no binary links it.
+    # --warnings=1 leaves out "could avoid a useless dependency" only: the
+    # build links against Chromium's sysroot, whose glibc 2.31 still has
+    # pthread and dl functions in libpthread.so.0 and libdl.so.2. Since
+    # glibc 2.34 they are in libc.so.6, and all three are libc6's.
+    printf 'Source: oganesson\n\nPackage: oganesson\nArchitecture: amd64\n' \
+        > "$stage/debian/control"
+    elves=()
+    while read -r elf; do
+        elves+=("-e$elf")
+    done < <(find "$base" -type f ! -name 'libqt*_shim.so' -exec file {} + \
+        | awk -F: '/ELF/ {print $1}')
+    shlibs="$(cd "$stage" && DEB_HOST_ARCH=amd64 DEB_HOST_GNU_TYPE=x86_64-linux-gnu \
+        DEB_HOST_MULTIARCH=x86_64-linux-gnu dpkg-shlibdeps -O --warnings=1 "${elves[@]}")"
     cat > "$root/DEBIAN/control" <<EOF
 Package: oganesson
 Version: ${version}-${PKG_RELEASE:-1}
@@ -114,7 +108,7 @@ Section: web
 Priority: optional
 Homepage: https://github.com/zakius/oganesson
 Provides: www-browser
-Depends: ${DEPENDS}
+Depends: ${shlibs#shlibs:Depends=}, libgtk-3-0t64 | libgtk-4-1
 Recommends: ca-certificates, xdg-utils, fonts-liberation, libvulkan1
 Description: Chromium browser with mouse gestures and Firefox Sync
  A desktop Chromium browser built on Helium. It adds mouse gestures, a toolbar

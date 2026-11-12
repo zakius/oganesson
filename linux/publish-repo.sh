@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Publishes DL's version folders (linux/pack.sh keeps the newest 3) as a signed
 # apt repository (deb/, flat) and dnf repository (rpm/) at https://REPO_DOMAIN.
-# Only each folder's packaging tarball is uploaded to REPO_TARGET (HOST:DIR);
-# linux/package/repo-build.sh makes the packages and metadata there, and the
-# metadata comes back here to be signed. DIR/www is served by
+# Each folder's .deb and .rpm go to REPO_TARGET (HOST:DIR), where rsync sends
+# only the new ones; linux/package/repo-build.sh makes the metadata there, and
+# it comes back here to be signed. DIR/www is served by
 # linux/package/repo-compose.yaml. Machines set up with docs/packages.md update
 # from it with their normal system updates.
 # REPO_DOMAIN and REPO_TARGET come from the environment or from
@@ -36,12 +36,8 @@ rm -rf "$upload"
 mkdir -p "$upload/src" "$upload/tools"
 for version in "$dl"/[0-9]*-1.[0-9]*/; do
     case "$version" in *.part/) continue ;; esac
-    # Folders packed before pack.sh kept the packaging tarball are left out.
-    compgen -G "$version"'oganesson-*_linux.tar.xz' > /dev/null || continue
     mkdir "$upload/src/$(basename "$version")"
-    ln "$version"oganesson-*_linux.tar.xz "$upload/src/$(basename "$version")/"
-    # dpkg-shlibdeps can't look these up on the server, which has no x86 libraries.
-    dpkg-deb -f "$version"oganesson_*.deb Depends > "$upload/src/$(basename "$version")/depends"
+    ln "$version"oganesson_*.deb "$version"oganesson-*.rpm "$upload/src/$(basename "$version")/"
 done
 cp -a "$root/linux/package/." "$upload/tools/"
 gpg --armor --export "$key" > "$upload/tools/oganesson.asc"
