@@ -590,8 +590,8 @@ def main():
                               help='official build for x86-64-v2 instead of a component build (much slower)')
     build_parser.add_argument('--windows', action='store_true',
                               help='the Windows x64 release build, cross-compiled (see windows/)')
-    build_parser.add_argument('-j', '--jobs', type=int,
-                              help="parallel compile jobs (default: the machine's CPUs)")
+    build_parser.add_argument('-j', '--jobs', type=int, default=os.environ.get('OGANESSON_JOBS'),
+                              help="parallel compile jobs (default: $OGANESSON_JOBS, else the machine's CPUs)")
     build_parser.add_argument('--nice', type=int, metavar='N',
                               help='run at nice level N with idle-ish disk priority, so the '
                                    'machine stays responsive (e.g. 10)')
