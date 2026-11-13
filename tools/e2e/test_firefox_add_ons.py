@@ -68,10 +68,9 @@ class FirefoxAddOnsTest(BrowserTest):
         self.assertRegex(info['version'], r'^\d+\.\d+\.\d+\.\d+$')
         self.assertGreaterEqual(int(info['version'].split('.')[0]), 157)
 
-    def test_menus(self):
-        # Firefox's name for contextMenus, with its permission: the item shows
-        # in the page's context menu, and a click reaches the add-on.
-        self.background_eval('true')  # The background has created the item.
+    def click_page_menu_item(self):
+        """Opens a page's context menu, clicks the add-on's item and returns
+        the titles of the menu's items."""
         page = self.browser.new_tab('data:text/html,<body%20style=height:90vh>')
         try:
             wait_for(lambda: page.eval("location.protocol == 'data:' && document.readyState == 'complete'"),
@@ -80,11 +79,38 @@ class FirefoxAddOnsTest(BrowserTest):
             item = wait_for(lambda: next((i for menu in self.browser.menus() for group in menu
                                           for i in group if i['Title'] == 'Firefox menu item'), None),
                             what='the add-on\'s menu item')
+            titles = [i['Title'] for menu in self.browser.menus() for group in menu for i in group]
             self.browser.click_view(item)
             wait_for(lambda: not self.browser.menus(), what='the menu to close')
-            self.assertEqual(self.background_eval('self.clicked'), 'firefox-item')
+            return titles
         finally:
             self.browser.close_target(page)
+
+    def test_menus(self):
+        # Firefox's name for contextMenus, with its permission: the item shows
+        # in the page's context menu, and a click reaches the add-on.
+        self.background_eval('true')  # The background has created the item.
+        self.click_page_menu_item()
+        self.assertEqual(self.background_eval('self.clicked'), 'firefox-item')
+
+    def test_menus_firefox_properties(self):
+        # Firefox's item icons and the contexts this browser doesn't offer:
+        # create and update take them, the item shows in its other contexts,
+        # and an item with only such contexts shows in no page menu.
+        errors = self.background_eval('''self.clicked = null; browser.menus.remove('tools-item').catch(() => {})
+          .then(() => Promise.all([
+            new Promise(done => browser.menus.create(
+                {id: 'tools-item', title: 'Firefox Tools menu item',
+                 contexts: ['tools_menu', 'bookmark'], icons: {16: 'icon.png'}},
+                () => done(chrome.runtime.lastError ? chrome.runtime.lastError.message : null))),
+            browser.menus.update('firefox-item', {contexts: ['page', 'password'],
+                                                  icons: {16: 'icon.png', 32: 'icon.png'}})
+                .then(() => null, error => error.message),
+          ]))''')
+        self.assertEqual(errors, [None, None])
+        titles = self.click_page_menu_item()
+        self.assertNotIn('Firefox Tools menu item', titles)
+        self.assertEqual(self.background_eval('self.clicked'), 'firefox-item')
 
 
 class FirefoxNamedTest(FirefoxAddOnsTest):
