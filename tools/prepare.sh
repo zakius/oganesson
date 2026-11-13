@@ -154,6 +154,13 @@ build_ours() {
         python3 third_party/depot_tools/autoninja.py -C "$_out_dir" "${jobs[@]}" -k 0 "${ours[@]}"
 }
 
+# Copies FILE into FOLDER with its time, under its name only once it is whole:
+# a build stopped mid-copy leaves no truncated profile to be trusted later.
+copy_whole() {
+    cp -p "$1" "$2/.$(basename "$1").part"
+    mv "$2/.$(basename "$1").part" "$2/$(basename "$1")"
+}
+
 # A release build's PGO profile, for TARGET (linux or win64; docs/updating.md,
 # "PGO profiles"). Every compile reads it, and Chromium ships a new one with
 # each release, so a new profile rebuilds everything. Within a milestone the
@@ -169,7 +176,7 @@ pinned_pgo_profile() {
     pin="$(awk -v target="$target" '$1 == target { print $2 }' /oganesson/pgo-profiles.txt)"
     mkdir -p "$kept"
     if [ -n "$pin" ] && [ -f "${profiles}/${pin}" ] && [ ! -f "${kept}/${pin}" ]; then
-        cp -p "${profiles}/${pin}" "${kept}/"
+        copy_whole "${profiles}/${pin}" "${kept}"
     fi
     if [ "$pin" = "$own" ]; then
         return
@@ -182,7 +189,7 @@ pinned_pgo_profile() {
         echo "PGO: the tree's own profile, ${own}: the pinned ${pin} is missing, so everything rebuilds" >&2
         return
     fi
-    [ -f "${profiles}/${pin}" ] || cp -p "${kept}/${pin}" "${profiles}/"
+    [ -f "${profiles}/${pin}" ] || copy_whole "${kept}/${pin}" "${profiles}"
     echo "PGO: the pinned profile, ${pin}, over the tree's ${own}" >&2
     echo "pgo_data_path = \"//chrome/build/pgo_profiles/${pin}\""
 }
