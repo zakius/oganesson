@@ -101,8 +101,9 @@ update_key() {
 }
 
 # build.py's arguments: Helium's, helium-windows', is_official_build and, as
-# build.py writes them when the updater has its key, the updater's. Ours
-# (flags.gn) after them. And the
+# build.py writes them when the updater has its key, the updater's; the PGO
+# profile pinned for the milestone (pinned_pgo_profile). Ours (flags.gn) after
+# them. And the
 # cross build's: target_os, and V8's instance types from Torque (its metagen
 # alternative runs libclang in clang-cl mode, which on Linux reads its absolute
 # input path as an option). Written when they change; the build then reruns gn
@@ -113,6 +114,7 @@ write_windows_args() {
       printf '%s\n' 'target_os="win"' 'v8_use_metagen_instance_types=false' \
           'is_official_build=true' 'mojom_message_id_salt_path="//chrome/MOJOM_SALT"' \
           'enable_winsparkle=true' "winsparkle_ed_key=\"$(update_key)\""
+      pinned_pgo_profile win64
       cat /oganesson/flags.gn; } > "${_out_dir}/args.gn.new"
     if cmp -s "${_out_dir}/args.gn.new" "${_out_dir}/args.gn"; then
         rm "${_out_dir}/args.gn.new"

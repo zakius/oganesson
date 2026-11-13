@@ -8,4 +8,12 @@
 
 Keep emergency Chromium security updates distinct from product changes. A new upstream pin and clean patch application are intermediate results. They do not prove that a copied adapter or a changed upstream API still behaves correctly.
 
+## PGO profiles
+
+Release builds compile every file with Chromium's PGO profile, and Chromium ships a new profile with every release, even a patch release. So within a milestone the release builds keep one profile: the one `pgo-profiles.txt` pins for Linux (`linux`) and Windows (`win64`). The number after the target in a profile's name (`chrome-linux-8103-...`) is the milestone's branch, the third part of its versions (157.0.8103.78). A patch update then rebuilds only what changed; the profile is up to a few weeks older, which `-Wno-profile-instr-out-of-date` already allows for.
+
+`pinned_pgo_profile` in `tools/prepare.sh` writes the GN argument `pgo_data_path` when the tree's own profile (`chrome/build/linux.pgo.txt`, `win64.pgo.txt`) is another of the same branch, and `patches/oganesson/core/pgo-pinned-profile.patch` stops the tree's `.pgo.txt` from rebuilding everything then. A copy of the pinned file in the build folder (`work/helium-linux/build/pgo-profiles`, `work/helium-windows/build/pgo-profiles`) outlives Chromium's pruning of unused profiles. When the pin is another milestone's, or its file is gone, the build takes the tree's own profile, says so in its log, and rebuilds everything.
+
+On a new milestone, `tools/update_helium.py` pins the new version's profiles: commit `pgo-profiles.txt` with the update.
+
 To update Mozilla application-services, use `dubna/tools/update_app_services.py TAG`, review the locked dependencies, then rebuild and test Sync on both products. The library and the browser adapters share a JSON contract.

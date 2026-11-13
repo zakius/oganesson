@@ -1,0 +1,16 @@
+# A release build's PGO profile given in pgo_data_path (tools/prepare.sh's pinned_pgo_profile)
+# is the only PGO input of the compiles: the tree's .pgo.txt, which every Chromium release
+# changes, no longer rebuilds everything within a milestone (docs/updating.md, "PGO profiles").
+--- a/build/config/compiler/pgo/BUILD.gn
++++ b/build/config/compiler/pgo/BUILD.gn
+@@ -145,6 +145,10 @@
+       pgo_data_path = exec_script("//tools/update_pgo_profiles.py",
+                                   common_args + [ "get_profile_path" ],
+                                   "value")
++    } else {
++      # oganesson: the profile pinned for the milestone (pgo-profiles.txt). The
++      # tree's .pgo.txt, which each release changes, then rebuilds nothing.
++      inputs = []
+     }
+     assert(pgo_data_path != "",
+            "Please set pgo_data_path to point at the profile data")

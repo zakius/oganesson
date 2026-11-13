@@ -37,7 +37,8 @@ _mtimes="${_src_dir}/../oganesson-mtimes.tsv"
 
 # Release builds use Chromium's PGO profile, as helium-windows' do
 # (chrome_pgo_phase=2 over Helium's 0): helium-linux's --pgo switch, which
-# write_gn_args reads. clone.py fetches the profile (checkout_pgo_profiles).
+# write_gn_args reads. clone.py fetches the profile (checkout_pgo_profiles);
+# within a milestone, write_args keeps the pinned one (pinned_pgo_profile).
 [ "$mode" = release ] && _has_pgo=true
 
 # The output folder's GN arguments: helium-linux's, then ours (flags.gn,
@@ -55,6 +56,7 @@ write_args() {
     else
         printf '%s\n' 'oganesson_x86_64_level = "x86-64-v2"' \
             'mojom_message_id_salt_path = "//chrome/MOJOM_SALT"' >> "$args"
+        pinned_pgo_profile linux >> "$args"
     fi
     if cmp -s "$args" "$args.old"; then
         mv "$args.old" "$args"

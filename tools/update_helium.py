@@ -13,11 +13,14 @@ oganesson carries unless they go into patches/helium-drops.txt or
 windows/helium-windows-drops.txt, and the ones they lose, and fails when a drop
 names a patch the new series no longer has. --dry-run only reports.
 
+On a new Chromium milestone it also pins the milestone's PGO profiles in
+pgo-profiles.txt (docs/updating.md, "PGO profiles").
+
 Then follow docs/updating.md: ./oganesson.py check-patches, tools/regen.py for
 our patches that fail, build and test. Exits 1 when a drop or helium-windows
 needs a hand.
 """
-import subprocess, sys
+import base64, subprocess, sys, urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -49,6 +52,28 @@ def changes(name, repo, ref, drops_file):
     return stale
 
 
+PGO_PINS = ROOT / 'pgo-profiles.txt'
+PGO_NAME = 'https://chromium.googlesource.com/chromium/src/+/refs/tags/{}/chrome/build/{}.pgo.txt'
+
+
+def pin_pgo_profiles(version):
+    """Pins Chromium `version`'s own profiles where the pin is another
+    milestone's. A profile's name has the milestone's branch number after the
+    target (chrome-linux-8103-...), as the version has it third (157.0.8103.78)."""
+    branch = version.split('.')[2]
+    lines = []
+    for line in PGO_PINS.read_text().splitlines():
+        if line and not line.startswith('#'):
+            target, pinned = line.split()
+            if pinned.split('-')[2] != branch:
+                with urllib.request.urlopen(PGO_NAME.format(version, target) + '?format=TEXT') as r:
+                    pinned = base64.b64decode(r.read()).decode().strip()
+                print(f'{PGO_PINS.name}: {target} {pinned}')
+                line = f'{target} {pinned}'
+        lines.append(line)
+    PGO_PINS.write_text('\n'.join(lines) + '\n')
+
+
 def main():
     args = sys.argv[1:]
     dry = '--dry-run' in args
@@ -73,6 +98,7 @@ def main():
         git(oganesson.HELIUM_LINUX, 'checkout', '-q', tag)
         if windows:
             git(oganesson.HELIUM_WINDOWS, 'checkout', '-q', tag)
+        pin_pgo_profiles((oganesson.HELIUM / 'chromium_version.txt').read_text().strip())
         print('moved the submodules; commit them with the patch fixes')
     return 1 if stale or not windows else 0
 

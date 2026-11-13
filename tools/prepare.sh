@@ -153,3 +153,36 @@ build_ours() {
     [ ${#ours[@]} -eq 0 ] ||
         python3 third_party/depot_tools/autoninja.py -C "$_out_dir" "${jobs[@]}" -k 0 "${ours[@]}"
 }
+
+# A release build's PGO profile, for TARGET (linux or win64; docs/updating.md,
+# "PGO profiles"). Every compile reads it, and Chromium ships a new one with
+# each release, so a new profile rebuilds everything. Within a milestone the
+# build keeps the profile pgo-profiles.txt pins: prints the GN argument that
+# points at it when the tree's own differs, and nothing for the tree's own.
+# The branch number after the target names the milestone. A copy in the build
+# folder outlives Chromium's pruning of unused profiles, and cp -p keeps its
+# time, so the compiles that read it don't rerun.
+pinned_pgo_profile() {
+    local target="$1" own pin
+    local profiles="${_src_dir}/chrome/build/pgo_profiles" kept="${_build_dir}/pgo-profiles"
+    own="$(cat "${_src_dir}/chrome/build/${target}.pgo.txt")"
+    pin="$(awk -v target="$target" '$1 == target { print $2 }' /oganesson/pgo-profiles.txt)"
+    mkdir -p "$kept"
+    if [ -n "$pin" ] && [ -f "${profiles}/${pin}" ] && [ ! -f "${kept}/${pin}" ]; then
+        cp -p "${profiles}/${pin}" "${kept}/"
+    fi
+    if [ "$pin" = "$own" ]; then
+        return
+    fi
+    if [ -z "$pin" ] || [ "$(echo "$pin" | cut -d- -f3)" != "$(echo "$own" | cut -d- -f3)" ]; then
+        echo "PGO: the tree's own profile, ${own}: the pinned one, ${pin:-none}, is another milestone's" >&2
+        return
+    fi
+    if [ ! -f "${kept}/${pin}" ]; then
+        echo "PGO: the tree's own profile, ${own}: the pinned ${pin} is missing, so everything rebuilds" >&2
+        return
+    fi
+    [ -f "${profiles}/${pin}" ] || cp -p "${kept}/${pin}" "${profiles}/"
+    echo "PGO: the pinned profile, ${pin}, over the tree's ${own}" >&2
+    echo "pgo_data_path = \"//chrome/build/pgo_profiles/${pin}\""
+}

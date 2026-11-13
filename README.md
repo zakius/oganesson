@@ -71,6 +71,8 @@ The browser tests need Xvfb, xdotool and xwd, and use throwaway profiles. Each t
 
 A build takes the checkout's lock. To keep a build running after the terminal closes, start it with `tools/detach.sh LOG -- ./oganesson.py build ...`. A build runs one compile job per CPU of the machine, unless `-j` says otherwise; how many CPUs the containers get is up to the system.
 
+Release builds keep one Chromium PGO profile per milestone, pinned in `pgo-profiles.txt`, so a patch update rebuilds only what changed ([docs/updating.md](docs/updating.md#pgo-profiles)).
+
 `check-patches` doesn't replace a build, because some breakage only shows when the code compiles or runs. Run the pre-commit checks (`sh tools/hooks/pre-commit`) before you commit.
 
 ## Updating
