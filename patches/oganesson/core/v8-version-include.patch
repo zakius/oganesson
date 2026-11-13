@@ -1,0 +1,13 @@
+# v8.h no longer pulls in v8-version.h, whose patch level changes with every Chromium release:
+# through v8.h each release recompiled every file that uses V8 (thousands), though only V8's
+# version.cc and the users of v8-version-string.h read the numbers, and they include it themselves.
+--- a/v8/include/v8.h
++++ b/v8/include/v8.h
+@@ -58,7 +58,6 @@
+ #include "v8-unwinder.h"           // NOLINT(build/include_directory)
+ #include "v8-value-serializer.h"   // NOLINT(build/include_directory)
+ #include "v8-value.h"              // NOLINT(build/include_directory)
+-#include "v8-version.h"            // NOLINT(build/include_directory)
+ #include "v8-wasm.h"               // NOLINT(build/include_directory)
+ #include "v8config.h"              // NOLINT(build/include_directory)
+ 

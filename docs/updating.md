@@ -16,4 +16,6 @@ Release builds compile every file with Chromium's PGO profile, and Chromium ship
 
 On a new milestone, `tools/update_helium.py` pins the new version's profiles: commit `pgo-profiles.txt` with the update.
 
+V8's patch level also changes with every release, in `v8/include/v8-version.h`. `patches/oganesson/core/v8-version-include.patch` takes that header out of `v8.h`, so only the few files that read the version recompile, not every file that uses V8.
+
 To update Mozilla application-services, use `dubna/tools/update_app_services.py TAG`, review the locked dependencies, then rebuild and test Sync on both products. The library and the browser adapters share a JSON contract.
