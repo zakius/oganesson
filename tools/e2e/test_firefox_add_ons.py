@@ -627,12 +627,15 @@ PAGE_ACTION_V3_ADD_ON = {
 PAGE_ACTION_CALLS = '''(async () => {
     const [tab] = await browser.tabs.query({active: true, lastFocusedWindow: true});
     const tabId = tab.id;
+    const manifest = [await browser.pageAction.getTitle({tabId}),
+                      await browser.pageAction.getPopup({tabId})];
     await browser.pageAction.show(tabId);
     await browser.pageAction.setTitle({tabId, title: 'Page for the tab'});
-    await browser.pageAction.setPopup({tabId, popup: 'toolbar.html'});
+    await browser.pageAction.setPopup({tabId, popup: 'other.html'});
     await browser.pageAction.setIcon({tabId, imageData: new ImageData(16, 16)});
     await browser.pageAction.hide(tabId);
     return {
+        manifest,
         page: [await browser.pageAction.getTitle({tabId}), await browser.pageAction.getPopup({tabId})],
         toolbar: [await browser.browserAction.getTitle({tabId}),
                   await browser.browserAction.getPopup({tabId})],
@@ -680,7 +683,8 @@ class FirefoxPageActionTest(BrowserTest):
                      what='the page')
             result = background.eval(PAGE_ACTION_CALLS)
             base = f'chrome-extension://{add_on}/'
-            self.assertEqual(result['page'], ['Page for the tab', base + 'toolbar.html'])
+            self.assertEqual(result['manifest'], ['Page', base + 'page.html'])
+            self.assertEqual(result['page'], ['Page for the tab', base + 'other.html'])
             self.assertEqual(result['toolbar'], ['Toolbar', base + 'toolbar.html'])
             self.assertEqual(result['onClicked'], 'function')
             page.eval(f"location.href = {json.dumps(self.server.url('/two'))}")
