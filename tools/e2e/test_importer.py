@@ -136,6 +136,8 @@ class ImporterTest(BrowserTest):
         self.assertEqual('succeeded', page.eval(f"{DIALOG}.importStatus_"))
 
         bookmarks = self.browser.new_tab('chrome://bookmarks')
+        # The new tab is blank until the page commits, without the API.
+        wait_for(lambda: bookmarks.eval('!!chrome.bookmarks'), what='chrome://bookmarks')
         wait_for(lambda: bookmarks.eval(
             f"chrome.bookmarks.search({{url: {json.dumps(PAGE_URL)}}})"
             ".then(found => found.length)"), what='the imported bookmark')
