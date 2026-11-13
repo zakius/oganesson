@@ -50,7 +50,7 @@ os.environ.setdefault('OGANESSON_BINARY',
                       str(ROOT / 'work/helium-linux/build/src/out/Release/oganesson'))
 os.environ.setdefault('TMPDIR', str(ROOT / 'work/tmp'))
 # pylint: disable=wrong-import-position
-from harness import BINARY, DEVELOPER_MODE, Browser, extension_id, unpack_xpi
+from harness import BINARY, DEVELOPER_MODE, Browser, extension_id, unpack_xpi, wait_for
 
 LEVELS = ('L0', 'L1', 'L2')
 GROUP = 20
@@ -202,6 +202,8 @@ def run_group(items, xpis, work):
         time.sleep(SETTLE)
         page = browser.new_tab('chrome://extensions')
         try:
+            # The new tab is blank until the page commits, without the API.
+            wait_for(lambda: page.eval('!!chrome.developerPrivate'), what='chrome://extensions')
             installed = {e['id']: e for e in page.eval(
                 'new Promise(r => chrome.developerPrivate.getExtensionsInfo('
                 '{includeDisabled: true, includeTerminated: true}, r))')}
