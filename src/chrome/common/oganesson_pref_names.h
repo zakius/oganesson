@@ -62,6 +62,12 @@ inline constexpr char kFirefoxSyncPushChannel[] =
 inline constexpr char kFirefoxSyncPushEndpoint[] =
     "oganesson.firefox_sync.push_endpoint";
 
+// Google features, each off until the user turns it on (goals.md).
+//
+// Whether an image's context menu offers "Search image with Google Lens",
+// whatever the default search engine.
+inline constexpr char kGoogleLensEnabled[] = "oganesson.google.lens_enabled";
+
 }  // namespace prefs
 
 #endif  // CHROME_COMMON_OGANESSON_PREF_NAMES_H_

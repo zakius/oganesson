@@ -37,6 +37,7 @@ inline void RegisterOganessonProfilePrefs(
   registry->RegisterStringPref(prefs::kFirefoxSyncPushUaid, std::string());
   registry->RegisterStringPref(prefs::kFirefoxSyncPushChannel, std::string());
   registry->RegisterStringPref(prefs::kFirefoxSyncPushEndpoint, std::string());
+  registry->RegisterBooleanPref(prefs::kGoogleLensEnabled, false);
 }
 
 // The local state prefs of every oganesson feature, for RegisterLocalState in

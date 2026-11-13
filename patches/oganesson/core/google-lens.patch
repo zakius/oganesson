@@ -1,0 +1,72 @@
+# Settings > Search engine > "Search images with Google Lens" (oganesson.google.lens_enabled, off):
+# an image's context menu offers "Search image with Google Lens" whatever the default engine,
+# unless the engine's own item goes to Lens already. Logic in src/.../tab_contents/google_lens.h.
+--- a/chrome/browser/renderer_context_menu/render_view_context_menu.cc
++++ b/chrome/browser/renderer_context_menu/render_view_context_menu.cc
+@@ -141,6 +141,7 @@
+ #include "chrome/browser/ui/send_tab_to_self/send_tab_to_self_bubble.h"
+ #include "chrome/browser/ui/send_tab_to_self/send_tab_to_self_sub_menu_model.h"
+ #include "chrome/browser/ui/tab_contents/core_tab_helper.h"
++#include "chrome/browser/ui/tab_contents/google_lens.h"
+ #include "chrome/browser/ui/tabs/features.h"
+ #include "chrome/browser/ui/tabs/page_context_eligibility_helper.h"
+ #include "chrome/browser/ui/tabs/public/tab_features.h"
+@@ -1357,6 +1358,17 @@
+     if (content_type_->SupportsGroup(
+             ContextMenuContentType::ITEM_GROUP_SEARCHWEBFORIMAGE)) {
+       AppendSearchWebForImageItems();
++      if (params_.has_image_contents && IsSearchAllowedByPolicy() &&
++          GetBrowser() &&
++          google_lens::OfferItem(*GetProfile()->GetPrefs(),
++                                 GetImageSearchProvider())) {
++        // "Google Lens" is a name, the same in every language.
++        menu_model_.AddItemWithIcon(
++            IDC_CONTENT_CONTEXT_SEARCHLENSFORIMAGE,
++            l10n_util::GetStringFUTF16(IDS_CONTENT_CONTEXT_SEARCHLENSFORIMAGE,
++                                       u"Google Lens"),
++            GetLensContextMenuIcon());
++      }
+     }
+ 
+     if (content_type_->SupportsGroup(
+--- a/chrome/browser/ui/tab_contents/core_tab_helper.cc
++++ b/chrome/browser/ui/tab_contents/core_tab_helper.cc
+@@ -19,6 +19,7 @@
+ #include "build/build_config.h"
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/search_engines/template_url_service_factory.h"
++#include "chrome/browser/ui/tab_contents/google_lens.h"
+ #include "chrome/browser/ui/ui_features.h"
+ #include "chrome/common/chrome_render_frame.mojom.h"
+ #include "chrome/common/chrome_switches.h"
+@@ -523,8 +524,15 @@
+   }
+ 
+   TemplateURLService* template_url_service = GetTemplateURLService();
++  // SearchWithLens, the only caller with query parameters, goes to Google
++  // Lens whatever the default engine (google_lens.h).
++  std::unique_ptr<TemplateURL> lens_engine;
++  if (!additional_query_params.empty()) {
++    lens_engine = google_lens::GoogleEngine();
++  }
+   const TemplateURL* const default_provider =
+-      template_url_service->GetDefaultSearchProvider();
++      lens_engine ? lens_engine.get()
++                  : template_url_service->GetDefaultSearchProvider();
+   DCHECK(default_provider);
+ 
+   std::string additional_query_params_modified = additional_query_params;
+--- a/chrome/browser/resources/settings/search_page/search_page.html.ts
++++ b/chrome/browser/resources/settings/search_page/search_page.html.ts
+@@ -50,6 +50,11 @@
+         label="$i18n{searchSuggestPref}"
+         sub-label="$i18n{searchSuggestPrefDesc}">
+     </settings-toggle-button>
++    <settings-toggle-button id="googleLens" class="hr"
++        pref-key="oganesson.google.lens_enabled"
++        label="$i18n{googleLens}"
++        sub-label="$i18n{googleLensDescription}">
++    </settings-toggle-button>
+ 
+     ${this.defaultSearchProviderDataPref_?.extensionId ? html`
+       ${this.searchSettingsUpdateEnabled_ ? html`

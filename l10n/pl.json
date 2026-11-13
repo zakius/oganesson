@@ -1438,5 +1438,15 @@
     "name": "IDS_OGANESSON_CONTAINERS_COMMAND_NTH",
     "source": "New tab in container <ph name=\"NUMBER\">$1<ex>1</ex></ph>",
     "message": "Nowa karta w kontenerze <ph name=\"NUMBER\">$1<ex>1</ex></ph>"
+  },
+  {
+    "name": "IDS_OGANESSON_GOOGLE_LENS",
+    "source": "Search images with Google Lens",
+    "message": "Wyszukuj obrazy w Google Lens"
+  },
+  {
+    "name": "IDS_OGANESSON_GOOGLE_LENS_DESCRIPTION",
+    "source": "Adds \"Search image with Google Lens\" to an image's menu, whatever the search engine. Choosing it sends the image to Google.",
+    "message": "Dodaje „Wyszukaj obraz za pomocą: Google Lens” do menu obrazu, niezależnie od wyszukiwarki. Wybranie tej pozycji wysyła obraz do Google."
   }
 ]

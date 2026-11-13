@@ -44,6 +44,7 @@ inline void AddOganessonPrefsToAllowlist(PrefsUtil::TypedPrefMap& allowlist) {
   allowlist[::containers::kContainersList] = PrefType::kList;
   allowlist[::containers::kTrafficControlRules] = PrefType::kList;
   allowlist[::containers::kNewTabContainer] = PrefType::kString;
+  allowlist[::prefs::kGoogleLensEnabled] = PrefType::kBoolean;
 }
 
 }  // namespace extensions

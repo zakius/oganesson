@@ -70,3 +70,4 @@ oganesson/settings/containers-settings.patch
 oganesson/core/firefox-sidebar-action.patch
 oganesson/core/app-icon.patch
 oganesson/settings/app-icon-settings.patch
+oganesson/core/google-lens.patch

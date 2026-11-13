@@ -73,6 +73,12 @@ void AddOganessonSettings(content::WebUI* web_ui,
       {"importNoProfileFound", IDS_OGANESSON_IMPORT_NO_PROFILE_FOUND},
   };
   html_source->AddLocalizedStrings(kImportStrings);
+  // Search engine > Google Lens.
+  static constexpr webui::LocalizedString kGoogleStrings[] = {
+      {"googleLens", IDS_OGANESSON_GOOGLE_LENS},
+      {"googleLensDescription", IDS_OGANESSON_GOOGLE_LENS_DESCRIPTION},
+  };
+  html_source->AddLocalizedStrings(kGoogleStrings);
   // Setup, chrome://settings/setup.
   static constexpr webui::LocalizedString kSetupStrings[] = {
       {"setupAskEachTime", IDS_SETUP_ASK_EACH_TIME},
