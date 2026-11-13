@@ -27,7 +27,8 @@ import time
 import unittest
 from pathlib import Path
 
-from harness import BINARY, Browser, BrowserTest, Server, wait_for
+from harness import BINARY, Browser, BrowserTest, Page, Server, wait_for
+import test_containers
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 try:
@@ -622,11 +623,24 @@ class FirefoxSyncContainersTest(BrowserTest):
     sync_now = FirefoxSyncTest.sync_now
     MAC = '@testpilot-containers'
     TRAVEL = '6f1d2c3b-4a5e-4f60-8a7b-9c0d1e2f3a4b'
+    # Continue where you left off, so that a restart restores the tabs.
+    prefs = {'session': {'restore_on_startup': 1}}
+    # Tabs in a container, with a cookie named after it (test_containers.py).
+    new_tab_in = test_containers.ContainersTest.new_tab_in
+    new_tab_button = test_containers.ContainersTest.new_tab_button
+    choose = test_containers.ContainersTest.choose
+    menu_item = test_containers.ContainersTest.menu_item
+    pages = test_containers.ContainersTest.pages
+    cookie_now = test_containers.ContainersTest.cookie_now
+    cookie = test_containers.ContainersTest.cookie
+    set_cookie = test_containers.ContainersTest.set_cookie
 
     @classmethod
     def setUpClass(cls):
         if not fake_firefox_sync:
             raise unittest.SkipTest(f'the fake sync server needs {MISSING}')
+        cls.pages_server = Server({'/page': (200, {'Content-Type': 'text/html'},
+                                             test_containers.PAGE)})
         cls.server, base, cls.fake = fake_firefox_sync.serve()
         cls.browser_env = {'OGANESSON_FXA_SERVER': base,
                            'OGANESSON_PUSH_SERVER': cls.fake.push.url}
@@ -638,6 +652,10 @@ class FirefoxSyncContainersTest(BrowserTest):
         cls.other.stop(failed=cls.failed)
         super().tearDownClass()
         cls.server.shutdown()
+        cls.pages_server.stop()
+
+    def url(self, path):
+        return self.pages_server.url(path)
 
     def sync_page(self, browser):
         page = browser.new_tab('chrome://settings/people')
@@ -745,6 +763,83 @@ class FirefoxSyncContainersTest(BrowserTest):
                       rules)
         self.assertIn({'url_filter': 'example.org', 'container': self.TRAVEL, 'enabled': True},
                       rules)
+
+
+    def firefox_deletes(self, uuid):
+        """Firefox deletes container `uuid`, as the add-on does."""
+        area, record_id = self.area()
+        del area[f'identity@@_{uuid}']
+        area['deletedIdentityList'] = area.get('deletedIdentityList', []) + [uuid]
+        self.firefox_put(area, record_id)
+        self.sync_now(self.sync_page(self.browser))
+        wait_for(lambda: self.TRAVEL not in
+                 [c['id'] for c in self.pref(self.sync_page(self.browser), 'containers.list')],
+                 what='Trips to leave the list')
+
+    def question(self):
+        """Waits for the question about Trips, which has a tab open."""
+        self.browser.wait_view('Label', Text='Delete “Trips” here too?', timeout=30)
+        self.browser.wait_view('Label', match=lambda v: '1 tab open here' in v.props.get('Text', ''))
+
+    def answer(self, button):
+        """Clicks `button` of the question. A dialog ignores a click that comes
+        within a double-click interval of its showing or of the last click
+        (views' InputEventActivationProtector), so the click waits that out."""
+        self.question()
+        time.sleep(1)
+        self.browser.click_view(self.browser.wait_view('MdTextButton', Text=button))
+        wait_for(lambda: not [v for v in self.browser.views('MdTextButton', Text=button)
+                              if v.visible], what=f'the question to go on "{button}"')
+
+    def trips_tabs(self):
+        return [t for t in self.browser.targets() if t['type'] == 'page' and
+                t['url'].endswith('/page?trips')]
+
+    def test_5_deleted_in_firefox_waits_for_the_user(self):
+        page = self.new_tab_in('Trips')
+        page.call('Page.navigate', url=self.url('/page?trips'))
+        wait_for(lambda: page.eval('location.search') == '?trips', what='the page')
+        self.set_cookie(page, 'trips')
+        folder = test_containers.storage_folder(self.browser.profile, self.TRAVEL)
+        wait_for(folder.exists, what="Trips' storage")
+        self.firefox_deletes(self.TRAVEL)
+        self.question()
+        # Until the user answers, the tab and its cookie stay, also across a
+        # restart, which asks again.
+        self.assertEqual(self.cookie(page), 'in=trips')
+        self.browser.quit()
+        self.browser.start()
+        page = Page(wait_for(lambda: next(iter(self.trips_tabs()), None), timeout=30,
+                             what='the restored tab'))
+        page.call('Page.bringToFront')
+        self.assertEqual(self.cookie(page, timeout=60), 'in=trips')
+        self.assertTrue(folder.exists())
+        # Kept: it is listed again, and goes up as a new container.
+        self.answer('Keep it')
+        sync = self.sync_page(self.browser)
+        wait_for(lambda: self.TRAVEL in [c['id'] for c in self.pref(sync, 'containers.list')],
+                 what='Trips back in the list')
+        wait_for(lambda: not self.status(sync).get('syncing'), timeout=30, what='idle')
+        self.sync_now(sync)
+        area, _ = self.area()
+        trips = [k for k, v in area.items() if k.startswith('identity@@_') and v['name'] == 'Trips']
+        self.assertEqual(len(trips), 1)
+        self.assertNotEqual(trips[0], f'identity@@_{self.TRAVEL}')
+        self.assertEqual(self.cookie(page), 'in=trips')
+
+    def test_6_deleted_here_too(self):
+        area, _ = self.area()
+        uuid = next(v['macAddonUUID'] for k, v in area.items()
+                    if k.startswith('identity@@_') and v['name'] == 'Trips')
+        folder = test_containers.storage_folder(self.browser.profile, self.TRAVEL)
+        self.firefox_deletes(uuid)
+        self.answer('Delete it here too')
+        wait_for(lambda: not self.trips_tabs(), what="Trips' tab to close")
+        # Its partition was loaded: its folder goes at the next start.
+        self.browser.quit()
+        self.browser.start()
+        wait_for(lambda: not folder.exists(), timeout=30, what="Trips' storage to go")
+        self.assertFalse(self.trips_tabs())
 
 
 class FirefoxSyncFailuresTest(BrowserTest):

@@ -21,6 +21,8 @@ A link a container tab opens stays in the container, whether it opens in the sam
 
 Deleting a container closes its tabs and forgets its closed tabs. Its cookies and site data are deleted then, or at the next start when a tab of it stayed open (a page that asks before it closes) or the last session, which the user can still restore, had a tab in it. A restored tab of a deleted container, from the last session or a pinned tab, opens in a new temporary container, so the deleted container's data is never used again.
 
+When Firefox Sync deletes a container that has tabs or data here, a dialog asks whether to delete it here too, which closes its tabs and deletes its data, or keep it, which syncs it back to the other devices. Until you choose, its tabs and data stay; closing the dialog asks again at the next start. A container sync deletes with no tabs or data here goes without asking. When a deleted container's partition was loaded in this run, its data is cleared at once and its folder goes at the next start, because the partition keeps its files open.
+
 Sites in a container can show notifications, and a click on one goes to the container's page or service worker. They can't subscribe to push messages: Chromium delivers those to the site outside containers, so the subscription fails with "push service not available".
 
 A temporary container gets a name such as "Temporary 2" and a random color. Its data is deleted at a start once no tab, closed tab or restorable session uses it.
