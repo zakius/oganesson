@@ -99,9 +99,12 @@ class UpdatePromptTest(BrowserTest):
         tab = self.browser.new_tab(a)
         wait_for(lambda: tab.eval('document.title') == 'a', what='page a')
         tab.eval(f'location.href = {b!r}')
-        wait_for(lambda: self.browser.page(b), what='page b')
+        # Loaded, not only started: the session saves a tab's committed pages,
+        # and the Update chip may come at once.
+        wait_for(lambda: self.browser.page(b).eval('document.title') == 'b', what='page b')
         self.browser.browser_call('Target.createTarget', url=c, newWindow=True)
-        wait_for(lambda: self.browser.page(c), what='page c in a new window')
+        wait_for(lambda: self.browser.page(c).eval('document.title') == 'c',
+                 what='page c in a new window')
         self.assertEqual(self.update_chips(), [], 'an update chip before any upgrade')
 
         upgrade(self.browser.binary)
