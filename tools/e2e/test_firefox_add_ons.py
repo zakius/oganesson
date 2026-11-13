@@ -10,7 +10,7 @@ import unittest
 import zipfile
 from pathlib import Path
 
-from harness import BrowserTest, Page, extension_id, unpack_xpi, wait_for
+from harness import BrowserTest, Page, Server, extension_id, unpack_xpi, wait_for
 
 ADD_ON = {
     'manifest.json': json.dumps({
@@ -515,6 +515,70 @@ class FirefoxShortcutsTest(BrowserTest):
                 f'browser.commands.getAll().then(all => all.find(c => c.description == {description!r}).shortcut)')
         finally:
             background.close()
+
+
+WEB_REQUEST_ADD_ON = {
+    'manifest.json': json.dumps({
+        'manifest_version': 2,
+        'name': 'Firefox webRequest event page test add-on',
+        'version': '1',
+        'browser_specific_settings': {'gecko': {'id': 'firefox-web-request@oganesson.test'}},
+        # An event page with a blocking webRequest listener, as AdGuard and
+        # Ghostery have it.
+        'background': {'scripts': ['background.js'], 'persistent': False},
+        'permissions': ['webRequest', 'webRequestBlocking', 'http://127.0.0.1/*'],
+    }),
+    'background.js': '''
+        self.blocked = [];
+        browser.webRequest.onBeforeRequest.addListener(details => {
+            self.blocked.push(new URL(details.url).pathname);
+            return {cancel: true};
+        }, {urls: ['http://127.0.0.1/blocked*']}, ['blocking']);
+        self.started = true;
+    ''',
+}
+
+
+class FirefoxWebRequestEventPageTest(BrowserTest):
+    """A Manifest V2 event page that asks for webRequest: Chromium refuses to
+    load it, Firefox runs it, and its blocking listener blocks a request.
+    It runs as a persistent background page."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.folder = Path(tempfile.mkdtemp(prefix='oganesson-firefox-web-request-'))
+        xpi = cls.folder / 'add-on.xpi'
+        with zipfile.ZipFile(xpi, 'w') as archive:
+            for name, text in WEB_REQUEST_ADD_ON.items():
+                archive.writestr(name, text)
+        cls.unpacked = unpack_xpi(xpi, cls.folder / 'unpacked')
+        cls.server = Server({'/page': (200, {'Content-Type': 'text/html'}, b'<!doctype html><p>page'),
+                             '/blocked': (200, {'Content-Type': 'text/plain'}, b'not blocked')})
+        cls.browser_args = (f'--load-extension={cls.unpacked}',)
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        cls.server.stop()
+        shutil.rmtree(cls.folder)
+
+    def test_blocking_listener(self):
+        add_on = extension_id(self.unpacked)
+        background = self.browser.extension_background(add_on)
+        page = self.browser.new_tab(self.server.url('/page'))
+        try:
+            wait_for(lambda: background.eval('self.started === true'), what='the background script')
+            wait_for(lambda: page.eval("document.readyState == 'complete' && document.body.innerText"),
+                     what='the page')
+            result = page.eval("fetch('/blocked').then(r => r.text(), e => 'failed')")
+            self.assertEqual(result, 'failed')
+            self.assertEqual(background.eval('self.blocked'), ['/blocked'])
+            self.assertNotIn('/blocked', self.server.requests)
+        finally:
+            background.close()
+            self.browser.close_target(page)
+        self.assertFalse(self.browser.extension_errors(add_on))
 
 if __name__ == '__main__':
     unittest.main()
