@@ -1,6 +1,7 @@
 # Our patches, applied after Helium's series (helium/patches/series without patches/helium-drops.txt)
 # and helium-linux's. Paths from patches/; dubna's shared patches through ../dubna/.
 ungoogled-chromium/keep-expired-flags.patch
+../dubna/patches/own-strings.patch
 oganesson/core/hooks.patch
 oganesson/core/shortcut-command-fixes.patch
 oganesson/core/scroll-to-edge-commands.patch

@@ -11,6 +11,7 @@
 #include "chrome/browser/profiles/profile.h"
 #include "build/build_config.h"
 #include "chrome/grit/generated_resources.h"
+#include "chrome/grit/oganesson_strings.h"
 #include "content/public/browser/web_ui_data_source.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/common/api/extension_action/action_info.h"

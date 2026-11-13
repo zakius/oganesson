@@ -22,7 +22,7 @@
 #include "chrome/common/importer/chrome_importer_utils.h"
 #include "chrome/common/importer/firefox_importer_utils.h"
 #include "chrome/common/ini_parser.h"
-#include "chrome/grit/generated_resources.h"
+#include "chrome/grit/oganesson_strings.h"
 #include "sql/database.h"
 #include "sql/statement.h"
 #include "ui/base/l10n/l10n_util.h"

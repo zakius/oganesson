@@ -26,7 +26,7 @@
    if (is_win) {
 --- a/chrome/browser/importer/importer_list.cc
 +++ b/chrome/browser/importer/importer_list.cc
-@@ -6,11 +6,14 @@
+@@ -6,15 +6,19 @@
  
  #include <stdint.h>
  
@@ -41,7 +41,12 @@
  #include "chrome/browser/shell_integration.h"
  #include "chrome/common/importer/firefox_importer_utils.h"
  #include "chrome/common/importer/importer_bridge.h"
-@@ -245,7 +248,14 @@
+ #include "chrome/grit/generated_resources.h"
++#include "chrome/grit/oganesson_strings.h"
+ #include "components/user_data_importer/common/importer_data_types.h"
+ #include "ui/base/l10n/l10n_util.h"
+ 
+@@ -245,7 +249,14 @@
      DetectFirefoxProfiles(locale, &profiles);
    }
  #endif
@@ -56,7 +61,7 @@
      user_data_importer::SourceProfile bookmarks_profile;
      bookmarks_profile.importer_name =
          l10n_util::GetStringUTF16(IDS_IMPORT_FROM_BOOKMARKS_HTML_FILE);
-@@ -292,6 +302,41 @@
+@@ -292,6 +303,41 @@
    return source_profiles_[index];
  }
  

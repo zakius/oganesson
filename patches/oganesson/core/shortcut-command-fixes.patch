@@ -1,6 +1,14 @@
 --- a/chrome/browser/ui/browser_shortcuts/browser_shortcut_metadata.cc
 +++ b/chrome/browser/ui/browser_shortcuts/browser_shortcut_metadata.cc
-@@ -131,11 +131,15 @@ std::optional<BrowserShortcutCommandLabel> GetBrowserShortcutCommandLabel(
+@@ -15,6 +15,7 @@
+ #include "chrome/browser/ui/helium/helium_layout_state_controller.h"
+ #include "chrome/common/pref_names.h"
+ #include "chrome/grit/generated_resources.h"
++#include "chrome/grit/oganesson_strings.h"
+ #include "components/prefs/pref_service.h"
+ #include "ui/strings/grit/ui_strings.h"
+ 
+@@ -131,11 +132,15 @@
      case IDC_RESTORE_TAB:
        return Label(IDS_RESTORE_TAB);
      case IDC_SELECT_NEXT_TAB:

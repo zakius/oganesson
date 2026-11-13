@@ -23,7 +23,7 @@
 #include "chrome/browser/ui/views/frame/toolbar_button_provider.h"
 #include "chrome/browser/ui/views/tabs/common/tab_view.h"
 #include "chrome/browser/ui/views/tabs/tab.h"
-#include "chrome/grit/generated_resources.h"
+#include "chrome/grit/oganesson_strings.h"
 #include "components/tabs/public/tab_interface.h"
 #include "ui/actions/actions.h"
 #include "ui/base/l10n/l10n_util.h"

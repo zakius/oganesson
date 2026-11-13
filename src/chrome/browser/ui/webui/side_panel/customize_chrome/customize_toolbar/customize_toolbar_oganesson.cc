@@ -9,7 +9,7 @@
 #include "base/containers/span.h"
 #include "base/values.h"
 #include "chrome/common/pref_names.h"
-#include "chrome/grit/generated_resources.h"
+#include "chrome/grit/oganesson_strings.h"
 #include "components/prefs/pref_service.h"
 #include "components/prefs/scoped_user_pref_update.h"
 #include "components/vector_icons/vector_icons.h"

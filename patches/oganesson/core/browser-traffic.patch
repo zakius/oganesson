@@ -379,7 +379,15 @@
  void ShowSearchEngineSettings(BrowserWindowInterface* browser) {
 --- a/chrome/browser/ui/toolbar/app_menu_icon_controller.cc
 +++ b/chrome/browser/ui/toolbar/app_menu_icon_controller.cc
-@@ -144,8 +144,9 @@ AppMenuIconController::AppMenuIconController(UpgradeDetector* upgrade_detector,
+@@ -18,6 +18,7 @@
+ #include "chrome/common/chrome_features.h"
+ #include "chrome/grit/branded_strings.h"
+ #include "chrome/grit/generated_resources.h"
++#include "chrome/grit/oganesson_strings.h"
+ #include "components/helium_services/pref_names.h"
+ #include "components/helium_services/schema.h"
+ #include "components/prefs/pref_change_registrar.h"
+@@ -144,8 +145,9 @@
  
    if (auto* prefs = profile->GetPrefs()) {
      registrar_.Init(prefs);
@@ -390,7 +398,7 @@
          base::BindRepeating(&AppMenuIconController::OnGlobalErrorsChanged,
                              base::Unretained(this)));
    }
-@@ -247,7 +248,7 @@ std::u16string AppMenuIconController::GetIconLabel(IconType type,
+@@ -247,7 +249,7 @@
  #endif
    } else if (type == IconType::kHeliumServicesUpdate) {
      return l10n_util::GetStringUTF16(
@@ -399,7 +407,7 @@
    } else {
      const int text_id = severity == Severity::kLow
                              ? IDS_APP_MENU_BUTTON_ACTION_REQUIRED
-@@ -282,7 +283,7 @@ std::u16string AppMenuIconController::GetIconTooltip(IconType type,
+@@ -282,7 +284,7 @@
  #endif
      return l10n_util::GetStringUTF16(IDS_APPMENU_TOOLTIP_UPDATE_AVAILABLE);
    } else if (type == IconType::kHeliumServicesUpdate) {
@@ -410,7 +418,15 @@
    }
 --- a/chrome/browser/ui/toolbar/app_menu_model.cc
 +++ b/chrome/browser/ui/toolbar/app_menu_model.cc
-@@ -2312,7 +2312,7 @@ bool AppMenuModel::AddHeliumSchemaItem() {
+@@ -115,6 +115,7 @@
+ #include "chrome/common/pref_names.h"
+ #include "chrome/grit/branded_strings.h"
+ #include "chrome/grit/generated_resources.h"
++#include "chrome/grit/oganesson_strings.h"
+ #include "chrome/grit/theme_resources.h"
+ #include "components/autofill/core/common/autofill_features.h"
+ #include "components/bookmarks/common/bookmark_bar_visibility_state.h"
+@@ -2312,7 +2313,7 @@
        omnibox::kProductChromeRefreshOldIcon, ui::kColorMenuIcon, kDefaultIconSize);
    AddItemWithIcon(
        IDC_HELIUM_SERVICES_OPEN,

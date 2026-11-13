@@ -19,7 +19,7 @@
 #include "chrome/browser/spellchecker/spellcheck_factory.h"
 #include "chrome/browser/spellchecker/spellcheck_hunspell_dictionary.h"
 #include "chrome/browser/spellchecker/spellcheck_service.h"
-#include "chrome/grit/generated_resources.h"
+#include "chrome/grit/oganesson_strings.h"
 #include "components/browser_traffic/browser_traffic.h"
 #include "components/prefs/pref_service.h"
 #include "components/search_engines/template_url_service.h"

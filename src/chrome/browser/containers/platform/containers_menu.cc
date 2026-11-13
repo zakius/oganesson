@@ -21,7 +21,7 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "components/prefs/pref_service.h"
-#include "chrome/grit/generated_resources.h"
+#include "chrome/grit/oganesson_strings.h"
 #include "components/bookmarks/browser/bookmark_node.h"
 #include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/web_contents.h"

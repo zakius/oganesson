@@ -153,7 +153,15 @@
  #endif  // CHROME_BROWSER_UI_WEBUI_HISTORY_HISTORY_LOGIN_HANDLER_H_
 --- a/chrome/browser/ui/webui/history/history_ui.cc
 +++ b/chrome/browser/ui/webui/history/history_ui.cc
-@@ -88,6 +88,8 @@ content::WebUIDataSource* CreateAndAddHistoryUIHTMLSource(Profile* profile) {
+@@ -31,6 +31,7 @@
+ #include "chrome/browser/ui/webui/metrics_handler.h"
+ #include "chrome/common/url_constants.h"
+ #include "chrome/grit/generated_resources.h"
++#include "chrome/grit/oganesson_strings.h"
+ #include "chrome/grit/history_resources.h"
+ #include "chrome/grit/history_resources_map.h"
+ #include "components/critical_actions/core/browser/features.h"
+@@ -88,6 +89,8 @@
        {"turnOnSyncPromo", IDS_HISTORY_TURN_ON_SYNC_PROMO},
        {"turnOnSyncPromoDesc", IDS_HISTORY_TURN_ON_SYNC_PROMO_DESC},
        {"turnOnSyncHistoryPromo", IDS_HISTORY_SYNC_HISTORY_PROMO},

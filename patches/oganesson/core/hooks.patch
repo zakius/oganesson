@@ -1,13 +1,3 @@
---- a/chrome/app/generated_resources.grd
-+++ b/chrome/app/generated_resources.grd
-@@ -324,6 +324,7 @@ are declared in tools/grit/grit_args.gni.
- 
-       <!-- Settings specific strings -->
-       <part file="settings_strings.grdp" />
-+      <part file="oganesson_strings.grdp" />
-       <if expr="not is_android">
-         <part file="shared_settings_strings.grdp"/>
-       </if>
 --- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
 +++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
 @@ -20,6 +20,7 @@

@@ -4,7 +4,7 @@
 
 #include "chrome/browser/ui/webui/settings/omnibox_suggestions_settings.h"
 
-#include "chrome/grit/generated_resources.h"
+#include "chrome/grit/oganesson_strings.h"
 #include "content/public/browser/web_ui_data_source.h"
 #include "ui/base/webui/web_ui_util.h"
 

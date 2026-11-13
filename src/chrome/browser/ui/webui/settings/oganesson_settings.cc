@@ -14,7 +14,7 @@
 #include "chrome/browser/ui/webui/settings/mouse_gestures_settings.h"
 #include "chrome/browser/ui/webui/settings/omnibox_suggestions_settings.h"
 #include "chrome/browser/ui/webui/settings/shortcuts_page_handler.h"
-#include "chrome/grit/generated_resources.h"
+#include "chrome/grit/oganesson_strings.h"
 #include "content/public/browser/web_ui.h"
 #include "content/public/browser/web_ui_data_source.h"
 #include "ui/base/webui/web_ui_util.h"

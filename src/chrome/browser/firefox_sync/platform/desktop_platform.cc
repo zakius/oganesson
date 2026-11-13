@@ -42,7 +42,7 @@
 #include "components/prefs/pref_change_registrar.h"
 #include "components/prefs/pref_service.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
-#include "chrome/grit/generated_resources.h"
+#include "chrome/grit/oganesson_strings.h"
 #include "build/build_config.h"
 #include "components/sync_device_info/local_device_info_util.h"
 #include "content/public/browser/web_contents.h"

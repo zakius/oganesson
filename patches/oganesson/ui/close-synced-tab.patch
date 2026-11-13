@@ -111,7 +111,15 @@
  
 --- a/chrome/browser/ui/webui/cr_components/history/history_util.cc
 +++ b/chrome/browser/ui/webui/cr_components/history/history_util.cc
-@@ -47,6 +47,7 @@ content::WebUIDataSource* HistoryUtil::PopulateCommonSourceForHistory(
+@@ -13,6 +13,7 @@
+ #include "chrome/common/url_constants.h"
+ #include "chrome/grit/branded_strings.h"
+ #include "chrome/grit/generated_resources.h"
++#include "chrome/grit/oganesson_strings.h"
+ #include "chrome/grit/history_resources.h"
+ #include "chrome/grit/history_resources_map.h"
+ #include "chrome/grit/locale_settings.h"
+@@ -47,6 +48,7 @@
        {"deleteSuccess", IDS_HISTORY_REMOVE_PAGE_SUCCESS},
        {"deleteConfirm", IDS_HISTORY_DELETE_PRIOR_VISITS_CONFIRM_BUTTON},
        {"deleteSession", IDS_HISTORY_OTHER_SESSIONS_HIDE_FOR_NOW},

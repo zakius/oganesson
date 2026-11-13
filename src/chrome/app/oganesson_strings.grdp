@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Copyright 2026 The oganesson Authors. GPL-3.0, see the LICENSE file. -->
-<!-- Every oganesson string, for generated_resources.grd. A part's file must
-     be in this folder: grit reads it from the .grd's folder. -->
+<!-- Every oganesson string, for oganesson_strings.grd (dubna/src), whose
+     header is chrome/grit/oganesson_strings.h. A part's file must be in this
+     folder: grit reads it from the .grd's folder. -->
 <grit-part>
   <part file="oganesson_app_icon_strings.grdp" />
   <part file="oganesson_autoplay_strings.grdp" />
