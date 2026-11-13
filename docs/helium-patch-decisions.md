@@ -41,6 +41,8 @@ Every other Helium patch is carried, also the ones earlier reviews called indiff
 | `helium/core/crash-reporting-prefs`, `helium/settings/crash-reporting-settings` | Crash reporting is off by default: reports would go to Helium's crash server. |
 | `helium/core/noise/*`, `helium/settings/helium-noise-settings` | Off by default; the setting stays. |
 | `helium/core/sync/*` | Inert: needs Helium's services, and its provider feature is off. |
+| `helium/core/translate/*`, `helium/ui/translate-ui`, `helium/ui/generic-translate-icon` (Helium 0.21.3.1) | Off by default: the `HeliumTranslate` feature, which only `--enable-features` turns on, gates the translation provider API, its page script and the Translate section of Settings, which Helium no longer removes (`remove-translate-section` is gone). Nothing in the series registers a provider yet. Translation additions are out of scope (goals.md), so to be reviewed: drop the chain, or keep it off. Carried as Helium ships it, 2026-11-13. |
+| `helium/core/web-push-service`, `helium/settings/web-push-settings` (Helium 0.21.3.1) | Off by default: the `HeliumWebPush` feature, which only `--enable-features` turns on, gates the autopush driver and its setting. Turned on with a browser traffic server set, an empty push server means Helium's `wss://push.helium.computer/`, which browser traffic doesn't cover yet: to be reviewed before Helium turns it on. Carried as Helium ships it, 2026-11-13. |
 | `helium/core/override-chrome-protocol` | Internal pages show as `oganesson://` instead of `helium://` (`late/branding`); `chrome://` still works. |
 | `helium/core/change-chromium-branding` | `late/branding` renames Helium to oganesson. |
 | `helium/core/flags-setup`, `add-low-power-framerate-flag`, `bookmark-open-all-confirmation-flag`, `helium/ui/hide-page-actions-flag`, the `ungoogled-chromium/add-flag-*` and `bromite/*-flags` patches | Only add `chrome://flags` entries, off by default. |
@@ -82,6 +84,7 @@ The model is my own code in dubna (`components/browser_traffic`), not a copy of 
 - `helium/core/ridiculous-google-compat-exceptions` (Helium 0.19.2): keeps Google sign-in, session cookies and security-key enrollment working under domain substitution. My decision, 2026-10-09.
 - `upstream-fixes/tab-restore-live-tabs` (Helium 0.19.1): kept, vendored before `helium/core/lazy-session-restore`. My decision, 2026-10-08. Helium 0.20.1.1 removed it in its refresh for Chromium 156.
 - `upstream-fixes/wasm-interpreter-fixes` (Helium 0.20.1.1): a V8 build fix for the WebAssembly interpreter. Carried as Helium ships it, 2026-10-22. Helium 0.21.1.1 removed it in its refresh for Chromium 157.
+- `helium/ui/add-copy-download-link-context-menu` (Helium 0.21.3.1): Copy download link in the downloads context menu. Carried as Helium ships it, 2026-11-13.
 - `helium/core/disable-actions-for-browser-commands` (Helium 0.21.1.1): turns off Chromium 157's move of browser commands to the Action API until Helium's own commands move. No visible change. Carried as Helium ships it, 2026-11-06.
 - `ungoogled-chromium/add-flag-to-hide-window-buttons` (Helium 0.20.1.1): adds the `--hide-window-buttons` switch only; window buttons stay by default. Carried as Helium ships it, 2026-10-22.
 - `helium/core/disable-annoying-infobars` (Helium 0.19.1): kept, and it also hides the PDF infobar. My decision, 2026-10-08.

@@ -8,7 +8,7 @@
 # Chromium, or the user's server) is browser traffic's (browser-traffic.patch).
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
-@@ -1618,7 +1618,8 @@ void ChromeContentBrowserClient::RegisterProfilePrefs(
+@@ -1657,7 +1657,8 @@ void ChromeContentBrowserClient::RegisterProfilePrefs(
      user_prefs::PrefRegistrySyncable* registry) {
    registry->RegisterBooleanPref(prefs::kDisable3DAPIs, false);
    registry->RegisterBooleanPref(prefs::kEnableHyperlinkAuditing, false);
@@ -37,7 +37,7 @@
    // TODO(crbug.com/482088398): Eliminate this constraint.
 --- a/chrome/browser/prefs/browser_prefs.cc
 +++ b/chrome/browser/prefs/browser_prefs.cc
-@@ -1427,9 +1427,10 @@ void RegisterLocalState(PrefRegistrySimple* registry) {
+@@ -1670,9 +1670,10 @@ void RegisterLocalState(PrefRegistrySimple* registry) {
    breadcrumbs::RegisterPrefs(registry);
    browser_shutdown::RegisterPrefs(registry);
    BrowserProcessImpl::RegisterPrefs(registry);
@@ -51,7 +51,7 @@
    chrome_for_testing::RegisterPrefs(registry);
 --- a/chrome/browser/ui/browser_ui_prefs.cc
 +++ b/chrome/browser/ui/browser_ui_prefs.cc
-@@ -257,14 +257,18 @@ void RegisterBrowserUserPrefs(user_prefs::PrefRegistrySyncable* registry) {
+@@ -266,14 +266,18 @@ void RegisterBrowserUserPrefs(user_prefs::PrefRegistrySyncable* registry) {
    {
      registry->RegisterIntegerPref(prefs::kHeliumSchemaVersion, 0);
      registry->RegisterBooleanPref(prefs::kHeliumDisableSchemaAlerts, false);
@@ -72,11 +72,11 @@
 +    // oganesson: updates come from the package repository, not Helium's.
 +    registry->RegisterBooleanPref(prefs::kHeliumUpdateFetchingEnabled, false);
      registry->RegisterBooleanPref(prefs::kHeliumUBlockAssetsEnabled, true);
-   }
- 
+     registry->RegisterBooleanPref(prefs::kHeliumWebPushEnabled, true);
+     registry->RegisterStringPref(prefs::kHeliumPushServer, "");
 --- a/extensions/browser/pending_extension_manager.cc
 +++ b/extensions/browser/pending_extension_manager.cc
-@@ -236,10 +236,10 @@
+@@ -236,10 +236,10 @@ std::list<std::string> PendingExtensionManager::GetPendingIdsForUpdateCheck() {
        Profile* profile = Profile::FromBrowserContext(context_.get());
        PrefService* prefs = profile->GetPrefs();
  

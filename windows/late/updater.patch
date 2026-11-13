@@ -6,9 +6,35 @@
 # (windows/helium-windows-drops.txt). WinSparkle keeps its settings under oganesson's name.
 # Whether WinSparkle checks by itself is browser traffic's Browser updates row (Settings > Privacy and
 # security > Browser traffic); Check for updates always works. Helium's services page isn't shown.
+--- a/chrome/browser/resources/settings/privacy_page/services_page.html
++++ b/chrome/browser/resources/settings/privacy_page/services_page.html
+@@ -86,6 +86,11 @@
+         label="$i18n{heliumServicesToggle}"
+         sub-label="$i18n{heliumServicesToggleDescription}">
+     </settings-toggle-button>
++    <settings-toggle-button id="updatesToggleButton"
++        pref="{{prefs.helium.services.browser_updates}}"
++        label="$i18n{heliumUpdatesToggle}"
++        sub-label="$i18n{heliumUpdatesToggleDescription}">
++    </settings-toggle-button>
+     <div class="cr-col">
+         <cr-collapse id="servicesCollapse" opened="[[prefs.helium.services.enabled.value]]">
+             <settings-toggle-button id="extProxyToggleButton"
+@@ -105,11 +110,6 @@
+                     sub-label="$i18n{heliumSpellcheckToggleDescription}">
+                 </settings-toggle-button>
+             </if>
+-            <settings-toggle-button id="updatesToggleButton"
+-                pref="{{prefs.helium.services.browser_updates}}"
+-                label="$i18n{heliumUpdatesToggle}"
+-                sub-label="$i18n{heliumUpdatesToggleDescription}">
+-            </settings-toggle-button>
+             <settings-toggle-button id="filterlistToggleButton"
+                 pref="{{prefs.helium.services.ublock_assets}}"
+                 label="$i18n{heliumUboToggle}"
 --- a/chrome/browser/ui/browser_ui_prefs.cc
 +++ b/chrome/browser/ui/browser_ui_prefs.cc
-@@ -267,8 +267,9 @@
+@@ -276,8 +276,9 @@ void RegisterBrowserUserPrefs(user_prefs::PrefRegistrySyncable* registry) {
      // oganesson: no onboarding; a first run opens a normal window.
      registry->RegisterBooleanPref(prefs::kHeliumDidOnboarding, true);
      registry->RegisterBooleanPref(prefs::kHeliumServicesConsented, false);
@@ -18,11 +44,11 @@
 +    // updates still need Helium's services.
 +    registry->RegisterBooleanPref(prefs::kHeliumUpdateFetchingEnabled, true);
      registry->RegisterBooleanPref(prefs::kHeliumUBlockAssetsEnabled, true);
-   }
- 
+     registry->RegisterBooleanPref(prefs::kHeliumWebPushEnabled, true);
+     registry->RegisterStringPref(prefs::kHeliumPushServer, "");
 --- a/chrome/browser/win/winsparkle_glue.cc
 +++ b/chrome/browser/win/winsparkle_glue.cc
-@@ -71,7 +71,10 @@
+@@ -71,7 +71,10 @@ void DisableUpdatesForUnsupportedInstallation();
  bool IsSupportedInstallation() {
    base::FilePath exe;
    base::FilePath module_dir;
@@ -34,7 +60,7 @@
           base::PathService::Get(base::DIR_MODULE, &module_dir) &&
           installer::CanUpdateInstallation(
               exe, module_dir,
-@@ -477,13 +480,19 @@
+@@ -477,13 +480,19 @@ class WinSparkleController : public ProfileObserver,
  
        const std::wstring version =
            base::UTF8ToWide(std::string(version_info::GetHeliumVersionNumber()));
@@ -56,7 +82,7 @@
  
        ApplyAppcastUrl(prefs);
        win_sparkle_init();
-@@ -493,7 +502,11 @@
+@@ -493,7 +502,11 @@ class WinSparkleController : public ProfileObserver,
      // Already running: reflect the current consent live (no re-init).
      ApplyAppcastUrl(prefs);
      win_sparkle_set_automatic_check_for_updates(
@@ -71,7 +97,7 @@
    raw_ptr<Profile> profile_ = nullptr;
 --- a/components/helium_services/helium_services_helpers.cc
 +++ b/components/helium_services/helium_services_helpers.cc
-@@ -28,12 +28,13 @@
+@@ -28,12 +28,13 @@ namespace helium {
  #endif
  
  #if defined(UPDATES_SUPPORTED)
@@ -87,7 +113,7 @@
  #endif
  
  // Duplicated from helium_flag_choices.h to avoid importing it.
-@@ -98,8 +99,10 @@
+@@ -116,8 +117,10 @@ bool ShouldFetchBangs(const PrefService& prefs) {
  }
  
  bool ShouldAccessUpdateService(const PrefService& prefs) {
@@ -100,29 +126,3 @@
  }
  
  bool ShouldAccessComponentUpdateService(const PrefService& prefs) {
---- a/chrome/browser/resources/settings/privacy_page/services_page.html
-+++ b/chrome/browser/resources/settings/privacy_page/services_page.html
-@@ -80,6 +80,11 @@
-         label="$i18n{heliumServicesToggle}"
-         sub-label="$i18n{heliumServicesToggleDescription}">
-     </settings-toggle-button>
-+    <settings-toggle-button id="updatesToggleButton"
-+        pref="{{prefs.helium.services.browser_updates}}"
-+        label="$i18n{heliumUpdatesToggle}"
-+        sub-label="$i18n{heliumUpdatesToggleDescription}">
-+    </settings-toggle-button>
-     <div class="cr-col">
-         <cr-collapse id="servicesCollapse" opened="[[prefs.helium.services.enabled.value]]">
-             <settings-toggle-button id="extProxyToggleButton"
-@@ -99,11 +104,6 @@
-                     sub-label="$i18n{heliumSpellcheckToggleDescription}">
-                 </settings-toggle-button>
-             </if>
--            <settings-toggle-button id="updatesToggleButton"
--                pref="{{prefs.helium.services.browser_updates}}"
--                label="$i18n{heliumUpdatesToggle}"
--                sub-label="$i18n{heliumUpdatesToggleDescription}">
--            </settings-toggle-button>
-             <settings-toggle-button id="filterlistToggleButton"
-                 pref="{{prefs.helium.services.ublock_assets}}"
-                 label="$i18n{heliumUboToggle}"

@@ -13,7 +13,7 @@
 # and opens the Browser traffic page.
 --- a/chrome/app/generated_resources.grd
 +++ b/chrome/app/generated_resources.grd
-@@ -7024,7 +7024,7 @@ Keep your key file in a safe place. You will need it to create new versions of y
+@@ -7033,7 +7033,7 @@ Keep your key file in a safe place. You will need it to create new versions of y
          Update error
        </message>
        <message name="IDS_COMPONENTS_SVC_STATUS_ERROR_HELIUM_SERVICES" desc="Service Status">
@@ -24,7 +24,7 @@
          Unknown
 --- a/chrome/browser/BUILD.gn
 +++ b/chrome/browser/BUILD.gn
-@@ -846,6 +846,8 @@ source_set("core") {
+@@ -1014,6 +1014,8 @@ source_set("core") {
      "firefox_about_urls.cc",
      "firefox_about_urls.h",
      "browser_process_impl.cc",
@@ -33,7 +33,7 @@
      "chrome_browser_field_trials.cc",
      "chrome_browser_interface_binders.cc",
      "chrome_browser_interface_binders.h",
-@@ -1129,6 +1131,7 @@ source_set("core") {
+@@ -1298,6 +1300,7 @@ source_set("core") {
      "//components/blocked_content",
      "//components/breadcrumbs/core",
      "//components/breadcrumbs/core:status",
@@ -67,7 +67,7 @@
  
  #if BUILDFLAG(ENABLE_PROCESS_SINGLETON)
    // Allow ProcessSingleton to process messages.
-@@ -2251,6 +2254,8 @@ void ChromeBrowserMainParts::PostMainMessageLoopRun() {
+@@ -2249,6 +2252,8 @@ void ChromeBrowserMainParts::PostMainMessageLoopRun() {
    synthetic_trial_syncer_.reset();
  
    restart_mode_ = browser_shutdown::ShutdownPreThreadsStop();
@@ -76,7 +76,7 @@
    browser_process_->StartTearDown();
  
    publisher_host_factory_resetter_.reset();
-@@ -2294,6 +2299,7 @@ void ChromeBrowserMainParts::PostDestroyThreads() {
+@@ -2292,6 +2297,7 @@ void ChromeBrowserMainParts::PostDestroyThreads() {
    // Since we use |browser_process_|'s local state for this call, it must be
    // done before |browser_process_| is released.
    metrics::Shutdown(browser_process_->local_state());
@@ -122,7 +122,7 @@
    std::string GetProdId() const override;
    base::Version GetBrowserVersion() const override;
    std::string GetChannel() const override;
-@@ -182,14 +164,44 @@ base::TimeDelta ChromeConfigurator::UpdateDelay() const {
+@@ -183,14 +165,44 @@ base::TimeDelta ChromeConfigurator::UpdateDelay() const {
    return configurator_impl_.UpdateDelay();
  }
  
@@ -296,7 +296,7 @@
  #include "chrome/browser/prefs/session_startup_pref.h"
  #include "chrome/browser/preloading/prefetch/prefetch_service/prefetch_origin_decider.h"
  #include "chrome/browser/preloading/prefetch/search_prefetch/search_prefetch_service.h"
-@@ -1539,6 +1540,7 @@ void RegisterLocalState(PrefRegistrySimple* registry) {
+@@ -1675,6 +1676,7 @@ void RegisterLocalState(PrefRegistrySimple* registry) {
    registry->RegisterIntegerPref(
        prefs::kHeliumCrashReportingMode,
        static_cast<int>(helium::CrashReportingMode::kDisabled));
@@ -365,7 +365,7 @@
  #include "chrome/browser/download/bubble/download_bubble_ui_controller.h"
  #include "chrome/browser/extensions/extension_util.h"
  #include "chrome/browser/file_system_access/file_system_access_features.h"
-@@ -623,8 +624,10 @@ void ShowAboutChrome(BrowserWindowInterface* browser) {
+@@ -620,8 +621,10 @@ void ShowAboutChrome(BrowserWindowInterface* browser) {
  }
  
  void ShowHeliumServices(BrowserWindowInterface* browser) {
@@ -410,7 +410,7 @@
    }
 --- a/chrome/browser/ui/toolbar/app_menu_model.cc
 +++ b/chrome/browser/ui/toolbar/app_menu_model.cc
-@@ -2226,7 +2226,7 @@ bool AppMenuModel::AddHeliumSchemaItem() {
+@@ -2312,7 +2312,7 @@ bool AppMenuModel::AddHeliumSchemaItem() {
        omnibox::kProductChromeRefreshOldIcon, ui::kColorMenuIcon, kDefaultIconSize);
    AddItemWithIcon(
        IDC_HELIUM_SERVICES_OPEN,
@@ -458,7 +458,7 @@
  #include "components/component_updater/component_installer.h"
  #include "components/component_updater/component_updater_service_internal.h"
  #include "components/component_updater/component_updater_utils.h"
-@@ -448,22 +450,44 @@ bool CrxUpdateService::CheckForUpdates(
+@@ -468,22 +470,44 @@ bool CrxUpdateService::CheckForUpdates(
      return true;
    }
  
@@ -625,7 +625,7 @@
  }
  
  bool ShouldAccessUpdateService(const PrefService& prefs) {
-@@ -103,27 +121,37 @@ bool ShouldAccessUpdateService(const PrefService& prefs) {
+@@ -103,14 +121,17 @@ bool ShouldAccessUpdateService(const PrefService& prefs) {
  }
  
  bool ShouldAccessComponentUpdateService(const PrefService& prefs) {
@@ -645,6 +645,10 @@
 -    return ShouldAccessServices(prefs) &&
 -            prefs.GetBoolean(prefs::kHeliumUBlockAssetsEnabled);
 +    return Proxied(browser_traffic::Row::kContentBlocker);
+ }
+ 
+ bool ShouldAccessPushService(const PrefService& prefs) {
+@@ -119,16 +140,23 @@ bool ShouldAccessPushService(const PrefService& prefs) {
  }
  
  GURL GetExtensionUpdateURL(const PrefService& prefs) {
@@ -672,7 +676,7 @@
      }
  
      return GetServicesBaseURL(prefs).Resolve(
-@@ -132,6 +160,12 @@ GURL GetWebstoreSnippetURL(const PrefService& prefs, std::string_view id) {
+@@ -137,6 +165,12 @@ GURL GetWebstoreSnippetURL(const PrefService& prefs, std::string_view id) {
  
  GURL GetSpellcheckURL(const PrefService& prefs) {
      if (!ShouldAccessDictionaryService(prefs)) {
@@ -696,9 +700,9 @@
  #include "components/prefs/pref_change_registrar.h"
  #include "components/prefs/pref_service.h"
  #include "url/gurl.h"
-@@ -18,7 +20,7 @@
- const char kHeliumDummyOrigin[] =
-     "https://helium-services-are-disabled.qjz9zk";
+@@ -20,7 +22,7 @@ const char kHeliumDummyOrigin[] =
+ 
+ const char kHeliumDefaultPushServer[] = "wss://push.helium.computer/";
  
 -bool ShouldAccessServices(const PrefService& prefs);
 +COMPONENT_EXPORT(HELIUM) bool ShouldAccessServices(const PrefService& prefs);
@@ -830,7 +834,7 @@
    const raw_ref<PrefService> prefs_;
 --- a/components/search_engines/template_url_service.cc
 +++ b/components/search_engines/template_url_service.cc
-@@ -1700,8 +1700,19 @@ void TemplateURLService::LoadBangs() {
+@@ -1728,8 +1728,19 @@ void TemplateURLService::LoadBangs() {
                            weak_ptr_factory_.GetWeakPtr()));
  }
  
@@ -852,7 +856,7 @@
    }
 --- a/components/search_engines/template_url_service.h
 +++ b/components/search_engines/template_url_service.h
-@@ -530,6 +530,9 @@ class TemplateURLService final : public WebDataServiceConsumer,
+@@ -548,6 +548,9 @@ class TemplateURLService final : public WebDataServiceConsumer,
    void Load();
  
    void LoadBangs();
@@ -862,7 +866,7 @@
  
    // Registers a callback to be called when the service has loaded.
    //
-@@ -978,6 +981,8 @@ class TemplateURLService final : public WebDataServiceConsumer,
+@@ -996,6 +999,8 @@ class TemplateURLService final : public WebDataServiceConsumer,
  
    std::unique_ptr<Bangs::BangManager> bang_manager_;
    scoped_refptr<const Bangs::Catalogue> bang_catalogue_;
@@ -911,7 +915,7 @@
        [](base::OnceCallback<void(const std::multimap<std::string, std::string>&,
 --- a/extensions/browser/api/storage/storage_frontend.cc
 +++ b/extensions/browser/api/storage/storage_frontend.cc
-@@ -286,9 +286,22 @@ void StorageFrontend::OnReadFinished(
+@@ -281,9 +281,22 @@ void StorageFrontend::OnReadFinished(
  
      Profile* profile_ = Profile::FromBrowserContext(browser_context_);
  
@@ -936,7 +940,7 @@
  
        if (!get_result.data->FindDict("adminSettings")) {
          get_result.data->Set("adminSettings", base::DictValue());
-@@ -296,10 +309,17 @@ void StorageFrontend::OnReadFinished(
+@@ -291,10 +304,17 @@ void StorageFrontend::OnReadFinished(
  
        base::DictValue* adminSettings = get_result.data->FindDict("adminSettings");
  
