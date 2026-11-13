@@ -51,9 +51,13 @@ def local_commit(repo, ref):
 
 
 def tag_commit(url, tag):
-    """The commit of url's tag, which a checkout gclient synced has without the tag."""
-    r = subprocess.run(['git', 'ls-remote', url, f'refs/tags/{tag}', f'refs/tags/{tag}^{{}}'],
-                       capture_output=True, text=True, timeout=120)
+    """The commit of url's tag, which a checkout gclient synced has without the tag, or None
+    when the remote doesn't answer: the files are then fetched."""
+    try:
+        r = subprocess.run(['git', 'ls-remote', url, f'refs/tags/{tag}', f'refs/tags/{tag}^{{}}'],
+                           capture_output=True, text=True, timeout=120)
+    except subprocess.TimeoutExpired:
+        return None
     # An annotated tag's commit is on its peeled ^{} line, the last one.
     lines = r.stdout.split()
     return lines[-2] if r.returncode == 0 and lines else None
@@ -65,7 +69,8 @@ def sparse_clone(url, ref, dest, files, local=None):
     subprocess.run(['git', '-C', str(dest), 'sparse-checkout', 'set', '--no-cone', '--stdin'],
                    input='\n'.join(files) + '\n', text=True, check=True)
     commit = local and local_commit(local, ref)
-    if local and not commit:
+    # A dependency's ref is already a commit; Chromium's is its version tag.
+    if local and not commit and not re.fullmatch(r'[0-9a-f]{40}', ref):
         tagged = tag_commit(url, ref)
         commit = tagged and local_commit(local, tagged)
     if commit:
