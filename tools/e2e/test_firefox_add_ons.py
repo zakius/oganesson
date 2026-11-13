@@ -223,6 +223,19 @@ class FirefoxManifestV3Test(BrowserTest):
     def test_service_worker_too(self):
         self.check_background('both', 'service_worker', 'worker')
 
+    def test_get_contexts(self):
+        # Duplicate Tabs Closer calls it at its start. Chromium, which has no
+        # Manifest V3 background page, aborted on finding one.
+        add_on = extension_id(self.unpacked['scripts'])
+        background = self.browser.extension_background(add_on)
+        try:
+            wait_for(lambda: background.eval('self.started') == 'page', what='the background')
+            contexts = background.eval('browser.runtime.getContexts({})')
+        finally:
+            background.close()
+        self.assertEqual([(c['contextType'], c['documentUrl']) for c in contexts],
+                         [('BACKGROUND', f'chrome-extension://{add_on}/_generated_background_page.html')])
+
 
 def module_add_on(manifest_version):
     """A Firefox add-on whose module background imports another file."""
@@ -579,6 +592,115 @@ class FirefoxWebRequestEventPageTest(BrowserTest):
             background.close()
             self.browser.close_target(page)
         self.assertFalse(self.browser.extension_errors(add_on))
+
+
+PAGE_ACTION_ADD_ON = {
+    'manifest.json': json.dumps({
+        'manifest_version': 2,
+        'name': 'Firefox page action test add-on',
+        'version': '1',
+        'browser_specific_settings': {'gecko': {'id': 'firefox-page-action@oganesson.test'}},
+        'background': {'scripts': ['background.js']},
+        # Both actions, as Multi-Account Containers and Sidebery have them.
+        'browser_action': {'default_title': 'Toolbar', 'default_popup': 'toolbar.html'},
+        'page_action': {'default_title': 'Page', 'default_popup': 'page.html'},
+    }),
+    'background.js': 'self.started = true;',
+    'toolbar.html': '<!doctype html><p>toolbar',
+    'page.html': '<!doctype html><p>page',
+}
+
+# Firefox's Manifest V3 has page actions; Chromium's doesn't.
+PAGE_ACTION_V3_ADD_ON = {
+    'manifest.json': json.dumps({
+        'manifest_version': 3,
+        'name': 'Firefox Manifest V3 page action test add-on',
+        'version': '1',
+        'browser_specific_settings': {'gecko': {'id': 'firefox-page-action-v3@oganesson.test'}},
+        'background': {'scripts': ['background.js']},
+        'page_action': {'default_title': 'Page V3'},
+    }),
+    'background.js': 'self.started = true;',
+}
+
+# Each pageAction call on the active tab, then what each action holds.
+PAGE_ACTION_CALLS = '''(async () => {
+    const [tab] = await browser.tabs.query({active: true, lastFocusedWindow: true});
+    const tabId = tab.id;
+    await browser.pageAction.show(tabId);
+    await browser.pageAction.setTitle({tabId, title: 'Page for the tab'});
+    await browser.pageAction.setPopup({tabId, popup: 'toolbar.html'});
+    await browser.pageAction.setIcon({tabId, imageData: new ImageData(16, 16)});
+    await browser.pageAction.hide(tabId);
+    return {
+        page: [await browser.pageAction.getTitle({tabId}), await browser.pageAction.getPopup({tabId})],
+        toolbar: [await browser.browserAction.getTitle({tabId}),
+                  await browser.browserAction.getPopup({tabId})],
+        onClicked: typeof browser.pageAction.onClicked.addListener,
+    };
+})()'''
+
+PAGE_ACTION_TITLE = '''browser.tabs.query({active: true, lastFocusedWindow: true})
+    .then(([tab]) => browser.pageAction.getTitle({tabId: tab.id}))'''
+
+
+class FirefoxPageActionTest(BrowserTest):
+    """page_action next to browser_action, which Chromium refuses to load, and
+    page_action in Manifest V3: a second action that pageAction.* reaches, as
+    in Firefox. What a tab sets is reset when the tab navigates."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.folder = Path(tempfile.mkdtemp(prefix='oganesson-firefox-page-action-'))
+        cls.unpacked = []
+        for name, files in (('v2', PAGE_ACTION_ADD_ON), ('v3', PAGE_ACTION_V3_ADD_ON)):
+            xpi = cls.folder / f'{name}.xpi'
+            with zipfile.ZipFile(xpi, 'w') as archive:
+                for file, text in files.items():
+                    archive.writestr(file, text)
+            cls.unpacked.append(unpack_xpi(xpi, cls.folder / name))
+        cls.server = Server({'/one': (200, {'Content-Type': 'text/html'}, b'<!doctype html><p>one'),
+                             '/two': (200, {'Content-Type': 'text/html'}, b'<!doctype html><p>two')})
+        cls.browser_args = (f'--load-extension={",".join(map(str, cls.unpacked))}',)
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        cls.server.stop()
+        shutil.rmtree(cls.folder)
+
+    def test_page_action(self):
+        add_on = extension_id(self.unpacked[0])
+        background = self.browser.extension_background(add_on)
+        page = self.browser.new_tab(self.server.url('/one'))
+        try:
+            wait_for(lambda: background.eval('self.started === true'), what='the background script')
+            wait_for(lambda: page.eval("document.readyState == 'complete' && document.body.innerText"),
+                     what='the page')
+            result = background.eval(PAGE_ACTION_CALLS)
+            base = f'chrome-extension://{add_on}/'
+            self.assertEqual(result['page'], ['Page for the tab', base + 'toolbar.html'])
+            self.assertEqual(result['toolbar'], ['Toolbar', base + 'toolbar.html'])
+            self.assertEqual(result['onClicked'], 'function')
+            page.eval(f"location.href = {json.dumps(self.server.url('/two'))}")
+            wait_for(lambda: background.eval(PAGE_ACTION_TITLE) == 'Page',
+                     what='the page action\'s title to reset')
+        finally:
+            background.close()
+            self.browser.close_target(page)
+        self.assertFalse(self.browser.extension_errors(add_on))
+
+    def test_manifest_v3_page_action(self):
+        add_on = extension_id(self.unpacked[1])
+        background = self.browser.extension_background(add_on)
+        try:
+            wait_for(lambda: background.eval('self.started === true'), what='the background script')
+            self.assertEqual(background.eval(PAGE_ACTION_TITLE), 'Page V3')
+        finally:
+            background.close()
+        self.assertFalse(self.browser.extension_errors(add_on))
+
 
 if __name__ == '__main__':
     unittest.main()
