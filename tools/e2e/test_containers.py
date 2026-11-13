@@ -665,8 +665,10 @@ class ContainersStaleSessionStorageTest(BrowserTest):
                                            and f':{self.server.port}/' in t['url']), None),
                              timeout=30, what='the Work tab'))
         page.call('Page.bringToFront')
-        wait_for(lambda: page.eval("document.readyState === 'complete'"), timeout=60,
-                 what='the page to load')
+        # A restored tab loads when it is shown: until then its document is
+        # the initial about:blank, which is already complete.
+        wait_for(lambda: page.eval("location.protocol == 'http:' && document.readyState === 'complete'"),
+                 timeout=60, what='the page to load')
         return page
 
     def test_unused_session_storage_goes(self):
