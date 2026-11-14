@@ -12,7 +12,7 @@ Release: %{pkgrelease}%{?dist}
 Group:   web
 License: GPL-3.0
 URL:     https://github.com/zakius/oganesson
-Source0: %{tarball}.tar.xz
+Source0: %{tarball}.tar
 Source1: oganesson.metainfo.xml
 
 Recommends: ca-certificates, xdg-utils, liberation-fonts, vulkan-loader

@@ -3,10 +3,13 @@
 #
 #   package.sh <out folder> <target> <format>...
 #
-# formats: tarball and rpm run in the rpm.Dockerfile image, deb in the
+# formats: tar, tarball and rpm run in the rpm.Dockerfile image, deb in the
 # deb.Dockerfile image. Output: $PACKAGES, default work/packages/
-# The deb and rpm are made from the tarball: the one made in the same run, or
-# TARBALL (a tarball this script made), and then <out folder> is unused.
+# tar is the browser's folder, stripped, not compressed. The tarball (its .xz),
+# the deb and the rpm are made from it: the one made in the same run, or TARBALL
+# (a tar this script made), and then <out folder> is unused. So pack.sh makes
+# the tar once and the three others at the same time: each compresses for over
+# a minute.
 set -euo pipefail
 
 out="$(realpath "$1")"
@@ -30,8 +33,8 @@ mkdir -p "$packages"
 want() { [[ " ${formats[*]} " == *" $1 "* ]]; }
 
 if [ -n "${TARBALL:-}" ]; then
-    tarball="$(basename "$TARBALL" .tar.xz)"
-    ln -s "$(realpath "$TARBALL")" "$stage/$tarball.tar.xz"
+    tarball="$(basename "$TARBALL" .tar)"
+    ln -s "$(realpath "$TARBALL")" "$stage/$tarball.tar"
 else
     # Helium also ships xdg-mime and xdg-settings; this build doesn't make them,
     # and the browser uses the system's (xdg-utils, which the packages recommend).
@@ -56,12 +59,16 @@ else
     find "$dir" -type f -exec file {} + | awk -F: '/ELF/ {print $1}' \
         | xargs strip --strip-unneeded
 
+    tar -C "$stage" -cf "$stage/$tarball.tar" "$tarball"
+    if want tar; then
+        cp "$stage/$tarball.tar" "$packages/"
+    fi
+fi
+
+if want tarball; then
     # The x86 filter makes the binary's calls and jumps compress better:
     # about 1% off the archive, more than -9e alone gains.
-    tar -C "$stage" -cf - "$tarball" | xz -T0 --x86 --lzma2=preset=9e > "$stage/$tarball.tar.xz"
-    if want tarball; then
-        cp "$stage/$tarball.tar.xz" "$packages/"
-    fi
+    xz -T0 --x86 --lzma2=preset=9e < "$stage/$tarball.tar" > "$packages/$tarball.tar.xz"
 fi
 
 if want deb; then
@@ -71,7 +78,7 @@ if want deb; then
     base="$root/opt/oganesson"
     mkdir -p "$root/DEBIAN" "$root/opt" "$root/usr/bin" "$root/usr/share/applications" \
         "$root/usr/share/metainfo" "$root/usr/share/icons/hicolor/256x256/apps"
-    tar -C "$root/opt" -xf "$stage/$tarball.tar.xz"
+    tar -C "$root/opt" -xf "$stage/$tarball.tar"
     mv "$root/opt/$tarball" "$base"
     sed -Ei 's/(CHROME_VERSION_EXTRA=).*/\1deb/' "$base/oganesson-wrapper"
     ln -s ../../opt/oganesson/oganesson-wrapper "$root/usr/bin/oganesson"
@@ -147,7 +154,7 @@ fi
 if want rpm; then
     top="$stage/rpm"
     mkdir -p "$top"/{BUILD,SOURCES,SPECS,RPMS}
-    ln -sf "$stage/$tarball.tar.xz" "$top/SOURCES/"
+    ln -sf "$stage/$tarball.tar" "$top/SOURCES/"
     cp "$linux/package/oganesson.metainfo.xml" "$top/SOURCES/"
     # xz -9, multithreaded: about 10 MB smaller than Fedora's own zstd -19, for a
     # few seconds more unpacking at install. The spec has no %changelog to take

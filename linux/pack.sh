@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Packs a built output folder for download into DEST/<version>: the .deb and .rpm packages and
-# the tarball they are made from (oganesson-<version>-x86_64-x86-64-v2_linux.tar.xz), made in the
+# the tarball (oganesson-<version>-x86_64-x86-64-v2_linux.tar.xz), all three from the same
+# stripped files and at the same time, made in the
 # packager images (linux/package/deb.Dockerfile and rpm.Dockerfile). linux/publish-repo.sh
 # uploads the packages. <version> is the packages' version-release; DEST/latest links to the one
 # just packed.
@@ -40,14 +41,20 @@ for format in deb rpm; do
 done
 run=(docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -e PKG_RELEASE="$release"
      -e PACKAGES="$packages" -v "$root:/oganesson")
+tar="oganesson-$chromium-x86_64-x86-64-v2_linux.tar"
 "${run[@]}" oganesson-rpm-packager bash /oganesson/linux/package/package.sh \
-    "/oganesson/${out#"$root"/}" x86-64-v2 tarball
-# The .rpm and the .deb at once: each one's xz uses only a few threads.
-run+=(-e TARBALL="$packages/oganesson-$chromium-x86_64-x86-64-v2_linux.tar.xz")
+    "/oganesson/${out#"$root"/}" x86-64-v2 tar
+# The tarball, the .rpm and the .deb at once, from the one tar: each compresses for over a
+# minute, and its xz uses only a few threads.
+run+=(-e TARBALL="$packages/$tar")
+"${run[@]}" oganesson-rpm-packager bash /oganesson/linux/package/package.sh / x86-64-v2 tarball &
+tarball=$!
 "${run[@]}" oganesson-rpm-packager bash /oganesson/linux/package/package.sh / x86-64-v2 rpm &
 rpm=$!
 "${run[@]}" oganesson-deb-packager bash /oganesson/linux/package/package.sh / x86-64-v2 deb
+wait "$tarball"
 wait "$rpm"
+rm "$stage/packages/$tar"
 
 # DEST/<version> appears only once all the files are in it: they are copied
 # to <version>.part first, so a full DEST keeps the old folders.
