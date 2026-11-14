@@ -13,6 +13,7 @@
 #include "components/history/core/common/pref_names.h"
 #include "components/omnibox/browser/suggestion_sources.h"
 #include "components/sessions/core/closed_tabs_in_memory.h"
+#include "components/translate/core/common/oganesson_translation.h"
 
 namespace extensions {
 
@@ -45,6 +46,9 @@ inline void AddOganessonPrefsToAllowlist(PrefsUtil::TypedPrefMap& allowlist) {
   allowlist[::containers::kTrafficControlRules] = PrefType::kList;
   allowlist[::containers::kNewTabContainer] = PrefType::kString;
   allowlist[::prefs::kGoogleLensEnabled] = PrefType::kBoolean;
+  // Local State.
+  allowlist[oganesson_translation::kEnabledPref] = PrefType::kBoolean;
+  allowlist[oganesson_translation::kEnginePref] = PrefType::kString;
 }
 
 }  // namespace extensions

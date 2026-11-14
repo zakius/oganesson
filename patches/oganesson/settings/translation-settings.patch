@@ -1,0 +1,77 @@
+# Settings > Languages > Translation: "Translate pages" (oganesson.translate.enabled, off) and the
+# engine (oganesson.translate.engine: on this device, or Google Translate), both in Local State.
+# The rest of Helium's Translation section shows only while translation is on.
+--- a/chrome/browser/resources/settings/languages_page/translate_page.html.ts
++++ b/chrome/browser/resources/settings/languages_page/translate_page.html.ts
+@@ -12,6 +12,27 @@
+   return html`<!--_html_template_start_-->
+ ${loadTimeData.getBoolean('enableHeliumTranslate') ? html`
+ <settings-section page-title="$i18n{translatePageTitle}">
++<settings-toggle-button id="translatePages"
++    pref-key="oganesson.translate.enabled"
++    label="$i18n{oganessonTranslatePages}"
++    sub-label="$i18n{oganessonTranslatePagesDescription}">
++</settings-toggle-button>
++<cr-collapse ?opened="${!!this.oganessonTranslateEnabledPref_?.value}">
++<div class="cr-row continuation">
++  <settings-radio-group id="translateEngine"
++      pref-key="oganesson.translate.engine">
++    <controlled-radio-button name="device"
++        pref-key="oganesson.translate.engine"
++        label="$i18n{oganessonTranslateOnDevice}" no-extension-indicator>
++      <div class="secondary">$i18n{oganessonTranslateOnDeviceDescription}</div>
++    </controlled-radio-button>
++    <controlled-radio-button name="google"
++        pref-key="oganesson.translate.engine"
++        label="$i18n{oganessonTranslateGoogle}" no-extension-indicator>
++      <div class="secondary">$i18n{oganessonTranslateGoogleDescription}</div>
++    </controlled-radio-button>
++  </settings-radio-group>
++</div>
+ <settings-toggle-button id="offerTranslateOtherLanguages"
+     pref-key="translate.enabled"
+     label="$i18n{offerToEnableTranslate}"
+@@ -109,6 +130,7 @@
+       @languages-added="${this.onNeverTranslateLanguagesAdded_}">
+   </settings-add-languages-dialog>
+ ` : ''}
++</cr-collapse>
+ </settings-section>
+ ` : ''}
+ <!--_html_template_end_-->`;
+--- a/chrome/browser/resources/settings/languages_page/translate_page.ts
++++ b/chrome/browser/resources/settings/languages_page/translate_page.ts
+@@ -13,6 +13,8 @@
+ import 'chrome://resources/cr_elements/icons.html.js';
+ import './add_languages_dialog.js';
+ import './languages.js';
++import '../controls/controlled_radio_button.js';
++import '../controls/settings_radio_group.js';
+ import '../controls/settings_toggle_button.js';
+ import '../icons.html.js';
+ import '../settings_page/settings_section.js';
+@@ -67,6 +69,7 @@
+       showAddNeverTranslateDialog_: {type: Boolean},
+       addLanguagesDialogLanguages_: {type: Array},
+       translateEnabledPref_: {type: Object},
++      oganessonTranslateEnabledPref_: {type: Object},
+     };
+   }
+ 
+@@ -79,6 +82,8 @@
+       chrome.languageSettingsPrivate.Language[] = [];
+   protected accessor translateEnabledPref_:
+       chrome.settingsPrivate.PrefObject<boolean>|undefined;
++  protected accessor oganessonTranslateEnabledPref_:
++      chrome.settingsPrivate.PrefObject<boolean>|undefined;
+   protected accessor showAddAlwaysTranslateDialog_: boolean = false;
+   protected accessor showAddNeverTranslateDialog_: boolean = false;
+   protected accessor addLanguagesDialogLanguages_:
+@@ -93,6 +98,7 @@
+ 
+     this.mirrorPrefs({
+       'translate.enabled': 'translateEnabledPref_',
++      'oganesson.translate.enabled': 'oganessonTranslateEnabledPref_',
+     });
+ 
+     this.languageHelper_ = getLanguageHelperInstance();

@@ -96,7 +96,7 @@ windows/publish.sh                      # after the Windows packages join the Gi
 
 ## Docs
 
-[Architecture](docs/architecture.md), [Helium patch decisions](docs/helium-patch-decisions.md), [Firefox-compatible Sync](docs/firefox-sync.md), [mouse gestures](docs/mouse-gestures.md), [toolbar](docs/toolbar.md), [tab behavior](docs/tab-behavior.md), [installed web apps](docs/web-apps.md), [containers](docs/containers.md), [address bar suggestions](docs/omnibox.md), [autoplay](docs/autoplay.md), [app icon](docs/app-icon.md), [packages](docs/packages.md), [Windows](docs/windows.md), [updating](docs/updating.md).
+[Architecture](docs/architecture.md), [Helium patch decisions](docs/helium-patch-decisions.md), [Firefox-compatible Sync](docs/firefox-sync.md), [mouse gestures](docs/mouse-gestures.md), [toolbar](docs/toolbar.md), [tab behavior](docs/tab-behavior.md), [installed web apps](docs/web-apps.md), [containers](docs/containers.md), [translation](docs/translation.md), [address bar suggestions](docs/omnibox.md), [autoplay](docs/autoplay.md), [app icon](docs/app-icon.md), [packages](docs/packages.md), [Windows](docs/windows.md), [updating](docs/updating.md).
 
 ## License
 

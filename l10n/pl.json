@@ -1448,5 +1448,45 @@
     "name": "IDS_OGANESSON_GOOGLE_LENS_DESCRIPTION",
     "source": "Adds \"Search image with Google Lens\" to an image's menu, whatever the search engine. Choosing it sends the image to Google.",
     "message": "Dodaje „Wyszukaj obraz za pomocą: Google Lens” do menu obrazu, niezależnie od wyszukiwarki. Wybranie tej pozycji wysyła obraz do Google."
+  },
+  {
+    "name": "IDS_OGANESSON_TRANSLATE_PAGES",
+    "source": "Translate pages",
+    "message": "Tłumacz strony"
+  },
+  {
+    "name": "IDS_OGANESSON_TRANSLATE_PAGES_DESCRIPTION",
+    "source": "Adds Translate to the page menu and the address bar. While it is off, nothing is sent or downloaded for translation.",
+    "message": "Dodaje Przetłumacz do menu strony i paska adresu. Gdy jest wyłączone, nic nie jest wysyłane ani pobierane w celu tłumaczenia."
+  },
+  {
+    "name": "IDS_OGANESSON_TRANSLATE_ON_DEVICE",
+    "source": "On this device",
+    "message": "Na tym urządzeniu"
+  },
+  {
+    "name": "IDS_OGANESSON_TRANSLATE_ON_DEVICE_DESCRIPTION",
+    "source": "The translation engine and each language download from Google once, after you agree. Page text stays on this device.",
+    "message": "Silnik tłumaczenia i każdy język są pobierane z Google raz, po Twojej zgodzie. Tekst strony pozostaje na tym urządzeniu."
+  },
+  {
+    "name": "IDS_OGANESSON_TRANSLATE_GOOGLE",
+    "source": "With Google Translate",
+    "message": "Za pomocą Tłumacza Google"
+  },
+  {
+    "name": "IDS_OGANESSON_TRANSLATE_GOOGLE_DESCRIPTION",
+    "source": "Translating a page sends its text to Google. More languages, nothing to download.",
+    "message": "Tłumaczenie strony wysyła jej tekst do Google. Więcej języków, nic do pobrania."
+  },
+  {
+    "name": "IDS_OGANESSON_TRANSLATE_DOWNLOAD_TITLE",
+    "source": "Download languages for translation?",
+    "message": "Pobrać języki do tłumaczenia?"
+  },
+  {
+    "name": "IDS_OGANESSON_TRANSLATE_DOWNLOAD_MESSAGE",
+    "source": "Translating this page on this device needs these languages, downloaded once from Google: <ph name=\"LANGUAGES\">$1<ex>German, Polish</ex></ph>. Page text stays on this device.",
+    "message": "Tłumaczenie tej strony na tym urządzeniu wymaga tych języków, pobieranych raz z Google: <ph name=\"LANGUAGES\">$1<ex>German, Polish</ex></ph>. Tekst strony pozostaje na tym urządzeniu."
   }
 ]

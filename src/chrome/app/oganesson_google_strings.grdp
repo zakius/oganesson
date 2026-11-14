@@ -7,4 +7,28 @@
   <message name="IDS_OGANESSON_GOOGLE_LENS_DESCRIPTION" desc="Settings, Search engine: description under the switch that adds a 'Search image with Google Lens' item to an image's context menu. Google Lens is Google's image search; keep the name as it is.">
     Adds "Search image with Google Lens" to an image's menu, whatever the search engine. Choosing it sends the image to Google.
   </message>
+  <message name="IDS_OGANESSON_TRANSLATE_PAGES" desc="Settings, Languages, Translation: label of the switch that turns page translation on.">
+    Translate pages
+  </message>
+  <message name="IDS_OGANESSON_TRANSLATE_PAGES_DESCRIPTION" desc="Settings, Languages, Translation: description under the switch that turns page translation on.">
+    Adds Translate to the page menu and the address bar. While it is off, nothing is sent or downloaded for translation.
+  </message>
+  <message name="IDS_OGANESSON_TRANSLATE_ON_DEVICE" desc="Settings, Languages, Translation: the option that translates pages on this computer.">
+    On this device
+  </message>
+  <message name="IDS_OGANESSON_TRANSLATE_ON_DEVICE_DESCRIPTION" desc="Settings, Languages, Translation: description of the option that translates pages on this computer.">
+    The translation engine and each language download from Google once, after you agree. Page text stays on this device.
+  </message>
+  <message name="IDS_OGANESSON_TRANSLATE_GOOGLE" desc="Settings, Languages, Translation: the option that translates pages with Google Translate. Google Translate is a name; keep it as it is.">
+    With Google Translate
+  </message>
+  <message name="IDS_OGANESSON_TRANSLATE_GOOGLE_DESCRIPTION" desc="Settings, Languages, Translation: description of the option that translates pages with Google Translate. Google Translate is a name; keep it as it is.">
+    Translating a page sends its text to Google. More languages, nothing to download.
+  </message>
+  <message name="IDS_OGANESSON_TRANSLATE_DOWNLOAD_TITLE" desc="Title of the dialog that asks before downloading languages for translation on this computer.">
+    Download languages for translation?
+  </message>
+  <message name="IDS_OGANESSON_TRANSLATE_DOWNLOAD_MESSAGE" desc="Text of the dialog that asks before downloading languages for translation on this computer. The placeholder lists language names, separated by commas.">
+    Translating this page on this device needs these languages, downloaded once from Google: <ph name="LANGUAGES">$1<ex>German, Polish</ex></ph>. Page text stays on this device.
+  </message>
 </grit-part>

@@ -80,7 +80,10 @@ jobs=()
 [ -n "${OGANESSON_JOBS:-}" ] && jobs=(-j "$OGANESSON_JOBS")
 export SISO_PATH="${_src_dir}/third_party/siso/cipd/siso"
 build_ours
-python3 third_party/depot_tools/autoninja.py -C "$_out_dir" "${jobs[@]}" -k 0 chrome
+# And Chromium's stand-in for the TranslateKit library, which the translation
+# tests load (tools/e2e/test_translation.py). Not packaged.
+python3 third_party/depot_tools/autoninja.py -C "$_out_dir" "${jobs[@]}" -k 0 chrome \
+    components/on_device_translation/service:mock_translate_kit_lib
 # Firefox Sync's Rust library, loaded by the browser from its folder.
 level=""
 [ "$mode" = release ] && level="x86-64-v2"

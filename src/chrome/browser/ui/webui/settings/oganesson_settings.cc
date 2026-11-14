@@ -73,10 +73,19 @@ void AddOganessonSettings(content::WebUI* web_ui,
       {"importNoProfileFound", IDS_OGANESSON_IMPORT_NO_PROFILE_FOUND},
   };
   html_source->AddLocalizedStrings(kImportStrings);
-  // Search engine > Google Lens.
+  // Search engine > Google Lens, Languages > Translation.
   static constexpr webui::LocalizedString kGoogleStrings[] = {
       {"googleLens", IDS_OGANESSON_GOOGLE_LENS},
       {"googleLensDescription", IDS_OGANESSON_GOOGLE_LENS_DESCRIPTION},
+      {"oganessonTranslatePages", IDS_OGANESSON_TRANSLATE_PAGES},
+      {"oganessonTranslatePagesDescription",
+       IDS_OGANESSON_TRANSLATE_PAGES_DESCRIPTION},
+      {"oganessonTranslateOnDevice", IDS_OGANESSON_TRANSLATE_ON_DEVICE},
+      {"oganessonTranslateOnDeviceDescription",
+       IDS_OGANESSON_TRANSLATE_ON_DEVICE_DESCRIPTION},
+      {"oganessonTranslateGoogle", IDS_OGANESSON_TRANSLATE_GOOGLE},
+      {"oganessonTranslateGoogleDescription",
+       IDS_OGANESSON_TRANSLATE_GOOGLE_DESCRIPTION},
   };
   html_source->AddLocalizedStrings(kGoogleStrings);
   // Setup, chrome://settings/setup.

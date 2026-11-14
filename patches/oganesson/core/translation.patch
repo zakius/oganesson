@@ -1,0 +1,268 @@
+# Opt-in page translation (docs/translation.md): two TranslationProviders for Helium's translation
+# chain, on this device (TranslateKit) or with Google Translate's keyless endpoint, picked in
+# Local State (src/.../translate/oganesson_translation_providers.cc). kHeliumTranslate is on; the
+# providers are available only while the setting picks them. Asks before TranslateKit downloads
+# language packs. TranslateKit's components pass Helium's allowlist and check for updates only while
+# on-device translation is on (src/components/component_updater/translate_kit_gate.h); the
+# Translator API works only then too. The app menu's Translate item needs an available provider.
+--- a/components/translate/core/common/translate_features.cc
++++ b/components/translate/core/common/translate_features.cc
+@@ -40,6 +40,8 @@
+       kTranslateTrigger.name, base::FeatureList::OVERRIDE_ENABLE_FEATURE);
+ }
+ 
+-BASE_FEATURE(kHeliumTranslate, base::FEATURE_DISABLED_BY_DEFAULT);
++// oganesson: on, with its providers available only while the translation
++// setting picks them (oganesson_translation.h).
++BASE_FEATURE(kHeliumTranslate, base::FEATURE_ENABLED_BY_DEFAULT);
+ 
+ }  // namespace translate
+--- a/chrome/browser/chrome_browser_main.cc
++++ b/chrome/browser/chrome_browser_main.cc
+@@ -35,6 +35,7 @@
+ #include "chrome/browser/browser_process.h"
+ #include "chrome/browser/browser_process_impl.h"
+ #include "chrome/browser/browser_traffic/browser_traffic_monitor.h"
++#include "chrome/browser/translate/oganesson_translation_providers.h"
+ #include "chrome/browser/ui/app_icon/oganesson_app_icon.h"
+ #include "chrome/browser/chrome_browser_main_extra_parts.h"
+ #include "chrome/browser/component_updater/registration.h"
+@@ -1304,6 +1305,7 @@
+ 
+   helium::InitializeCrashReportingMode();
+   browser_traffic::SetLocalState(local_state);
++  oganesson_translation::RegisterProviders();
+ 
+ #if !BUILDFLAG(IS_CHROMEOS)
+   std::optional<std::string> managed_by =
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -1016,6 +1016,8 @@
+     "browser_process_impl.cc",
+     "browser_traffic/browser_traffic_monitor.cc",
+     "browser_traffic/browser_traffic_monitor.h",
++    "translate/oganesson_translation_providers.cc",
++    "translate/oganesson_translation_providers.h",
+     "chrome_browser_field_trials.cc",
+     "chrome_browser_interface_binders.cc",
+     "chrome_browser_interface_binders.h",
+@@ -1302,6 +1304,9 @@
+     "//components/breadcrumbs/core",
+     "//components/breadcrumbs/core:status",
+     "//components/browser_traffic",
++    "//components/on_device_translation",
++    "//components/on_device_translation/public/mojom",
++    "//components/on_device_translation/service:service_launcher",
+     "//chrome/browser/ui/app_icon",
+     "//components/browser_actuator/public",
+     "//components/browser_apis/tab_drag/sessions",
+--- a/components/translate/core/browser/translate_client.h
++++ b/components/translate/core/browser/translate_client.h
+@@ -7,7 +7,9 @@
+ 
+ #include <memory>
+ #include <string>
++#include <string_view>
+ 
++#include "base/functional/callback.h"
+ #include "base/functional/callback_forward.h"
+ #include "build/build_config.h"
+ #include "components/language/core/browser/accept_languages_service.h"
+@@ -79,6 +81,15 @@
+ 
+   // Returns true if Reading Mode is open.
+   virtual bool IsReadingModeOpen() const = 0;
++
++  // oganesson: whether translating from |source_lang| to |target_lang| can
++  // start now. When it returns false, the client runs |translate| later, or
++  // never (oganesson_translation_providers.h, ConfirmDownload).
++  virtual bool ConfirmTranslation(std::string_view source_lang,
++                                  std::string_view target_lang,
++                                  base::OnceClosure translate) {
++    return true;
++  }
+ };
+ 
+ }  // namespace translate
+--- a/components/translate/core/browser/translate_manager.cc
++++ b/components/translate/core/browser/translate_manager.cc
+@@ -420,6 +420,17 @@
+     return;
+   }
+ 
++  // oganesson: the client may first ask to download what the translation
++  // needs, and translate once the user agrees (translate_client.h).
++  if (!translate_client_->ConfirmTranslation(
++          original_source_lang, target_lang,
++          base::BindOnce(&TranslateManager::TranslatePage, GetWeakPtr(),
++                         std::string(original_source_lang),
++                         std::string(target_lang), triggered_from_menu,
++                         translation_type))) {
++    return;
++  }
++
+   translate_driver_->PrepareToTranslatePage(page_seq_no_, original_source_lang,
+                                             target_lang, triggered_from_menu);
+ 
+--- a/chrome/browser/translate/chrome_translate_client.h
++++ b/chrome/browser/translate/chrome_translate_client.h
+@@ -129,6 +129,9 @@
+   void RevertPdfTranslation() override;
+   void OnSidePanelClosed();
+   bool IsReadingModeOpen() const override;
++  bool ConfirmTranslation(std::string_view source_lang,
++                          std::string_view target_lang,
++                          base::OnceClosure translate) override;
+ 
+ #if !BUILDFLAG(IS_ANDROID)
+   class ReadAnythingObserver;
+--- a/chrome/browser/translate/chrome_translate_client.cc
++++ b/chrome/browser/translate/chrome_translate_client.cc
+@@ -26,6 +26,7 @@
+ #include "chrome/browser/language_detection/language_detection_model_service_factory.h"
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/profiles/profile_key.h"
++#include "chrome/browser/translate/oganesson_translation_providers.h"
+ #include "chrome/browser/translate/translate_ranker_factory.h"
+ #include "chrome/browser/translate/translate_service.h"
+ #if !BUILDFLAG(IS_ANDROID)
+@@ -246,6 +247,14 @@
+   return false;
+ }
+ 
++bool ChromeTranslateClient::ConfirmTranslation(std::string_view source_lang,
++                                               std::string_view target_lang,
++                                               base::OnceClosure translate) {
++  return oganesson_translation::ConfirmDownload(web_contents(), source_lang,
++                                                target_lang,
++                                                std::move(translate));
++}
++
+ ChromeTranslateClient::ChromeTranslateClient(content::WebContents* web_contents)
+     : content::WebContentsObserver(web_contents),
+       content::WebContentsUserData<ChromeTranslateClient>(*web_contents),
+--- a/chrome/browser/ui/toolbar/app_menu_model.cc
++++ b/chrome/browser/ui/toolbar/app_menu_model.cc
+@@ -2107,7 +2107,8 @@
+     }
+   }
+ 
+-  if (translate::HasTranslationProvider()) {
++  // oganesson: only while the translation setting is on.
++  if (translate::GetTranslationProvider()) {
+     AddItemWithStringIdAndVectorIcon(this, IDC_SHOW_TRANSLATE,
+                                      IDS_SHOW_TRANSLATE,
+                                      vector_icons::kGTranslateIcon);
+--- a/components/component_updater/component_installer.cc
++++ b/components/component_updater/component_installer.cc
+@@ -30,6 +30,7 @@
+ #include "build/build_config.h"
+ #include "components/component_updater/component_updater_paths.h"
+ #include "components/component_updater/component_updater_service.h"
++#include "components/component_updater/translate_kit_gate.h"
+ #include "components/crx_file/crx_verifier.h"
+ #include "components/update_client/update_client.h"
+ #include "components/update_client/update_client_errors.h"
+@@ -122,7 +123,10 @@
+   registration_info->crx_id = update_client::GetCrxIdFromPublicKeyHash(
+       registration_info->public_key_hash);
+ 
+-  if (!kAllowedComponents.contains(registration_info->crx_id)) {
++  // oganesson: and TranslateKit's components (translate_kit_gate.h).
++  if (translate_kit::IsTranslateKit(installer_policy_->GetName())) {
++    translate_kit::RegisteredIds().insert(registration_info->crx_id);
++  } else if (!kAllowedComponents.contains(registration_info->crx_id)) {
+     return;
+   }
+ 
+--- a/components/component_updater/component_updater_service.cc
++++ b/components/component_updater/component_updater_service.cc
+@@ -35,6 +35,7 @@
+ #include "components/component_updater/component_updater_utils.h"
+ #include "components/component_updater/pref_names.h"
+ #include "components/component_updater/required_components_controller.h"
++#include "components/component_updater/translate_kit_gate.h"
+ #include "components/prefs/pref_registry_simple.h"
+ #include "components/prefs/pref_service.h"
+ #include "components/update_client/configurator.h"
+@@ -473,13 +474,18 @@
+   // oganesson: one check for each row of browser traffic, as each row has its
+   // own route (ChromeConfigurator::UpdateUrlFor). Rows set to On request and
+   // idle ones are left out: their user updates them.
+-  std::map<browser_traffic::Row, std::vector<std::string>> checks;
++  // oganesson: and TranslateKit's, with no row, while it may update
++  // (translate_kit_gate.h).
++  std::map<std::optional<browser_traffic::Row>, std::vector<std::string>>
++      checks;
+   if (const PrefService* local_state = browser_traffic::GetLocalState()) {
+     for (const std::string& id : components_order_) {
+       const std::optional<browser_traffic::Row> row =
+           browser_traffic::RowForComponent(id);
+       if (row && browser_traffic::FetchesAutomatically(*local_state, *row)) {
+         checks[*row].push_back(id);
++      } else if (!row && translate_kit::MayUpdate(id)) {
++        checks[std::nullopt].push_back(id);
+       }
+     }
+   }
+--- a/chrome/browser/component_updater/chrome_component_updater_configurator.cc
++++ b/chrome/browser/component_updater/chrome_component_updater_configurator.cc
+@@ -33,6 +33,7 @@
+ #include "chrome/common/chrome_paths.h"
+ #include "components/component_updater/component_updater_command_line_config_policy.h"
+ #include "components/component_updater/configurator_impl.h"
++#include "components/component_updater/translate_kit_gate.h"
+ #include "components/helium_services/helium_services_helpers.h"
+ #include "components/prefs/pref_service.h"
+ #include "components/services/patch/content/patch_service.h"
+@@ -185,6 +186,11 @@
+ std::vector<GURL> ChromeConfigurator::UpdateUrlFor(
+     const std::vector<std::string>& ids) const {
+   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  // oganesson: TranslateKit's components, while they may update
++  // (translate_kit_gate.h).
++  if (!ids.empty() && std::ranges::all_of(ids, &translate_kit::MayUpdate)) {
++    return {GURL("https://update.googleapis." "com/service/update2/json")};
++  }
+   const PrefService* local_state = browser_traffic::GetLocalState();
+   const std::optional<browser_traffic::Row> row =
+       ids.empty() ? std::nullopt : browser_traffic::RowForComponent(ids[0]);
+--- a/components/on_device_translation/translation_manager_util.cc
++++ b/components/on_device_translation/translation_manager_util.cc
+@@ -9,11 +9,13 @@
+ #include "base/i18n/legacy_language_tag_helpers.h"
+ #include "base/rand_util.h"
+ #include "base/strings/string_split.h"
++#include "components/browser_traffic/browser_traffic.h"
+ #include "components/language/core/browser/pref_names.h"
+ #include "components/on_device_translation/features.h"
+ #include "components/on_device_translation/public/language_pack.h"
+ #include "components/on_device_translation/public/pref_names.h"
+ #include "components/prefs/pref_service.h"
++#include "components/translate/core/common/oganesson_translation.h"
+ #include "components/user_prefs/user_prefs.h"
+ #include "third_party/blink/public/common/features.h"
+ #include "third_party/blink/public/common/features_generated.h"
+@@ -41,6 +43,12 @@
+ 
+ bool IsTranslatorAllowed(content::BrowserContext* browser_context) {
+   CHECK(browser_context);
++  // oganesson: only while on-device translation is on, as the API can make
++  // the browser download TranslateKit (oganesson_translation.h).
++  if (oganesson_translation::GetEngine(browser_traffic::GetLocalState()) !=
++      oganesson_translation::Engine::kOnDevice) {
++    return false;
++  }
+   return user_prefs::UserPrefs::Get(browser_context)
+       ->GetBoolean(prefs::kTranslatorAPIAllowed);
+ }
+--- a/components/on_device_translation/BUILD.gn
++++ b/components/on_device_translation/BUILD.gn
+@@ -65,6 +65,7 @@
+   deps = [
+     "//base",
+     "//base/i18n:language_tag",
++    "//components/browser_traffic",
+     "//components/component_updater",
+     "//components/language/core/browser",
+     "//components/on_device_translation/public/mojom",

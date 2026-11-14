@@ -14,6 +14,7 @@
 #include "components/omnibox/browser/suggestion_sources.h"
 #include "components/pref_registry/pref_registry_syncable.h"
 #include "components/prefs/pref_registry_simple.h"
+#include "components/translate/core/common/oganesson_translation.h"
 
 // The profile prefs of every oganesson feature, for RegisterProfilePrefs in
 // browser_prefs.cc. Header-only, as browser_prefs.cc is its one caller.
@@ -45,6 +46,9 @@ inline void RegisterOganessonProfilePrefs(
 inline void RegisterOganessonLocalStatePrefs(PrefRegistrySimple* registry) {
   // oganesson_app_icon::kVariants' first.
   registry->RegisterStringPref(prefs::kAppIcon, "orange");
+  registry->RegisterBooleanPref(oganesson_translation::kEnabledPref, false);
+  registry->RegisterStringPref(oganesson_translation::kEnginePref,
+                               oganesson_translation::kOnDevice);
 }
 
 #endif  // CHROME_BROWSER_PREFS_OGANESSON_PREFS_H_

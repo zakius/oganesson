@@ -72,5 +72,7 @@ oganesson/core/firefox-sidebar-action.patch
 oganesson/core/app-icon.patch
 oganesson/settings/app-icon-settings.patch
 oganesson/core/google-lens.patch
+oganesson/core/translation.patch
+oganesson/settings/translation-settings.patch
 oganesson/core/pgo-pinned-profile.patch
 oganesson/core/v8-version-include.patch
