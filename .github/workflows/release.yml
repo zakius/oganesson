@@ -36,7 +36,7 @@ jobs:
           git submodule update --init -q
           echo "RELEASE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
       - name: Linux build and browser tests
-        run: cd "$MAIN" && flock "$BUILDS_LOCK" sh -c './oganesson.py build --release && ./oganesson.py test --release'
+        run: cd "$MAIN" && flock "$BUILDS_LOCK" sh -c './oganesson.py build --release && ./oganesson.py test --release --unless-passed'
       # Windows builds while Linux packs and uploads, which leave most CPUs idle. Its own session,
       # so the step's end doesn't stop it; the job's end does. Its log and exit code go to work/,
       # for the Windows step to wait on.
