@@ -24,9 +24,12 @@ ADDONS = {
     # A dotted permission that Chromium has.
     'dotted-permission': ({**BACKGROUND_MV2, 'permissions': ['downloads', 'downloads.open']},
                           'self.started = true;', 'L2'),
-    # Firefox's experiment_apis, which Chromium doesn't have.
-    'unknown-key': ({**BACKGROUND_MV2, 'experiment_apis': {}},
+    # Firefox's user_scripts, which Chromium doesn't have.
+    'unknown-key': ({**BACKGROUND_MV2, 'user_scripts': {'api_script': 'background.js'}},
                     'self.started = true;', 'L1'),
+    # A key that Firefox doesn't read either.
+    'other-browser-key': ({**BACKGROUND_MV2, 'minimum_opera_version': '50'},
+                          'self.started = true;', 'L2'),
     'missing-api': (BACKGROUND_MV2, 'browser.menus.onShown.addListener(() => {});', 'L1'),
     # Its background runs, then removes the add-on, as CTCT Extension does
     # without its enterprise's consent.
@@ -55,5 +58,5 @@ class CorpusTest(unittest.TestCase):
             with self.subTest(name):
                 found, error = results[name]
                 self.assertEqual(found, expected, error)
-        self.assertIn('experiment_apis', results['unknown-key'][1])
+        self.assertIn('user_scripts', results['unknown-key'][1])
         self.assertIn('Uncaught', results['missing-api'][1])

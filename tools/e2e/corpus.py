@@ -11,11 +11,11 @@ L0  Chromium reads its manifest: loading fails, if it does, past that.
 L1  It installs, unpacked with --load-extension (until the .xpi install step
     ships).
 L2  Its background page or service worker starts, if it has one, and nothing
-    names a missing API or manifest key: its manifest has no key or permission
-    that the feature files of the build's tree (_manifest_features.json,
-    _permission_features.json) and its permission aliases (ALIASES, such as
-    Firefox's "menus" for "contextMenus") leave out, besides Firefox's own metadata
-    (IGNORED_KEYS), and it throws no uncaught error in its first seconds. Such
+    names a missing API or manifest key: its manifest has no key that Firefox
+    reads (FIREFOX_KEYS) and no permission that the feature files of the
+    build's tree (_manifest_features.json, _permission_features.json) and its
+    permission aliases (ALIASES, such as Firefox's "menus" for "contextMenus")
+    leave out, and it throws no uncaught error in its first seconds. Such
     an error nearly always comes from an API that isn't there. Any uncaught
     error counts, so the score errs low, but for RACES, errors whose timing
     varies between runs. Chromium's own warnings for unknown
@@ -54,9 +54,21 @@ from harness import BINARY, DEVELOPER_MODE, Browser, extension_id, unpack_xpi, w
 
 LEVELS = ('L0', 'L1', 'L2')
 GROUP = 20
-# Keys that Chromium doesn't know and no add-on needs to work: Firefox's
-# metadata, and Chromium's own kIgnoredUnrecognizedKeys.
-IGNORED_KEYS = ('$schema', 'applications', 'browser_specific_settings', 'developer')
+# The manifest keys that Firefox reads (MDN's manifest.json keys, and
+# experiment_apis from Firefox's schemas), less its own metadata, which no
+# add-on needs Chromium to read. Firefox only warns about other keys, such as
+# minimum_opera_version or a "//1" comment, so they don't count.
+FIREFOX_KEYS = (
+    'action', 'author', 'background', 'browser_action', 'chrome_settings_overrides',
+    'chrome_url_overrides', 'commands', 'content_scripts', 'content_security_policy',
+    'dark_theme', 'declarative_net_request', 'default_locale', 'description', 'devtools_page',
+    'dictionaries', 'experiment_apis', 'externally_connectable', 'homepage_url',
+    'host_permissions', 'icons', 'incognito', 'manifest_version', 'name', 'omnibox',
+    'optional_host_permissions', 'optional_permissions', 'options_page', 'options_ui',
+    'page_action', 'permissions', 'protocol_handlers', 'sandbox', 'short_name',
+    'sidebar_action', 'storage', 'theme', 'theme_experiment', 'user_scripts', 'version',
+    'version_name', 'web_accessible_resources',
+)
 # The build's tree, with the feature files.
 TREE = BINARY.parents[2]
 FEATURES = ('chrome/common/extensions/api/_{}_features.json',
@@ -120,7 +132,7 @@ def known(kind):
 def unknown(manifest, keys, permissions):
     """What `manifest` asks for that isn't among `keys` and `permissions`."""
     found = [f"unknown manifest key '{key}'" for key in manifest
-             if key not in keys and key not in IGNORED_KEYS]
+             if key in FIREFOX_KEYS and key not in keys]
     for listed in ('permissions', 'optional_permissions'):
         for name in manifest.get(listed) or []:
             if (isinstance(name, str) and '://' not in name and name != '<all_urls>'
