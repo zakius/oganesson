@@ -156,6 +156,9 @@ SIDEBAR_ADD_ON = {
 class FirefoxSidebarTest(BrowserTest):
     """sidebar_action: an add-on with only Firefox's sidebar, as Sidebery and
     Tree Style Tab have it, opens it as its side panel from its toolbar menu."""
+    # The bundled uBlock Origin's button comes into the toolbar after the
+    # start and moves the add-on's button: the right-click would hit uBlock's.
+    wait_ubo = True
 
     @classmethod
     def setUpClass(cls):
