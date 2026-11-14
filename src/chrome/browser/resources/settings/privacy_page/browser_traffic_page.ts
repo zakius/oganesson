@@ -15,6 +15,7 @@ import 'chrome://resources/cr_elements/cr_input/cr_input.js';
 import 'chrome://resources/cr_elements/md_select.css.js';
 import '../settings_page/settings_subpage.js';
 import '../settings_shared.css.js';
+import './push_messages.js';
 
 import type {CrInputElement} from 'chrome://resources/cr_elements/cr_input/cr_input.js';
 import {I18nMixin} from 'chrome://resources/cr_elements/i18n_mixin.js';
@@ -826,6 +827,7 @@ export class SettingsBrowserTrafficPageElement extends
       <settings-subpage page-title="[[i18n('browserTrafficTitle')]]"
           route-path$="[[routePath]]">
         <settings-browser-traffic></settings-browser-traffic>
+        <settings-push-messages></settings-push-messages>
       </settings-subpage>`;
   }
 

@@ -36,7 +36,7 @@
    RegisterSafetyHubProfilePrefs(registry);
 --- a/chrome/browser/resources/settings/BUILD.gn
 +++ b/chrome/browser/resources/settings/BUILD.gn
-@@ -559,6 +559,22 @@ build_webui("build") {
+@@ -559,6 +559,23 @@ build_webui("build") {
      ]
    }
  
@@ -46,6 +46,7 @@
 +    "privacy_page/browser_traffic_page.ts",
 +    "privacy_page/containers_page.ts",
 +    "privacy_page/history_saving.ts",
++    "privacy_page/push_messages.ts",
 +    "search_page/omnibox_suggestions.html.ts",
 +    "search_page/omnibox_suggestions.ts",
 +    "setup_page/setup_page.ts",

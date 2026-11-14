@@ -63,7 +63,7 @@ class SetupTest(BrowserTest):
         # Settings.
         toggle = f"{STEP}.shadowRoot.querySelector('#{{}}')"
         wait_for(lambda: page.eval(f"!!{toggle.format('googleLens')}"), what='the switches')
-        for name in ('googleLens', 'translatePages', 'googleCast'):
+        for name in ('googleLens', 'translatePages', 'googleCast', 'pushMessages'):
             self.assertIs(page.eval(f"{toggle.format(name)}.checked"), False)
         self.assertTrue(page.eval(f"{toggle.format('translateEngine')}.hidden"))
         page.eval(f"{toggle.format('googleLens')}.click()")
@@ -80,6 +80,9 @@ class SetupTest(BrowserTest):
             page.eval(f"{toggle.format('googleCast')}.click()")
             wait_for(lambda: page.eval(get.format('oganesson.google.cast_enabled')) is on,
                      what='the casting pref')
+        page.eval(f"{toggle.format('pushMessages')}.click()")
+        wait_for(lambda: page.eval(get.format('helium.services.web_push')) is True,
+                 what='the push messages pref')
         self.click(page, 'next')
         wait_for(lambda: page.eval(f"{STEP}.step_") == 'search', what='Search')
 
@@ -99,6 +102,13 @@ class SetupTest(BrowserTest):
         wait_for(lambda: settings.eval(
             f'{translate}.querySelector("controlled-radio-button[name=google]").checked') is True,
             what='Google Translate picked in Settings')
+        self.browser.close_target(settings)
+        settings = self.browser.new_tab('chrome://settings/updates')
+        push = (f"({FIND})('settings-push-messages')?.shadowRoot"
+                "?.querySelector('#pushMessages')")
+        wait_for(lambda: settings.eval(f'!!{push}'), what='the push switch')
+        wait_for(lambda: settings.eval(f'{push}.checked') is True,
+                 what='push messages on in Settings')
         self.browser.close_target(settings)
 
     def test_2_later_starts_show_only_the_new_choice(self):

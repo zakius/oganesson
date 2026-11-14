@@ -831,8 +831,8 @@
   },
   {
     "name": "IDS_SETUP_GOOGLE_LEAD",
-    "source": "Each of these sends something to Google or to Google's devices, so each is off until you turn it on. You can change them later in Settings: Google Lens under Search engine, translation under Languages, casting under System.",
-    "message": "Każda z nich wysyła coś do Google lub do urządzeń Google, więc każda jest wyłączona, dopóki jej nie włączysz. Możesz je później zmienić w Ustawieniach: Google Lens w sekcji Wyszukiwarka, tłumaczenie w sekcji Języki, przesyłanie w sekcji System."
+    "source": "Each of these sends something to Google, to Google's devices or to a push server, so each is off until you turn it on. You can change them later in Settings: Google Lens under Search engine, translation under Languages, casting under System, push messages under Browser traffic.",
+    "message": "Każda z nich wysyła coś do Google, do urządzeń Google lub do serwera push, więc każda jest wyłączona, dopóki jej nie włączysz. Możesz je później zmienić w Ustawieniach: Google Lens w sekcji Wyszukiwarka, tłumaczenie w sekcji Języki, przesyłanie w sekcji System, wiadomości push w sekcji Ruch przeglądarki."
   },
   {
     "name": "IDS_SETUP_STEP_DEFAULT_BROWSER",
@@ -1508,5 +1508,30 @@
     "name": "IDS_OGANESSON_GOOGLE_CAST_DESCRIPTION",
     "source": "Adds Cast to the menu, to show a tab or a video on a Chromecast or a TV. While it is on, the browser looks for these devices on your network; while it is off, it sends nothing there. Takes effect when the browser restarts.",
     "message": "Dodaje do menu pozycję Przesyłaj, aby pokazać kartę lub film na Chromecaście albo telewizorze. Gdy jest włączona, przeglądarka szuka takich urządzeń w Twojej sieci; gdy jest wyłączona, nic tam nie wysyła. Zmiana działa po ponownym uruchomieniu przeglądarki."
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_PUSH",
+    "source": "Push messages from closed sites",
+    "message": "Wiadomości push od zamkniętych stron"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_PUSH_DESCRIPTION",
+    "source": "Sites you allow to show notifications can send them while none of their tabs is open, through a push server. The browser connects to it only while a site is subscribed, and the messages are end-to-end encrypted. While this is off, sites can't subscribe.",
+    "message": "Strony, którym pozwolisz wyświetlać powiadomienia, mogą je wysyłać przez serwer push, gdy żadna ich karta nie jest otwarta. Przeglądarka łączy się z nim tylko wtedy, gdy jakaś strona ma subskrypcję, a wiadomości są szyfrowane end-to-end. Gdy ta opcja jest wyłączona, strony nie mogą subskrybować."
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_PUSH_SERVER",
+    "source": "Push server",
+    "message": "Serwer push"
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_PUSH_SERVER_DESCRIPTION",
+    "source": "Empty for Mozilla's, the one Firefox uses, or any autopush server: wss, or ws only on localhost. A new server ends the sites' subscriptions, so they subscribe again.",
+    "message": "Puste oznacza serwer Mozilli, z którego korzysta Firefox; można też podać dowolny serwer autopush: wss albo ws tylko na localhost. Nowy serwer kończy subskrypcje stron, więc subskrybują ponownie."
+  },
+  {
+    "name": "IDS_BROWSER_TRAFFIC_PUSH_SERVER_INVALID",
+    "source": "Use wss, or ws only on localhost.",
+    "message": "Użyj wss albo ws tylko na localhost."
   }
 ]

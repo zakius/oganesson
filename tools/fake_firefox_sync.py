@@ -464,7 +464,8 @@ class Handler(BaseHTTPRequestHandler):
 class PushServer(socketserver.ThreadingTCPServer):
     """Mozilla's push server, for the browser's push connection: autopush's
     WebSocket protocol, hello, register and ping, over plain ws://.
-    notify(channel) pushes a notice. Notices are sent once, not stored."""
+    notify(channel) pushes a notice. Notices are sent once, not stored.
+    `connections_made` counts the connections the browser opened."""
     daemon_threads = True
     allow_reuse_address = True
 
@@ -475,15 +476,19 @@ class PushServer(socketserver.ThreadingTCPServer):
         self.acks = []
         self.lock = threading.Lock()
         self.version = 0
+        self.connections_made = 0
 
-    def notify(self, channel):
+    def notify(self, channel, data=b''):
+        """With `data`, a message already encrypted with aes128gcm (ece_encrypt)."""
         with self.lock:
             handler = self.connections.get(channel)
             self.version += 1
             version = str(self.version)
+        headers = {'encoding': 'aes128gcm'} if data else {}
         if handler:
             handler.send({'messageType': 'notification', 'channelID': channel,
-                          'version': version, 'ttl': 60, 'data': '', 'headers': {}})
+                          'version': version, 'ttl': 60, 'data': b64url(data),
+                          'headers': headers})
 
 
 class PushHandler(socketserver.BaseRequestHandler):
@@ -520,6 +525,8 @@ class PushHandler(socketserver.BaseRequestHandler):
             self.request.sendall(header + data)
 
     def handle(self):
+        with self.server.lock:
+            self.server.connections_made += 1
         request = b''
         while b'\r\n\r\n' not in request:
             chunk = self.request.recv(4096)

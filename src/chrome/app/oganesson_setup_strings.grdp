@@ -13,8 +13,8 @@
   <message name="IDS_SETUP_STEP_GOOGLE" desc="Setup: name and heading of the step with features that send data to Google, each off until turned on. Google is a name; keep it as it is.">
     Google features
   </message>
-  <message name="IDS_SETUP_GOOGLE_LEAD" desc="Setup, Google features step: text under the heading. 'Search engine', 'Languages' and 'System' are the names of Settings pages.">
-    Each of these sends something to Google or to Google's devices, so each is off until you turn it on. You can change them later in Settings: Google Lens under Search engine, translation under Languages, casting under System.
+  <message name="IDS_SETUP_GOOGLE_LEAD" desc="Setup, Google features step: text under the heading. 'Search engine', 'Languages', 'System' and 'Browser traffic' are the names of Settings pages.">
+    Each of these sends something to Google, to Google's devices or to a push server, so each is off until you turn it on. You can change them later in Settings: Google Lens under Search engine, translation under Languages, casting under System, push messages under Browser traffic.
   </message>
   <message name="IDS_SETUP_STEP_SEARCH" desc="Setup: name of the step that picks the search engine.">
     Search

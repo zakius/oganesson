@@ -223,4 +223,19 @@
   <message name="IDS_BROWSER_TRAFFIC_STALE_TOOLTIP" desc="Tooltip of the app menu button when the certificate data is more than a day old.">
     Certificate data hasn't updated for more than a day
   </message>
+  <message name="IDS_BROWSER_TRAFFIC_PUSH" desc="Settings, Browser traffic, and the setup's Google features step: label of the switch that lets websites send push messages (notifications) while none of their tabs is open.">
+    Push messages from closed sites
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_PUSH_DESCRIPTION" desc="Settings, Browser traffic, and the setup's Google features step: description under the push messages switch.">
+    Sites you allow to show notifications can send them while none of their tabs is open, through a push server. The browser connects to it only while a site is subscribed, and the messages are end-to-end encrypted. While this is off, sites can't subscribe.
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_PUSH_SERVER" desc="Settings, Browser traffic: label of the field for the address of the push server that delivers push messages.">
+    Push server
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_PUSH_SERVER_DESCRIPTION" desc="Settings, Browser traffic: explanation under the push server field. Mozilla and Firefox are names; autopush is the name of Mozilla's push server software. Keep them as they are.">
+    Empty for Mozilla's, the one Firefox uses, or any autopush server: wss, or ws only on localhost. A new server ends the sites' subscriptions, so they subscribe again.
+  </message>
+  <message name="IDS_BROWSER_TRAFFIC_PUSH_SERVER_INVALID" desc="Settings, Browser traffic: error under the push server field when the address can't be used. wss and ws are address schemes; keep them as they are.">
+    Use wss, or ws only on localhost.
+  </message>
 </grit-part>

@@ -34,7 +34,7 @@
                  label="$i18n{heliumUboToggle}"
 --- a/chrome/browser/ui/browser_ui_prefs.cc
 +++ b/chrome/browser/ui/browser_ui_prefs.cc
-@@ -276,8 +276,9 @@ void RegisterBrowserUserPrefs(user_prefs::PrefRegistrySyncable* registry) {
+@@ -276,9 +276,10 @@ void RegisterBrowserUserPrefs(user_prefs::PrefRegistrySyncable* registry) {
      // oganesson: no onboarding; a first run opens a normal window.
      registry->RegisterBooleanPref(prefs::kHeliumDidOnboarding, true);
      registry->RegisterBooleanPref(prefs::kHeliumServicesConsented, false);
@@ -44,7 +44,8 @@
 +    // updates still need Helium's services.
 +    registry->RegisterBooleanPref(prefs::kHeliumUpdateFetchingEnabled, true);
      registry->RegisterBooleanPref(prefs::kHeliumUBlockAssetsEnabled, true);
-     registry->RegisterBooleanPref(prefs::kHeliumWebPushEnabled, true);
+     // oganesson: push messages are an opt-in.
+     registry->RegisterBooleanPref(prefs::kHeliumWebPushEnabled, false);
      registry->RegisterStringPref(prefs::kHeliumPushServer, "");
 --- a/chrome/browser/win/winsparkle_glue.cc
 +++ b/chrome/browser/win/winsparkle_glue.cc

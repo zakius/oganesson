@@ -1,0 +1,82 @@
+# Push messages are an opt-in (helium.services.web_push, now off; Settings > Browser traffic and the
+# setup's Google features step). Helium's autopush driver takes GCM's place for every profile, and
+# stays idle until the switch is on. It then connects only while a site is subscribed, to Mozilla's
+# push server or the user's own (helium.services.push_server): never Helium's, and with no
+# helium-services server needed. An unusable server connects nowhere.
+--- a/chrome/browser/ui/browser_ui_prefs.cc
++++ b/chrome/browser/ui/browser_ui_prefs.cc
+@@ -278,7 +278,8 @@
+     // oganesson: updates come from the package repository, not Helium's.
+     registry->RegisterBooleanPref(prefs::kHeliumUpdateFetchingEnabled, false);
+     registry->RegisterBooleanPref(prefs::kHeliumUBlockAssetsEnabled, true);
+-    registry->RegisterBooleanPref(prefs::kHeliumWebPushEnabled, true);
++    // oganesson: push messages are an opt-in.
++    registry->RegisterBooleanPref(prefs::kHeliumWebPushEnabled, false);
+     registry->RegisterStringPref(prefs::kHeliumPushServer, "");
+   }
+ 
+--- a/components/helium_services/helium_services_helpers.cc
++++ b/components/helium_services/helium_services_helpers.cc
+@@ -134,9 +134,31 @@
+     return Proxied(browser_traffic::Row::kContentBlocker);
+ }
+ 
++// oganesson: push messages go through Mozilla's push server, or the user's
++// own: never Helium's, and with no helium-services server needed. A server
++// that can't be used keeps the browser from connecting anywhere, rather than
++// falling back to Mozilla's.
++namespace {
++
++std::optional<GURL> PushServer(const PrefService& prefs) {
++  const std::string& server = prefs.GetString(prefs::kHeliumPushServer);
++  if (server.empty()) {
++    return GURL("wss://push.services.mozilla.com/");
++  }
++  GURL user_url(server);
++  if (user_url.is_valid() &&
++      (user_url.SchemeIs(url::kWssScheme) ||
++       (user_url.SchemeIs(url::kWsScheme) && net::IsLocalhost(user_url)))) {
++    return user_url;
++  }
++  return std::nullopt;
++}
++
++}  // namespace
++
+ bool ShouldAccessPushService(const PrefService& prefs) {
+-  return ShouldAccessServices(prefs) &&
+-         prefs.GetBoolean(prefs::kHeliumWebPushEnabled);
++  return prefs.GetBoolean(prefs::kHeliumWebPushEnabled) &&
++         PushServer(prefs).has_value();
+ }
+ 
+ GURL GetExtensionUpdateURL(const PrefService& prefs) {
+@@ -216,14 +238,7 @@
+     return GetDummyURL();
+   }
+ 
+-  GURL user_url(prefs.GetString(prefs::kHeliumPushServer));
+-  if (user_url.is_valid() &&
+-      (user_url.SchemeIs(url::kWssScheme) ||
+-       (user_url.SchemeIs(url::kWsScheme) && net::IsLocalhost(user_url)))) {
+-    return user_url;
+-  }
+-
+-  return GURL(kHeliumDefaultPushServer);
++  return *PushServer(prefs);
+ }
+ 
+ void ConfigurePrefChangeRegistrarFor(std::string_view pref_name,
+--- a/components/push_messaging/push_messaging_features.cc
++++ b/components/push_messaging/push_messaging_features.cc
+@@ -19,6 +19,9 @@
+ 
+ // TODO: bump the Helium services schema before enabling this by default.
+ // See components/helium_services/schema.cc.
+-BASE_FEATURE(kHeliumWebPush, base::FEATURE_DISABLED_BY_DEFAULT);
++// oganesson: on, so push goes through the autopush driver, which stays idle
++// until Browser traffic's push switch is on (helium::ShouldAccessPushService).
++// oganesson has no Helium services schema to bump.
++BASE_FEATURE(kHeliumWebPush, base::FEATURE_ENABLED_BY_DEFAULT);
+ 
+ }  // namespace features

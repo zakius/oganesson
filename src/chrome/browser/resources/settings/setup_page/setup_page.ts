@@ -45,9 +45,11 @@ const CRASH_REPORTS_OFF = -1;
 const CRASH_REPORTS_ASK = 0;
 
 // The Google features step's opt-ins (goals.md, "Google features"), where
-// Settings keeps them: Search engine, Languages > Translation, and System.
+// Settings keeps them: Search engine, Languages > Translation, System, and
+// Browser traffic.
 const LENS_PREF = 'oganesson.google.lens_enabled';
 const CAST_PREF = 'oganesson.google.cast_enabled';
+const PUSH_PREF = 'helium.services.web_push';
 const TRANSLATE_PREF = 'oganesson.translate.enabled';
 const TRANSLATE_ENGINE_PREF = 'oganesson.translate.engine';
 
@@ -325,6 +327,17 @@ export class SettingsSetupPageElement extends SettingsSetupPageElementBase {
                       aria-label$="[[i18n('googleCast')]]"
                       on-change="onCastChange_"></cr-toggle>
                 </div>
+                <div class="row">
+                  <div class="flex">
+                    <div>[[i18n('browserTrafficPush')]]</div>
+                    <div class="secondary">
+                      [[i18n('browserTrafficPushDescription')]]
+                    </div>
+                  </div>
+                  <cr-toggle id="pushMessages" checked="[[push_]]"
+                      aria-label$="[[i18n('browserTrafficPush')]]"
+                      on-change="onPushChange_"></cr-toggle>
+                </div>
               </div>
             </template>
 
@@ -490,6 +503,7 @@ export class SettingsSetupPageElement extends SettingsSetupPageElementBase {
       translate_: Boolean,
       translateEngine_: String,
       cast_: Boolean,
+      push_: Boolean,
       makeDefault_: {
         type: Boolean,
         value: false,
@@ -543,6 +557,7 @@ export class SettingsSetupPageElement extends SettingsSetupPageElementBase {
   declare private translate_: boolean;
   declare private translateEngine_: string;
   declare private cast_: boolean;
+  declare private push_: boolean;
   declare private makeDefault_: boolean;
   declare private summary_: Array<[string, string]>;
   declare private bangsNote_: string;
@@ -604,6 +619,7 @@ export class SettingsSetupPageElement extends SettingsSetupPageElementBase {
     this.translate_ = !!this.getPref(TRANSLATE_PREF)?.value;
     this.translateEngine_ = this.getPref<string>(TRANSLATE_ENGINE_PREF)?.value;
     this.cast_ = !!this.getPref(CAST_PREF)?.value;
+    this.push_ = !!this.getPref(PUSH_PREF)?.value;
   }
 
   private loadEngines_() {
@@ -803,6 +819,10 @@ export class SettingsSetupPageElement extends SettingsSetupPageElementBase {
     this.setPrefValue(CAST_PREF, e.detail);
   }
 
+  private onPushChange_(e: CustomEvent<boolean>) {
+    this.setPrefValue(PUSH_PREF, e.detail);
+  }
+
   private onDeviceEngine_() {
     this.setPrefValue(TRANSLATE_ENGINE_PREF, 'device');
   }
@@ -853,6 +873,8 @@ export class SettingsSetupPageElement extends SettingsSetupPageElementBase {
                                          'oganessonTranslateOnDevice')],
           [this.i18n('googleCast'),
            this.i18n(this.cast_ ? 'setupOn' : 'setupOff')],
+          [this.i18n('browserTrafficPush'),
+           this.i18n(this.push_ ? 'setupOn' : 'setupOff')],
           [this.i18n('setupStepSearch'), engine ? engine.displayName : ''],
           [this.i18n('setupStepTabs'),
            this.tabs_ === 'firefox' ? 'Firefox' :
