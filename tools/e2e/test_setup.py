@@ -81,16 +81,18 @@ class SetupTest(BrowserTest):
         lens = (f"({FIND})('settings-search-page')?.shadowRoot"
                 "?.querySelector('#googleLens')")
         wait_for(lambda: settings.eval(f'!!{lens}'), what='the Lens switch')
-        self.assertIs(settings.eval(f'{lens}.checked'), True)
+        wait_for(lambda: settings.eval(f'{lens}.checked') is True, what='Lens on in Settings')
         self.browser.close_target(settings)
         settings = self.browser.new_tab('chrome://settings/languages')
         translate = f"({FIND})('settings-translate-page')?.shadowRoot"
         wait_for(lambda: settings.eval(f'!!{translate}?.querySelector("#translatePages")'),
                  what='the translation switch')
-        self.assertIs(settings.eval(f'{translate}.querySelector("#translatePages").checked'),
-                      True)
-        self.assertIs(settings.eval(
-            f'{translate}.querySelector("controlled-radio-button[name=google]").checked'), True)
+        wait_for(lambda: settings.eval(
+            f'{translate}.querySelector("#translatePages").checked') is True,
+            what='translation on in Settings')
+        wait_for(lambda: settings.eval(
+            f'{translate}.querySelector("controlled-radio-button[name=google]").checked') is True,
+            what='Google Translate picked in Settings')
         self.browser.close_target(settings)
 
     def test_2_later_starts_show_only_the_new_choice(self):
