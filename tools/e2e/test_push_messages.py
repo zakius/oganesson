@@ -67,8 +67,9 @@ SUBSCRIBE = """(async () => {
 
 
 class TlsListener:
-    """Takes TCP connections and notes the server name (SNI) in each TLS
-    ClientHello, then hangs up."""
+    """Takes TCP connections and notes the push server name (SNI) in each TLS
+    ClientHello, then hangs up. Connections that name neither, as T3 Code's
+    probes of every new local port, aren't noted."""
 
     def __init__(self):
         self.names = []
@@ -90,8 +91,7 @@ class TlsListener:
                     hello = conn.recv(4096)
                 except OSError:
                     hello = b''
-            self.names.append(next((name for name in (MOZILLA, HELIUM)
-                                    if name.encode() in hello), repr(hello[:16])))
+            self.names += [name for name in (MOZILLA, HELIUM) if name.encode() in hello]
 
     def stop(self):
         self.sock.close()
@@ -183,8 +183,9 @@ class PushMessagesTest(BrowserTest):
         self.browser.close_target(settings)
         # The site's tab is closed, and a restart stops its service worker.
         self.browser.quit()
+        hellos = self.push.hellos
         self.browser.start()
-        wait_for(lambda: channel in self.push.connections,
+        wait_for(lambda: self.push.hellos > hellos and channel in self.push.connections,
                  what='the push connection again after the restart')
         keys = subscription['keys']
         message = ece_encrypt(unb64url(keys['p256dh']), unb64url(keys['auth']),
@@ -200,10 +201,10 @@ class PushMessagesTest(BrowserTest):
         wait_for(lambda: self.pref(settings, PREF) is False, what='the pref off')
         wait_for(lambda: not self.push.connections, what='the push connection to close')
         self.browser.quit()
-        made = self.push.connections_made
+        hellos = self.push.hellos
         self.browser.start()
         time.sleep(QUIET)
-        self.assertEqual(self.push.connections_made, made)
+        self.assertEqual(self.push.hellos, hellos)
         self.assertEqual(set(self.tls.names), {MOZILLA})
 
 
