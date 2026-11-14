@@ -767,7 +767,10 @@ BROWSER_SETTINGS_CALLS = '''(async () => {
     ];
     return {settings, results: results.map(result => result === undefined),
             after: (await browser.browserSettings.contextMenuShowEvent.get({})).value,
-            verticalTabs: 'verticalTabs' in browser.browserSettings};
+            verticalTabs: 'verticalTabs' in browser.browserSettings,
+            warnings: await browser.management.getPermissionWarningsByManifest(JSON.stringify(
+                {manifest_version: 2, name: 'Warnings', version: '1',
+                 permissions: ['browserSettings']}))};
 })()'''
 
 
@@ -838,6 +841,9 @@ class FirefoxBrowserSettingsTest(BrowserTest):
         self.assertEqual(result['after'], 'mousedown')
         # Tree Style Tab checks for it: this browser has no equal.
         self.assertFalse(result['verticalTabs'])
+        # The home page and another add-on's new tab page are no one's
+        # business without a warning, as in Firefox.
+        self.assertEqual(result['warnings'], ['Read and change user and device settings'])
         self.assertFalse(self.browser.extension_errors(add_on))
 
 
