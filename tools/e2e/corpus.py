@@ -54,20 +54,20 @@ from harness import BINARY, DEVELOPER_MODE, Browser, extension_id, unpack_xpi, w
 
 LEVELS = ('L0', 'L1', 'L2')
 GROUP = 20
-# The manifest keys that Firefox reads (MDN's manifest.json keys, and
-# experiment_apis from Firefox's schemas), less its own metadata, which no
-# add-on needs Chromium to read. Firefox only warns about other keys, such as
-# minimum_opera_version or a "//1" comment, so they don't count.
+# The manifest keys that Firefox reads (MDN's manifest.json keys that Firefox
+# supports, and experiment_apis from Firefox's schemas), less its metadata,
+# which no add-on needs Chromium to read. Firefox does nothing with other keys:
+# it warns about an unknown one, such as a "//1" comment, and accepts
+# minimum_opera_version without using it. So they don't count.
 FIREFOX_KEYS = (
     'action', 'author', 'background', 'browser_action', 'chrome_settings_overrides',
     'chrome_url_overrides', 'commands', 'content_scripts', 'content_security_policy',
     'dark_theme', 'declarative_net_request', 'default_locale', 'description', 'devtools_page',
-    'dictionaries', 'experiment_apis', 'externally_connectable', 'homepage_url',
-    'host_permissions', 'icons', 'incognito', 'manifest_version', 'name', 'omnibox',
-    'optional_host_permissions', 'optional_permissions', 'options_page', 'options_ui',
-    'page_action', 'permissions', 'protocol_handlers', 'sandbox', 'short_name',
-    'sidebar_action', 'storage', 'theme', 'theme_experiment', 'user_scripts', 'version',
-    'version_name', 'web_accessible_resources',
+    'dictionaries', 'experiment_apis', 'homepage_url', 'host_permissions', 'icons',
+    'incognito', 'manifest_version', 'name', 'omnibox', 'optional_host_permissions',
+    'optional_permissions', 'options_page', 'options_ui', 'page_action', 'permissions',
+    'protocol_handlers', 'sandbox', 'short_name', 'sidebar_action', 'theme',
+    'theme_experiment', 'user_scripts', 'version', 'version_name', 'web_accessible_resources',
 )
 # The build's tree, with the feature files.
 TREE = BINARY.parents[2]
