@@ -831,8 +831,8 @@
   },
   {
     "name": "IDS_SETUP_GOOGLE_LEAD",
-    "source": "Each of these sends something to Google, so each is off until you turn it on. You can change them later in Settings: Google Lens under Search engine, translation under Languages.",
-    "message": "Każda z nich wysyła coś do Google, więc każda jest wyłączona, dopóki jej nie włączysz. Możesz je później zmienić w Ustawieniach: Google Lens w sekcji Wyszukiwarka, tłumaczenie w sekcji Języki."
+    "source": "Each of these sends something to Google or to Google's devices, so each is off until you turn it on. You can change them later in Settings: Google Lens under Search engine, translation under Languages, casting under System.",
+    "message": "Każda z nich wysyła coś do Google lub do urządzeń Google, więc każda jest wyłączona, dopóki jej nie włączysz. Możesz je później zmienić w Ustawieniach: Google Lens w sekcji Wyszukiwarka, tłumaczenie w sekcji Języki, przesyłanie w sekcji System."
   },
   {
     "name": "IDS_SETUP_STEP_DEFAULT_BROWSER",
@@ -1498,5 +1498,15 @@
     "name": "IDS_OGANESSON_TRANSLATE_DOWNLOAD_MESSAGE",
     "source": "Translating this page on this device needs these languages, downloaded once from Google: <ph name=\"LANGUAGES\">$1<ex>German, Polish</ex></ph>. Page text stays on this device.",
     "message": "Tłumaczenie tej strony na tym urządzeniu wymaga tych języków, pobieranych raz z Google: <ph name=\"LANGUAGES\">$1<ex>German, Polish</ex></ph>. Tekst strony pozostaje na tym urządzeniu."
+  },
+  {
+    "name": "IDS_OGANESSON_GOOGLE_CAST",
+    "source": "Cast to devices on your network",
+    "message": "Przesyłaj na urządzenia w Twojej sieci"
+  },
+  {
+    "name": "IDS_OGANESSON_GOOGLE_CAST_DESCRIPTION",
+    "source": "Adds Cast to the menu, to show a tab or a video on a Chromecast or a TV. While it is on, the browser looks for these devices on your network; while it is off, it sends nothing there. Takes effect when the browser restarts.",
+    "message": "Dodaje do menu pozycję Przesyłaj, aby pokazać kartę lub film na Chromecaście albo telewizorze. Gdy jest włączona, przeglądarka szuka takich urządzeń w Twojej sieci; gdy jest wyłączona, nic tam nie wysyła. Zmiana działa po ponownym uruchomieniu przeglądarki."
   }
 ]

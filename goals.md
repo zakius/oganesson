@@ -6,7 +6,7 @@ Keep Chromium's existing extension support and Helium's Manifest V2/uBO maintena
 
 ## Google features
 
-Features that need Google Chrome itself (for example Google Password Manager passkeys, Chrome sign-in) stay hidden. The others may come back, opt-in and off by default, and only when they work without a Google API key: Lens for images, and page translation, on the device with Chromium's TranslateKit or through Google Translate's keyless endpoint ([docs](docs/translation.md)). Settings changes each one where it lives.
+Features that need Google Chrome itself (for example Google Password Manager passkeys, Chrome sign-in) stay hidden. The others may come back, opt-in and off by default, and only when they work without a Google API key: Lens for images, page translation, on the device with Chromium's TranslateKit or through Google Translate's keyless endpoint ([docs](docs/translation.md)), and casting to Chromecast and DIAL devices, which looks for them on the local network only while it is on. Settings changes each one where it lives.
 
 ## Parked
 

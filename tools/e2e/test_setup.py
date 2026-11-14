@@ -63,7 +63,7 @@ class SetupTest(BrowserTest):
         # Settings.
         toggle = f"{STEP}.shadowRoot.querySelector('#{{}}')"
         wait_for(lambda: page.eval(f"!!{toggle.format('googleLens')}"), what='the switches')
-        for name in ('googleLens', 'translatePages'):
+        for name in ('googleLens', 'translatePages', 'googleCast'):
             self.assertIs(page.eval(f"{toggle.format(name)}.checked"), False)
         self.assertTrue(page.eval(f"{toggle.format('translateEngine')}.hidden"))
         page.eval(f"{toggle.format('googleLens')}.click()")
@@ -74,6 +74,12 @@ class SetupTest(BrowserTest):
         get = "chrome.settingsPrivate.getPref('{}').then(p => p.value)"
         wait_for(lambda: page.eval(get.format('oganesson.translate.engine')) == 'google',
                  what='the engine pref')
+        # Casting on, then off again: on, a later start of this profile could
+        # look for devices while test_cast listens.
+        for on in (True, False):
+            page.eval(f"{toggle.format('googleCast')}.click()")
+            wait_for(lambda: page.eval(get.format('oganesson.google.cast_enabled')) is on,
+                     what='the casting pref')
         self.click(page, 'next')
         wait_for(lambda: page.eval(f"{STEP}.step_") == 'search', what='Search')
 

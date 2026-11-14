@@ -7,6 +7,12 @@
   <message name="IDS_OGANESSON_GOOGLE_LENS_DESCRIPTION" desc="Settings, Search engine: description under the switch that adds a 'Search image with Google Lens' item to an image's context menu. Google Lens is Google's image search; keep the name as it is.">
     Adds "Search image with Google Lens" to an image's menu, whatever the search engine. Choosing it sends the image to Google.
   </message>
+  <message name="IDS_OGANESSON_GOOGLE_CAST" desc="Settings, System, and the setup's Google features step: label of the switch that turns casting (showing a tab or video on a Chromecast or TV) on.">
+    Cast to devices on your network
+  </message>
+  <message name="IDS_OGANESSON_GOOGLE_CAST_DESCRIPTION" desc="Settings, System, and the setup's Google features step: description under the switch that turns casting on. 'Cast' is the name of the menu item. Chromecast is a name; keep it as it is.">
+    Adds Cast to the menu, to show a tab or a video on a Chromecast or a TV. While it is on, the browser looks for these devices on your network; while it is off, it sends nothing there. Takes effect when the browser restarts.
+  </message>
   <message name="IDS_OGANESSON_TRANSLATE_PAGES" desc="Settings, Languages, Translation: label of the switch that turns page translation on.">
     Translate pages
   </message>

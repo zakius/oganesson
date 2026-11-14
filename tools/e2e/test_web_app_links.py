@@ -1046,7 +1046,7 @@ class DiyAppTest(WebAppTest):
         tab = browser.new_tab(cls.manifest_id)
         wait_for(lambda: tab.eval('location.href') == cls.manifest_id, what='the page')
         browser.click_view(browser.wait_view('BrowserAppMenuButton'))
-        for menu, title in ((0, 'Cast, save, and share'), (1, '&Install page as app…')):
+        for menu, title in ((0, '&Save and share'), (1, '&Install page as app…')):
             browser.click_view(wait_for(lambda: next((item for items in browser.menus()[menu:menu + 1]
                                                       for group in items for item in group
                                                       if item['Title'] == title), None),

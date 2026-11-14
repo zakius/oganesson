@@ -8,6 +8,8 @@
 
 #include "build/build_config.h"
 #include "chrome/browser/containers/platform/containers_desktop.h"
+#include "chrome/browser/media/router/media_router_feature.h"
+#include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/webui/settings/autoplay_settings.h"
 #include "chrome/browser/ui/webui/settings/browser_traffic_handler.h"
 #include "chrome/browser/ui/webui/settings/history_saving_settings.h"
@@ -73,8 +75,10 @@ void AddOganessonSettings(content::WebUI* web_ui,
       {"importNoProfileFound", IDS_OGANESSON_IMPORT_NO_PROFILE_FOUND},
   };
   html_source->AddLocalizedStrings(kImportStrings);
-  // Search engine > Google Lens, Languages > Translation.
+  // Search engine > Google Lens, Languages > Translation, System > Cast.
   static constexpr webui::LocalizedString kGoogleStrings[] = {
+      {"googleCast", IDS_OGANESSON_GOOGLE_CAST},
+      {"googleCastDescription", IDS_OGANESSON_GOOGLE_CAST_DESCRIPTION},
       {"googleLens", IDS_OGANESSON_GOOGLE_LENS},
       {"googleLensDescription", IDS_OGANESSON_GOOGLE_LENS_DESCRIPTION},
       {"oganessonTranslatePages", IDS_OGANESSON_TRANSLATE_PAGES},
@@ -88,6 +92,10 @@ void AddOganessonSettings(content::WebUI* web_ui,
        IDS_OGANESSON_TRANSLATE_GOOGLE_DESCRIPTION},
   };
   html_source->AddLocalizedStrings(kGoogleStrings);
+  // Whether casting is on in this run, which the switch changes at the next
+  // start: System shows Relaunch while they differ.
+  html_source->AddBoolean("googleCastInUse",
+                          media_router::MediaRouterEnabled(profile));
   // Setup, chrome://settings/setup.
   static constexpr webui::LocalizedString kSetupStrings[] = {
       {"setupAskEachTime", IDS_SETUP_ASK_EACH_TIME},

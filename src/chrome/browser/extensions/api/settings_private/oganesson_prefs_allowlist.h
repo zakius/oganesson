@@ -46,6 +46,7 @@ inline void AddOganessonPrefsToAllowlist(PrefsUtil::TypedPrefMap& allowlist) {
   allowlist[::containers::kTrafficControlRules] = PrefType::kList;
   allowlist[::containers::kNewTabContainer] = PrefType::kString;
   allowlist[::prefs::kGoogleLensEnabled] = PrefType::kBoolean;
+  allowlist[::prefs::kGoogleCastEnabled] = PrefType::kBoolean;
   // Local State.
   allowlist[oganesson_translation::kEnabledPref] = PrefType::kBoolean;
   allowlist[oganesson_translation::kEnginePref] = PrefType::kString;

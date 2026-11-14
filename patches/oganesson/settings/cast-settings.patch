@@ -1,0 +1,63 @@
+# Settings > System: "Cast to devices on your network" (oganesson.google.cast_enabled), with
+# Relaunch while it differs from what this run uses.
+--- a/chrome/browser/resources/settings/system_page/system_page.html.ts
++++ b/chrome/browser/resources/settings/system_page/system_page.html.ts
+@@ -29,6 +29,17 @@
+       </cr-button>
+     ` : ''}
+   </settings-toggle-button>
++  <div class="hr"></div>
++  <settings-toggle-button id="googleCast"
++      pref-key="oganesson.google.cast_enabled"
++      label="$i18n{googleCast}"
++      sub-label="$i18n{googleCastDescription}">
++    ${this.shouldShowCastRestart_() ? html`
++      <cr-button @click="${this.onRestartClick_}" slot="more-actions">
++        $i18n{restart}
++      </cr-button>
++    ` : ''}
++  </settings-toggle-button>
+ <if expr="is_win">
+   ${this.showProcessIsolationSetting_ ? html`
+     <div class="hr"></div>
+--- a/chrome/browser/resources/settings/system_page/system_page.ts
++++ b/chrome/browser/resources/settings/system_page/system_page.ts
+@@ -96,6 +96,7 @@
+       proxyPref_: {type: Object},
+       proxyOverrideRulesPref_: {type: Object},
+       hardwareAccelerationModeEnabledPref_: {type: Object},
++      googleCastEnabledPref_: {type: Object},
+       // <if expr="is_win">
+       isolationStateEnabledPref_: {type: Object},
+       // </if>
+@@ -125,6 +126,8 @@
+       chrome.settingsPrivate.PrefObject<ProxyOverrideRule[]>|undefined;
+   protected accessor hardwareAccelerationModeEnabledPref_:
+       chrome.settingsPrivate.PrefObject<boolean>|undefined;
++  protected accessor googleCastEnabledPref_:
++      chrome.settingsPrivate.PrefObject<boolean>|undefined;
+   // <if expr="is_win">
+   protected accessor isolationStateEnabledPref_:
+       chrome.settingsPrivate.PrefObject<boolean>|undefined;
+@@ -138,6 +141,7 @@
+       'proxy_override_rules': 'proxyOverrideRulesPref_',
+       'hardware_acceleration_mode.enabled':
+           'hardwareAccelerationModeEnabledPref_',
++      'oganesson.google.cast_enabled': 'googleCastEnabledPref_',
+       // <if expr="is_win">
+       'isolation_state.enabled': 'isolationStateEnabledPref_',
+       // </if>
+@@ -259,6 +263,13 @@
+         proxy.wasHardwareAccelerationEnabledAtStartup();
+   }
+ 
++  // Casting's switch applies at the next start.
++  protected shouldShowCastRestart_(): boolean {
++    return !!this.googleCastEnabledPref_ &&
++        this.googleCastEnabledPref_.value !==
++        loadTimeData.getBoolean('googleCastInUse');
++  }
++
+   // <if expr="is_win">
+   protected shouldShowIsolationRestart_(): boolean {
+     if (this.processIsolationEnabledAtStartup_ === undefined ||

@@ -67,6 +67,10 @@ inline constexpr char kFirefoxSyncPushEndpoint[] =
 // Whether an image's context menu offers "Search image with Google Lens",
 // whatever the default search engine.
 inline constexpr char kGoogleLensEnabled[] = "oganesson.google.lens_enabled";
+// Whether the browser casts, and looks for cast devices on the local network
+// (Chromium's Media Router). Read once per run: a change applies at the next
+// start.
+inline constexpr char kGoogleCastEnabled[] = "oganesson.google.cast_enabled";
 
 }  // namespace prefs
 

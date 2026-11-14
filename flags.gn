@@ -8,3 +8,8 @@ enterprise_telomere_reporting=false
 # for extensions with the background permission. An installed web app marked to run in the tray
 # keeps it running instead (docs/web-apps.md); the tray itself doesn't need this flag.
 enable_background_mode=false
+
+# Casting, an opt-in (patches/oganesson/core/cast-opt-in.patch): the Media Router finds Cast
+# devices with mDNS and service discovery, which Helium's flags.gn turns off. Off, it sends nothing.
+enable_mdns=true
+enable_service_discovery=true

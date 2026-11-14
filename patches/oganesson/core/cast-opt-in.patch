@@ -1,0 +1,77 @@
+# Casting is an opt-in (oganesson.google.cast_enabled, off; Settings > System): the Media Router,
+# its Cast menu item and its device discovery exist only while it is on. The build has mDNS and
+# service discovery for it; nothing else uses them: WebRTC's mDNS host names and DevTools' Cast
+# device discovery stay off as before, and DIAL makes one search when discovery starts, which
+# ungoogled-chromium's disable-dial-repeating-discovery removed with the repeating one.
+--- a/chrome/browser/media/router/media_router_feature.cc
++++ b/chrome/browser/media/router/media_router_feature.cc
+@@ -19,6 +19,7 @@
+ #include "build/build_config.h"
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/common/chrome_switches.h"
++#include "chrome/common/oganesson_pref_names.h"
+ #include "chrome/common/pref_names.h"
+ #include "components/media_router/common/pref_names.h"
+ #include "components/prefs/pref_service.h"
+@@ -132,7 +133,14 @@
+     pref_values.insert(std::make_pair(context, allowed));
+     return allowed;
+   }
+-  return true;
++  // Otherwise casting's opt-in (Settings > System), read once per run: code
++  // set up while it was off doesn't expect it on.
++  const PrefService::Preference* cast_pref =
++      user_prefs::UserPrefs::Get(context)->FindPreference(
++          ::prefs::kGoogleCastEnabled);
++  bool allowed = cast_pref && cast_pref->GetValue()->GetBool();
++  pref_values.insert(std::make_pair(context, allowed));
++  return allowed;
+ }
+ 
+ #if !BUILDFLAG(IS_ANDROID) || BUILDFLAG(ENABLE_DESKTOP_ANDROID_EXTENSIONS)
+--- a/chrome/browser/media/router/discovery/dial/dial_registry.cc
++++ b/chrome/browser/media/router/discovery/dial/dial_registry.cc
+@@ -160,6 +160,8 @@
+   }
+ 
+   dial_ = CreateDialService();
++  // One search as discovery starts, without the repeating ones.
++  DoDiscovery();
+   // Always send the current device list with the next discovery request.  This
+   // may not be necessary, but is done to match previous behavior.
+   ++registry_generation_;
+--- a/chrome/browser/devtools/device/devtools_android_bridge.cc
++++ b/chrome/browser/devtools/device/devtools_android_bridge.cc
+@@ -37,6 +37,7 @@
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/common/buildflags.h"
+ #include "chrome/common/chrome_switches.h"
++#include "chrome/common/oganesson_pref_names.h"
+ #include "chrome/common/pref_names.h"
+ #include "components/prefs/pref_service.h"
+ #include "content/public/browser/devtools_agent_host.h"
+@@ -384,7 +385,10 @@
+     device_providers.push_back(provider);
+ 
+ #if BUILDFLAG(ENABLE_SERVICE_DISCOVERY)
+-  device_providers.push_back(new CastDeviceProvider());
++  // Looks for Cast devices on the network, so only with casting on.
++  if (service->GetBoolean(prefs::kGoogleCastEnabled)) {
++    device_providers.push_back(new CastDeviceProvider());
++  }
+ #endif
+ 
+   device_providers.push_back(new AdbDeviceProvider());
+--- a/third_party/blink/common/features.cc
++++ b/third_party/blink/common/features.cc
+@@ -2457,7 +2457,9 @@
+ // Causes WebRTC to replace host ICE candidate IP addresses with generated
+ // names ending in ".local" and resolve them using mDNS.
+ // http://crbug.com/878465
+-BASE_FEATURE(kWebRtcHideLocalIpsWithMdns, base::FEATURE_ENABLED_BY_DEFAULT);
++// oganesson: off, as in a build without mDNS: it would send on the local
++// network, which only casting may, once the user turns it on.
++BASE_FEATURE(kWebRtcHideLocalIpsWithMdns, base::FEATURE_DISABLED_BY_DEFAULT);
+ 
+ // Causes WebRTC to not set the color space of video frames on the receive side
+ // in case it's unspecified. Otherwise we will guess that the color space is
