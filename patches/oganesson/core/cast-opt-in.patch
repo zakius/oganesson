@@ -5,27 +5,21 @@
 # ungoogled-chromium's disable-dial-repeating-discovery removed with the repeating one.
 --- a/chrome/browser/media/router/media_router_feature.cc
 +++ b/chrome/browser/media/router/media_router_feature.cc
-@@ -19,6 +19,7 @@
+@@ -17,6 +17,7 @@
+ #include "base/strings/string_number_conversions.h"
+ #include "base/strings/string_util.h"
  #include "build/build_config.h"
++#include "chrome/browser/media/router/cast_opt_in.h"
  #include "chrome/browser/profiles/profile.h"
  #include "chrome/common/chrome_switches.h"
-+#include "chrome/common/oganesson_pref_names.h"
  #include "chrome/common/pref_names.h"
- #include "components/media_router/common/pref_names.h"
- #include "components/prefs/pref_service.h"
-@@ -132,7 +133,14 @@
+@@ -132,7 +133,8 @@
      pref_values.insert(std::make_pair(context, allowed));
      return allowed;
    }
 -  return true;
-+  // Otherwise casting's opt-in (Settings > System), read once per run: code
-+  // set up while it was off doesn't expect it on.
-+  const PrefService::Preference* cast_pref =
-+      user_prefs::UserPrefs::Get(context)->FindPreference(
-+          ::prefs::kGoogleCastEnabled);
-+  bool allowed = cast_pref && cast_pref->GetValue()->GetBool();
-+  pref_values.insert(std::make_pair(context, allowed));
-+  return allowed;
++  // Otherwise casting's opt-in, off by default.
++  return cast_opt_in::Enabled(context);
  }
  
  #if !BUILDFLAG(IS_ANDROID) || BUILDFLAG(ENABLE_DESKTOP_ANDROID_EXTENSIONS)
@@ -42,21 +36,21 @@
    ++registry_generation_;
 --- a/chrome/browser/devtools/device/devtools_android_bridge.cc
 +++ b/chrome/browser/devtools/device/devtools_android_bridge.cc
-@@ -37,6 +37,7 @@
+@@ -34,6 +34,7 @@
+ #include "chrome/browser/devtools/device/usb/usb_device_provider.h"
+ #include "chrome/browser/devtools/devtools_window.h"
+ #include "chrome/browser/devtools/remote_debugging_server.h"
++#include "chrome/browser/media/router/media_router_feature.h"
  #include "chrome/browser/profiles/profile.h"
  #include "chrome/common/buildflags.h"
  #include "chrome/common/chrome_switches.h"
-+#include "chrome/common/oganesson_pref_names.h"
- #include "chrome/common/pref_names.h"
- #include "components/prefs/pref_service.h"
- #include "content/public/browser/devtools_agent_host.h"
 @@ -384,7 +385,10 @@
      device_providers.push_back(provider);
  
  #if BUILDFLAG(ENABLE_SERVICE_DISCOVERY)
 -  device_providers.push_back(new CastDeviceProvider());
 +  // Looks for Cast devices on the network, so only with casting on.
-+  if (service->GetBoolean(prefs::kGoogleCastEnabled)) {
++  if (media_router::MediaRouterEnabled(profile_)) {
 +    device_providers.push_back(new CastDeviceProvider());
 +  }
  #endif

@@ -69,7 +69,7 @@ inline constexpr char kFirefoxSyncPushEndpoint[] =
 inline constexpr char kGoogleLensEnabled[] = "oganesson.google.lens_enabled";
 // Whether the browser casts, and looks for cast devices on the local network
 // (Chromium's Media Router). Read once per run: a change applies at the next
-// start.
+// start (chrome/browser/media/router/cast_opt_in.h).
 inline constexpr char kGoogleCastEnabled[] = "oganesson.google.cast_enabled";
 
 }  // namespace prefs
