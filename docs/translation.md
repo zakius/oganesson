@@ -7,7 +7,7 @@ Page translation is an opt-in, off by default. Settings > Languages > Translatio
 
 Once it is on, the page context menu has "Translate to <language>", the app menu has Translate, and the rest of Chromium's Translation settings show (offering to translate, the target language, always and never lists). "Offer to translate pages", which offers translation on pages in other languages and lets languages you always translate translate by themselves, is on by default with either engine: the switch is the opt-in. (Helium's default followed the engine at startup, which here can change while the browser runs.) While it is off, the browser sends and downloads nothing for translation, and pages can't use the web `Translator` API.
 
-The setting is in Local State, one for the whole browser, like Browser traffic: Helium's translation providers are global. The setup's Google features step (zakius/oganesson#97) is to offer the same switch.
+The setting is in Local State, one for the whole browser, like Browser traffic: Helium's translation providers are global. The setup's Google features step offers the same switch and engine.
 
 ## How it fits in
 

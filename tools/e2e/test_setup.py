@@ -10,6 +10,7 @@ import json
 import unittest
 
 from harness import BrowserTest, wait_for
+from test_firefox_sync import FIND
 
 STEP = ("document.querySelector('settings-ui')?.shadowRoot?"
         ".querySelector('settings-setup-page')")
@@ -33,7 +34,7 @@ class SetupTest(BrowserTest):
         page = self.setup_page()
         wait_for(lambda: page.eval(f"!!{STEP}?.steps_"), what='the setup page')
         self.assertEqual(self.steps(page), [
-            'welcome', 'import', 'sync', 'traffic', 'search', 'tabs', 'passwords',
+            'welcome', 'import', 'sync', 'traffic', 'google', 'search', 'tabs', 'passwords',
             'privacy', 'default', 'done'])
         self.assertTrue(page.eval(f"{STEP}.shadowRoot.querySelector('#skip').hidden"))
         self.click(page, 'next')
@@ -57,7 +58,40 @@ class SetupTest(BrowserTest):
         wait_for(lambda: not page.eval(f"!!{BLOCKER_WARNING}"),
                  what='no content blocker warning for Direct')
         self.click(page, 'next')
+        wait_for(lambda: page.eval(f"{STEP}.step_") == 'google', what='Google features')
+        # Every Google opt-in starts off; turning one on here turns it on in
+        # Settings.
+        toggle = f"{STEP}.shadowRoot.querySelector('#{{}}')"
+        wait_for(lambda: page.eval(f"!!{toggle.format('googleLens')}"), what='the switches')
+        for name in ('googleLens', 'translatePages'):
+            self.assertIs(page.eval(f"{toggle.format(name)}.checked"), False)
+        self.assertTrue(page.eval(f"{toggle.format('translateEngine')}.hidden"))
+        page.eval(f"{toggle.format('googleLens')}.click()")
+        page.eval(f"{toggle.format('translatePages')}.click()")
+        wait_for(lambda: not page.eval(f"{toggle.format('translateEngine')}.hidden"),
+                 what='the translation engines')
+        page.eval(f"{toggle.format('translateEngine')}.querySelectorAll('.card')[1].click()")
+        get = "chrome.settingsPrivate.getPref('{}').then(p => p.value)"
+        wait_for(lambda: page.eval(get.format('oganesson.translate.engine')) == 'google',
+                 what='the engine pref')
+        self.click(page, 'next')
         wait_for(lambda: page.eval(f"{STEP}.step_") == 'search', what='Search')
+
+        settings = self.browser.new_tab('chrome://settings/search')
+        lens = (f"({FIND})('settings-search-page')?.shadowRoot"
+                "?.querySelector('#googleLens')")
+        wait_for(lambda: settings.eval(f'!!{lens}'), what='the Lens switch')
+        self.assertIs(settings.eval(f'{lens}.checked'), True)
+        self.browser.close_target(settings)
+        settings = self.browser.new_tab('chrome://settings/languages')
+        translate = f"({FIND})('settings-translate-page')?.shadowRoot"
+        wait_for(lambda: settings.eval(f'!!{translate}?.querySelector("#translatePages")'),
+                 what='the translation switch')
+        self.assertIs(settings.eval(f'{translate}.querySelector("#translatePages").checked'),
+                      True)
+        self.assertIs(settings.eval(
+            f'{translate}.querySelector("controlled-radio-button[name=google]").checked'), True)
+        self.browser.close_target(settings)
 
     def test_2_later_starts_show_only_the_new_choice(self):
         self.browser.quit()

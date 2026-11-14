@@ -825,6 +825,16 @@
     "message": "Dodatki prywatności"
   },
   {
+    "name": "IDS_SETUP_STEP_GOOGLE",
+    "source": "Google features",
+    "message": "Funkcje Google"
+  },
+  {
+    "name": "IDS_SETUP_GOOGLE_LEAD",
+    "source": "Each of these sends something to Google, so each is off until you turn it on. You can change them later in Settings: Google Lens under Search engine, translation under Languages.",
+    "message": "Każda z nich wysyła coś do Google, więc każda jest wyłączona, dopóki jej nie włączysz. Możesz je później zmienić w Ustawieniach: Google Lens w sekcji Wyszukiwarka, tłumaczenie w sekcji Języki."
+  },
+  {
     "name": "IDS_SETUP_STEP_DEFAULT_BROWSER",
     "source": "Default browser",
     "message": "Domyślna przeglądarka"

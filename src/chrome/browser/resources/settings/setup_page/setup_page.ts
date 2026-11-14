@@ -12,6 +12,7 @@
 
 import 'chrome://resources/cr_elements/cr_button/cr_button.js';
 import 'chrome://resources/cr_elements/cr_checkbox/cr_checkbox.js';
+import 'chrome://resources/cr_elements/cr_toggle/cr_toggle.js';
 import 'chrome://resources/cr_elements/md_select.css.js';
 import '/shared/settings/prefs/prefs.js';
 import '../privacy_page/browser_traffic_page.js';
@@ -42,6 +43,12 @@ interface Step {
 // helium::CrashReportingMode.
 const CRASH_REPORTS_OFF = -1;
 const CRASH_REPORTS_ASK = 0;
+
+// The Google features step's opt-ins (goals.md, "Google features"), where
+// Settings keeps them: Search engine, and Languages > Translation.
+const LENS_PREF = 'oganesson.google.lens_enabled';
+const TRANSLATE_PREF = 'oganesson.translate.enabled';
+const TRANSLATE_ENGINE_PREF = 'oganesson.translate.engine';
 
 // What each import checkbox sets, ImportDataHandler's keys.
 const IMPORT_TYPES = [
@@ -263,6 +270,52 @@ export class SettingsSetupPageElement extends SettingsSetupPageElementBase {
               </settings-browser-traffic>
             </div>
 
+            <template is="dom-if" if="[[is_(step_, 'google')]]" restamp>
+              <h2>[[i18n('setupStepGoogle')]]</h2>
+              <div class="lead">[[i18n('setupGoogleLead')]]</div>
+              <div class="list">
+                <div class="row">
+                  <div class="flex">
+                    <div>[[i18n('googleLens')]]</div>
+                    <div class="secondary">[[i18n('googleLensDescription')]]</div>
+                  </div>
+                  <cr-toggle id="googleLens" checked="[[lens_]]"
+                      aria-label$="[[i18n('googleLens')]]"
+                      on-change="onLensChange_"></cr-toggle>
+                </div>
+                <div class="row">
+                  <div class="flex">
+                    <div>[[i18n('oganessonTranslatePages')]]</div>
+                    <div class="secondary">
+                      [[i18n('oganessonTranslatePagesDescription')]]
+                    </div>
+                  </div>
+                  <cr-toggle id="translatePages" checked="[[translate_]]"
+                      aria-label$="[[i18n('oganessonTranslatePages')]]"
+                      on-change="onTranslateChange_"></cr-toggle>
+                </div>
+              </div>
+              <div id="translateEngine" class="cards" role="radiogroup"
+                  hidden="[[!translate_]]">
+                <div class="card" role="radio" tabindex="0"
+                    aria-checked$="[[isEngine_(translateEngine_, 'device')]]"
+                    on-click="onDeviceEngine_">
+                  <b>[[i18n('oganessonTranslateOnDevice')]]</b>
+                  <div class="secondary">
+                    [[i18n('oganessonTranslateOnDeviceDescription')]]
+                  </div>
+                </div>
+                <div class="card" role="radio" tabindex="0"
+                    aria-checked$="[[isEngine_(translateEngine_, 'google')]]"
+                    on-click="onGoogleEngine_">
+                  <b>[[i18n('oganessonTranslateGoogle')]]</b>
+                  <div class="secondary">
+                    [[i18n('oganessonTranslateGoogleDescription')]]
+                  </div>
+                </div>
+              </div>
+            </template>
+
             <template is="dom-if" if="[[is_(step_, 'search')]]" restamp>
               <h2>[[i18n('setupSearchTitle')]]</h2>
               <div class="lead">[[i18n('setupSearchLead')]]</div>
@@ -421,6 +474,9 @@ export class SettingsSetupPageElement extends SettingsSetupPageElementBase {
       savePasswords_: Boolean,
       crashMode_: {type: String, value: String(CRASH_REPORTS_OFF)},
       noise_: Boolean,
+      lens_: Boolean,
+      translate_: Boolean,
+      translateEngine_: String,
       makeDefault_: {
         type: Boolean,
         value: false,
@@ -470,6 +526,9 @@ export class SettingsSetupPageElement extends SettingsSetupPageElementBase {
   declare private savePasswords_: boolean;
   declare private crashMode_: string;
   declare private noise_: boolean;
+  declare private lens_: boolean;
+  declare private translate_: boolean;
+  declare private translateEngine_: string;
   declare private makeDefault_: boolean;
   declare private summary_: Array<[string, string]>;
   declare private bangsNote_: string;
@@ -491,6 +550,7 @@ export class SettingsSetupPageElement extends SettingsSetupPageElementBase {
               [{id: 'sync', label: this.i18n('setupStepSync')}] :
               []),
       {id: 'traffic', label: this.i18n('browserTrafficTitle'), always: true},
+      {id: 'google', label: this.i18n('setupStepGoogle')},
       {id: 'search', label: this.i18n('setupStepSearch')},
       {id: 'tabs', label: this.i18n('setupStepTabs')},
       {id: 'passwords', label: this.i18n('setupStepPasswords')},
@@ -526,6 +586,9 @@ export class SettingsSetupPageElement extends SettingsSetupPageElementBase {
     this.savePasswords_ =
         !!this.getPref('credentials_enable_service')?.value;
     this.noise_ = !!this.getPref('helium.noise.enabled')?.value;
+    this.lens_ = !!this.getPref(LENS_PREF)?.value;
+    this.translate_ = !!this.getPref(TRANSLATE_PREF)?.value;
+    this.translateEngine_ = this.getPref<string>(TRANSLATE_ENGINE_PREF)?.value;
   }
 
   private loadEngines_() {
@@ -574,6 +637,10 @@ export class SettingsSetupPageElement extends SettingsSetupPageElementBase {
 
   private isTabs_(tabs: string, preset: string): string {
     return String(tabs === preset);
+  }
+
+  private isEngine_(engine: string, name: string): string {
+    return String(engine === name);
   }
 
   private onBack_() {
@@ -709,6 +776,22 @@ export class SettingsSetupPageElement extends SettingsSetupPageElementBase {
                       (e.target as HTMLInputElement).checked);
   }
 
+  private onLensChange_(e: CustomEvent<boolean>) {
+    this.setPrefValue(LENS_PREF, e.detail);
+  }
+
+  private onTranslateChange_(e: CustomEvent<boolean>) {
+    this.setPrefValue(TRANSLATE_PREF, e.detail);
+  }
+
+  private onDeviceEngine_() {
+    this.setPrefValue(TRANSLATE_ENGINE_PREF, 'device');
+  }
+
+  private onGoogleEngine_() {
+    this.setPrefValue(TRANSLATE_ENGINE_PREF, 'google');
+  }
+
   private onMakeDefault_() {
     this.makeDefault_ = true;
   }
@@ -742,6 +825,13 @@ export class SettingsSetupPageElement extends SettingsSetupPageElementBase {
         ]);
       }
       lines.push(
+          [this.i18n('googleLens'),
+           this.i18n(this.lens_ ? 'setupOn' : 'setupOff')],
+          [this.i18n('oganessonTranslatePages'),
+           this.i18n(!this.translate_ ? 'setupOff' :
+                     this.translateEngine_ === 'google' ?
+                                         'oganessonTranslateGoogle' :
+                                         'oganessonTranslateOnDevice')],
           [this.i18n('setupStepSearch'), engine ? engine.displayName : ''],
           [this.i18n('setupStepTabs'),
            this.tabs_ === 'firefox' ? 'Firefox' :
