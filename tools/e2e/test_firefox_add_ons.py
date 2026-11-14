@@ -71,7 +71,8 @@ class FirefoxAddOnsTest(BrowserTest):
 
     def test_storage_session(self):
         # Firefox has storage.session in Manifest V2 too (Ghostery, KeePassXC):
-        # the promise form, the callback form, and the access level.
+        # the promise form and the callback form. setAccessLevel only has to
+        # be there, as RoSeal looks for it; what it changes is Chromium's.
         result = self.background_eval('''(async () => {
             await browser.storage.session.set({key: 'value'});
             return {
