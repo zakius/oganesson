@@ -59,6 +59,8 @@ cat > "$appcast" <<EOF
 EOF
 
 ssh "$host" mkdir -p "$path"
+# The host downloads what the GitHub release has, and rsync then sends only the rest.
+"$root/tools/from-github.sh" "$host" "$path" "$dir/$zip" "$dir/$name-installer.exe"
 rsync -a --partial "$dir/$zip" "$dir/$name-installer.exe" "$dir/$update" "$target/"
 rsync -a "$root/windows/update-key.pem" "$target/"
 # The feed after its update, so it never offers a file the host doesn't have yet.

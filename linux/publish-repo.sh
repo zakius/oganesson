@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Publishes DL's version folders (linux/pack.sh keeps the newest 3) as a signed
 # apt repository (deb/, flat) and dnf repository (rpm/) at https://REPO_DOMAIN.
-# Each folder's .deb and .rpm go to REPO_TARGET (HOST:DIR), where rsync sends
-# only the new ones; linux/package/repo-build.sh makes the metadata there, and
-# it comes back here to be signed. DIR/www is served by
+# Each folder's .deb and .rpm go to REPO_TARGET (HOST:DIR): the host downloads
+# the ones a GitHub release has (tools/from-github.sh) and rsync sends the other
+# new ones; linux/package/repo-build.sh makes the metadata there, and it comes
+# back here to be signed. DIR/www is served by
 # linux/package/repo-compose.yaml. Machines set up with docs/packages.md update
 # from it with their normal system updates.
 # REPO_DOMAIN and REPO_TARGET come from the environment or from
@@ -54,6 +55,10 @@ gpgkey=https://$REPO_DOMAIN/oganesson.asc
 metadata_expire=1h
 REPO
 ssh "${keepalive[@]}" "$host" mkdir -p "$dir"
+# The host downloads what a GitHub release has, and rsync then sends only the rest.
+for version in "$upload"/src/*/; do
+    "$root/tools/from-github.sh" "$host" "$dir/src/$(basename "$version")" "$version"*
+done
 rsync -a --delete -e "ssh ${keepalive[*]}" "$upload/src" "$upload/tools" "$target/"
 ssh "${keepalive[@]}" "$host" "cd $dir && cp tools/repo-compose.yaml compose.yaml &&
     echo REPO_DOMAIN=$REPO_DOMAIN > .env && docker compose up -d --quiet-pull"

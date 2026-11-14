@@ -81,14 +81,14 @@ Release builds keep one Chromium PGO profile per milestone, pinned in `pgo-profi
 
 ## Releasing
 
-A merge to main only merges. To release, push a tag whose name starts with `release-` on a commit of main (dubna's [Releases](https://github.com/zakius/dubna#releases) has the command), or start `.github/workflows/release.yml` by hand. The workflow releases main's tip and runs these steps on the build machine's runner. It posts the [GitHub release](https://github.com/zakius/oganesson/releases), with the Linux packages and notes from the commits, before it publishes to the package repository, and adds the Windows packages to it before it publishes them to the site. So several tasks can land one at a time and release in one build. The Windows build starts once the Linux tests pass and runs while Linux packs and uploads. The steps:
+A merge to main only merges. To release, push a tag whose name starts with `release-` on a commit of main (dubna's [Releases](https://github.com/zakius/dubna#releases) has the command), or start `.github/workflows/release.yml` by hand. The workflow releases main's tip and runs these steps on the build machine's runner. It posts the [GitHub release](https://github.com/zakius/oganesson/releases), with the Linux packages and notes from the commits, before it publishes to the package repository, and adds the Windows packages to it before it publishes them to the site. So several tasks can land one at a time and release in one build. The Windows build starts once the Linux tests pass and runs while Linux packs and uploads. The build machine uploads each package once, to the GitHub release: the package repository's and the site's server downloads it from there and checks it against the local file (`tools/from-github.sh`), and rsync sends only what the release doesn't have. The steps:
 
 ```sh
 ./oganesson.py build --release
 ./oganesson.py test --release
 ./oganesson.py build --windows          # in the background; packages in work/dl/windows
 linux/pack.sh                           # then the GitHub release, with the Linux packages
-linux/publish-repo.sh                   # uploads the new .deb and .rpm
+linux/publish-repo.sh                   # the server gets the new .deb and .rpm
 windows/publish.sh                      # after the Windows packages join the GitHub release
 ```
 

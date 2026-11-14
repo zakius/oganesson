@@ -29,7 +29,7 @@ Back up `~/.local/share/oganesson-repo`. The key exists only there; with a new k
 2. `linux/pack.sh`
 3. `linux/publish-repo.sh`
 
-`pack.sh` makes the .deb with `dpkg-deb` in a Debian image and the .rpm with `rpmbuild` in a Fedora image (`linux/package/deb.Dockerfile`, `rpm.Dockerfile`), and the tarball next to them, all three from the same stripped files and at the same time. `publish-repo.sh` uploads the .deb and .rpm of each kept version to `REPO_TARGET`; rsync sends only the new ones. There, `linux/package/repo-build.sh` makes the repository metadata, which comes back to the build machine to be signed. `publish-repo.sh` also starts the server's compose project (`linux/package/repo-compose.yaml`), which serves the repository.
+`pack.sh` makes the .deb with `dpkg-deb` in a Debian image and the .rpm with `rpmbuild` in a Fedora image (`linux/package/deb.Dockerfile`, `rpm.Dockerfile`), and the tarball next to them, all three from the same stripped files and at the same time. `publish-repo.sh` puts the .deb and .rpm of each kept version on `REPO_TARGET`. The server downloads the new ones from their GitHub release when they are there, and keeps a download only when its SHA-256 is the local file's (`tools/from-github.sh`); rsync sends the others. There, `linux/package/repo-build.sh` makes the repository metadata, which comes back to the build machine to be signed. `publish-repo.sh` also starts the server's compose project (`linux/package/repo-compose.yaml`), which serves the repository.
 
 ## Adding the repository
 

@@ -73,7 +73,11 @@ jobs:
             gh release create "$TAG" "${assets[@]}" --target "$RELEASE_SHA" \
                 --title "oganesson $VERSION ($RELEASE)" --notes-file work/release-notes.md
           fi
+      # The token is for the download links that let the server fetch the packages from the
+      # GitHub release (tools/from-github.sh).
       - name: Linux packages, to the repository
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: cd "$MAIN" && linux/publish-repo.sh
       - name: Windows packages, to the GitHub release and the site
         id: windows
