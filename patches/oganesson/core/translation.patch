@@ -6,7 +6,7 @@
 # on-device translation is on (src/components/component_updater/translate_kit_gate.h); the
 # Translator API works only then too. The app menu's Translate item needs an available provider.
 # Sessions start through a factory of ours, so Google's gets the frame's network context.
-# "Offer to translate" is off by default, whatever the engine at startup.
+# "Offer to translate" is on by default, whatever the engine at startup.
 --- a/components/translate/core/common/translate_features.cc
 +++ b/components/translate/core/common/translate_features.cc
 @@ -40,6 +40,8 @@
@@ -89,18 +89,21 @@
  }  // namespace translate
 --- a/components/translate/core/browser/translate_manager.cc
 +++ b/components/translate/core/browser/translate_manager.cc
-@@ -420,6 +420,23 @@
+@@ -420,6 +420,26 @@
      return;
    }
  
 +  // oganesson: the client may first download what the translation needs, and
 +  // asks before it when the user asked for the translation; it translates
 +  // once the download is in (translate_client.h).
++  // Pages that page load metrics skip, such as file: ones, have no metrics
++  // logger, and their manual translations kUninitialized.
 +  const bool asked_by_user =
-+      translation_type == TranslationType::kManualUiInitialTranslation ||
-+      translation_type == TranslationType::kManualUiReTranslation ||
-+      translation_type == TranslationType::kManualContextMenuInitialTranslation ||
-+      translation_type == TranslationType::kManualContextMenuReTranslation;
++      translation_type != TranslationType::kAutomaticTranslationByPref &&
++      translation_type != TranslationType::kAutomaticTranslationByLink &&
++      translation_type !=
++          TranslationType::kAutomaticTranslationToPredefinedTarget &&
++      translation_type != TranslationType::kAutomaticTranslationByHref;
 +  if (!translate_client_->ConfirmTranslation(
 +          original_source_lang, target_lang, asked_by_user,
 +          base::BindOnce(&TranslateManager::TranslatePage, GetWeakPtr(),
@@ -279,19 +282,20 @@
      "//components/on_device_translation/public/mojom",
 --- a/chrome/browser/ui/browser_ui_prefs.cc
 +++ b/chrome/browser/ui/browser_ui_prefs.cc
-@@ -175,12 +175,10 @@
+@@ -175,12 +175,11 @@
    registry->RegisterBooleanPref(prefs::kWebAppCreateOnDesktop, true);
    registry->RegisterBooleanPref(prefs::kWebAppCreateInAppsMenu, true);
    registry->RegisterBooleanPref(prefs::kWebAppCreateInQuickLaunchBar, true);
 -  // Translation is only offered by default when it stays on-device.
 -  const translate::TranslationProvider* translation_provider =
 -      translate::GetTranslationProvider();
-+  // oganesson: off whatever the engine, which can change while the browser
-+  // runs (oganesson_translation.h): its user turns the offer on.
++  // oganesson: on whatever the engine, which can change while the browser
++  // runs (oganesson_translation.h). The translation switch is the opt-in, and
++  // with the offer off, nothing translates automatically.
    registry->RegisterBooleanPref(
 -      translate::prefs::kOfferTranslateEnabled,
 -      translation_provider && translation_provider->IsOnDevice(),
-+      translate::prefs::kOfferTranslateEnabled, false,
++      translate::prefs::kOfferTranslateEnabled, true,
        user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
    registry->RegisterDictionaryPref(prefs::kBrowserWindowPlacement);
    registry->RegisterDictionaryPref(prefs::kBrowserWindowPlacementPopup);

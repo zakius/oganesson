@@ -47,8 +47,7 @@
 #include "components/translate/core/browser/translation_provider.h"
 #include "components/translate/core/common/oganesson_translation.h"
 #include "components/translate/core/common/translate_errors.h"
-#include "content/public/browser/navigation_controller.h"
-#include "content/public/browser/navigation_entry.h"
+#include "content/public/browser/page.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/storage_partition.h"
 #include "content/public/browser/web_contents.h"
@@ -327,9 +326,15 @@ class Downloads : public OnDeviceTranslationInstaller::Observer {
                    base::BindOnce(&Downloads::GiveUp, base::Unretained(this)));
   }
 
-  // Runs `translate` once `packs` and the library are installed.
-  void Wait(std::set<LanguagePackKey> packs, base::OnceClosure translate) {
-    waiters_.push_back({std::move(packs), std::move(translate)});
+  // Runs `translate` for `page` once `packs` and the library are installed,
+  // in place of the page's earlier translation waiting.
+  void Wait(base::WeakPtr<content::Page> page,
+            std::set<LanguagePackKey> packs,
+            base::OnceClosure translate) {
+    std::erase_if(waiters_, [&](const Waiter& waiter) {
+      return waiter.page.get() == page.get();
+    });
+    waiters_.push_back({page, std::move(packs), std::move(translate)});
     Check();
   }
 
@@ -347,6 +352,7 @@ class Downloads : public OnDeviceTranslationInstaller::Observer {
   static constexpr base::TimeDelta kGiveUpAfter = base::Minutes(10);
 
   struct Waiter {
+    base::WeakPtr<content::Page> page;
     std::set<LanguagePackKey> packs;
     base::OnceClosure translate;
   };
@@ -364,17 +370,20 @@ class Downloads : public OnDeviceTranslationInstaller::Observer {
       return installed.contains(pack);
     });
     const bool library_ready = LibraryReady(*installer);
-    if (library_ready && library_pending_) {
+    const bool library_installed = library_ready && library_pending_;
+    if (library_installed) {
       library_pending_ = false;
     }
-    if (pending_.size() != pending || library_ready) {
+    if ((pending_.size() != pending || library_installed) &&
+        give_up_.IsRunning()) {
       // Progress: wait for the rest as long again.
-      if (give_up_.IsRunning()) {
-        give_up_.Reset();
-      }
+      give_up_.Reset();
     }
     std::vector<base::OnceClosure> ready;
     std::erase_if(waiters_, [&](Waiter& waiter) {
+      if (!waiter.page) {
+        return true;
+      }
       if (!library_ready || !std::ranges::includes(installed, waiter.packs)) {
         return false;
       }
@@ -424,14 +433,20 @@ class OnDeviceSession : public translate::PlainTextTranslationSession {
                               TranslateErrors::UNKNOWN_LANGUAGE);
       return;
     }
-    // Only with the packs in: the service controller would download missing
-    // ones itself, and the user agrees to downloads first (ConfirmDownload).
+    // Only with TranslateKit and the packs in: the service controller would
+    // download what is missing itself, and the user agrees to downloads first
+    // (ConfirmDownload).
     OnDeviceTranslationInstaller* installer =
         OnDeviceTranslationInstaller::GetInstance();
     const std::optional<std::set<LanguagePackKey>> required =
         RequiredPacks(source_lang, target_lang);
-    if (!installer ||
-        (required && !MissingPacks(*installer, *required).empty())) {
+    if (!required) {
+      std::move(callback).Run(std::nullopt, source_lang,
+                              TranslateErrors::UNSUPPORTED_LANGUAGE);
+      return;
+    }
+    if (!installer || !LibraryReady(*installer) ||
+        !MissingPacks(*installer, *required).empty()) {
       std::move(callback).Run(std::nullopt, source_lang,
                               TranslateErrors::INITIALIZATION_ERROR);
       return;
@@ -564,33 +579,47 @@ class OnDeviceProvider : public translate::TranslationProvider {
       controller_;
 };
 
-// The committed page of `web_contents`, to tell whether it is still there.
-int PageId(content::WebContents& web_contents) {
-  content::NavigationEntry* entry =
-      web_contents.GetController().GetLastCommittedEntry();
-  return entry ? entry->GetUniqueID() : 0;
+// Pages whose download question is open, so a second request doesn't open
+// another.
+std::vector<base::WeakPtr<content::Page>>& Asking() {
+  static base::NoDestructor<std::vector<base::WeakPtr<content::Page>>> pages;
+  return *pages;
 }
 
-void TranslateIfSamePage(base::WeakPtr<content::WebContents> web_contents,
-                         int page_id,
+bool IsAsking(const content::Page& page) {
+  std::erase_if(Asking(), [](const base::WeakPtr<content::Page>& asking) {
+    return !asking;
+  });
+  return std::ranges::any_of(
+      Asking(), [&](const base::WeakPtr<content::Page>& asking) {
+        return asking.get() == &page;
+      });
+}
+
+// Runs `translate` if `page`, the document it was for, is still its tab's.
+void TranslateIfSamePage(base::WeakPtr<content::Page> page,
                          base::OnceClosure translate) {
-  if (web_contents && PageId(*web_contents) == page_id) {
+  if (page && page->IsPrimary()) {
     std::move(translate).Run();
   }
 }
 
-void OnDownloadAnswer(std::set<LanguagePackKey> to_download,
+void OnDownloadAnswer(base::WeakPtr<content::Page> page,
+                      std::set<LanguagePackKey> to_download,
                       std::set<LanguagePackKey> required,
                       base::OnceClosure translate,
                       chrome::MessageBoxResult result) {
+  std::erase_if(Asking(), [&](const base::WeakPtr<content::Page>& asking) {
+    return !asking || asking.get() == page.get();
+  });
   OnDeviceTranslationInstaller* installer =
       OnDeviceTranslationInstaller::GetInstance();
   if (result != chrome::MESSAGE_BOX_RESULT_YES || !installer ||
-      CurrentEngine() != Engine::kOnDevice) {
+      CurrentEngine() != Engine::kOnDevice || !page) {
     return;
   }
   Downloads::Get().Start(*installer, to_download);
-  Downloads::Get().Wait(std::move(required), std::move(translate));
+  Downloads::Get().Wait(page, std::move(required), std::move(translate));
 }
 
 }  // namespace
@@ -624,9 +653,9 @@ bool ConfirmDownload(content::WebContents* web_contents,
     return true;
   }
 
-  base::OnceClosure on_ready =
-      base::BindOnce(&TranslateIfSamePage, web_contents->GetWeakPtr(),
-                     PageId(*web_contents), std::move(translate));
+  content::Page& page = web_contents->GetPrimaryPage();
+  base::OnceClosure on_ready = base::BindOnce(
+      &TranslateIfSamePage, page.GetWeakPtr(), std::move(translate));
   std::set<LanguagePackKey> to_ask;
   std::vector<std::u16string> names;
   const std::string& locale = g_browser_process->GetApplicationLocale();
@@ -648,20 +677,21 @@ bool ConfirmDownload(content::WebContents* web_contents,
     if (!LibraryReady(*installer) && !Downloads::Get().LibraryPending()) {
       Downloads::Get().Start(*installer, {});
     }
-    Downloads::Get().Wait(*required, std::move(on_ready));
+    Downloads::Get().Wait(page.GetWeakPtr(), *required, std::move(on_ready));
     return false;
   }
   // An automatic translation never starts a download.
-  if (!asked_by_user) {
+  if (!asked_by_user || IsAsking(page)) {
     return false;
   }
+  Asking().push_back(page.GetWeakPtr());
   chrome::ShowQuestionMessageBoxAsync(
       web_contents->GetTopLevelNativeWindow(),
       l10n_util::GetStringUTF16(IDS_OGANESSON_TRANSLATE_DOWNLOAD_TITLE),
       l10n_util::GetStringFUTF16(IDS_OGANESSON_TRANSLATE_DOWNLOAD_MESSAGE,
                                  base::JoinString(names, u", ")),
-      base::BindOnce(&OnDownloadAnswer, std::move(to_ask), *required,
-                     std::move(on_ready)));
+      base::BindOnce(&OnDownloadAnswer, page.GetWeakPtr(), std::move(to_ask),
+                     *required, std::move(on_ready)));
   return false;
 }
 
