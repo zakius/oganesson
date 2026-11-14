@@ -10,7 +10,8 @@ import unittest
 import zipfile
 from pathlib import Path
 
-from harness import BrowserTest, Page, Server, extension_id, unpack_xpi, wait_for
+from harness import (DEVELOPER_MODE, BrowserTest, Page, Server, extension_id, unpack_xpi,
+                     wait_for)
 
 ADD_ON = {
     'manifest.json': json.dumps({
@@ -729,6 +730,114 @@ class FirefoxPageActionTest(BrowserTest):
             self.assertEqual(background.eval(PAGE_ACTION_TITLE), 'Page V3')
         finally:
             background.close()
+        self.assertFalse(self.browser.extension_errors(add_on))
+
+
+BROWSER_SETTINGS_ADD_ON = {
+    'manifest.json': json.dumps({
+        'manifest_version': 2,
+        'name': 'Firefox browserSettings test add-on',
+        'version': '1',
+        'browser_specific_settings': {'gecko': {'id': 'firefox-browser-settings@oganesson.test'}},
+        'background': {'scripts': ['background.js']},
+        'permissions': ['browserSettings'],
+        # The new tab page that newTabPageOverride gives.
+        'chrome_url_overrides': {'newtab': 'newtab.html'},
+    }),
+    'background.js': '''
+        // As Tab Stash listens, at startup.
+        browser.browserSettings.homepageOverride.onChange.addListener(() => {});
+        self.started = true;
+    ''',
+    'newtab.html': '<!doctype html><title>New tab</title>',
+}
+
+# Each setting's get(), then a set() and a clear() as gesture and zoom add-ons
+# call them, and the value after them.
+BROWSER_SETTINGS_CALLS = '''(async () => {
+    const settings = {};
+    for (const name of Object.keys(browser.browserSettings).sort()) {
+        settings[name] = await browser.browserSettings[name].get({});
+    }
+    const results = [
+        await browser.browserSettings.contextMenuShowEvent.set({value: 'mouseup'}),
+        // A value only Firefox takes.
+        await browser.browserSettings.overrideContentColorScheme.set({value: 'system'}),
+        await browser.browserSettings.zoomSiteSpecific.clear({}),
+    ];
+    return {settings, results: results.map(result => result === undefined),
+            after: (await browser.browserSettings.contextMenuShowEvent.get({})).value,
+            verticalTabs: 'verticalTabs' in browser.browserSettings};
+})()'''
+
+
+class FirefoxBrowserSettingsTest(BrowserTest):
+    """Firefox's browserSettings, read-only: get() gives each setting's value
+    in this browser, from its pref where it has one; set() and clear() change
+    nothing and resolve without a value, which reads as Firefox's false."""
+    prefs = {
+        **DEVELOPER_MODE,
+        'homepage': 'https://example.org/start',
+        'homepage_is_newtabpage': False,
+        'oganesson': {'tabs': {'link_position': 2}},  # At the end.
+        'settings': {'a11y': {'animation_policy': 'once',
+                              'requested_page_colors': 1}},  # Off.
+        'profile': {'default_content_setting_values': {'notifications': 2}},  # Block.
+    }
+
+    @classmethod
+    def setUpClass(cls):
+        cls.folder = Path(tempfile.mkdtemp(prefix='oganesson-firefox-browser-settings-'))
+        xpi = cls.folder / 'add-on.xpi'
+        with zipfile.ZipFile(xpi, 'w') as archive:
+            for name, text in BROWSER_SETTINGS_ADD_ON.items():
+                archive.writestr(name, text)
+        cls.unpacked = unpack_xpi(xpi, cls.folder / 'unpacked')
+        cls.browser_args = (f'--load-extension={cls.unpacked}',)
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(cls.folder)
+
+    def test_browser_settings(self):
+        add_on = extension_id(self.unpacked)
+        background = self.browser.extension_background(add_on)
+        try:
+            wait_for(lambda: background.eval('self.started === true'), what='the background script')
+            result = background.eval(BROWSER_SETTINGS_CALLS)
+        finally:
+            background.close()
+        values = {name: setting['value'] for name, setting in result['settings'].items()}
+        self.assertEqual(values, {
+            # From the prefs.
+            'homepageOverride': 'https://example.org/start',
+            'newTabPageOverride': f'chrome-extension://{add_on}/newtab.html',
+            'newTabPosition': 'atEnd',
+            'imageAnimationBehavior': 'once',
+            'overrideDocumentColors': 'never',
+            'webNotificationsDisabled': True,
+            # What Chromium always does, on Linux.
+            'allowPopupsForUserEvents': True,
+            'cacheEnabled': True,
+            'closeTabsByDoubleClick': False,
+            'contextMenuShowEvent': 'mousedown',
+            'ftpProtocolEnabled': False,
+            'openBookmarksInNewTabs': False,
+            'openSearchResultsInNewTabs': False,
+            'openUrlbarResultsInNewTabs': False,
+            'overrideContentColorScheme': 'auto',
+            'useDocumentFonts': True,
+            'zoomFullPage': True,
+            'zoomSiteSpecific': True,
+        })
+        self.assertEqual({setting['levelOfControl'] for setting in result['settings'].values()},
+                         {'not_controllable'})
+        self.assertEqual(result['results'], [True, True, True])
+        self.assertEqual(result['after'], 'mousedown')
+        # Tree Style Tab checks for it: this browser has no equal.
+        self.assertFalse(result['verticalTabs'])
         self.assertFalse(self.browser.extension_errors(add_on))
 
 
