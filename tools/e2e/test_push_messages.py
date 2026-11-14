@@ -8,8 +8,10 @@ goes to Mozilla's push server, never to Helium's: --host-resolver-rules sends
 both hosts to a listener here, which notes the TLS server name each connection
 asks for. With the test's fake autopush server set in Settings
 (tools/fake_firefox_sync.py's PushServer), a site subscribes, its tab is
-closed, and an encrypted message the fake pushes reaches its service worker,
-which posts the text back to the site. Turned off, the connection closes.
+closed, and the browser restarts, so its service worker is stopped. The
+browser connects again for the subscription it keeps, and an encrypted
+message the fake pushes wakes the service worker, which posts the text back
+to the site. Turned off, the connection closes, and a restart opens none.
 
 Needs the `cryptography` package, like the fake.
 """
@@ -151,7 +153,6 @@ class PushMessagesTest(BrowserTest):
         self.assertIn('error', self.subscribe())
         time.sleep(QUIET)
         self.assertEqual(self.tls.names, [])
-        self.assertEqual(self.push.connections_made, 0)
 
         settings = self.settings()
         self.assertEqual(settings.eval(f'{TOGGLE}.label'), 'Push messages from closed sites')
@@ -179,7 +180,12 @@ class PushMessagesTest(BrowserTest):
         subscription = self.subscribe()
         self.assertIn('endpoint', subscription, subscription)
         channel = subscription['endpoint'].rsplit('/', 1)[-1]
-        # The site's tab is closed: the message wakes its service worker.
+        self.browser.close_target(settings)
+        # The site's tab is closed, and a restart stops its service worker.
+        self.browser.quit()
+        self.browser.start()
+        wait_for(lambda: channel in self.push.connections,
+                 what='the push connection again after the restart')
         keys = subscription['keys']
         message = ece_encrypt(unb64url(keys['p256dh']), unb64url(keys['auth']),
                               b'hello from the push server')
@@ -188,11 +194,17 @@ class PushMessagesTest(BrowserTest):
                  what="the message at the site's service worker")
         wait_for(lambda: self.push.acks, what='the message acknowledged')
 
-        # Off again: the connection closes.
+        # Off again: the connection closes, and a restart opens none.
+        settings = self.settings()
         settings.eval(f'{TOGGLE}.click()')
         wait_for(lambda: self.pref(settings, PREF) is False, what='the pref off')
         wait_for(lambda: not self.push.connections, what='the push connection to close')
-        self.browser.close_target(settings)
+        self.browser.quit()
+        made = self.push.connections_made
+        self.browser.start()
+        time.sleep(QUIET)
+        self.assertEqual(self.push.connections_made, made)
+        self.assertEqual(set(self.tls.names), {MOZILLA})
 
 
 if __name__ == '__main__':
