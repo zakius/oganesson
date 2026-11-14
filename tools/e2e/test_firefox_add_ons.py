@@ -548,20 +548,34 @@ class FirefoxShortcutsTest(BrowserTest):
         try:
             for description, keys, shortcut in (('no-key', 'F2', 'F2'),
                                                 ('Mac only', 'ctrl+alt+u', 'Alt+Ctrl+U')):
-                edit = f"""(function find(root) {{
+                field = f"""(function find(root) {{
                     for (const node of root.querySelectorAll('*')) {{
                         if (node.localName === 'cr-shortcut-input' &&
                             node.inputAriaLabel.includes({description!r})) {{
-                            return node.shadowRoot.querySelector('#edit');
+                            return node;
                         }}
                         const inner = node.shadowRoot && find(node.shadowRoot);
                         if (inner) return inner;
                     }}
                     return null;
                 }})(document)"""
-                wait_for(lambda edit=edit: page.eval(f'!!{edit}'), what=f'the {description} input')
-                page.eval(f'{edit}.click()')
-                self.browser.key(keys)
+                wait_for(lambda field=field: page.eval(f'!!{field}'), what=f'the {description} input')
+                self.browser.key('shift')  # gives the window the input focus
+                page.eval(f"{field}.shadowRoot.querySelector('#edit').click()")
+                wait_for(lambda field=field: page.eval(
+                    f"document.hasFocus() && {field}.shadowRoot.activeElement?.id === 'input'"),
+                    what=f'the {description} input to take the focus')
+                # At a high load, about 1 run in 100 loses the keystroke: no
+                # key event reaches the page, which has the focus and still
+                # waits for a key. Until it takes one, pressing again is safe.
+                for _ in range(5):
+                    self.browser.xdotool('key', keys)
+                    try:
+                        wait_for(lambda field=field: page.eval(f'{field}.readonly_'), timeout=2,
+                                 what=f'the {description} input to take {keys}')
+                        break
+                    except AssertionError:
+                        pass
                 wait_for(lambda description=description, shortcut=shortcut: self.shortcut_of(
                     description) == shortcut, what=f'{shortcut} for {description}')
         finally:
