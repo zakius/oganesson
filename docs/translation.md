@@ -5,7 +5,7 @@ Page translation is an opt-in, off by default. Settings > Languages > Translatio
 - **On this device** (the default engine): Chromium's TranslateKit translates in the browser. The engine and its language packs download from Google's component updater; page text stays on the device.
 - **With Google Translate**: the page text goes to Google Translate's keyless endpoint. More languages, nothing to download.
 
-Once it is on, the page context menu has "Translate to <language>" and the address bar shows Helium's translate button, the app menu has Translate, and the rest of Chromium's Translation settings show (offering to translate, the target language, always and never lists). While it is off, the browser sends and downloads nothing for translation, and pages can't use the web `Translator` API.
+Once it is on, the page context menu has "Translate to <language>", the app menu has Translate, and the rest of Chromium's Translation settings show (offering to translate, the target language, always and never lists). "Offer to translate pages", which shows the address bar's button and offer on pages in other languages, stays off until you turn it on: Helium's default followed the engine at startup, which here can change while the browser runs. While it is off, the browser sends and downloads nothing for translation, and pages can't use the web `Translator` API.
 
 The setting is in Local State, one for the whole browser, like Browser traffic: Helium's translation providers are global. The setup's Google features step (zakius/oganesson#97) is to offer the same switch.
 
@@ -20,13 +20,14 @@ oganesson-core (snapshot `f0b3941`) had its own 1,100-line chain on Chromium's G
 The provider runs Chromium's on-device translation service, as the `Translator` API does, with one service for every page. Each text run goes to TranslateKit on its own. TranslateKit doesn't detect languages, so a page whose language is unknown can't be translated on the device.
 
 - TranslateKit's language packs each pair English with one other language. A translation between two other languages goes through English and needs both packs.
-- Before a translation that needs a pack that isn't installed, the browser asks: "Download languages for translation?", naming the languages. With a yes, the packs (and the engine, the first time) download, and the page translates once they are in. With Cancel, nothing downloads.
+- Before a translation you asked for that needs a pack that isn't installed, the browser asks: "Download languages for translation?", naming the languages. With Yes, the packs (and the engine, the first time) download, and the page translates once they are in, if the tab still shows it. With Cancel, nothing downloads. An automatic translation (a language you always translate) never starts a download: it waits for one you agreed to, or doesn't happen. A download that makes no progress for 10 minutes is given up, and the next translation asks again. A component registered earlier is asked for directly, as Chromium only downloads one when it first registers it.
+- A session translates only a pair whose packs are installed, so a page can't make the browser download packs through the translate script.
 - Helium's `component-updates` lets only an allowlist of components register. TranslateKit's components, the engine and the packs, are the exception (`src/components/component_updater/translate_kit_gate.h`). Chromium registers them when on-device translation first needs them. They check for updates at Google's update server, on demand and with the automatic checks, only while on-device translation is on: once it is off, installed packs stay and nothing asks for their updates. They are not a Browser traffic row: they have no proxy route, and the translation setting is their switch.
 - Pages can use the `Translator` API only while on-device translation is on. Otherwise a page could make the browser download TranslateKit.
 
 ### With Google Translate
 
-The provider posts each batch's text to `translate.googleapis.com/translate_a/t?client=gtx`, the keyless endpoint Google's own website widget and many browser add-ons use, without cookies. The reply lists one translation per text, and the detected language when the page's language is unknown.
+The provider posts each batch's text to `translate.googleapis.com/translate_a/t?client=gtx`, the keyless endpoint Google's own website widget and many browser add-ons use, without cookies, through the page's own network context: its profile, container or incognito state, and an extension's proxy apply. Helium's API gives a provider only the page's URL, so `oganesson/core/translation` starts sessions through a factory of ours that gets the frame (`src/components/translate/content/browser/frame_session_factory.h`). The endpoint decodes HTML entities in what it gets, so `&` is sent as `&amp;`. The reply lists one translation per text, and each text's detected language when the page's language is unknown; the batch takes the first that isn't the target language.
 
 ## Tests
 
@@ -36,7 +37,8 @@ The provider posts each batch's text to `translate.googleapis.com/translate_a/t?
 - The switch and the engine choice in Settings.
 - Google Translate: the page text reaches the stand-in endpoint and its reply replaces it.
 - On this device: Chromium's stand-in TranslateKit library (`mock_translate_kit_lib`, which `linux/container-build.sh` builds next to the browser and the packages leave out) with a pack given on the command line translates the page.
-- The download question: a cancel checks for nothing; a yes makes the component updater ask the update server for TranslateKit and the German pack.
+- The download question: Cancel checks for nothing; Yes makes the component updater ask the update server for TranslateKit and the German pack. The stand-in has no TranslateKit to give (Google signs its components), so the download itself and the translation after it are not tested.
+- TranslateKit registered by an earlier run: no update check while translation is off, and one with the automatic checks while on-device translation is on.
 
 ## What it depends on
 

@@ -188,6 +188,35 @@ class GoogleTest(TranslationTest):
             self.browser.close_target(page)
 
 
+# Chromium's record of TranslateKit and its German pack registered by an
+# earlier run: it registers them again at startup.
+REGISTERED = {'on_device_translation': {
+    'translate_kit_registered': True,
+    'translate_kit_packages': {'de_en_registered': True}}}
+
+
+class RegisteredOffTest(TranslationTest):
+    """Off, TranslateKit registered by an earlier run never checks."""
+    local_state = REGISTERED
+
+    def test_no_check(self):
+        # Long enough for the component updater's first checks (fast-update).
+        wait_for(lambda: self.update.posts, timeout=120, what="the certificates' update check")
+        time.sleep(15)
+        self.assertEqual(self.translate_kit_checks(), [])
+        self.assertNotIn(GERMAN_PACK.encode(), b''.join(self.update.posts))
+
+
+class RegisteredOnTest(TranslationTest):
+    """On this device, TranslateKit registered by an earlier run checks for
+    updates with the automatic checks."""
+    local_state = {**REGISTERED, **local_state('device')}
+
+    def test_checks(self):
+        wait_for(self.translate_kit_checks, timeout=120, what="TranslateKit's update check")
+        self.assertIn(GERMAN_PACK.encode(), b''.join(self.translate_kit_checks()))
+
+
 @unittest.skipUnless(MOCK_LIBRARY.exists(), f'no {MOCK_LIBRARY.name} next to the binary')
 class OnDeviceTest(TranslationTest):
     """TranslateKit's stand-in, with a German-English pack given on the

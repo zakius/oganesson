@@ -24,12 +24,15 @@ namespace oganesson_translation {
 void RegisterProviders();
 
 // Whether translating `web_contents` from `source_lang` to `target_lang` can
-// start now. Not when on-device translation would first download TranslateKit
-// or language packs: then this asks the user, returns false, and runs
-// `translate` once the user agrees to the download.
+// start now. Not when on-device translation needs TranslateKit or language
+// packs that aren't installed: then this returns false, and runs `translate`
+// once they are, if the tab still shows the same page. A translation the user
+// asked for asks before downloading; an automatic one only waits for a
+// download already agreed to, or doesn't happen.
 bool ConfirmDownload(content::WebContents* web_contents,
                      std::string_view source_lang,
                      std::string_view target_lang,
+                     bool asked_by_user,
                      base::OnceClosure translate);
 
 }  // namespace oganesson_translation

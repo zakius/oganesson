@@ -5,6 +5,8 @@
 # language packs. TranslateKit's components pass Helium's allowlist and check for updates only while
 # on-device translation is on (src/components/component_updater/translate_kit_gate.h); the
 # Translator API works only then too. The app menu's Translate item needs an available provider.
+# Sessions start through a factory of ours, so Google's gets the frame's network context.
+# "Offer to translate" is off by default, whatever the engine at startup.
 --- a/components/translate/core/common/translate_features.cc
 +++ b/components/translate/core/common/translate_features.cc
 @@ -40,6 +40,8 @@
@@ -68,7 +70,7 @@
  #include "base/functional/callback_forward.h"
  #include "build/build_config.h"
  #include "components/language/core/browser/accept_languages_service.h"
-@@ -79,6 +81,15 @@
+@@ -79,6 +81,16 @@
  
    // Returns true if Reading Mode is open.
    virtual bool IsReadingModeOpen() const = 0;
@@ -78,6 +80,7 @@
 +  // never (oganesson_translation_providers.h, ConfirmDownload).
 +  virtual bool ConfirmTranslation(std::string_view source_lang,
 +                                  std::string_view target_lang,
++                                  bool asked_by_user,
 +                                  base::OnceClosure translate) {
 +    return true;
 +  }
@@ -86,14 +89,20 @@
  }  // namespace translate
 --- a/components/translate/core/browser/translate_manager.cc
 +++ b/components/translate/core/browser/translate_manager.cc
-@@ -420,6 +420,17 @@
+@@ -420,6 +420,23 @@
      return;
    }
  
-+  // oganesson: the client may first ask to download what the translation
-+  // needs, and translate once the user agrees (translate_client.h).
++  // oganesson: the client may first download what the translation needs, and
++  // asks before it when the user asked for the translation; it translates
++  // once the download is in (translate_client.h).
++  const bool asked_by_user =
++      translation_type == TranslationType::kManualUiInitialTranslation ||
++      translation_type == TranslationType::kManualUiReTranslation ||
++      translation_type == TranslationType::kManualContextMenuInitialTranslation ||
++      translation_type == TranslationType::kManualContextMenuReTranslation;
 +  if (!translate_client_->ConfirmTranslation(
-+          original_source_lang, target_lang,
++          original_source_lang, target_lang, asked_by_user,
 +          base::BindOnce(&TranslateManager::TranslatePage, GetWeakPtr(),
 +                         std::string(original_source_lang),
 +                         std::string(target_lang), triggered_from_menu,
@@ -106,12 +115,13 @@
  
 --- a/chrome/browser/translate/chrome_translate_client.h
 +++ b/chrome/browser/translate/chrome_translate_client.h
-@@ -129,6 +129,9 @@
+@@ -129,6 +129,10 @@
    void RevertPdfTranslation() override;
    void OnSidePanelClosed();
    bool IsReadingModeOpen() const override;
 +  bool ConfirmTranslation(std::string_view source_lang,
 +                          std::string_view target_lang,
++                          bool asked_by_user,
 +                          base::OnceClosure translate) override;
  
  #if !BUILDFLAG(IS_ANDROID)
@@ -126,15 +136,16 @@
  #include "chrome/browser/translate/translate_ranker_factory.h"
  #include "chrome/browser/translate/translate_service.h"
  #if !BUILDFLAG(IS_ANDROID)
-@@ -246,6 +247,14 @@
+@@ -246,6 +247,15 @@
    return false;
  }
  
 +bool ChromeTranslateClient::ConfirmTranslation(std::string_view source_lang,
 +                                               std::string_view target_lang,
++                                               bool asked_by_user,
 +                                               base::OnceClosure translate) {
 +  return oganesson_translation::ConfirmDownload(web_contents(), source_lang,
-+                                                target_lang,
++                                                target_lang, asked_by_user,
 +                                                std::move(translate));
 +}
 +
@@ -266,3 +277,45 @@
      "//components/component_updater",
      "//components/language/core/browser",
      "//components/on_device_translation/public/mojom",
+--- a/chrome/browser/ui/browser_ui_prefs.cc
++++ b/chrome/browser/ui/browser_ui_prefs.cc
+@@ -175,12 +175,10 @@
+   registry->RegisterBooleanPref(prefs::kWebAppCreateOnDesktop, true);
+   registry->RegisterBooleanPref(prefs::kWebAppCreateInAppsMenu, true);
+   registry->RegisterBooleanPref(prefs::kWebAppCreateInQuickLaunchBar, true);
+-  // Translation is only offered by default when it stays on-device.
+-  const translate::TranslationProvider* translation_provider =
+-      translate::GetTranslationProvider();
++  // oganesson: off whatever the engine, which can change while the browser
++  // runs (oganesson_translation.h): its user turns the offer on.
+   registry->RegisterBooleanPref(
+-      translate::prefs::kOfferTranslateEnabled,
+-      translation_provider && translation_provider->IsOnDevice(),
++      translate::prefs::kOfferTranslateEnabled, false,
+       user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
+   registry->RegisterDictionaryPref(prefs::kBrowserWindowPlacement);
+   registry->RegisterDictionaryPref(prefs::kBrowserWindowPlacementPopup);
+--- a/components/translate/content/browser/text_translator_host.cc
++++ b/components/translate/content/browser/text_translator_host.cc
+@@ -8,6 +8,7 @@
+ #include <utility>
+ 
+ #include "base/check.h"
++#include "components/translate/content/browser/frame_session_factory.h"
+ #include "components/translate/core/browser/translation_provider.h"
+ #include "components/translate/core/common/translate_errors.h"
+ #include "content/public/browser/render_frame_host.h"
+@@ -103,8 +104,11 @@
+   }
+ 
+   if (!session_) {
+-    session_ =
+-        provider_->StartSession(render_frame_host().GetLastCommittedURL());
++    // oganesson: through the factory, when set (frame_session_factory.h).
++    const FrameSessionFactory& factory = GetFrameSessionFactory();
++    session_ = factory ? factory.Run(*provider_, render_frame_host())
++                       : provider_->StartSession(
++                             render_frame_host().GetLastCommittedURL());
+   }
+ 
+   TranslationRequest request;
