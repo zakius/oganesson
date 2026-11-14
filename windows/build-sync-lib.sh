@@ -60,7 +60,12 @@ export AR_x86_64_pc_windows_msvc="$llvm/llvm-ar"
 "$src/third_party/rust-toolchain/bin/cargo" build --release --locked \
     --target x86_64-pc-windows-msvc -Zbuild-std=std,panic_unwind \
     --manifest-path "$crate/Cargo.toml"
-cp "$target/x86_64-pc-windows-msvc/release/oganesson_sync.dll" "$out/"
+# Copied only when the content differs: the installer's archive (oganesson.7z) packs these
+# files, and a new time on one packed it again, 100 seconds, with nothing changed.
+copy_changed() {
+    cmp -s "$1" "$out/$(basename "$1")" || cp "$1" "$out/"
+}
+copy_changed "$target/x86_64-pc-windows-msvc/release/oganesson_sync.dll"
 for dll in nss3 nssutil3 softokn3 freebl3 libnspr4 libplc4 libplds4 libsqlite3-0; do
-    cp "$ucrt64/bin/$dll.dll" "$out/"
+    copy_changed "$ucrt64/bin/$dll.dll"
 done
