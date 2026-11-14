@@ -20,7 +20,7 @@ ADD_ON = {
         'version': '1',
         'browser_specific_settings': {'gecko': {'id': 'firefox-apis@oganesson.test'}},
         'background': {'scripts': ['background.js']},
-        'permissions': ['menus'],
+        'permissions': ['menus', 'storage'],
     }),
     'background.js': '''
         browser.menus.create({id: 'firefox-item', title: 'Firefox menu item', contexts: ['page']});
@@ -68,6 +68,21 @@ class FirefoxAddOnsTest(BrowserTest):
         self.assertEqual(info['name'], 'oganesson')
         self.assertRegex(info['version'], r'^\d+\.\d+\.\d+\.\d+$')
         self.assertGreaterEqual(int(info['version'].split('.')[0]), 157)
+
+    def test_storage_session(self):
+        # Firefox has storage.session in Manifest V2 too (Ghostery, KeePassXC):
+        # the promise form, the callback form, and the access level.
+        result = self.background_eval('''(async () => {
+            await browser.storage.session.set({key: 'value'});
+            return {
+                stored: await browser.storage.session.get('key'),
+                callback: await new Promise(done => chrome.storage.session.get(['key'], done)),
+                accessLevel: await browser.storage.session.setAccessLevel(
+                    {accessLevel: 'TRUSTED_CONTEXTS'}).then(() => 'set', error => error.message),
+            };
+        })()''')
+        self.assertEqual(result, {'stored': {'key': 'value'}, 'callback': {'key': 'value'},
+                                  'accessLevel': 'set'})
 
     def click_page_menu_item(self):
         """Opens a page's context menu, clicks the add-on's item and returns
