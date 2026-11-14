@@ -67,7 +67,7 @@ FIREFOX_KEYS = (
     'incognito', 'manifest_version', 'name', 'omnibox', 'optional_host_permissions',
     'optional_permissions', 'options_page', 'options_ui', 'page_action', 'permissions',
     'protocol_handlers', 'sandbox', 'short_name', 'sidebar_action', 'theme',
-    'theme_experiment', 'user_scripts', 'version', 'version_name', 'web_accessible_resources',
+    'theme_experiment', 'user_scripts', 'version', 'web_accessible_resources',
 )
 # The build's tree, with the feature files.
 TREE = BINARY.parents[2]
