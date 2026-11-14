@@ -81,11 +81,11 @@ Release builds keep one Chromium PGO profile per milestone, pinned in `pgo-profi
 
 ## Releasing
 
-A merge to main only merges. To release, push a tag whose name starts with `release-` on a commit of main (dubna's [Releases](https://github.com/zakius/dubna#releases) has the command), or start `.github/workflows/release.yml` by hand. The workflow releases main's tip and runs these steps on the build machine's runner. It posts the [GitHub release](https://github.com/zakius/oganesson/releases), with the Linux packages and notes from the commits, before it publishes to the package repository, and adds the Windows packages to it before it publishes them to the site. So several tasks can land one at a time and release in one build. The Windows build starts once the Linux tests pass and runs while Linux packs and uploads. The tests don't run again when all of them already passed on this very build and commit, as when the commit was built and tested before its push (`--unless-passed`; a run of all tests in a checkout without changes records its pass next to the binary). The steps:
+A merge to main only merges. To release, push a tag whose name starts with `release-` on a commit of main (dubna's [Releases](https://github.com/zakius/dubna#releases) has the command), or start `.github/workflows/release.yml` by hand. The workflow releases main's tip and runs these steps on the build machine's runner. It posts the [GitHub release](https://github.com/zakius/oganesson/releases), with the Linux packages and notes from the commits, before it publishes to the package repository, and adds the Windows packages to it before it publishes them to the site. So several tasks can land one at a time and release in one build. The Windows build starts once the Linux tests pass and runs while Linux packs and uploads. The steps:
 
 ```sh
 ./oganesson.py build --release
-./oganesson.py test --release --unless-passed
+./oganesson.py test --release
 ./oganesson.py build --windows          # in the background; packages in work/dl/windows
 linux/pack.sh                           # then the GitHub release, with the Linux packages
 linux/publish-repo.sh                   # uploads the new .deb and .rpm

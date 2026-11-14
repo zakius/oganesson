@@ -496,24 +496,6 @@ def e2e_tests():
             for path in sorted((ROOT / 'tools/e2e').glob('test_*.py'))}
 
 
-def tested_state(binary):
-    """What a full test run vouches for: this commit, in a checkout without changes, and the
-    files the browser runs from next to its binary, by size and time (a build rewrites only
-    what it rebuilds). None for a checkout with changes: its tests may be other ones."""
-    def git(*command):
-        return subprocess.run(['git', '-C', str(ROOT), *command], capture_output=True, text=True,
-                              check=True).stdout.strip()
-    if git('status', '--porcelain'):
-        return None
-    out = binary.parent
-    files = sorted(path for pattern in ('oganesson', 'oganesson_crashpad_handler', '*.pak', '*.so',
-                                        '*.so.*', '*.bin', '*.dat', 'locales/*.pak')
-                   for path in out.glob(pattern))
-    return {'commit': git('rev-parse', 'HEAD'),
-            'files': {str(path.relative_to(out)): [path.stat().st_size, path.stat().st_mtime_ns]
-                      for path in files}}
-
-
 def test(args):
     tests = e2e_tests()
     if args.list:
@@ -538,14 +520,6 @@ def test(args):
     if not binary.is_file():
         fail(f'no browser binary at {binary}; run ./oganesson.py build')
     lock = hold_checkout('test')  # noqa: F841 (held until exit)
-    # A pass of every test is recorded next to the binary, for --unless-passed.
-    full = not args.suites and not args.binary
-    passed = binary.parent / '.oganesson-tested'
-    state = tested_state(binary) if full else None
-    if args.unless_passed and state and passed.is_file() and json.loads(passed.read_text()) == state:
-        print(f'The browser tests already passed on this build of {state["commit"][:7]}; '
-              'not run again.')
-        return
     env = dict(os.environ, OGANESSON_BINARY=str(binary))
     # Test profiles, kept when a test fails, go under work/ on the home disk:
     # /tmp is a tmpfs with a per-user quota.
@@ -553,12 +527,9 @@ def test(args):
     env['TMPDIR'] = str(WORK / 'tmp')
     if args.keep:
         env['OGANESSON_E2E_KEEP'] = '1'
-    code = subprocess.run([sys.executable, 'run.py', f'--jobs={args.jobs}', f'--repeat={args.repeat}',
-                           *dict.fromkeys(modules), *patterns], cwd=ROOT / 'tools/e2e',
-                          env=env, check=False, pass_fds=held_lock()).returncode
-    if code == 0 and state:
-        passed.write_text(json.dumps(state) + '\n')
-    sys.exit(code)
+    sys.exit(subprocess.run([sys.executable, 'run.py', f'--jobs={args.jobs}', f'--repeat={args.repeat}',
+                             *dict.fromkeys(modules), *patterns], cwd=ROOT / 'tools/e2e',
+                            env=env, check=False, pass_fds=held_lock()).returncode)
 
 
 def stamp(args):
@@ -649,10 +620,6 @@ def main():
                                   'CPUs, at most 8)')
     test_parser.add_argument('--repeat', type=int, default=1, metavar='N',
                              help='run every test N times and list those that failed in any run')
-    test_parser.add_argument('--unless-passed', action='store_true',
-                             help='run nothing when every test already passed on this build and '
-                                  'commit (a run of all tests in a checkout without changes '
-                                  'records it); the release workflow uses it')
     test_parser.add_argument('--keep', action='store_true',
                              help="keep every run's profile and log, not only failed ones")
     test_parser.set_defaults(handler=test)
