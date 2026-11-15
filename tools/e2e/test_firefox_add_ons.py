@@ -1081,5 +1081,73 @@ class FirefoxThemeTest(BrowserTest):
             self.assertEqual(update, {'theme': light['theme']})
         self.assertFalse(self.browser.extension_errors(add_on))
 
+
+BADGE_TEXT_COLOR_ADD_ON = {
+    'manifest.json': json.dumps({
+        'manifest_version': 2,
+        'name': 'Firefox badge text colour test add-on',
+        'version': '1',
+        'browser_specific_settings': {'gecko': {'id': 'firefox-badge-text-color@oganesson.test'}},
+        'background': {'scripts': ['background.js']},
+        'browser_action': {'default_title': 'Badge'},
+    }),
+    # As Mino and Ahrefs do when they start.
+    'background.js': '''
+        browser.browserAction.setBadgeText({text: "3"});
+        browser.browserAction.setBadgeTextColor({color: "#ffffff"});
+        self.started = true;
+    ''',
+}
+
+
+class FirefoxBadgeTextColorTest(BrowserTest):
+    """A Manifest V2 add-on sets and reads its badge's text colour, for every
+    tab and for one, and reads whether its button is on the toolbar: Firefox's
+    browserAction has the functions that Chromium gives only to action."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.folder = Path(tempfile.mkdtemp(prefix='oganesson-firefox-badge-'))
+        xpi = cls.folder / 'add-on.xpi'
+        with zipfile.ZipFile(xpi, 'w') as archive:
+            for name, text in BADGE_TEXT_COLOR_ADD_ON.items():
+                archive.writestr(name, text)
+        cls.unpacked = unpack_xpi(xpi, cls.folder / 'unpacked')
+        cls.browser_args = (f'--load-extension={cls.unpacked}',)
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(cls.folder)
+
+    def test_badge_text_color(self):
+        add_on = extension_id(self.unpacked)
+        background = self.browser.extension_background(add_on)
+        try:
+            wait_for(lambda: background.eval('self.started === true'), what='the background script')
+            result = background.eval('''(async () => {
+                const [tab] = await browser.tabs.query({active: true, lastFocusedWindow: true});
+                const all = await browser.browserAction.getBadgeTextColor({});
+                await browser.browserAction.setBadgeTextColor({color: [0, 0, 255, 255], tabId: tab.id});
+                let error;
+                await browser.browserAction.setBadgeTextColor({color: [0, 0, 0, 0]})
+                    .catch(e => { error = e.message; });
+                return {all, tab: await browser.browserAction.getBadgeTextColor({tabId: tab.id}),
+                        still: await browser.browserAction.getBadgeTextColor({}), error,
+                        settings: await browser.browserAction.getUserSettings()};
+            })()''')
+        finally:
+            background.close()
+        self.assertEqual(result['all'], [255, 255, 255, 255])
+        self.assertEqual(result['tab'], [0, 0, 255, 255])
+        self.assertEqual(result['still'], [255, 255, 255, 255])
+        # A transparent colour is refused, as action's is.
+        self.assertTrue(result['error'])
+        # An unpacked add-on starts off the toolbar, in its menu.
+        self.assertEqual(result['settings'], {'isOnToolbar': False})
+        self.assertFalse(self.browser.extension_errors(add_on))
+
+
 if __name__ == '__main__':
     unittest.main()
