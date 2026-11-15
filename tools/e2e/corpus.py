@@ -296,10 +296,10 @@ def main():
     corpus = json.loads((args.dubna / 'webextensions/corpus.json').read_text())
     score_path = args.dubna / 'webextensions/score/oganesson.json'
     if args.only:
-        only = args.only.split(',')
+        only = set(args.only.split(','))
         corpus = [item for item in corpus if item['id'] in only]
         if len(corpus) != len(only):
-            sys.exit(f"not in the corpus: {set(only) - {item['id'] for item in corpus}}")
+            sys.exit(f"not in the corpus: {only - {item['id'] for item in corpus}}")
     xpis = [args.cache / f"{item['sha256']}.xpi" for item in corpus]
     absent = [x for x in xpis if not x.is_file()]
     if absent:
