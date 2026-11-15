@@ -654,6 +654,82 @@ class FirefoxWebRequestEventPageTest(BrowserTest):
         self.assertFalse(self.browser.extension_errors(add_on))
 
 
+SCRIPTING_ADD_ON = {
+    'manifest.json': json.dumps({
+        'manifest_version': 2,
+        'name': 'Firefox scripting test add-on',
+        'version': '1',
+        'browser_specific_settings': {'gecko': {'id': 'firefox-scripting@oganesson.test'}},
+        'background': {'scripts': ['background.js']},
+        # Firefox gives scripting to Manifest V2 too (Privacy Badger, Ghostery).
+        'permissions': ['scripting', 'http://127.0.0.1/*'],
+    }),
+    'background.js': 'self.started = true;',
+    'content.js': 'document.documentElement.dataset.registered = "yes";',
+}
+
+
+class FirefoxScriptingTest(BrowserTest):
+    """A Manifest V2 add-on with the scripting permission: Chromium leaves
+    browser.scripting out, Firefox has it. The add-on runs a script in a page
+    and registers a content script that runs on the next page."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.folder = Path(tempfile.mkdtemp(prefix='oganesson-firefox-scripting-'))
+        xpi = cls.folder / 'add-on.xpi'
+        with zipfile.ZipFile(xpi, 'w') as archive:
+            for name, text in SCRIPTING_ADD_ON.items():
+                archive.writestr(name, text)
+        cls.unpacked = unpack_xpi(xpi, cls.folder / 'unpacked')
+        cls.server = Server({'/one': (200, {'Content-Type': 'text/html'}, b'<!doctype html><p>one'),
+                             '/two': (200, {'Content-Type': 'text/html'}, b'<!doctype html><p>two')})
+        cls.browser_args = (f'--load-extension={cls.unpacked}',)
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        cls.server.stop()
+        shutil.rmtree(cls.folder)
+
+    def test_scripting(self):
+        add_on = extension_id(self.unpacked)
+        background = self.browser.extension_background(add_on)
+        one = self.browser.new_tab(self.server.url('/one'))
+        two = None
+        try:
+            wait_for(lambda: background.eval('self.started === true'), what='the background script')
+            # A new tab starts on about:blank: wait for the page itself.
+            wait_for(lambda: one.eval("location.pathname == '/one' && document.readyState == 'complete'"),
+                     what='the first page')
+            result = background.eval('''(async () => {
+                const [tab] = await browser.tabs.query({url: 'http://127.0.0.1/one'});
+                const [injected] = await browser.scripting.executeScript(
+                    {target: {tabId: tab.id}, func: () => document.body.innerText});
+                await browser.scripting.registerContentScripts([{
+                    id: 'registered', matches: ['http://127.0.0.1/two'], js: ['content.js'],
+                    runAt: 'document_start'}]);
+                const registered = await browser.scripting.getRegisteredContentScripts();
+                return {injected: injected.result, registered: registered.map(script => script.id)};
+            })()''')
+            self.assertEqual(result, {'injected': 'one', 'registered': ['registered']})
+            two = self.browser.new_tab(self.server.url('/two'))
+            wait_for(lambda: two.eval("location.pathname == '/two' && document.readyState == 'complete'"),
+                     what='the second page')
+            self.assertEqual(two.eval('document.documentElement.dataset.registered'), 'yes')
+            remaining = background.eval('''(async () => {
+                await browser.scripting.unregisterContentScripts({ids: ['registered']});
+                return (await browser.scripting.getRegisteredContentScripts()).length;
+            })()''')
+            self.assertEqual(remaining, 0)
+        finally:
+            background.close()
+            self.browser.close_target(one)
+            if two:
+                self.browser.close_target(two)
+        self.assertFalse(self.browser.extension_errors(add_on))
+
 PAGE_ACTION_ADD_ON = {
     'manifest.json': json.dumps({
         'manifest_version': 2,
