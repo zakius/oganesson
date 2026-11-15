@@ -1352,3 +1352,64 @@ class FirefoxContentScriptsTest(BrowserTest):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+DNR_ADD_ON = {
+    'manifest.json': json.dumps({
+        'manifest_version': 3,
+        'name': 'Firefox declarative_net_request test add-on',
+        'version': '1',
+        'browser_specific_settings': {'gecko': {'id': 'firefox-dnr@oganesson.test'}},
+        'background': {'scripts': ['background.js']},
+        # Rules, but neither declarativeNetRequest permission, as DeepL and
+        # Trend Micro's toolbar have them.
+        'permissions': ['webRequest', 'webRequestBlocking'],
+        'host_permissions': ['http://127.0.0.1/*'],
+        'declarative_net_request': {
+            'rule_resources': [{'id': 'rules', 'enabled': True, 'path': 'rules.json'}]},
+    }),
+    'rules.json': json.dumps([{'id': 1, 'priority': 1, 'action': {'type': 'block'},
+                               'condition': {'urlFilter': '/blocked'}}]),
+    'background.js': 'self.started = true;',
+}
+
+
+class FirefoxDeclarativeNetRequestTest(BrowserTest):
+    """A Manifest V3 add-on with declarative_net_request rules and no
+    declarativeNetRequest permission: Chromium refuses to load it, Firefox
+    loads it without its rules."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.folder = Path(tempfile.mkdtemp(prefix='oganesson-firefox-dnr-'))
+        xpi = cls.folder / 'add-on.xpi'
+        with zipfile.ZipFile(xpi, 'w') as archive:
+            for name, text in DNR_ADD_ON.items():
+                archive.writestr(name, text)
+        cls.unpacked = unpack_xpi(xpi, cls.folder / 'unpacked')
+        cls.server = Server({'/page': (200, {'Content-Type': 'text/html'}, b'<!doctype html><p>page'),
+                             '/blocked': (200, {'Content-Type': 'text/plain'}, b'not blocked')})
+        cls.browser_args = (f'--load-extension={cls.unpacked}',)
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        cls.server.stop()
+        shutil.rmtree(cls.folder)
+
+    def test_rules_without_permission(self):
+        add_on = extension_id(self.unpacked)
+        background = self.browser.extension_background(add_on)
+        page = self.browser.new_tab(self.server.url('/page'))
+        try:
+            wait_for(lambda: background.eval('self.started === true'), what='the background script')
+            self.assertIsNone(background.eval('browser.declarativeNetRequest ?? null'))
+            wait_for(lambda: page.eval("document.readyState == 'complete' && document.body.innerText"),
+                     what='the page')
+            result = page.eval("fetch('/blocked').then(r => r.text(), e => 'failed')")
+            self.assertEqual(result, 'not blocked')
+        finally:
+            background.close()
+            self.browser.close_target(page)
+        self.assertFalse(self.browser.extension_errors(add_on))
