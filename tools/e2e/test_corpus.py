@@ -117,7 +117,9 @@ class CorpusTest(unittest.TestCase):
     def test_content_url(self):
         for scripts, url in (
                 ([{'matches': ['<all_urls>'], 'js': ['a.js']}], 'https://example.com/'),
-                ([{'matches': ['http://*/*'], 'js': ['a.js']}], 'http://example.com/'),
+                # The browser upgrades an http: page to https:.
+                ([{'matches': ['http://*/*'], 'js': ['a.js']}], None),
+                ([{'matches': ['*://*/*.md'], 'js': ['a.js']}], 'https://example.com/.md'),
                 ([{'matches': ['*://*.youtube.com/watch*'], 'js': ['a.js']}],
                  'https://www.youtube.com/watch'),
                 # CSS alone, the page's own world, exclusions and file: are
