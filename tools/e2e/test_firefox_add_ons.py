@@ -6,6 +6,7 @@ the profile's firefox_add_ons.named_firefox list is told it runs in Firefox."""
 import json
 import shutil
 import tempfile
+import threading
 import unittest
 import zipfile
 from pathlib import Path
@@ -1409,6 +1410,90 @@ class FirefoxDeclarativeNetRequestTest(BrowserTest):
             background.close()
             self.browser.close_target(page)
         self.assertFalse(self.browser.extension_errors(add_on))
+
+
+def loading_tab_add_on(gecko_id):
+    """An add-on that records the URL of each activated tab, as ColorfulTabs
+    reads it; a Chrome Web Store extension without `gecko_id`."""
+    manifest = {
+        'manifest_version': 2,
+        'name': f'Loading tab test add-on {gecko_id}',
+        'version': '1',
+        'background': {'scripts': ['background.js']},
+        'permissions': ['tabs'],
+    }
+    if gecko_id:
+        manifest['browser_specific_settings'] = {'gecko': {'id': gecko_id}}
+    return {
+        'manifest.json': json.dumps(manifest),
+        'background.js': '''
+            self.urls = [];
+            browser.tabs.onActivated.addListener(async ({tabId}) => {
+                self.urls.push((await chrome.tabs.get(tabId)).url);
+            });
+            self.started = true;
+        ''',
+    }
+
+
+class FirefoxLoadingTabTest(BrowserTest):
+    """A tab that hasn't committed its first navigation has the URL
+    about:blank for a Firefox add-on, as in Firefox. Chromium gives it "",
+    which new URL() refuses, and still does to a Chrome Web Store
+    extension."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.folder = Path(tempfile.mkdtemp(prefix='oganesson-firefox-loading-tab-'))
+        cls.unpacked = {}
+        for name, gecko_id in (('firefox', 'firefox-loading-tab@oganesson.test'), ('chrome', None)):
+            xpi = cls.folder / f'{name}.xpi'
+            with zipfile.ZipFile(xpi, 'w') as archive:
+                for file, text in loading_tab_add_on(gecko_id).items():
+                    archive.writestr(file, text)
+            cls.unpacked[name] = unpack_xpi(xpi, cls.folder / name)
+        cls.answer = threading.Event()
+
+        def slow(_headers):
+            cls.answer.wait(15)
+            return 200, {'Content-Type': 'text/html'}, b'<!doctype html><p>slow'
+
+        cls.server = Server({'/slow': slow})
+        cls.browser_args = ('--load-extension=' + ','.join(str(f) for f in cls.unpacked.values()),)
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.answer.set()
+        super().tearDownClass()
+        cls.server.stop()
+        shutil.rmtree(cls.folder)
+
+    def test_loading_tab_url(self):
+        firefox = self.browser.extension_background(extension_id(self.unpacked['firefox']))
+        chrome = self.browser.extension_background(extension_id(self.unpacked['chrome']))
+        slow = self.server.url('/slow')
+        try:
+            for background in (firefox, chrome):
+                wait_for(lambda b=background: b.eval('self.started === true'),
+                         what='the background script')
+            # The server holds the page, so the tab stays on its first navigation.
+            created = firefox.eval(f'''browser.tabs.create({{url: '{slow}'}})
+                .then(tab => [tab.url, tab.pendingUrl, new URL(tab.url).href])''')
+            for background in (firefox, chrome):
+                wait_for(lambda b=background: b.eval('self.urls.length') > 0,
+                         what='tabs.onActivated')
+            self.assertEqual(created, ['about:blank', slow, 'about:blank'])
+            self.assertEqual(firefox.eval('self.urls'), ['about:blank'])
+            self.assertEqual(chrome.eval('self.urls'), [''])
+            self.answer.set()
+            wait_for(lambda: firefox.eval(f'''browser.tabs.query({{url: '{slow}'}})
+                .then(tabs => tabs.length)''') == 1, what='the page')
+        finally:
+            self.answer.set()
+            firefox.close()
+            chrome.close()
+        self.assertFalse(self.browser.extension_errors(extension_id(self.unpacked['firefox'])))
 
 
 if __name__ == '__main__':
