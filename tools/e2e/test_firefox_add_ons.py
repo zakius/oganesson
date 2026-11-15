@@ -2015,5 +2015,155 @@ class FirefoxUpdateFilterTest(BrowserTest):
             background.close()
 
 
+PROXY_ADD_ON = {
+    'manifest.json': json.dumps({
+        'manifest_version': 2,
+        'name': 'Firefox proxy test add-on',
+        'version': '1',
+        'browser_specific_settings': {'gecko': {'id': 'firefox-proxy@oganesson.test'}},
+        'background': {'scripts': ['background.js']},
+        'permissions': ['proxy', '<all_urls>'],
+    }),
+    # self.port is the test's proxy. Each host stands for one kind of answer.
+    'background.js': '''
+        self.seen = [];
+        self.filtered = [];
+        self.errors = [];
+        self.refused = [];
+        self.answer = details => {
+            self.seen.push(details);
+            const proxy = {type: 'http', host: '127.0.0.1', port: self.port};
+            switch (new URL(details.url).hostname) {
+                case 'proxied.test': return proxy;
+                case 'promised.test': return Promise.resolve([{...proxy, port: String(self.port)}]);
+                case 'refused.test': return {type: 'gopher', host: '127.0.0.1', port: self.port};
+                case 'rejected.test': return Promise.reject(new Error('no proxy today'));
+                default: return {type: 'direct'};
+            }
+        };
+        self.onlyPromised = details => { self.filtered.push(details.url); };
+        browser.proxy.onRequest.addListener(self.answer, {urls: ['<all_urls>']}, ['requestHeaders']);
+        browser.proxy.onRequest.addListener(self.onlyPromised, {urls: ['http://promised.test/*']});
+        for (const filter of [{}, {urls: []}, {urls: ['<all_urls>'], properties: ['title']},
+                              {urls: ['<all_urls>'], incognito: 'no'}]) {
+            try {
+                browser.proxy.onRequest.addListener(() => {}, filter);
+                self.refused.push(null);
+            } catch (error) {
+                self.refused.push(error.message);
+            }
+        }
+        browser.proxy.onError.addListener(
+            error => self.errors.push([error instanceof Error, error.message]));
+        self.started = true;
+    ''',
+}
+
+# What a fetch from the background gets: the page's text, or that it failed.
+PROXY_FETCH = "(url => fetch(url).then(r => r.text(), error => 'failed: ' + error.name))"
+
+
+def title(page):
+    """The page's title, or None while it navigates."""
+    try:
+        return page.eval('document.title')
+    except Exception:  # pylint: disable=broad-except
+        return None
+
+
+class FirefoxProxyTest(BrowserTest):
+    """Firefox's proxy.onRequest and proxy.onError: a listener's answer, a
+    ProxyInfo, a list of them or a promise of either, decides the proxy of a
+    request, as far as its filter's URLs reach. An answer Firefox refuses, or
+    a promise that rejects, goes to proxy.onError as an Error, and the request
+    goes as the browser's settings say. Without listeners, nothing is asked."""
+
+    @classmethod
+    def setUpClass(cls):
+        # The proxy: the browser asks it for http://<host>/page, which it
+        # answers by the path.
+        cls.proxy = Server({
+            '/page': (200, {'Content-Type': 'text/html'},
+                      b'<!doctype html><title>Through the proxy</title>proxied'),
+        })
+        cls.folder = Path(tempfile.mkdtemp(prefix='oganesson-firefox-proxy-'))
+        xpi = cls.folder / 'add-on.xpi'
+        with zipfile.ZipFile(xpi, 'w') as archive:
+            for name, text in PROXY_ADD_ON.items():
+                archive.writestr(name, text)
+        cls.unpacked = unpack_xpi(xpi, cls.folder / 'unpacked')
+        cls.browser_args = (f'--load-extension={cls.unpacked}',)
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        cls.proxy.stop()
+        shutil.rmtree(cls.folder)
+
+    def test_on_request(self):
+        add_on = extension_id(self.unpacked)
+        background = self.browser.extension_background(add_on)
+        try:
+            wait_for(lambda: background.eval('self.started === true'), what='the background script')
+            background.eval(f'self.port = {self.proxy.port}')
+            # A page in a tab.
+            page = self.browser.new_tab('http://proxied.test/page')
+            try:
+                wait_for(lambda: title(page) == 'Through the proxy', timeout=30,
+                         what='the page through the proxy')
+            finally:
+                self.browser.close_target(page)
+            proxied_host = self.proxy.headers['/page']['Host']
+            promised = background.eval(f'{PROXY_FETCH}("http://promised.test/page")')
+            refused = background.eval(f'{PROXY_FETCH}("http://refused.test/page")')
+            rejected = background.eval(f'{PROXY_FETCH}("http://rejected.test/page")')
+            wait_for(lambda: len(background.eval('self.errors')) == 2, what='proxy.onError')
+            seen = background.eval('self.seen')
+            filtered = background.eval('self.filtered')
+            errors = background.eval('self.errors')
+            refused_filters = background.eval('self.refused')
+            # The tab's favicon goes through the proxy too, whenever it loads.
+            pages = self.proxy.requests.count('/page')
+            # Without listeners, nothing is asked, and the request goes direct,
+            # where .test names don't resolve.
+            background.eval('''
+                browser.proxy.onRequest.removeListener(self.answer);
+                browser.proxy.onRequest.removeListener(self.onlyPromised);''')
+            after = background.eval(f'{PROXY_FETCH}("http://proxied.test/page")')
+            seen_after = background.eval('self.seen.length')
+        finally:
+            background.close()
+
+        self.assertEqual(proxied_host, 'proxied.test')
+        self.assertTrue(promised.endswith('</title>proxied'), promised)
+        self.assertEqual(self.proxy.headers['/page']['Host'], 'promised.test')
+        self.assertEqual(pages, 2)
+        self.assertTrue(refused.startswith('failed'), refused)
+        self.assertTrue(rejected.startswith('failed'), rejected)
+        self.assertEqual(errors, [[True, 'ProxyInfoData: Invalid proxy server type: "gopher"'],
+                                  [True, 'no proxy today']])
+        self.assertEqual(filtered, ['http://promised.test/page'])
+        first = next(d for d in seen if d['url'] == 'http://proxied.test/page')
+        self.assertIsInstance(first.pop('requestId'), str)
+        self.assertIsInstance(first.pop('timeStamp'), (int, float))
+        self.assertEqual(first, {'url': 'http://proxied.test/page', 'type': 'other',
+                                 'tabId': -1, 'frameId': -1, 'parentFrameId': -1,
+                                 'incognito': False, 'thirdParty': False, 'fromCache': False,
+                                 'cookieStoreId': 'firefox-default'})
+        self.assertEqual(refused_filters, [
+            'Type error for parameter filter (Property "urls" is required) for proxy.onRequest.',
+            'Type error for parameter filter (Error processing urls: Array requires at least 1 '
+            'items; you have 0) for proxy.onRequest.',
+            'Type error for parameter filter (Unexpected property "properties") for '
+            'proxy.onRequest.',
+            'Type error for parameter filter (Error processing incognito: Expected boolean) for '
+            'proxy.onRequest.'])
+        self.assertTrue(after.startswith('failed'), after)
+        self.assertEqual(seen_after, len(seen))
+        self.assertEqual(self.proxy.requests.count('/page'), pages)
+        self.assertFalse(self.browser.extension_errors(add_on))
+
+
 if __name__ == '__main__':
     unittest.main()
