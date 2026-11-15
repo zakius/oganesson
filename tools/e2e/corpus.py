@@ -21,6 +21,19 @@ L2  Its background page or service worker starts, if it has one, and nothing
     varies between runs, and FIREFOX_TOO, errors that Firefox gives too.
     Chromium's own warnings for unknown keys don't reach chrome://extensions
     here, hence the feature files.
+L3  A smoke check passes, with no new uncaught error from the add-on: its
+    toolbar popup, if its browser_action or action has one, opens on a real
+    click with a web page active and shows something; and its content
+    scripts, if it has some, run on a page they match. That page is the
+    runner's own small page at a URL made from the first pattern of the
+    first entry that runs scripts in the isolated world without exclusions
+    (https://example.com/ for every site), served to that tab alone, so a
+    site's content scripts meet a page without the site's markup: the score
+    errs low there. That the scripts ran is their isolated world in the
+    page. Whether a script changes the page isn't checked: nothing tells
+    which add-ons should. A page action's popup isn't checked, as the page
+    action shows only where the add-on shows it. An add-on with neither
+    reaches L3 at L2.
 
 A full run writes <dubna>/webextensions/score/oganesson.json: the date, the
 browser's version, how many add-ons reach each level (or a higher one), and
@@ -35,6 +48,7 @@ doesn't stop the run. The run holds the builds lock ($BUILDS_LOCK, by default
 the release build in work/.
 """
 import argparse
+import base64
 import datetime
 import fcntl
 import json
@@ -51,9 +65,9 @@ os.environ.setdefault('OGANESSON_BINARY',
                       str(ROOT / 'work/helium-linux/build/src/out/Release/oganesson'))
 os.environ.setdefault('TMPDIR', str(ROOT / 'work/tmp'))
 # pylint: disable=wrong-import-position
-from harness import BINARY, DEVELOPER_MODE, Browser, extension_id, unpack_xpi, wait_for
+from harness import BINARY, DEVELOPER_MODE, Browser, Page, extension_id, unpack_xpi, wait_for
 
-LEVELS = ('L0', 'L1', 'L2')
+LEVELS = ('L0', 'L1', 'L2', 'L3')
 GROUP = 20
 # The manifest keys that Firefox reads (MDN's manifest.json keys that Firefox
 # supports, and experiment_apis from Firefox's schemas), less its metadata,
@@ -99,6 +113,16 @@ RACES = ('Receiving end does not exist', 'message channel closed before a respon
 # those the score errs high.
 FIREFOX_TOO = ('Cannot access a chrome:// URL',
                'Cannot access a chrome-extension:// URL of different extension')
+# The smoke check's page for content scripts that run on every site, and the
+# page served at every URL of its tabs.
+EVERY_SITE = 'https://example.com/'
+PAGE = (b'<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Corpus page</title>'
+        b'</head><body><h1>Corpus page</h1><p>The corpus runner\'s page for content scripts.'
+        b' <a href="/">A link</a></p></body></html>')
+# Popups pinned to the toolbar at a time, so that their buttons fit.
+PINNED = 8
+# How long a click gets to open a popup, and a popup to show something.
+POPUP = 5
 
 
 def counts(message):
@@ -175,6 +199,156 @@ def level(load_error, installed, background, missing, uncaught):
     return 'L2', None
 
 
+def content_url(manifest):
+    """The URL of a page that the add-on's content scripts run on, for the
+    smoke check (L3), or None."""
+    for entry in manifest.get('content_scripts') or []:
+        if (not isinstance(entry, dict) or not entry.get('js') or entry.get('world') == 'MAIN'
+                or any(entry.get(key) for key in ('exclude_matches', 'include_globs',
+                                                  'exclude_globs'))):
+            continue
+        for pattern in entry.get('matches') or []:
+            if pattern == '<all_urls>':
+                return EVERY_SITE
+            found = re.fullmatch(r'(\*|https?)://([^/:]+)(/.*)', str(pattern))
+            if not found:
+                continue
+            scheme, host, path = found.groups()
+            if host == '*':
+                return EVERY_SITE.replace('https', 'http') if scheme == 'http' else EVERY_SITE
+            if host.startswith('*.'):
+                host = 'www.' + host[2:]
+            if '*' not in host:
+                return f"{'https' if scheme == '*' else scheme}://{host}{path.replace('*', '')}"
+    return None
+
+
+def has_popup(manifest):
+    """Whether the add-on's toolbar button has a popup in its manifest."""
+    return any(isinstance(manifest.get(key), dict) and manifest[key].get('default_popup')
+               for key in ('browser_action', 'action'))
+
+
+def serve(browser, url):
+    """A new tab at `url`, where the runner serves PAGE for every page, with
+    the tab's execution contexts kept in its `events`."""
+    page = browser.new_tab('about:blank')
+    page.call('Runtime.enable')
+    page.call('Fetch.enable', patterns=[{'urlPattern': '*', 'resourceType': 'Document'}])
+    page.next_id += 1
+    navigation = page.next_id
+    page.ws.send(json.dumps({'id': navigation, 'method': 'Page.navigate', 'params': {'url': url}}))
+    while True:
+        message = json.loads(page.ws.recv())
+        if message.get('method') == 'Fetch.requestPaused':
+            page.next_id += 1
+            page.ws.send(json.dumps({'id': page.next_id, 'method': 'Fetch.fulfillRequest', 'params': {
+                'requestId': message['params']['requestId'], 'responseCode': 200,
+                'responseHeaders': [{'name': 'Content-Type', 'value': 'text/html'}],
+                'body': base64.b64encode(PAGE).decode()}}))
+        elif message.get('id') == navigation:
+            return page
+        elif 'method' in message:
+            page.events.append(message)
+
+
+def set_pinned(browser, extensions, pinned):
+    page = browser.new_tab('chrome://extensions')
+    try:
+        wait_for(lambda: page.eval('!!chrome.developerPrivate'), what='chrome://extensions')
+        for extension in extensions:
+            # An add-on may have removed itself since (management.uninstallSelf).
+            page.eval('chrome.developerPrivate.updateExtensionConfiguration('
+                      f'{{extensionId: {json.dumps(extension)}, pinnedToToolbar: {json.dumps(pinned)}}})'
+                      '.catch(() => {})')
+    finally:
+        browser.close_target(page)
+
+
+def open_popups(browser, extensions):
+    """Clicks the toolbar buttons of `extensions`, whose actions have popups,
+    and returns {extension: error or None} for the popups that opened: None
+    when one showed something."""
+    found = {}
+    for start in range(0, len(extensions), PINNED):
+        batch = extensions[start:start + PINNED]
+        set_pinned(browser, batch, True)
+        # Every button, the bundled uBlock Origin's too: the tooltips are the
+        # add-ons' titles, which only the browser has localized.
+        views = browser.wait_settled(lambda: [v for v in browser.views('ToolbarActionView')
+                                              if v.visible] or None, what='the toolbar buttons')
+        for view in views:
+            before = {t['id'] for t in browser.targets()}
+            browser.click_view(view)
+            try:
+                target = wait_for(lambda b=before: next(
+                    (t for t in browser.targets() if t['id'] not in b
+                     and t['url'].startswith('chrome-extension://')), None),
+                    timeout=POPUP, what='a popup')
+            except AssertionError:
+                continue
+            extension = target['url'].split('/')[2]
+            popup = Page(target)
+            # A popup that a dialog (alert()) holds never answers.
+            popup.ws.sock.settimeout(POPUP)
+            shows = ("[...document.querySelectorAll('body *')].some(e => {"
+                     " const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; })")
+            try:
+                wait_for(lambda: popup.eval(shows, gesture=False), timeout=POPUP)
+                found[extension] = None
+            except AssertionError:
+                found[extension] = 'the popup shows nothing'
+            except OSError:
+                found[extension] = 'the popup does not answer'
+            finally:
+                popup.close()
+                close(browser, popup)
+        set_pinned(browser, batch, False)
+    return found
+
+
+def smoke_check(browser, extensions, manifests):
+    """The smoke check (L3) of the add-ons `extensions` {item: extension ID},
+    with their `manifests`: {item: error or None}, from what they did in it.
+    Their uncaught errors are read afterwards."""
+    errors = {}
+    pages = {}
+    for item, extension in extensions.items():
+        url = content_url(manifests[item])
+        if url:
+            pages.setdefault(url, []).append(item)
+    # The page for every site last, so that it is the active tab for the
+    # popups, as a web page where a user opens one.
+    tabs = {url: serve(browser, url) for url in sorted(pages, key=lambda u: u == EVERY_SITE)}
+    try:
+        popups = [extensions[i] for i in extensions if has_popup(manifests[i])]
+        opened = open_popups(browser, popups) if popups else {}
+        for item in extensions:
+            if has_popup(manifests[item]):
+                errors[item] = opened.get(extensions[item], 'the popup did not open')
+        time.sleep(SETTLE)
+        for url, items in pages.items():
+            tabs[url].eval('1')  # its events so far
+            worlds = {e['params']['context'].get('origin') for e in tabs[url].events
+                      if e['method'] == 'Runtime.executionContextCreated'
+                      and e['params']['context'].get('auxData', {}).get('type') == 'isolated'}
+            for item in items:
+                if f'chrome-extension://{extensions[item]}' not in worlds and not errors.get(item):
+                    errors[item] = f'its content scripts did not run on {url}'
+    finally:
+        for tab in tabs.values():
+            close(browser, tab)
+    return {item: errors.get(item) for item in extensions}
+
+
+def close(browser, page):
+    """Closes `page`, which may have closed itself (window.close())."""
+    try:
+        browser.close_target(page)
+    except OSError:
+        pass
+
+
 def read_manifest(folder):
     """The add-on's manifest, or {} when it doesn't parse."""
     try:
@@ -189,6 +363,53 @@ def console_message(line):
     as the message and the file and line it came from."""
     found = re.search(r'"(.*)", source: chrome-extension://[^/]+/(\S*) \((\d+)\)', line)
     return f'{found[1]} ({found[2]}:{found[3]})' if found else line.split('CONSOLE', 1)[1]
+
+
+def installed_info(browser):
+    """What chrome://extensions knows of each add-on: {ID: ExtensionInfo}."""
+    page = browser.new_tab('chrome://extensions')
+    try:
+        # The new tab is blank until the page commits, without the API.
+        wait_for(lambda: page.eval('!!chrome.developerPrivate'), what='chrome://extensions')
+        return {e['id']: e for e in page.eval(
+            'new Promise(r => chrome.developerPrivate.getExtensionsInfo('
+            '{includeDisabled: true, includeTerminated: true}, r))')}
+    finally:
+        browser.close_target(page)
+
+
+def uncaught_errors(extension, log, info):
+    """The uncaught errors that count against the add-on `extension`: its
+    console lines in the browser's `log`, and its runtime errors in `info`,
+    its ExtensionInfo, if it has one."""
+    # Its own console lines: another add-on's error may name this one's page
+    # in its message ("Cannot access contents of url").
+    found = [console_message(line) for line in log.splitlines()
+             if 'CONSOLE' in line and f'", source: chrome-extension://{extension}/' in line
+             and counts(line)]
+    if info:
+        found += [e['message'] for e in info.get('runtimeErrors', [])
+                  if counts(e['message'])]
+    return found
+
+
+def smoke_levels(browser, at_l2, manifests, installed, log):
+    """The levels {item: (level, error)} of the add-ons at L2 `at_l2`
+    {item: extension ID} after the smoke check, from what chrome://extensions
+    knew of them (`installed`) and the browser's `log` when L2 was read."""
+    checked = smoke_check(browser, at_l2, manifests)
+    later = installed_info(browser)
+    new_log = browser.log_path.read_text(errors='replace')[len(log):]
+    levels = {}
+    for item_id, extension in at_l2.items():
+        # Only what the add-on threw since L2 was read.
+        seen = len((installed.get(extension) or {}).get('runtimeErrors', []))
+        info = later.get(extension)
+        if info:
+            info = {**info, 'runtimeErrors': info.get('runtimeErrors', [])[seen:]}
+        error = checked[item_id] or next(iter(uncaught_errors(extension, new_log, info)), None)
+        levels[item_id] = ('L2', error[:ERROR_LENGTH]) if error else ('L3', None)
+    return levels
 
 
 def run_group(items, xpis, work):
@@ -227,15 +448,7 @@ def run_group(items, xpis, work):
                 break
             time.sleep(0.5)
         time.sleep(SETTLE)
-        page = browser.new_tab('chrome://extensions')
-        try:
-            # The new tab is blank until the page commits, without the API.
-            wait_for(lambda: page.eval('!!chrome.developerPrivate'), what='chrome://extensions')
-            installed = {e['id']: e for e in page.eval(
-                'new Promise(r => chrome.developerPrivate.getExtensionsInfo('
-                '{includeDisabled: true, includeTerminated: true}, r))')}
-        finally:
-            browser.close_target(page)
+        installed = installed_info(browser)
         log = browser.log_path.read_text(errors='replace')
         for item_id, folder in folders.items():
             if not folder:
@@ -246,21 +459,21 @@ def run_group(items, xpis, work):
             load_error = next((line.split(prefix, 1)[1] for line in log.splitlines()
                                if 'Extension error: ' in line and prefix in line), None)
             info = installed.get(extension)
-            # Its own console lines: another add-on's error may name this
-            # one's page in its message ("Cannot access contents of url").
-            uncaught = [console_message(line) for line in log.splitlines()
-                        if 'CONSOLE' in line
-                        and f'", source: chrome-extension://{extension}/' in line
-                        and counts(line)]
-            if info:
-                uncaught += [e['message'] for e in info.get('runtimeErrors', [])
-                             if counts(e['message'])]
+            uncaught = uncaught_errors(extension, log, info)
             background = (extension in started) if manifests[item_id].get('background') else None
             # An add-on whose background started was installed, even when it
             # is gone by now: some remove themselves (management.uninstallSelf).
             found, error = level(load_error, bool(info) or extension in started, background,
                                  unknown(manifests[item_id], keys, permissions), uncaught)
             results[item_id] = (found, error and error[:ERROR_LENGTH])
+        at_l2 = {i: ids[i] for i, (found, _) in results.items() if found == 'L2'}
+        if at_l2:
+            try:
+                results.update(smoke_levels(browser, at_l2, manifests, installed, log))
+            except Exception as error:  # pylint: disable=broad-except
+                # The runner's failure, not the add-ons': they stay at L2.
+                for item_id in at_l2:
+                    results[item_id] = ('L2', f'the smoke check failed: {error}'[:ERROR_LENGTH])
     finally:
         browser.stop()
     return results
@@ -329,8 +542,10 @@ def main():
             items = corpus[start:start + GROUP]
             results.update(run_safely(items, xpis[start:start + GROUP],
                                       Path(work) / str(start)))
-            done = sum(1 for r in results.values() if r[0] == 'L2')
-            print(f'{len(results)} of {len(corpus)} add-ons, {done} at L2', flush=True)
+            l2 = sum(1 for r in results.values() if at_least(r[0], 'L2'))
+            l3 = sum(1 for r in results.values() if r[0] == 'L3')
+            print(f'{len(results)} of {len(corpus)} add-ons, {l2} at L2 or higher, {l3} at L3',
+                  flush=True)
     addons = {item['id']: {'level': results[item['id']][0], 'error': results[item['id']][1]}
               for item in corpus}
     if args.only:
