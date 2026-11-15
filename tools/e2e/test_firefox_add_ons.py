@@ -1350,10 +1350,6 @@ class FirefoxContentScriptsTest(BrowserTest):
         self.assertFalse(self.browser.extension_errors(add_on))
 
 
-if __name__ == '__main__':
-    unittest.main()
-
-
 DNR_ADD_ON = {
     'manifest.json': json.dumps({
         'manifest_version': 3,
@@ -1413,3 +1409,7 @@ class FirefoxDeclarativeNetRequestTest(BrowserTest):
             background.close()
             self.browser.close_target(page)
         self.assertFalse(self.browser.extension_errors(add_on))
+
+
+if __name__ == '__main__':
+    unittest.main()
