@@ -417,6 +417,8 @@ LOCALE_ADD_ON = {
         'description': '__MSG_missing_description__',
         'version': '1',
         'default_locale': 'en',
+        # Firefox localizes it, as Tab Rotator's.
+        'homepage_url': '__MSG_homepage__',
         'browser_specific_settings': {'gecko': {'id': 'firefox-locale@oganesson.test'}},
         'background': {'scripts': ['background.js']},
     }),
@@ -426,6 +428,7 @@ LOCALE_ADD_ON = {
         # $HOST$ has no placeholder, as in User-Agent Switcher.
         'greeting': {'message': 'Hello $USER$ from $HOST$.',
                      'placeholders': {'user': {'content': 'you'}}},
+        'homepage': {'message': 'https://example.org/firefox-locale'},
     }),
     'background.js': 'self.started = true;',
 }
@@ -433,8 +436,9 @@ LOCALE_ADD_ON = {
 
 class FirefoxLocaleTest(BrowserTest):
     """Locale files as Firefox reads them: a message name with "-", a
-    placeholder that the message doesn't define, and an unknown message in
-    the manifest. Chromium refuses to load such an add-on."""
+    placeholder that the message doesn't define, an unknown message in the
+    manifest, and a message in homepage_url. Chromium refuses to load such an
+    add-on."""
 
     @classmethod
     def setUpClass(cls):
@@ -461,6 +465,15 @@ class FirefoxLocaleTest(BrowserTest):
             self.assertEqual(background.eval("browser.i18n.getMessage('greeting')"), 'Hello you from .')
             self.assertEqual(background.eval('browser.runtime.getManifest().description'),
                              '__MSG_missing_description__')
+        finally:
+            background.close()
+
+    def test_homepage_url(self):
+        background = self.browser.extension_background(extension_id(self.unpacked))
+        try:
+            wait_for(lambda: background.eval('self.started === true'), what='the background script')
+            self.assertEqual(background.eval('browser.runtime.getManifest().homepage_url'),
+                             'https://example.org/firefox-locale')
         finally:
             background.close()
 
