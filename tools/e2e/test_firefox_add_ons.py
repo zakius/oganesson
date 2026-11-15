@@ -1724,14 +1724,23 @@ class FirefoxContextualIdentitiesTest(BrowserTest):
         try:
             events = wait_for(lambda: (lambda e: len(e) >= 3 and e)(
                 self.background_eval('self.events')), what='the three events')
-            self.assertEqual(sorted(events), [['onCreated', 'firefox-container-test', 'Test'],
-                                              ['onRemoved', 'firefox-container-shopping', 'Shopping'],
-                                              ['onUpdated', 'firefox-container-work', 'Job']])
             self.assertEqual(self.background_eval(
                 "browser.contextualIdentities.get('firefox-container-test').then(c => c.colorCode)"),
                 '#51cd00')
         finally:
             self.set_pref('containers.list', original)
+        # Putting the list back gives the three events the other way round,
+        # and nothing else fires: no event for the same list, none twice.
+        events = wait_for(lambda: (lambda e: len(e) >= 6 and e)(
+            self.background_eval('self.events')), what='the events of putting the list back')
+        self.assertEqual(sorted(events[:3]), [['onCreated', 'firefox-container-test', 'Test'],
+                                              ['onRemoved', 'firefox-container-shopping', 'Shopping'],
+                                              ['onUpdated', 'firefox-container-work', 'Job']])
+        self.assertEqual(sorted(events[3:]), [['onCreated', 'firefox-container-shopping', 'Shopping'],
+                                              ['onRemoved', 'firefox-container-test', 'Test'],
+                                              ['onUpdated', 'firefox-container-work', 'Work']])
+        self.set_pref('containers.list', original)
+        self.assertEqual(len(self.background_eval('self.events')), 6)
         self.assertFalse(self.browser.extension_errors(extension_id(self.unpacked)))
 
     def test_tab_cookie_store_id(self):
@@ -1748,6 +1757,58 @@ class FirefoxContextualIdentitiesTest(BrowserTest):
         self.assertEqual({store for tab, store in after.items() if tab not in before},
                          {'firefox-container-work'})
 
+
+
+# In a new incognito window: its tab's cookieStoreId, and the cookies API on
+# firefox-private and on an ID that is no store.
+PRIVATE_STORE_CALLS = '''(async () => {
+    if (!await browser.extension.isAllowedIncognitoAccess()) {
+        return null;
+    }
+    const error = p => p.then(() => null, e => e.message);
+    const window = await browser.windows.create({incognito: true, url: 'about:blank'});
+    const [tab] = await browser.tabs.query({windowId: window.id});
+    const result = {
+        store: tab.cookieStoreId,
+        cookies: [await error(browser.cookies.getAll({storeId: 'firefox-private'})),
+                  await error(browser.cookies.getAll({storeId: 'firefox-none'}))],
+    };
+    await browser.windows.remove(window.id);
+    return result;
+})()'''
+
+
+class FirefoxPrivateCookieStoreTest(BrowserTest):
+    """With access to incognito windows, which the profile gives it from the
+    start, an incognito tab's cookieStoreId is Firefox's firefox-private, and
+    the cookies API takes it as Chromium's incognito store."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.folder = Path(tempfile.mkdtemp(prefix='oganesson-firefox-private-store-'))
+        xpi = cls.folder / 'add-on.xpi'
+        with zipfile.ZipFile(xpi, 'w') as archive:
+            for name, text in CONTEXTUAL_IDENTITIES_ADD_ON.items():
+                archive.writestr(name, text)
+        cls.unpacked = unpack_xpi(xpi, cls.folder / 'unpacked')
+        cls.browser_args = (f'--load-extension={cls.unpacked}',)
+        cls.prefs = {'extensions': {'settings': {extension_id(cls.unpacked): {'incognito': True}}}}
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(cls.folder)
+
+    def test_private_store(self):
+        background = self.browser.extension_background(extension_id(self.unpacked))
+        try:
+            wait_for(lambda: background.eval('self.started === true'), what='the background script')
+            result = background.eval(PRIVATE_STORE_CALLS)
+        finally:
+            background.close()
+        self.assertEqual(result, {'store': 'firefox-private',
+                                  'cookies': [None, 'Invalid cookie store id: "firefox-none".']})
 
 
 UPDATE_FILTER_ADD_ON = {
