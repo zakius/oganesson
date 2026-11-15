@@ -1496,5 +1496,116 @@ class FirefoxLoadingTabTest(BrowserTest):
         self.assertFalse(self.browser.extension_errors(extension_id(self.unpacked['firefox'])))
 
 
+def window_action_add_on(manifest_version):
+    """An add-on that sets its action's values per window, as Save Screenshot
+    (browserAction, Manifest V2) and Cookie Auto Decline (action, Manifest V3)
+    do."""
+    key = 'browser_action' if manifest_version == 2 else 'action'
+    return {
+        'manifest.json': json.dumps({
+            'manifest_version': manifest_version,
+            'name': f'Firefox window action test add-on {manifest_version}',
+            'version': '1',
+            'browser_specific_settings': {
+                'gecko': {'id': f'firefox-window-action-{manifest_version}@oganesson.test'}},
+            'background': {'scripts': ['background.js']},
+            key: {'default_title': 'Default'},
+        }),
+        'background.js': 'self.started = true;',
+        'page.html': '<!doctype html><p>A page',
+    }
+
+
+WINDOW_ACTION_ADD_ONS = {'mv2': window_action_add_on(2), 'mv3': window_action_add_on(3)}
+
+# Two tabs of one window, one with its own title, and a tab of another window.
+WINDOW_ACTION_CALLS = '''(async () => {
+    const api = browser.browserAction || browser.action;
+    const window1 = await browser.windows.getLastFocused();
+    const [tab1] = await browser.tabs.query({active: true, windowId: window1.id});
+    const own = await browser.tabs.create({windowId: window1.id, url: 'about:blank', active: false});
+    const window2 = await browser.windows.create({url: 'about:blank'});
+    const tab2 = window2.tabs[0];
+    await api.setTitle({title: 'Global'});
+    await api.setTitle({title: 'Window', windowId: window1.id});
+    await api.setTitle({title: 'Own', tabId: own.id});
+    await api.setBadgeText({text: 'W', windowId: window1.id});
+    await api.setIcon({imageData: new ImageData(16, 16), windowId: window1.id});
+    const errors = [];
+    for (const details of [{title: 'Both', tabId: tab1.id, windowId: window1.id},
+                           {title: 'None', windowId: 2147483647}]) {
+        await api.setTitle(details).then(() => errors.push(null), e => errors.push(e.message));
+    }
+    const title = details => api.getTitle(details);
+    const badge = details => api.getBadgeText(details);
+    const result = {
+        titles: [await title({tabId: tab1.id}), await title({tabId: own.id}),
+                 await title({tabId: tab2.id}), await title({windowId: window1.id}),
+                 await title({windowId: window2.id}), await title({})],
+        badges: [await badge({tabId: tab1.id}), await badge({tabId: tab2.id})],
+        errors,
+    };
+    // A navigation resets a tab's own values, not its window's.
+    const loaded = new Promise(resolve => browser.tabs.onUpdated.addListener(
+        function done(id, change) {
+            if (id === own.id && change.status === 'complete') {
+                browser.tabs.onUpdated.removeListener(done);
+                resolve();
+            }
+        }));
+    await browser.tabs.update(own.id, {url: browser.runtime.getURL('page.html')});
+    await loaded;
+    result.navigated = await title({tabId: own.id});
+    await browser.windows.remove(window2.id);
+    await browser.tabs.remove(own.id);
+    return result;
+})()'''
+
+
+class FirefoxWindowActionTest(BrowserTest):
+    """browserAction's and action's setters and getters take Firefox's
+    windowId: a value for the tabs of one window, under a tab's own value
+    and over the global one. Chromium's schemas refused the key."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.folder = Path(tempfile.mkdtemp(prefix='oganesson-firefox-window-action-'))
+        cls.unpacked = {}
+        for name, files in WINDOW_ACTION_ADD_ONS.items():
+            xpi = cls.folder / f'{name}.xpi'
+            with zipfile.ZipFile(xpi, 'w') as archive:
+                for file, text in files.items():
+                    archive.writestr(file, text)
+            cls.unpacked[name] = unpack_xpi(xpi, cls.folder / name)
+        cls.browser_args = ('--load-extension=' + ','.join(str(f) for f in cls.unpacked.values()),)
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(cls.folder)
+
+    def check(self, name):
+        add_on = extension_id(self.unpacked[name])
+        background = self.browser.extension_background(add_on)
+        try:
+            wait_for(lambda: background.eval('self.started === true'), what='the background script')
+            result = background.eval(WINDOW_ACTION_CALLS)
+        finally:
+            background.close()
+        self.assertEqual(result['titles'], ['Window', 'Own', 'Global', 'Window', 'Global', 'Global'])
+        self.assertEqual(result['badges'], ['W', ''])
+        self.assertEqual(result['errors'], ['Only one of tabId and windowId can be specified.',
+                                            'Invalid window ID: 2147483647'])
+        self.assertEqual(result['navigated'], 'Window')
+        self.assertFalse(self.browser.extension_errors(add_on))
+
+    def test_browser_action(self):
+        self.check('mv2')
+
+    def test_action(self):
+        self.check('mv3')
+
+
 if __name__ == '__main__':
     unittest.main()
