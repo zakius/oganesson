@@ -2397,8 +2397,30 @@ class FirefoxGeckoIdOldInstallTest(BrowserTest):
         background = self.browser.extension_background(folder_id)
         try:
             wait_for(lambda: background.eval('self.started === true'), what='the background script')
+            background.eval("browser.storage.local.set({kept: 'before the reload'})")
+            # A reload loads it from its folder again, as chrome://extensions'
+            # Reload does. The page before it has the mark.
+            background.eval('self.beforeReload = true; '
+                            'setTimeout(() => browser.runtime.reload(), 100); true')
         finally:
             background.close()
+
+        def reloaded():
+            try:
+                page = self.browser.extension_background(folder_id, timeout=1)
+            except AssertionError:
+                return None
+            try:
+                if page.eval('self.started === true && self.beforeReload !== true'):
+                    return [page.eval("browser.storage.local.get('kept')")]
+            except (OSError, AssertionError, RuntimeError):
+                pass  # The page before the reload closed meanwhile.
+            finally:
+                page.close()
+            return None
+
+        stored = wait_for(reloaded, what='the reloaded background')[0]
+        self.assertEqual(stored, {'kept': 'before the reload'})
         self.assertFalse([t for t in self.browser.targets() if gecko in t['url']])
 
 
