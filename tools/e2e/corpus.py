@@ -231,8 +231,11 @@ def run_group(items, xpis, work):
             load_error = next((line.split(prefix, 1)[1] for line in log.splitlines()
                                if 'Extension error: ' in line and prefix in line), None)
             info = installed.get(extension)
+            # Its own console lines: another add-on's error may name this
+            # one's page in its message ("Cannot access contents of url").
             uncaught = [console_message(line) for line in log.splitlines()
-                        if 'CONSOLE' in line and f'chrome-extension://{extension}/' in line
+                        if 'CONSOLE' in line
+                        and f'", source: chrome-extension://{extension}/' in line
                         and 'Uncaught' in line and not any(race in line for race in RACES)]
             if info:
                 uncaught += [e['message'] for e in info.get('runtimeErrors', [])
