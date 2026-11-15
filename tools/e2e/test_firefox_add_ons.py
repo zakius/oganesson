@@ -937,8 +937,9 @@ class FirefoxThemeTest(BrowserTest):
         super().tearDownClass()
         shutil.rmtree(cls.folder)
 
-    def set_dark(self):
-        # As the appearance settings' mode menu does.
+    def set_dark(self, background, light_toolbar):
+        """Switches the browser to dark, as the appearance settings' mode menu
+        does, and waits for an onUpdated with another toolbar colour."""
         settings = self.browser.new_tab('chrome://settings/appearance')
         try:
             settings.eval('''(async () => {
@@ -948,6 +949,9 @@ class FirefoxThemeTest(BrowserTest):
                 browserProxyFactory.getInstance().handler.setColorSchemeMode(
                     ColorSchemeMode.kDark);
             })()''')
+            wait_for(lambda: background.eval(
+                f'self.updates.some(u => u.theme.colors.toolbar !== {json.dumps(light_toolbar)})'),
+                what='theme.onUpdated with the dark theme')
         finally:
             self.browser.close_target(settings)
 
@@ -962,12 +966,14 @@ class FirefoxThemeTest(BrowserTest):
                 await browser.theme.getCurrent(987654).catch(e => { error = e.message; });
                 return {theme: await browser.theme.getCurrent(),
                         window: await browser.theme.getCurrent(window.id), error,
+                        // Throws for a permission this browser doesn't know.
+                        permission: await browser.permissions.contains({permissions: ['theme']}),
                         warnings: await browser.management.getPermissionWarningsByManifest(
                             JSON.stringify({manifest_version: 2, name: 'Warnings',
                                             version: '1', permissions: ['theme']}))};
             })()''')
-            self.set_dark()
-            wait_for(lambda: background.eval('self.updates.length > 0'), what='theme.onUpdated')
+            self.assertEqual(background.eval('self.updates'), [])
+            self.set_dark(background, light['theme']['colors']['toolbar'])
             dark = background.eval('''(async () => ({
                 theme: await browser.theme.getCurrent(), updates: self.updates}))()''')
         finally:
@@ -981,7 +987,9 @@ class FirefoxThemeTest(BrowserTest):
         self.assertIsNone(light['theme']['properties'])
         self.assertEqual(light['window'], light['theme'])
         self.assertIn('987654', light['error'])
-        # The permission that theme.update() needs warns of nothing, as in Firefox.
+        # The permission that theme.update() needs is known, not granted here,
+        # and warns of nothing, as in Firefox.
+        self.assertFalse(light['permission'])
         self.assertEqual(light['warnings'], [])
         self.assertGreater(brightness(colors['toolbar']), 0.6)
         self.assertLess(brightness(colors['toolbar_text']), 0.4)
@@ -990,8 +998,8 @@ class FirefoxThemeTest(BrowserTest):
         self.assertLess(brightness(dark_colors['toolbar']), 0.4)
         self.assertGreater(brightness(dark_colors['toolbar_text']), 0.6)
         self.assertLess(brightness(dark_colors['frame']), brightness(colors['frame']))
-        # The update carries the new theme, for no window in particular.
-        self.assertEqual(dark['updates'][-1], {'theme': dark['theme']})
+        # One update, with the new theme, for no window in particular.
+        self.assertEqual(dark['updates'], [{'theme': dark['theme']}])
         self.assertFalse(self.browser.extension_errors(add_on))
 
 if __name__ == '__main__':
