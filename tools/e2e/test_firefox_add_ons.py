@@ -1531,10 +1531,13 @@ WINDOW_ACTION_CALLS = '''(async () => {
     await api.setTitle({title: 'Own', tabId: own.id});
     await api.setBadgeText({text: 'W', windowId: window1.id});
     await api.setIcon({imageData: new ImageData(16, 16), windowId: window1.id});
+    // setIcon goes through a binding of its own, which must pass windowId on.
     const errors = [];
-    for (const details of [{title: 'Both', tabId: tab1.id, windowId: window1.id},
-                           {title: 'None', windowId: 2147483647}]) {
-        await api.setTitle(details).then(() => errors.push(null), e => errors.push(e.message));
+    for (const set of [details => api.setTitle({title: 'Wrong', ...details}),
+                       details => api.setIcon({imageData: new ImageData(16, 16), ...details})]) {
+        for (const details of [{tabId: tab1.id, windowId: window1.id}, {windowId: 2147483647}]) {
+            await set(details).then(() => errors.push(null), e => errors.push(e.message));
+        }
     }
     const title = details => api.getTitle(details);
     const badge = details => api.getBadgeText(details);
@@ -1556,6 +1559,11 @@ WINDOW_ACTION_CALLS = '''(async () => {
     await browser.tabs.update(own.id, {url: browser.runtime.getURL('page.html')});
     await loaded;
     result.navigated = await title({tabId: own.id});
+    // windows.WINDOW_ID_CURRENT: the last focused window, for a background page.
+    await api.setTitle({title: 'Current', windowId: browser.windows.WINDOW_ID_CURRENT});
+    const current = await browser.windows.getCurrent();
+    result.current = [await title({windowId: current.id}),
+                      await title({windowId: browser.windows.WINDOW_ID_CURRENT}), await title({})];
     await browser.windows.remove(window2.id);
     await browser.tabs.remove(own.id);
     return result;
@@ -1596,8 +1604,9 @@ class FirefoxWindowActionTest(BrowserTest):
         self.assertEqual(result['titles'], ['Window', 'Own', 'Global', 'Window', 'Global', 'Global'])
         self.assertEqual(result['badges'], ['W', ''])
         self.assertEqual(result['errors'], ['Only one of tabId and windowId can be specified.',
-                                            'Invalid window ID: 2147483647'])
+                                            'Invalid window ID: 2147483647'] * 2)
         self.assertEqual(result['navigated'], 'Window')
+        self.assertEqual(result['current'], ['Current', 'Current', 'Global'])
         self.assertFalse(self.browser.extension_errors(add_on))
 
     def test_browser_action(self):
