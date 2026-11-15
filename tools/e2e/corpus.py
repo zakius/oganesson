@@ -94,7 +94,9 @@ RACES = ('Receiving end does not exist', 'message channel closed before a respon
 # own pages or another add-on's, and Firefox refuses its about: and other
 # moz-extension: pages as well ("Missing host permission for the tab"). An
 # add-on that scripts every open tab at its start meets the runner's start
-# tab and the other add-ons' pages.
+# tab and the other add-ons' pages. Chromium gives the same messages for the
+# zoom and debugger calls on such a page, which this can't tell apart: for
+# those the score errs high.
 FIREFOX_TOO = ('Cannot access a chrome:// URL',
                'Cannot access a chrome-extension:// URL of different extension')
 
