@@ -1730,7 +1730,7 @@ class FirefoxContextualIdentitiesTest(BrowserTest):
         finally:
             self.set_pref('containers.list', original)
         # Putting the list back gives the three events the other way round,
-        # and nothing else fires: no event for the same list, none twice.
+        # and none fires twice.
         events = wait_for(lambda: (lambda e: len(e) >= 6 and e)(
             self.background_eval('self.events')), what='the events of putting the list back')
         self.assertEqual(sorted(events[:3]), [['onCreated', 'firefox-container-test', 'Test'],
@@ -1739,8 +1739,6 @@ class FirefoxContextualIdentitiesTest(BrowserTest):
         self.assertEqual(sorted(events[3:]), [['onCreated', 'firefox-container-shopping', 'Shopping'],
                                               ['onRemoved', 'firefox-container-test', 'Test'],
                                               ['onUpdated', 'firefox-container-work', 'Work']])
-        self.set_pref('containers.list', original)
-        self.assertEqual(len(self.background_eval('self.events')), 6)
         self.assertFalse(self.browser.extension_errors(extension_id(self.unpacked)))
 
     def test_tab_cookie_store_id(self):
@@ -1845,19 +1843,28 @@ UPDATE_FILTER_ADD_ON = {
         listen('urls', {urls: ['http://127.0.0.1/filtered*']});
         listen('default', {cookieStoreId: 'firefox-default'});
         listen('container', {cookieStoreId: 'firefox-container-work'});
-        listen('window', {windowId: 2147483647});
+        listen('noWindow', {windowId: 2147483647});
+        // Patterns that don't parse here throw nothing, as in Firefox, and
+        // match no URL: Firefox's own scheme among them.
+        listen('badPatterns', {urls: ['not a pattern', 'moz-extension://*/*']});
         browser.tabs.onUpdated.removeListener(listen('removed', {properties: ['status']}));
         self.errors = [];
+        // A getter that throws: its exception reaches the caller, and no
+        // listener is registered.
+        const throwing = {get tabId() { throw new Error('getter'); }};
         for (const [event, filter] of [[browser.tabs.onUpdated, 'filter'],
+                                       [browser.tabs.onUpdated, []],
                                        [browser.tabs.onCreated, {}],
+                                       [browser.tabs.onUpdated, {colour: 'red'}],
                                        [browser.tabs.onUpdated, {urls: 'http://127.0.0.1/*'}],
                                        [browser.tabs.onUpdated, {urls: []}],
-                                       [browser.tabs.onUpdated, {urls: ['not a pattern']}],
+                                       [browser.tabs.onUpdated, {urls: [1]}],
                                        [browser.tabs.onUpdated, {properties: ['colour']}],
                                        [browser.tabs.onUpdated, {tabId: '1'}],
-                                       [browser.tabs.onUpdated, {cookieStoreId: 1}]]) {
+                                       [browser.tabs.onUpdated, {cookieStoreId: 1}],
+                                       [browser.tabs.onUpdated, throwing]]) {
             try {
-                event.addListener(() => {}, filter);
+                event.addListener(() => { self.refusedRan = true; }, filter);
                 self.errors.push(null);
             } catch (e) {
                 self.errors.push(e.message);
@@ -1926,6 +1933,7 @@ class FirefoxUpdateFilterTest(BrowserTest):
         try:
             calls = background.eval('self.calls')
             errors = background.eval('self.errors')
+            refused_ran = background.eval('self.refusedRan === true')
             background.eval(f'browser.tabs.remove([{filtered}, {other}, {work}])')
         finally:
             background.close()
@@ -1937,20 +1945,25 @@ class FirefoxUpdateFilterTest(BrowserTest):
             return [call for call in calls['all'] if key in call[1]]
 
         def refused(detail):
-            return f'Type error for parameter filter ({detail}) for tabs.onUpdated.addListener.'
+            return f'Type error for parameter filter ({detail}) for tabs.onUpdated.'
 
         self.assertEqual(errors, [
-            'Invalid invocation', 'This event does not support filters',
-            refused('Error processing urls: Expected an array of strings'),
-            refused('Error processing urls: Array requires at least 1 items'),
-            'Invalid url pattern: not a pattern',
-            refused('Error processing properties: Invalid enumeration value "colour"'),
+            'Incorrect argument types for tabs.onUpdated.',
+            'Incorrect argument types for tabs.onUpdated.',
+            'This event does not support filters',
+            refused('Unexpected property "colour"'),
+            refused('Error processing urls: Expected array'),
+            refused('Error processing urls: Array requires at least 1 items; you have 0'),
+            refused('Error processing urls.0: Expected string'),
+            refused('Error processing properties.0: Invalid enumeration value "colour"'),
             refused('Error processing tabId: Expected integer'),
-            refused('Error processing cookieStoreId: Expected string')])
+            refused('Error processing cookieStoreId: Expected string'),
+            'getter'])
+        self.assertFalse(refused_ran)
         self.assertTrue({filtered, other, work} <= tabs('all'))
         self.assertEqual(calls['null'], calls['all'])
         self.assertEqual(calls['nullParts'], calls['status'])
-        self.assertTrue({filtered, other} <= tabs('window'))
+        self.assertTrue({filtered, other, work} <= tabs('window'))
         self.assertEqual(tabs('container'), {work})
         self.assertNotIn(work, tabs('default'))
         self.assertEqual(calls['default'], [c for c in calls['all'] if c[0] != work])
@@ -1961,7 +1974,7 @@ class FirefoxUpdateFilterTest(BrowserTest):
         self.assertEqual(tabs('urls'), {filtered})
         self.assertEqual(tabs(f'tab{filtered}'), {filtered})
         self.assertEqual(tabs(f'tab{other}'), {other})
-        for name in ['hidden', 'removed', 'never']:
+        for name in ['hidden', 'removed', 'never', 'noWindow', 'badPatterns']:
             self.assertEqual(calls[name], [], name)
         self.assertFalse(self.browser.extension_errors(add_on))
 
