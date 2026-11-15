@@ -1829,8 +1829,16 @@ UPDATE_FILTER_ADD_ON = {
             browser.tabs.onUpdated.addListener(listener, filter);
             return listener;
         };
+        // A listener that removes one whose filter refuses every update, the
+        // first time it runs: that one must not run for that update either.
+        browser.tabs.onUpdated.addListener(function remover() {
+            browser.tabs.onUpdated.removeListener(self.never);
+            browser.tabs.onUpdated.removeListener(remover);
+        });
+        self.never = listen('never', {tabId: 2147483647});
         listen('all');
         listen('null', null);
+        listen('nullParts', {properties: ['status'], windowId: null, urls: null});
         listen('status', {properties: ['status']});
         listen('title', {properties: ['title']});
         listen('hidden', {properties: ['hidden']});
@@ -1841,7 +1849,13 @@ UPDATE_FILTER_ADD_ON = {
         browser.tabs.onUpdated.removeListener(listen('removed', {properties: ['status']}));
         self.errors = [];
         for (const [event, filter] of [[browser.tabs.onUpdated, 'filter'],
-                                       [browser.tabs.onCreated, {}]]) {
+                                       [browser.tabs.onCreated, {}],
+                                       [browser.tabs.onUpdated, {urls: 'http://127.0.0.1/*'}],
+                                       [browser.tabs.onUpdated, {urls: []}],
+                                       [browser.tabs.onUpdated, {urls: ['not a pattern']}],
+                                       [browser.tabs.onUpdated, {properties: ['colour']}],
+                                       [browser.tabs.onUpdated, {tabId: '1'}],
+                                       [browser.tabs.onUpdated, {cookieStoreId: 1}]]) {
             try {
                 event.addListener(() => {}, filter);
                 self.errors.push(null);
@@ -1900,12 +1914,19 @@ class FirefoxUpdateFilterTest(BrowserTest):
         background = self.browser.extension_background(add_on)
         try:
             wait_for(lambda: background.eval('self.started === true'), what='the background script')
+            window = background.eval('browser.windows.getLastFocused().then(w => w.id)')
+            background.eval(f"self.listen('window', {{windowId: {window}}})")
             urls = [json.dumps(self.server.url(path)) for path in ('/filtered', '/other')]
             filtered = background.eval(f'{UPDATE_FILTER_OPEN}({urls[0]})')
             other = background.eval(f'{UPDATE_FILTER_OPEN}({urls[1]})')
+        finally:
+            background.close()
+        work = self.container_tab(add_on)
+        background = self.browser.extension_background(add_on)
+        try:
             calls = background.eval('self.calls')
             errors = background.eval('self.errors')
-            background.eval(f'browser.tabs.remove([{filtered}, {other}])')
+            background.eval(f'browser.tabs.remove([{filtered}, {other}, {work}])')
         finally:
             background.close()
 
@@ -1915,10 +1936,24 @@ class FirefoxUpdateFilterTest(BrowserTest):
         def with_key(key):
             return [call for call in calls['all'] if key in call[1]]
 
-        self.assertEqual(errors, ['Invalid invocation', 'This event does not support filters'])
-        self.assertTrue({filtered, other} <= tabs('all'))
+        def refused(detail):
+            return f'Type error for parameter filter ({detail}) for tabs.onUpdated.addListener.'
+
+        self.assertEqual(errors, [
+            'Invalid invocation', 'This event does not support filters',
+            refused('Error processing urls: Expected an array of strings'),
+            refused('Error processing urls: Array requires at least 1 items'),
+            'Invalid url pattern: not a pattern',
+            refused('Error processing properties: Invalid enumeration value "colour"'),
+            refused('Error processing tabId: Expected integer'),
+            refused('Error processing cookieStoreId: Expected string')])
+        self.assertTrue({filtered, other, work} <= tabs('all'))
         self.assertEqual(calls['null'], calls['all'])
-        self.assertEqual(calls['default'], calls['all'])
+        self.assertEqual(calls['nullParts'], calls['status'])
+        self.assertTrue({filtered, other} <= tabs('window'))
+        self.assertEqual(tabs('container'), {work})
+        self.assertNotIn(work, tabs('default'))
+        self.assertEqual(calls['default'], [c for c in calls['all'] if c[0] != work])
         self.assertTrue(with_key('status'))
         self.assertEqual(calls['status'], with_key('status'))
         self.assertTrue(with_key('title'))
@@ -1926,9 +1961,45 @@ class FirefoxUpdateFilterTest(BrowserTest):
         self.assertEqual(tabs('urls'), {filtered})
         self.assertEqual(tabs(f'tab{filtered}'), {filtered})
         self.assertEqual(tabs(f'tab{other}'), {other})
-        for name in ['hidden', 'container', 'window', 'removed']:
+        for name in ['hidden', 'removed', 'never']:
             self.assertEqual(calls[name], [], name)
         self.assertFalse(self.browser.extension_errors(add_on))
+
+    def container_tab(self, add_on):
+        """Opens a tab in the Work container, as the user does, loads a page
+        in it from the add-on, and returns its id."""
+        def set_new_tab(container):
+            page = self.browser.new_tab('chrome://settings/containers')
+            try:
+                wait_for(lambda: page.eval('!!chrome.settingsPrivate'), what='Settings')
+                page.eval(f"chrome.settingsPrivate.setPref('containers.new_tab', '{container}')")
+            finally:
+                self.browser.close_target(page)
+
+        background = self.browser.extension_background(add_on)
+        try:
+            before = set(background.eval('browser.tabs.query({}).then(t => t.map(t => t.id))'))
+            set_new_tab('work')
+            try:
+                self.browser.key('ctrl+t')
+                work = wait_for(lambda: next(iter(set(background.eval(
+                    'browser.tabs.query({}).then(t => t.map(t => t.id))')) - before), None),
+                    what='the new tab')
+            finally:
+                set_new_tab('')
+            url = json.dumps(self.server.url('/other'))
+            background.eval(f'''new Promise(resolve => {{
+                browser.tabs.onUpdated.addListener(function loaded(id, change, tab) {{
+                    if (id === {work} && tab.status === 'complete' && tab.title === 'Titled') {{
+                        browser.tabs.onUpdated.removeListener(loaded);
+                        resolve();
+                    }}
+                }});
+                browser.tabs.update({work}, {{url: {url}}});
+            }})''')
+            return work
+        finally:
+            background.close()
 
 
 if __name__ == '__main__':
