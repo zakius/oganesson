@@ -3,6 +3,7 @@ APIs that Chromium lacks, as an add-on from AMO calls them. One test per API,
 each on the same small Manifest V2 add-on, as most of AMO's are. An add-on in
 the profile's firefox_add_ons.named_firefox list is told it runs in Firefox."""
 
+import hashlib
 import json
 import shutil
 import tempfile
@@ -2258,6 +2259,19 @@ GECKO_PEER_ADD_ON = {
         self.started = true;
     """,
 }
+# The same, with a key, which gives its ID: it is reached by its Gecko ID all
+# the same.
+GECKO_KEYED_ADD_ON = {
+    'manifest.json': json.dumps({
+        **json.loads(GECKO_PEER_ADD_ON['manifest.json']),
+        'name': 'Gecko ID keyed test add-on',
+        'applications': {'gecko': {'id': 'keyed@oganesson.test'}},
+        'key': ('MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDJnRbHexNTjRkPiiY/aArVJM+iKGwGLV6K7ivyrBfl1h'
+                'wn8AjDF2aD2+1AsxJ2LeZL8z7FxJ7WPxJAoIyCfMOULQPV9LJ8Pq8egUMcC5YKvZN4rpIuEvLvWdAtwZ'
+                'lcFj6K2+Tlq8b5NE5Aj3BJwfRQVHtfdYj92BuW9zflWZPMDwIDAQAB'),
+    }),
+    'background.js': GECKO_PEER_ADD_ON['background.js'],
+}
 GECKO_ID_CALLS = """(async () => {
     const error = async call => {
         try {
@@ -2269,6 +2283,7 @@ GECKO_ID_CALLS = """(async () => {
     };
     return {
         message: await browser.runtime.sendMessage('%(peer)s', 'ping'),
+        keyed: await browser.runtime.sendMessage('keyed@oganesson.test', 'ping'),
         port: await new Promise(done => {
             const port = browser.runtime.connect('%(peer)s');
             port.onMessage.addListener(done);
@@ -2289,11 +2304,12 @@ class FirefoxGeckoIdTest(BrowserTest):
     def setUpClass(cls):
         cls.folder = Path(tempfile.mkdtemp(prefix='oganesson-firefox-gecko-id-'))
         for name, files in (('first', GECKO_ID_ADD_ON), ('second', GECKO_ID_ADD_ON),
-                            ('peer', GECKO_PEER_ADD_ON)):
+                            ('peer', GECKO_PEER_ADD_ON), ('keyed', GECKO_KEYED_ADD_ON)):
             (cls.folder / name).mkdir()
             for file, text in files.items():
                 (cls.folder / name / file).write_text(text)
-        cls.browser_args = (f'--load-extension={cls.folder / "first"},{cls.folder / "peer"}',)
+        cls.others = f'{cls.folder / "peer"},{cls.folder / "keyed"}'
+        cls.browser_args = (f'--load-extension={cls.folder / "first"},{cls.others}',)
         super().setUpClass()
 
     @classmethod
@@ -2308,6 +2324,7 @@ class FirefoxGeckoIdTest(BrowserTest):
 
     def test_message_by_gecko_id(self):
         self.started(self.folder / 'peer').close()
+        self.started(self.folder / 'keyed').close()
         background = self.started(self.folder / 'first')
         try:
             result = background.eval(GECKO_ID_CALLS)
@@ -2315,6 +2332,7 @@ class FirefoxGeckoIdTest(BrowserTest):
             background.close()
         self.assertEqual(result['message'], 'pong ping')
         self.assertEqual(result['port'], 'pong ping')
+        self.assertEqual(result['keyed'], 'pong ping')
         self.assertIn('Receiving end does not exist', result['absent'])
         self.assertIn("Invalid extension id: 'not an ID'", result['invalid'])
 
@@ -2330,7 +2348,7 @@ class FirefoxGeckoIdTest(BrowserTest):
         self.browser.quit()
         self.browser.args = [arg for arg in self.browser.args
                              if not arg.startswith('--load-extension=')]
-        self.browser.args.append(f'--load-extension={self.folder / "second"},{self.folder / "peer"}')
+        self.browser.args.append(f'--load-extension={self.folder / "second"},{self.others}')
         self.browser.start()
         background = self.started(self.folder / 'second')
         try:
@@ -2340,6 +2358,48 @@ class FirefoxGeckoIdTest(BrowserTest):
         self.assertEqual(stored, {'kept': 'from the first folder'})
         self.assertTrue(self.browser.extension_info(add_on)['prettifiedPath']
                         .endswith('/second'))
+
+
+class FirefoxGeckoIdOldInstallTest(BrowserTest):
+    """An add-on with a Gecko ID installed unpacked before its ID came from
+    the Gecko ID keeps the ID of its folder, and its storage with it."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.folder = Path(tempfile.mkdtemp(prefix='oganesson-firefox-gecko-id-old-'))
+        for file, text in GECKO_ID_ADD_ON.items():
+            (cls.folder / file).write_text(text)
+        cls.browser_args = (f'--load-extension={cls.folder}',)
+        cls.prefs = DEVELOPER_MODE
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(cls.folder)
+
+    def test_old_install_keeps_its_id(self):
+        gecko = extension_id(self.folder)
+        self.browser.extension_background(gecko).close()
+        self.browser.quit()
+        # The install as an earlier version left it: unpacked (location 4),
+        # under the ID of its folder.
+        folder_id = hashlib.sha256(str(self.folder.resolve()).encode()).hexdigest()[:32].translate(
+            str.maketrans('0123456789abcdef', 'abcdefghijklmnop'))
+        preferences = self.browser.profile / 'Default/Preferences'
+        prefs = json.loads(preferences.read_text())
+        settings = prefs['extensions']['settings']
+        settings[folder_id] = {**settings.pop(gecko), 'location': 4}
+        preferences.write_text(json.dumps(prefs))
+        self.browser.args = [arg for arg in self.browser.args
+                             if not arg.startswith('--load-extension=')]
+        self.browser.start()
+        background = self.browser.extension_background(folder_id)
+        try:
+            wait_for(lambda: background.eval('self.started === true'), what='the background script')
+        finally:
+            background.close()
+        self.assertFalse([t for t in self.browser.targets() if gecko in t['url']])
 
 
 BOOKMARK_IDS_ADD_ON = {

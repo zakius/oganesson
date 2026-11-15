@@ -169,7 +169,9 @@ def gecko_id(manifest):
     """The Gecko ID in `manifest` that the browser takes the extension ID
     from, or None."""
     for key in ('browser_specific_settings', 'applications'):
-        found = ((manifest.get(key) or {}).get('gecko') or {}).get('id')
+        found = manifest.get(key)
+        found = found.get('gecko') if isinstance(found, dict) else None
+        found = found.get('id') if isinstance(found, dict) else None
         if isinstance(found, str):
             return found if GECKO_ID.fullmatch(found) else None
     return None
