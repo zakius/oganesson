@@ -880,5 +880,119 @@ class FirefoxBrowserSettingsTest(BrowserTest):
         self.assertFalse(self.browser.extension_errors(add_on))
 
 
+
+THEME_ADD_ON = {
+    'manifest.json': json.dumps({
+        'manifest_version': 2,
+        'name': 'Firefox theme test add-on',
+        'version': '1',
+        'browser_specific_settings': {'gecko': {'id': 'firefox-theme@oganesson.test'}},
+        'background': {'scripts': ['background.js']},
+        # As in Firefox, reading the theme needs no permission.
+    }),
+    'background.js': '''
+        // As Save Screenshot and Playback Speed listen, at startup.
+        self.updates = [];
+        browser.theme.onUpdated.addListener(info => self.updates.push(info));
+        self.started = true;
+    ''',
+}
+
+# Firefox's colour keys that the theme gives.
+THEME_COLORS = {
+    'frame', 'frame_inactive', 'tab_background_text', 'tab_background_separator',
+    'tab_selected', 'tab_text', 'toolbar', 'toolbar_text', 'toolbar_top_separator', 'icons',
+    'toolbar_field', 'toolbar_field_text', 'toolbar_field_border', 'popup', 'popup_text',
+    'popup_highlight', 'popup_highlight_text', 'sidebar', 'ntp_background', 'ntp_text',
+}
+
+
+def brightness(color):
+    """The brightness, 0 to 1, of a colour as #rrggbb."""
+    red, green, blue = (int(color[i:i + 2], 16) / 255 for i in (1, 3, 5))
+    return 0.2126 * red + 0.7152 * green + 0.0722 * blue
+
+
+class FirefoxThemeTest(BrowserTest):
+    """Firefox's theme API, read-only: getCurrent() gives the colours of the
+    browser's theme in Firefox's key names, for the last focused window or a
+    given one, and onUpdated fires with the new colours when the browser
+    switches from light to dark. Images and properties are null, as in
+    Firefox's empty theme."""
+    prefs = {**DEVELOPER_MODE, 'browser': {'theme': {'color_scheme2': 1}}}  # Light.
+
+    @classmethod
+    def setUpClass(cls):
+        cls.folder = Path(tempfile.mkdtemp(prefix='oganesson-firefox-theme-'))
+        xpi = cls.folder / 'add-on.xpi'
+        with zipfile.ZipFile(xpi, 'w') as archive:
+            for name, text in THEME_ADD_ON.items():
+                archive.writestr(name, text)
+        cls.unpacked = unpack_xpi(xpi, cls.folder / 'unpacked')
+        cls.browser_args = (f'--load-extension={cls.unpacked}',)
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(cls.folder)
+
+    def set_dark(self):
+        # As the appearance settings' mode menu does.
+        settings = self.browser.new_tab('chrome://settings/appearance')
+        try:
+            settings.eval('''(async () => {
+                const {browserProxyFactory, ColorSchemeMode} = await import(
+                    'chrome://resources/cr_components/customize_color_scheme_mode/' +
+                    'customize_color_scheme_mode.mojom-webui.js');
+                browserProxyFactory.getInstance().handler.setColorSchemeMode(
+                    ColorSchemeMode.kDark);
+            })()''')
+        finally:
+            self.browser.close_target(settings)
+
+    def test_theme(self):
+        add_on = extension_id(self.unpacked)
+        background = self.browser.extension_background(add_on)
+        try:
+            wait_for(lambda: background.eval('self.started === true'), what='the background script')
+            light = background.eval('''(async () => {
+                const window = await browser.windows.getLastFocused();
+                let error;
+                await browser.theme.getCurrent(987654).catch(e => { error = e.message; });
+                return {theme: await browser.theme.getCurrent(),
+                        window: await browser.theme.getCurrent(window.id), error,
+                        warnings: await browser.management.getPermissionWarningsByManifest(
+                            JSON.stringify({manifest_version: 2, name: 'Warnings',
+                                            version: '1', permissions: ['theme']}))};
+            })()''')
+            self.set_dark()
+            wait_for(lambda: background.eval('self.updates.length > 0'), what='theme.onUpdated')
+            dark = background.eval('''(async () => ({
+                theme: await browser.theme.getCurrent(), updates: self.updates}))()''')
+        finally:
+            background.close()
+
+        colors = light['theme']['colors']
+        self.assertEqual(set(colors), THEME_COLORS)
+        for name, color in colors.items():
+            self.assertRegex(color, r'^(#[0-9a-f]{6}|rgba\(\d+, \d+, \d+, [0-9.]+\))$', name)
+        self.assertIsNone(light['theme']['images'])
+        self.assertIsNone(light['theme']['properties'])
+        self.assertEqual(light['window'], light['theme'])
+        self.assertIn('987654', light['error'])
+        # The permission that theme.update() needs warns of nothing, as in Firefox.
+        self.assertEqual(light['warnings'], [])
+        self.assertGreater(brightness(colors['toolbar']), 0.6)
+        self.assertLess(brightness(colors['toolbar_text']), 0.4)
+
+        dark_colors = dark['theme']['colors']
+        self.assertLess(brightness(dark_colors['toolbar']), 0.4)
+        self.assertGreater(brightness(dark_colors['toolbar_text']), 0.6)
+        self.assertLess(brightness(dark_colors['frame']), brightness(colors['frame']))
+        # The update carries the new theme, for no window in particular.
+        self.assertEqual(dark['updates'][-1], {'theme': dark['theme']})
+        self.assertFalse(self.browser.extension_errors(add_on))
+
 if __name__ == '__main__':
     unittest.main()
