@@ -2042,14 +2042,23 @@ PROXY_ADD_ON = {
                 case 'rejected.test': return Promise.reject(new Error('no proxy today'));
                 case 'string.test': return 'DIRECT';
                 case 'socket.test': return proxy;
+                case 'kept.test': return proxy;
+                case 'nulled.test': return proxy;
+                case 'later.test': return proxy;
+                case 'ended.test': return [proxy, null, {type: 'gopher'}];
                 default: return {type: 'direct'};
             }
         };
         self.onlyPromised = details => { self.filtered.push(details.url); };
-        // Asked after self.answer: as in Firefox, its answer replaces that one.
+        // Asked after self.answer, and builds on its answer, as in Firefox:
+        // a proxy replaces it, direct keeps it, null is a direct connection,
+        // and one Firefox refuses changes nothing.
         self.last = details => {
-            if (new URL(details.url).hostname === 'last.test') {
-                return {type: 'http', host: '127.0.0.1', port: self.port};
+            switch (new URL(details.url).hostname) {
+                case 'last.test': return {type: 'http', host: '127.0.0.1', port: self.port};
+                case 'kept.test': return {type: 'direct'};
+                case 'nulled.test': return null;
+                case 'later.test': return {type: 'gopher'};
             }
         };
         // A request's type, tab and window aren't known: they filter nothing.
@@ -2087,11 +2096,11 @@ def title(page):
 
 
 class FirefoxProxyTest(BrowserTest):
-    """Firefox's proxy.onRequest and proxy.onError: a listener's answer, a
-    ProxyInfo, a list of them or a promise of either, decides the proxy of a
-    request, as far as its filter's URLs reach. An answer Firefox refuses, or
-    a promise that rejects, goes to proxy.onError as an Error, and the request
-    goes as the browser's settings say. The last listener's answer decides,
+    """Firefox's proxy.onRequest and proxy.onError: listeners' answers, a
+    ProxyInfo, a list of them, null or a promise of these, decide the proxy of
+    a request, as far as their filters' URLs reach. Each answer builds on the
+    one before, as in Firefox. An answer Firefox refuses, or a promise that
+    rejects, goes to proxy.onError as an Error and changes nothing.
     WebSockets are asked about too, and a filter's types, tabId and windowId,
     which aren't known of a request, filter nothing. Without listeners,
     nothing is asked."""
@@ -2138,12 +2147,17 @@ class FirefoxProxyTest(BrowserTest):
             rejected = background.eval(f'{PROXY_FETCH}("http://rejected.test/page")')
             string = background.eval(f'{PROXY_FETCH}("http://string.test/page")')
             last = background.eval(f'{PROXY_FETCH}("http://last.test/page")')
+            kept = background.eval(f'{PROXY_FETCH}("http://kept.test/page")')
+            nulled = background.eval(f'{PROXY_FETCH}("http://nulled.test/page")')
+            later = background.eval(f'{PROXY_FETCH}("http://later.test/page")')
+            # A null in a list ends it: what follows isn't read.
+            ended = background.eval(f'{PROXY_FETCH}("http://ended.test/page")')
             # The proxy doesn't speak WebSocket: only the question counts.
             background.eval('''new Promise(done => {
                 const socket = new WebSocket('ws://socket.test/chat');
                 socket.onerror = socket.onclose = () => done();
             })''')
-            wait_for(lambda: len(background.eval('self.errors')) == 3, what='proxy.onError')
+            wait_for(lambda: len(background.eval('self.errors')) == 4, what='proxy.onError')
             seen = background.eval('self.seen')
             filtered = background.eval('self.filtered')
             errors = background.eval('self.errors')
@@ -2165,16 +2179,19 @@ class FirefoxProxyTest(BrowserTest):
 
         self.assertEqual(proxied_host, 'proxied.test')
         self.assertTrue(promised.endswith('</title>proxied'), promised)
-        self.assertTrue(last.endswith('</title>proxied'), last)
-        self.assertEqual(self.proxy.headers['/page']['Host'], 'last.test')
-        self.assertEqual(pages, 3)
+        for text in (last, kept, later, ended):
+            self.assertTrue(text.endswith('</title>proxied'), text)
+        self.assertTrue(nulled.startswith('failed'), nulled)
+        self.assertEqual(self.proxy.headers['/page']['Host'], 'ended.test')
+        self.assertEqual(pages, 6)
         self.assertTrue(refused.startswith('failed'), refused)
         self.assertTrue(rejected.startswith('failed'), rejected)
         self.assertTrue(string.startswith('failed'), string)
         self.assertEqual(errors, [
             [True, 'ProxyInfoData: Invalid proxy server type: "gopher"'],
             [True, 'no proxy today'],
-            [True, 'ProxyInfoData: proxyData must be an object or array of objects']])
+            [True, 'ProxyInfoData: proxyData must be an object or array of objects'],
+            [True, 'ProxyInfoData: Invalid proxy server type: "gopher"']])
         self.assertIn('ws://socket.test/chat', [d['url'] for d in seen])
         self.assertIn('http://proxied.test/page', typed)
         self.assertEqual(filtered, ['http://promised.test/page'])
