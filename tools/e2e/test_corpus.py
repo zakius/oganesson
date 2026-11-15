@@ -33,6 +33,12 @@ ADDONS = {
     'names-another': (BACKGROUND_MV2,
                       f"throw new Error('cannot reach chrome-extension://{KEYED_ID}/page.html');",
                       'L1'),
+    # Chromium's refusal of another add-on's page, which Firefox refuses too,
+    # and of its own page, which Firefox allows.
+    'other-add-on-page': (BACKGROUND_MV2, 'throw new Error(\'Cannot access contents of url '
+                          f'"chrome-extension://{KEYED_ID}/page.html".\');', 'L3'),
+    'own-page': (BACKGROUND_MV2, 'throw new Error(\'Cannot access contents of url '
+                 '"chrome-extension://\' + chrome.runtime.id + \'/page.html".\');', 'L1'),
     # A dotted permission that Chromium has.
     'dotted-permission': ({**BACKGROUND_MV2, 'permissions': ['downloads', 'downloads.open']},
                           'self.started = true;', 'L3'),

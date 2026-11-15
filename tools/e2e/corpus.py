@@ -113,6 +113,8 @@ RACES = ('Receiving end does not exist', 'message channel closed before a respon
 # those the score errs high.
 FIREFOX_TOO = ('Cannot access a chrome:// URL',
                'Cannot access a chrome-extension:// URL of different extension')
+# Chromium's other message for another add-on's page, which names it.
+OTHER_ADD_ON_PAGE = re.compile(r'Cannot access contents of url "chrome-extension://([a-p]{32})/')
 # The smoke check's page for content scripts that run on every site, and the
 # page served at every URL of its tabs.
 EVERY_SITE = 'https://example.com/'
@@ -125,9 +127,12 @@ PINNED = 8
 POPUP = 5
 
 
-def counts(message):
-    """Whether an uncaught error counts against the add-on's level."""
-    return 'Uncaught' in message and not any(text in message for text in RACES + FIREFOX_TOO)
+def counts(message, extension):
+    """Whether an uncaught error counts against the level of the add-on
+    `extension`."""
+    other_page = OTHER_ADD_ON_PAGE.search(message)
+    return ('Uncaught' in message and not any(text in message for text in RACES + FIREFOX_TOO)
+            and not (other_page and other_page[1] != extension))
 
 
 def feature_file(path):
@@ -386,10 +391,10 @@ def uncaught_errors(extension, log, info):
     # in its message ("Cannot access contents of url").
     found = [console_message(line) for line in log.splitlines()
              if 'CONSOLE' in line and f'", source: chrome-extension://{extension}/' in line
-             and counts(line)]
+             and counts(line, extension)]
     if info:
         found += [e['message'] for e in info.get('runtimeErrors', [])
-                  if counts(e['message'])]
+                  if counts(e['message'], extension)]
     return found
 
 
