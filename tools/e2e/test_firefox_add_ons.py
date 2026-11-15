@@ -111,6 +111,15 @@ class FirefoxAddOnsTest(BrowserTest):
         self.click_page_menu_item()
         self.assertEqual(self.background_eval('self.clicked'), 'firefox-item')
 
+    def test_menus_is_context_menus(self):
+        # The same object under both names. An add-on that reaches both, as
+        # DuckDuckGo Privacy Essentials does, stopped at the second name.
+        same = self.background_eval('''new Promise(done => {
+            const same = browser.contextMenus === browser.menus && chrome.menus === browser.menus;
+            setTimeout(() => done(same), 0);
+        })''')
+        self.assertTrue(same)
+
     def test_menus_firefox_properties(self):
         # Firefox's item icons and the contexts this browser doesn't offer:
         # create and update take them, the item shows in its other contexts,
