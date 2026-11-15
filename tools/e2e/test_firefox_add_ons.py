@@ -1149,5 +1149,66 @@ class FirefoxBadgeTextColorTest(BrowserTest):
         self.assertFalse(self.browser.extension_errors(add_on))
 
 
+PEER_CONNECTION_ADD_ON = {
+    'manifest.json': json.dumps({
+        'manifest_version': 2,
+        'name': 'Firefox peerConnectionEnabled test add-on',
+        'version': '1',
+        'browser_specific_settings': {'gecko': {'id': 'firefox-peer-connection@oganesson.test'}},
+        'background': {'scripts': ['background.js']},
+        'permissions': ['privacy'],
+    }),
+    'background.js': '''
+        // As Happy Bonobo Disable WebRTC does, at startup.
+        (async () => {
+            try {
+                self.setResult = await browser.privacy.network.peerConnectionEnabled.set({value: false});
+            } catch (error) {
+                self.error = error.message;
+            }
+            self.started = true;
+        })();
+    ''',
+}
+
+
+class FirefoxPeerConnectionTest(BrowserTest):
+    """Firefox's privacy.network.peerConnectionEnabled, read-only: get() gives
+    true, and set() and clear() change nothing and resolve without a value."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.folder = Path(tempfile.mkdtemp(prefix='oganesson-firefox-peer-connection-'))
+        xpi = cls.folder / 'add-on.xpi'
+        with zipfile.ZipFile(xpi, 'w') as archive:
+            for name, text in PEER_CONNECTION_ADD_ON.items():
+                archive.writestr(name, text)
+        cls.unpacked = unpack_xpi(xpi, cls.folder / 'unpacked')
+        cls.browser_args = (f'--load-extension={cls.unpacked}',)
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(cls.folder)
+
+    def test_peer_connection_enabled(self):
+        add_on = extension_id(self.unpacked)
+        background = self.browser.extension_background(add_on)
+        try:
+            wait_for(lambda: background.eval('self.started === true'), what='the background script')
+            result = background.eval('''(async () => {
+                const setting = browser.privacy.network.peerConnectionEnabled;
+                return {error: self.error ?? null, set: self.setResult === undefined,
+                        get: await setting.get({}),
+                        clear: (await setting.clear({})) === undefined};
+            })()''')
+        finally:
+            background.close()
+        self.assertEqual(result, {'error': None, 'set': True, 'clear': True,
+                                  'get': {'value': True, 'levelOfControl': 'not_controllable'}})
+        self.assertFalse(self.browser.extension_errors(add_on))
+
+
 if __name__ == '__main__':
     unittest.main()
