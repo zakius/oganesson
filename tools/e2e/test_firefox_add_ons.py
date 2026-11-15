@@ -1623,5 +1623,132 @@ class FirefoxWindowActionTest(BrowserTest):
         self.check('mv3')
 
 
+CONTEXTUAL_IDENTITIES_ADD_ON = {
+    'manifest.json': json.dumps({
+        'manifest_version': 2,
+        'name': 'Firefox contextualIdentities test add-on',
+        'version': '1',
+        'browser_specific_settings': {'gecko': {'id': 'firefox-identities@oganesson.test'}},
+        'background': {'scripts': ['background.js']},
+        'permissions': ['contextualIdentities', 'cookies', 'tabs', 'http://127.0.0.1/*'],
+    }),
+    'background.js': '''
+        self.events = [];
+        for (const name of ['onCreated', 'onUpdated', 'onRemoved']) {
+            browser.contextualIdentities[name].addListener(
+                ({contextualIdentity: c}) => self.events.push([name, c.cookieStoreId, c.name]));
+        }
+        self.started = true;
+    ''',
+}
+
+CONTEXTUAL_IDENTITIES_CALLS = '''(async () => {
+    const error = p => p.then(() => null, e => e.message);
+    return {
+        all: await browser.contextualIdentities.query({}),
+        named: await browser.contextualIdentities.query({name: 'Work'}),
+        work: await browser.contextualIdentities.get('firefox-container-work'),
+        errors: [await error(browser.contextualIdentities.get('firefox-container-none')),
+                 await error(browser.contextualIdentities.get('firefox-default'))],
+        // The cookies API takes Firefox's IDs of its two stores.
+        cookies: [await error(browser.cookies.getAll({storeId: 'firefox-default'})),
+                  await error(browser.cookies.getAll({storeId: 'firefox-private'}))],
+    };
+})()'''
+
+
+class FirefoxContextualIdentitiesTest(BrowserTest):
+    """Firefox's contextualIdentities, the read side: query() and get() give
+    the browser's containers in Firefox's shape, the events follow the user's
+    list, and tabs carry Firefox's cookieStoreId."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.folder = Path(tempfile.mkdtemp(prefix='oganesson-firefox-identities-'))
+        xpi = cls.folder / 'add-on.xpi'
+        with zipfile.ZipFile(xpi, 'w') as archive:
+            for name, text in CONTEXTUAL_IDENTITIES_ADD_ON.items():
+                archive.writestr(name, text)
+        cls.unpacked = unpack_xpi(xpi, cls.folder / 'unpacked')
+        cls.browser_args = (f'--load-extension={cls.unpacked}',)
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(cls.folder)
+
+    def background_eval(self, js):
+        background = self.browser.extension_background(extension_id(self.unpacked))
+        try:
+            wait_for(lambda: background.eval('self.started === true'), what='the background script')
+            return background.eval(js)
+        finally:
+            background.close()
+
+    def settings_eval(self, js):
+        page = self.browser.new_tab('chrome://settings/containers')
+        try:
+            wait_for(lambda: page.eval('!!chrome.settingsPrivate'), what='Settings')
+            return page.eval(js)
+        finally:
+            self.browser.close_target(page)
+
+    def set_pref(self, name, value):
+        self.settings_eval(f'chrome.settingsPrivate.setPref({json.dumps(name)}, {json.dumps(value)})')
+
+    def test_query_get_and_events(self):
+        result = self.background_eval(CONTEXTUAL_IDENTITIES_CALLS)
+        self.assertEqual([c['cookieStoreId'] for c in result['all']],
+                         ['firefox-container-personal', 'firefox-container-work',
+                          'firefox-container-banking', 'firefox-container-shopping'])
+        self.assertEqual(result['all'][0], {
+            'name': 'Personal', 'icon': 'fingerprint',
+            'iconUrl': 'resource://usercontext-content/fingerprint.svg',
+            'color': 'blue', 'colorCode': '#37adff',
+            'cookieStoreId': 'firefox-container-personal'})
+        self.assertEqual(result['named'], [result['work']])
+        self.assertEqual(result['work']['colorCode'], '#ff9f00')
+        self.assertEqual(result['errors'], ['Invalid contextual identity: firefox-container-none',
+                                            'Invalid contextual identity: firefox-default'])
+        # The add-on may not reach incognito windows, as in Chromium.
+        self.assertEqual(result['cookies'],
+                         [None, 'Invalid cookie store id: "firefox-private".'])
+
+        original = self.settings_eval(
+            "chrome.settingsPrivate.getPref('containers.list').then(p => p.value)")
+        changed = [dict(c, name='Job') if c['id'] == 'work' else c
+                   for c in original if c['id'] != 'shopping']
+        changed.append({'id': 'test', 'name': 'Test', 'icon': 'tree', 'color': 'green'})
+        self.set_pref('containers.list', changed)
+        try:
+            events = wait_for(lambda: (lambda e: len(e) >= 3 and e)(
+                self.background_eval('self.events')), what='the three events')
+            self.assertEqual(sorted(events), [['onCreated', 'firefox-container-test', 'Test'],
+                                              ['onRemoved', 'firefox-container-shopping', 'Shopping'],
+                                              ['onUpdated', 'firefox-container-work', 'Job']])
+            self.assertEqual(self.background_eval(
+                "browser.contextualIdentities.get('firefox-container-test').then(c => c.colorCode)"),
+                '#51cd00')
+        finally:
+            self.set_pref('containers.list', original)
+        self.assertFalse(self.browser.extension_errors(extension_id(self.unpacked)))
+
+    def test_tab_cookie_store_id(self):
+        tabs = 'browser.tabs.query({}).then(t => t.map(t => [t.id, t.cookieStoreId]))'
+        before = dict(self.background_eval(tabs))
+        self.set_pref('containers.new_tab', 'work')
+        try:
+            self.browser.key('ctrl+t')
+            after = wait_for(lambda: (lambda t: len(t) > len(before) and t)(
+                dict(self.background_eval(tabs))), what='the new tab')
+        finally:
+            self.set_pref('containers.new_tab', '')
+        self.assertEqual(set(before.values()), {'firefox-default'})
+        self.assertEqual({store for tab, store in after.items() if tab not in before},
+                         {'firefox-container-work'})
+
+
+
 if __name__ == '__main__':
     unittest.main()
