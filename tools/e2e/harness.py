@@ -160,16 +160,37 @@ def unpack_xpi(xpi, folder):
     return Path(folder)
 
 
+# Firefox's pattern for an add-on ID (dubna's firefox_gecko_id.cc).
+GECKO_ID = re.compile(r'\{[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\}'
+                      r'|[a-z0-9-._]*@[a-z0-9-._]+', re.IGNORECASE)
+
+
+def gecko_id(manifest):
+    """The Gecko ID in `manifest` that the browser takes the extension ID
+    from, or None."""
+    for key in ('browser_specific_settings', 'applications'):
+        found = ((manifest.get(key) or {}).get('gecko') or {}).get('id')
+        if isinstance(found, str):
+            return found if GECKO_ID.fullmatch(found) else None
+    return None
+
+
 def extension_id(folder):
     """The ID of the add-on loaded with --load-extension=`folder`, as Chromium
     makes it (crx_file::id_util): from the public key in the manifest's "key",
-    or else from the folder's absolute path, the first 16 bytes of its SHA-256
-    in hex, with the letters a to p for the digits."""
+    or else from its Gecko ID (gecko_id()), or else from the folder's absolute
+    path, the first 16 bytes of the SHA-256 in hex, with the letters a to p for
+    the digits."""
     try:
-        key = json.loads((Path(folder) / 'manifest.json').read_text(encoding='utf-8-sig'))['key']
-        source = base64.b64decode(key, validate=True)
-    except (OSError, ValueError, KeyError, TypeError):
-        source = str(Path(folder).resolve()).encode()
+        manifest = json.loads((Path(folder) / 'manifest.json').read_text(encoding='utf-8-sig'))
+    except (OSError, ValueError):
+        manifest = {}
+    manifest = manifest if isinstance(manifest, dict) else {}
+    try:
+        source = base64.b64decode(manifest['key'], validate=True)
+    except (ValueError, KeyError, TypeError):
+        found = gecko_id(manifest)
+        source = (found or str(Path(folder).resolve())).encode()
     digest = hashlib.sha256(source).hexdigest()[:32]
     return digest.translate(str.maketrans('0123456789abcdef', 'abcdefghijklmnop'))
 

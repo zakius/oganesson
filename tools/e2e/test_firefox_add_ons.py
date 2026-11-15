@@ -2216,5 +2216,122 @@ class FirefoxProxyTest(BrowserTest):
         self.assertFalse(self.browser.extension_errors(add_on))
 
 
+GECKO_ID = 'gecko-id@oganesson.test'
+PEER_GECKO_ID = '{6c3e1f0a-8b2d-4e5f-9a7b-1c2d3e4f5a6b}'
+GECKO_ID_ADD_ON = {
+    'manifest.json': json.dumps({
+        'manifest_version': 2,
+        'name': 'Gecko ID test add-on',
+        'version': '1',
+        'browser_specific_settings': {'gecko': {'id': GECKO_ID}},
+        'background': {'scripts': ['background.js']},
+        'permissions': ['storage'],
+    }),
+    'background.js': 'self.started = true;',
+}
+# An add-on that answers others by message and by port, as DeArrow answers
+# SponsorBlock.
+GECKO_PEER_ADD_ON = {
+    'manifest.json': json.dumps({
+        'manifest_version': 2,
+        'name': 'Gecko ID peer test add-on',
+        'version': '1',
+        'applications': {'gecko': {'id': PEER_GECKO_ID}},
+        'background': {'scripts': ['background.js']},
+    }),
+    'background.js': """
+        browser.runtime.onMessageExternal.addListener((message, sender, respond) => {
+            respond('pong ' + message);
+        });
+        browser.runtime.onConnectExternal.addListener(port => {
+            port.onMessage.addListener(message => port.postMessage('pong ' + message));
+        });
+        self.started = true;
+    """,
+}
+GECKO_ID_CALLS = """(async () => {
+    const error = async call => {
+        try {
+            await call();
+            return null;
+        } catch (e) {
+            return e.message;
+        }
+    };
+    return {
+        message: await browser.runtime.sendMessage('%(peer)s', 'ping'),
+        port: await new Promise(done => {
+            const port = browser.runtime.connect('%(peer)s');
+            port.onMessage.addListener(done);
+            port.postMessage('ping');
+        }),
+        absent: await error(() => browser.runtime.sendMessage('absent@oganesson.test', 'ping')),
+        invalid: await error(() => browser.runtime.sendMessage('not an ID', 'ping')),
+    };
+})()""" % {'peer': PEER_GECKO_ID}
+
+
+class FirefoxGeckoIdTest(BrowserTest):
+    """An add-on takes its ID from its Gecko ID, so the same add-on loaded
+    from another folder is the same extension, with its storage, and other
+    add-ons reach it by its Gecko ID, as in Firefox."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.folder = Path(tempfile.mkdtemp(prefix='oganesson-firefox-gecko-id-'))
+        for name, files in (('first', GECKO_ID_ADD_ON), ('second', GECKO_ID_ADD_ON),
+                            ('peer', GECKO_PEER_ADD_ON)):
+            (cls.folder / name).mkdir()
+            for file, text in files.items():
+                (cls.folder / name / file).write_text(text)
+        cls.browser_args = (f'--load-extension={cls.folder / "first"},{cls.folder / "peer"}',)
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(cls.folder)
+
+    def started(self, folder):
+        background = self.browser.extension_background(extension_id(folder))
+        wait_for(lambda: background.eval('self.started === true'), what='the background script')
+        return background
+
+    def test_message_by_gecko_id(self):
+        self.started(self.folder / 'peer').close()
+        background = self.started(self.folder / 'first')
+        try:
+            result = background.eval(GECKO_ID_CALLS)
+        finally:
+            background.close()
+        self.assertEqual(result['message'], 'pong ping')
+        self.assertEqual(result['port'], 'pong ping')
+        self.assertIn('Receiving end does not exist', result['absent'])
+        self.assertIn("Invalid extension id: 'not an ID'", result['invalid'])
+
+    def test_reinstall_keeps_id_and_storage(self):
+        # Not the ID of either folder's path.
+        add_on = extension_id(self.folder / 'first')
+        self.assertEqual(add_on, extension_id(self.folder / 'second'))
+        background = self.started(self.folder / 'first')
+        try:
+            background.eval("browser.storage.local.set({kept: 'from the first folder'})")
+        finally:
+            background.close()
+        self.browser.quit()
+        self.browser.args = [arg for arg in self.browser.args
+                             if not arg.startswith('--load-extension=')]
+        self.browser.args.append(f'--load-extension={self.folder / "second"},{self.folder / "peer"}')
+        self.browser.start()
+        background = self.started(self.folder / 'second')
+        try:
+            stored = background.eval("browser.storage.local.get('kept')")
+        finally:
+            background.close()
+        self.assertEqual(stored, {'kept': 'from the first folder'})
+        self.assertTrue(self.browser.extension_info(add_on)['prettifiedPath']
+                        .endswith('/second'))
+
+
 if __name__ == '__main__':
     unittest.main()
