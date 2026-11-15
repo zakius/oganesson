@@ -1750,5 +1750,125 @@ class FirefoxContextualIdentitiesTest(BrowserTest):
 
 
 
+UPDATE_FILTER_ADD_ON = {
+    'manifest.json': json.dumps({
+        'manifest_version': 2,
+        'name': 'Firefox tabs.onUpdated filter test add-on',
+        'version': '1',
+        'browser_specific_settings': {'gecko': {'id': 'firefox-update-filter@oganesson.test'}},
+        'background': {'scripts': ['background.js']},
+        'permissions': ['tabs', 'http://127.0.0.1/*'],
+    }),
+    # Each listener records the updates it gets: the tab's id and the changes.
+    'background.js': '''
+        self.calls = {};
+        self.listen = (name, filter) => {
+            self.calls[name] = [];
+            const listener = (id, change) => self.calls[name].push([id, Object.keys(change)]);
+            browser.tabs.onUpdated.addListener(listener, filter);
+            return listener;
+        };
+        listen('all');
+        listen('null', null);
+        listen('status', {properties: ['status']});
+        listen('title', {properties: ['title']});
+        listen('hidden', {properties: ['hidden']});
+        listen('urls', {urls: ['http://127.0.0.1/filtered*']});
+        listen('default', {cookieStoreId: 'firefox-default'});
+        listen('container', {cookieStoreId: 'firefox-container-work'});
+        listen('window', {windowId: 2147483647});
+        browser.tabs.onUpdated.removeListener(listen('removed', {properties: ['status']}));
+        self.errors = [];
+        for (const [event, filter] of [[browser.tabs.onUpdated, 'filter'],
+                                       [browser.tabs.onCreated, {}]]) {
+            try {
+                event.addListener(() => {}, filter);
+                self.errors.push(null);
+            } catch (e) {
+                self.errors.push(e.message);
+            }
+        }
+        self.started = true;
+    ''',
+}
+
+# Opens a tab on `url`, with a listener for its id alone, and waits until it
+# has loaded with its title.
+UPDATE_FILTER_OPEN = '''(async url => {
+    const tab = await browser.tabs.create({url: 'about:blank', active: false});
+    self.listen('tab' + tab.id, {tabId: tab.id});
+    const done = new Promise(resolve => browser.tabs.onUpdated.addListener(
+        function loaded(id, change, updated) {
+            if (id === tab.id && updated.status === 'complete' && updated.title === 'Titled') {
+                browser.tabs.onUpdated.removeListener(loaded);
+                resolve();
+            }
+        }));
+    await browser.tabs.update(tab.id, {url});
+    await done;
+    return tab.id;
+})'''
+
+
+class FirefoxUpdateFilterTest(BrowserTest):
+    """Firefox's filter of tabs.onUpdated: a listener runs only for the
+    updates that match its urls, properties, tabId, windowId and
+    cookieStoreId. Chromium threw "This event does not support filters"."""
+
+    @classmethod
+    def setUpClass(cls):
+        page = (200, {'Content-Type': 'text/html'}, b'<!doctype html><title>Titled</title><p>page')
+        cls.server = Server({'/filtered': page, '/other': page})
+        cls.folder = Path(tempfile.mkdtemp(prefix='oganesson-firefox-update-filter-'))
+        xpi = cls.folder / 'add-on.xpi'
+        with zipfile.ZipFile(xpi, 'w') as archive:
+            for name, text in UPDATE_FILTER_ADD_ON.items():
+                archive.writestr(name, text)
+        cls.unpacked = unpack_xpi(xpi, cls.folder / 'unpacked')
+        cls.browser_args = (f'--load-extension={cls.unpacked}',)
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        cls.server.stop()
+        shutil.rmtree(cls.folder)
+
+    def test_filters(self):
+        add_on = extension_id(self.unpacked)
+        background = self.browser.extension_background(add_on)
+        try:
+            wait_for(lambda: background.eval('self.started === true'), what='the background script')
+            urls = [json.dumps(self.server.url(path)) for path in ('/filtered', '/other')]
+            filtered = background.eval(f'{UPDATE_FILTER_OPEN}({urls[0]})')
+            other = background.eval(f'{UPDATE_FILTER_OPEN}({urls[1]})')
+            calls = background.eval('self.calls')
+            errors = background.eval('self.errors')
+            background.eval(f'browser.tabs.remove([{filtered}, {other}])')
+        finally:
+            background.close()
+
+        def tabs(name):
+            return {tab for tab, _ in calls[name]}
+
+        def with_key(key):
+            return [call for call in calls['all'] if key in call[1]]
+
+        self.assertEqual(errors, ['Invalid invocation', 'This event does not support filters'])
+        self.assertTrue({filtered, other} <= tabs('all'))
+        self.assertEqual(calls['null'], calls['all'])
+        self.assertEqual(calls['default'], calls['all'])
+        self.assertTrue(with_key('status'))
+        self.assertEqual(calls['status'], with_key('status'))
+        self.assertTrue(with_key('title'))
+        self.assertEqual(calls['title'], with_key('title'))
+        self.assertEqual(tabs('urls'), {filtered})
+        self.assertEqual(tabs(f'tab{filtered}'), {filtered})
+        self.assertEqual(tabs(f'tab{other}'), {other})
+        for name in ['hidden', 'container', 'window', 'removed']:
+            self.assertEqual(calls[name], [], name)
+        self.assertFalse(self.browser.extension_errors(add_on))
+
+
 if __name__ == '__main__':
     unittest.main()
