@@ -1532,12 +1532,19 @@ WINDOW_ACTION_CALLS = '''(async () => {
     await api.setBadgeText({text: 'W', windowId: window1.id});
     await api.setIcon({imageData: new ImageData(16, 16), windowId: window1.id});
     // setIcon goes through a binding of its own, which must pass windowId on.
+    // Its promise never rejects, for Chromium's own errors too, so its errors
+    // are read from runtime.lastError.
+    const chromeApi = chrome.browserAction || chrome.action;
+    const iconError = details => new Promise(resolve => chromeApi.setIcon(
+        {imageData: new ImageData(16, 16), ...details},
+        () => resolve(chrome.runtime.lastError?.message ?? null)));
     const errors = [];
-    for (const set of [details => api.setTitle({title: 'Wrong', ...details}),
-                       details => api.setIcon({imageData: new ImageData(16, 16), ...details})]) {
-        for (const details of [{tabId: tab1.id, windowId: window1.id}, {windowId: 2147483647}]) {
-            await set(details).then(() => errors.push(null), e => errors.push(e.message));
-        }
+    for (const details of [{tabId: tab1.id, windowId: window1.id}, {windowId: 2147483647}]) {
+        await api.setTitle({title: 'Wrong', ...details})
+            .then(() => errors.push(null), e => errors.push(e.message));
+    }
+    for (const details of [{tabId: tab1.id, windowId: window1.id}, {windowId: 2147483647}]) {
+        errors.push(await iconError(details));
     }
     const title = details => api.getTitle(details);
     const badge = details => api.getBadgeText(details);
