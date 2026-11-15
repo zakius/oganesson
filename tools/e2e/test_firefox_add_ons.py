@@ -1210,5 +1210,121 @@ class FirefoxPeerConnectionTest(BrowserTest):
         self.assertFalse(self.browser.extension_errors(add_on))
 
 
+CONTENT_SCRIPTS_ADD_ON = {
+    'manifest.json': json.dumps({
+        'manifest_version': 2,
+        'name': 'Firefox contentScripts test add-on',
+        'version': '1',
+        'browser_specific_settings': {'gecko': {'id': 'firefox-content-scripts@oganesson.test'}},
+        'background': {'scripts': ['background.js']},
+        'permissions': ['scripting', 'http://127.0.0.1/*'],
+    }),
+    'background.js': 'self.started = true;',
+    'content.js': 'document.documentElement.dataset.file = "yes";',
+    'scripting.js': 'document.documentElement.dataset.scripting = "yes";',
+    'page.html': '<!doctype html><title>Firefox contentScripts test page</title>',
+}
+
+# What a page shows of each script: its marks, and the colour the CSS gives.
+MARKS = '''({file: document.documentElement.dataset.file ?? null,
+            code: document.documentElement.dataset.code ?? null,
+            main: window.mainWorld ?? null,
+            page: document.documentElement.dataset.page ?? null,
+            color: getComputedStyle(document.body).color})'''
+NO_MARKS = {'file': None, 'code': None, 'main': None, 'page': None, 'color': 'rgb(0, 0, 0)'}
+
+
+class FirefoxContentScriptsTest(BrowserTest):
+    """Firefox's contentScripts.register(): files and code, JavaScript and CSS,
+    in the isolated and the main world, until the object it resolves to is
+    unregistered, or the page that registered them closes. The scripting API
+    neither lists nor removes them."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.folder = Path(tempfile.mkdtemp(prefix='oganesson-firefox-content-scripts-'))
+        xpi = cls.folder / 'add-on.xpi'
+        with zipfile.ZipFile(xpi, 'w') as archive:
+            for name, text in CONTENT_SCRIPTS_ADD_ON.items():
+                archive.writestr(name, text)
+        cls.unpacked = unpack_xpi(xpi, cls.folder / 'unpacked')
+        page = (200, {'Content-Type': 'text/html'}, b'<!doctype html><body>page')
+        cls.server = Server({'/page': page, '/excluded': page})
+        cls.browser_args = (f'--load-extension={cls.unpacked}',)
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        cls.server.stop()
+        shutil.rmtree(cls.folder)
+
+    def marks(self, path):
+        """Loads `path` in a new tab and returns its marks."""
+        tab = self.browser.new_tab(self.server.url(path))
+        try:
+            wait_for(lambda: tab.eval(f"location.pathname == '{path}' && "
+                                      "document.readyState == 'complete'"), what=path)
+            return tab.eval(MARKS)
+        finally:
+            self.browser.close_target(tab)
+
+    def test_register_and_unregister(self):
+        add_on = extension_id(self.unpacked)
+        background = self.browser.extension_background(add_on)
+        try:
+            wait_for(lambda: background.eval('self.started === true'), what='the background script')
+            result = background.eval('''(async () => {
+                self.isolated = await browser.contentScripts.register({
+                    matches: ['http://127.0.0.1/*'], excludeMatches: ['http://127.0.0.1/excluded'],
+                    js: [{file: 'content.js'},
+                         {code: 'document.documentElement.dataset.code = "yes";'}],
+                    css: [{code: 'body { color: rgb(0, 128, 0); }'}], runAt: 'document_start'});
+                self.main = await browser.contentScripts.register({
+                    matches: ['http://127.0.0.1/*'], js: [{code: 'window.mainWorld = "yes";'}],
+                    world: 'MAIN'});
+                await browser.scripting.registerContentScripts([{
+                    id: 'scripting', matches: ['http://127.0.0.1/*'], js: ['scripting.js']}]);
+                const listed = (await browser.scripting.getRegisteredContentScripts())
+                    .map(script => script.id);
+                // Without IDs: all of the scripting API's, none of contentScripts'.
+                await browser.scripting.unregisterContentScripts();
+                return {unregister: typeof self.isolated.unregister, listed,
+                        left: (await browser.scripting.getRegisteredContentScripts()).length};
+            })()''')
+            self.assertEqual(result, {'unregister': 'function', 'listed': ['scripting'], 'left': 0})
+            self.assertEqual(self.marks('/page'), {**NO_MARKS, 'file': 'yes', 'code': 'yes',
+                                                   'main': 'yes', 'color': 'rgb(0, 128, 0)'})
+            self.assertEqual(self.marks('/excluded'), {**NO_MARKS, 'main': 'yes'})
+            result = background.eval('''(async () => {
+                await self.isolated.unregister();
+                await self.main.unregister();
+                return await self.isolated.unregister().then(() => null, error => error.message);
+            })()''')
+            # Firefox's message for an object unregistered twice.
+            self.assertEqual(result, 'Content script already unregistered')
+            self.assertEqual(self.marks('/page'), NO_MARKS)
+        finally:
+            background.close()
+        self.assertFalse(self.browser.extension_errors(add_on))
+
+    def test_closed_page_unregisters(self):
+        add_on = extension_id(self.unpacked)
+        page = self.browser.new_tab(f'chrome-extension://{add_on}/page.html')
+        try:
+            # A new tab starts on about:blank: wait for the page itself.
+            wait_for(lambda: page.eval("location.pathname == '/page.html' && "
+                                       "document.readyState == 'complete'"), what='the add-on page')
+            page.eval('''browser.contentScripts.register({
+                matches: ['http://127.0.0.1/*'],
+                js: [{code: 'document.documentElement.dataset.page = "yes";'}]}).then(() => true)''')
+            self.assertEqual(self.marks('/page'), {**NO_MARKS, 'page': 'yes'})
+        finally:
+            self.browser.close_target(page)
+        # Firefox unregisters a page's scripts when the page closes.
+        wait_for(lambda: self.marks('/page') == NO_MARKS, what='the scripts to go with the page')
+        self.assertFalse(self.browser.extension_errors(add_on))
+
+
 if __name__ == '__main__':
     unittest.main()
