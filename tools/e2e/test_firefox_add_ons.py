@@ -1222,7 +1222,9 @@ CONTENT_SCRIPTS_ADD_ON = {
     'background.js': 'self.started = true;',
     'content.js': 'document.documentElement.dataset.file = "yes";',
     'scripting.js': 'document.documentElement.dataset.scripting = "yes";',
-    'page.html': '<!doctype html><title>Firefox contentScripts test page</title>',
+    # A page in a folder: its files are relative to it, as in Firefox.
+    'pages/page.html': '<!doctype html><title>Firefox contentScripts test page</title>',
+    'pages/mark.js': 'document.documentElement.dataset.page = "yes";',
 }
 
 # What a page shows of each script: its marks, and the colour the CSS gives.
@@ -1235,10 +1237,11 @@ NO_MARKS = {'file': None, 'code': None, 'main': None, 'page': None, 'color': 'rg
 
 
 class FirefoxContentScriptsTest(BrowserTest):
-    """Firefox's contentScripts.register(): files and code, JavaScript and CSS,
-    in the isolated and the main world, until the object it resolves to is
-    unregistered, or the page that registered them closes. The scripting API
-    neither lists nor removes them."""
+    """Firefox's contentScripts.register(): files (relative to the page that
+    registers them) and code, JavaScript and CSS, in the isolated and the main
+    world, until the object it resolves to is unregistered, or the page that
+    registered them closes. The scripting API neither lists nor removes them,
+    and updates its own scripts next to them."""
 
     @classmethod
     def setUpClass(cls):
@@ -1285,14 +1288,22 @@ class FirefoxContentScriptsTest(BrowserTest):
                     world: 'MAIN'});
                 await browser.scripting.registerContentScripts([{
                     id: 'scripting', matches: ['http://127.0.0.1/*'], js: ['scripting.js']}]);
+                // It describes every script it has, contentScripts' code too.
+                await browser.scripting.updateContentScripts([{
+                    id: 'scripting', runAt: 'document_end'}]);
                 const listed = (await browser.scripting.getRegisteredContentScripts())
                     .map(script => script.id);
                 // Without IDs: all of the scripting API's, none of contentScripts'.
                 await browser.scripting.unregisterContentScripts();
-                return {unregister: typeof self.isolated.unregister, listed,
+                // Add-ons have no containers yet: Firefox's error for an unknown one.
+                const container = await browser.contentScripts.register({
+                    matches: ['http://127.0.0.1/*'], js: [{code: 'self.container = true;'}],
+                    cookieStoreId: 'firefox-container-1'}).then(() => null, error => error.message);
+                return {unregister: typeof self.isolated.unregister, listed, container,
                         left: (await browser.scripting.getRegisteredContentScripts()).length};
             })()''')
-            self.assertEqual(result, {'unregister': 'function', 'listed': ['scripting'], 'left': 0})
+            self.assertEqual(result, {'unregister': 'function', 'listed': ['scripting'],
+                                      'container': 'Invalid cookieStoreId', 'left': 0})
             self.assertEqual(self.marks('/page'), {**NO_MARKS, 'file': 'yes', 'code': 'yes',
                                                    'main': 'yes', 'color': 'rgb(0, 128, 0)'})
             self.assertEqual(self.marks('/excluded'), {**NO_MARKS, 'main': 'yes'})
@@ -1310,14 +1321,14 @@ class FirefoxContentScriptsTest(BrowserTest):
 
     def test_closed_page_unregisters(self):
         add_on = extension_id(self.unpacked)
-        page = self.browser.new_tab(f'chrome-extension://{add_on}/page.html')
+        page = self.browser.new_tab(f'chrome-extension://{add_on}/pages/page.html')
         try:
             # A new tab starts on about:blank: wait for the page itself.
-            wait_for(lambda: page.eval("location.pathname == '/page.html' && "
+            wait_for(lambda: page.eval("location.pathname == '/pages/page.html' && "
                                        "document.readyState == 'complete'"), what='the add-on page')
+            # pages/mark.js: the file is relative to the page.
             page.eval('''browser.contentScripts.register({
-                matches: ['http://127.0.0.1/*'],
-                js: [{code: 'document.documentElement.dataset.page = "yes";'}]}).then(() => true)''')
+                matches: ['http://127.0.0.1/*'], js: [{file: 'mark.js'}]}).then(() => true)''')
             self.assertEqual(self.marks('/page'), {**NO_MARKS, 'page': 'yes'})
         finally:
             self.browser.close_target(page)
