@@ -22,8 +22,9 @@ L2  Its background page or service worker starts, if it has one, and nothing
     Chromium's own warnings for unknown keys don't reach chrome://extensions
     here, hence the feature files.
 L3  A smoke check passes, with no new uncaught error from the add-on: its
-    toolbar popup, if its browser_action or action has one, opens on a real
-    click with a web page active and shows something; and its content
+    toolbar popup, if its browser_action or action has one in its manifest,
+    opens on a real click with a web page active (a new page at that URL)
+    and shows something; and its content
     scripts, if it has some, run on a page they match. That page is the
     runner's own small page, in a tab of the add-on's own, at an https: URL
     made from the first https: or *: pattern of the first entry that runs
@@ -31,8 +32,8 @@ L3  A smoke check passes, with no new uncaught error from the add-on: its
     site; the browser upgrades http: pages), served to that tab alone, so a
     site's content scripts meet a page without the site's markup: the score
     errs low there. That the scripts ran is their isolated world in the
-    page; a tab that left the page (another add-on may redirect it) doesn't
-    count. Whether a script changes the page isn't checked: nothing tells
+    page; a tab that left the page (another add-on may redirect or close
+    it) doesn't count, nor does a popup that closes itself at once. Whether a script changes the page isn't checked: nothing tells
     which add-ons should. A page action's popup isn't checked, as the page
     action shows only where the add-on shows it. An add-on with neither
     reaches L3 at L2.
@@ -55,11 +56,13 @@ import datetime
 import fcntl
 import json
 import os
+import posixpath
 import re
 import subprocess
 import sys
 import tempfile
 import time
+import types
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -123,6 +126,8 @@ EVERY_SITE = 'https://example.com/'
 PAGE = (b'<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Corpus page</title>'
         b'</head><body><h1>Corpus page</h1><p>The corpus runner\'s page for content scripts.'
         b' <a href="/">A link</a></p></body></html>')
+# Popups pinned to the toolbar at a time, so that their buttons fit.
+PINNED = 8
 # How long a click gets to open a popup, and a popup to show something.
 POPUP = 5
 
@@ -229,10 +234,15 @@ def content_url(manifest):
     return None
 
 
-def has_popup(manifest):
-    """Whether the add-on's toolbar button has a popup in its manifest."""
-    return any(isinstance(manifest.get(key), dict) and manifest[key].get('default_popup')
-               for key in ('browser_action', 'action'))
+def popup_url(extension, manifest):
+    """The URL of the popup of the add-on's toolbar button in its manifest,
+    or None."""
+    for key in ('browser_action', 'action'):
+        action = manifest.get(key)
+        popup = action.get('default_popup') if isinstance(action, dict) else None
+        if isinstance(popup, str) and popup:
+            return f"chrome-extension://{extension}/{posixpath.normpath(popup).lstrip('/')}"
+    return None
 
 
 def serve(browser, url):
@@ -240,84 +250,100 @@ def serve(browser, url):
     execution contexts kept in its `events`. Later navigations of the tab go
     to the network."""
     page = browser.new_tab('about:blank')
-    page.call('Runtime.enable')
-    page.call('Fetch.enable', patterns=[{'urlPattern': '*', 'resourceType': 'Document'}])
-    page.next_id += 1
-    navigation = page.next_id
-    page.ws.send(json.dumps({'id': navigation, 'method': 'Page.navigate', 'params': {'url': url}}))
-    while True:
-        message = json.loads(page.ws.recv())
-        if message.get('method') == 'Fetch.requestPaused':
-            page.next_id += 1
-            page.ws.send(json.dumps({'id': page.next_id, 'method': 'Fetch.fulfillRequest', 'params': {
-                'requestId': message['params']['requestId'], 'responseCode': 200,
-                'responseHeaders': [{'name': 'Content-Type', 'value': 'text/html'}],
-                'body': base64.b64encode(PAGE).decode()}}))
-        elif message.get('id') == navigation:
-            break
-        elif 'method' in message:
-            page.events.append(message)
-    page.call('Fetch.disable')
+    try:
+        page.call('Runtime.enable')
+        page.call('Fetch.enable', patterns=[{'urlPattern': '*', 'resourceType': 'Document'}])
+        page.next_id += 1
+        navigation = page.next_id
+        page.ws.send(json.dumps({'id': navigation, 'method': 'Page.navigate',
+                                 'params': {'url': url}}))
+        while True:
+            message = json.loads(page.ws.recv())
+            if message.get('method') == 'Fetch.requestPaused':
+                page.next_id += 1
+                page.ws.send(json.dumps({'id': page.next_id, 'method': 'Fetch.fulfillRequest',
+                                         'params': {
+                    'requestId': message['params']['requestId'], 'responseCode': 200,
+                    'responseHeaders': [{'name': 'Content-Type', 'value': 'text/html'}],
+                    'body': base64.b64encode(PAGE).decode()}}))
+            elif message.get('id') == navigation:
+                break
+            elif 'method' in message:
+                page.events.append(message)
+        page.call('Fetch.disable')
+        # As the browser writes it, to tell later whether the tab left it.
+        page.served = page.eval('location.href')
+    except Exception:
+        close(browser, page)
+        raise
     return page
 
 
-def set_pinned(browser, extension, pinned):
+def set_pinned(browser, extensions, pinned):
     page = browser.new_tab('chrome://extensions')
     try:
         wait_for(lambda: page.eval('!!chrome.developerPrivate'), what='chrome://extensions')
-        # An add-on may have removed itself since (management.uninstallSelf).
-        page.eval('chrome.developerPrivate.updateExtensionConfiguration('
-                  f'{{extensionId: {json.dumps(extension)}, pinnedToToolbar: {json.dumps(pinned)}}})'
-                  '.catch(() => {})')
+        for extension in extensions:
+            # An add-on may have removed itself since (management.uninstallSelf).
+            page.eval('chrome.developerPrivate.updateExtensionConfiguration('
+                      f'{{extensionId: {json.dumps(extension)}, '
+                      f'pinnedToToolbar: {json.dumps(pinned)}}}).catch(() => {{}})')
     finally:
         close(browser, page)
 
 
-def open_popup(browser, extension):
-    """Pins the toolbar button of `extension`, whose action has a popup,
-    clicks it and returns None when its popup shows something, else why
-    not."""
-    set_pinned(browser, extension, True)
-    prefix = f'chrome-extension://{extension}/'
+def shows_something(target):
+    """None when the popup `target` shows something, else why not."""
     try:
-        # The new button is the last one, but which one it is shows only by
-        # what a click opens: the tooltips are the add-ons' titles, which only
-        # the browser has localized, and the bundled uBlock Origin's is there
-        # too.
+        popup = Page(target)
+    except OSError:
+        return None  # It closed itself at once (window.close()).
+    # A popup that a dialog (alert()) holds never answers.
+    popup.ws.sock.settimeout(POPUP)
+    shows = ("[...document.querySelectorAll('body *')].some(e => {"
+             " const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; })")
+    try:
+        wait_for(lambda: popup.eval(shows, gesture=False), timeout=POPUP)
+        return None
+    except AssertionError:
+        return 'the popup shows nothing'
+    except OSError:
+        return 'the popup does not answer'
+    finally:
+        popup.close()
+
+
+def open_popups(browser, popups):
+    """Clicks the toolbar buttons of the add-ons `popups` {extension: the
+    URL of its popup} and returns {extension: None, or why its popup failed}
+    for the popups that opened."""
+    found = {}
+    extensions = list(popups)
+    for start in range(0, len(extensions), PINNED):
+        batch = extensions[start:start + PINNED]
+        set_pinned(browser, batch, True)
+        # Which button is which shows only by the popup a click opens: the
+        # tooltips are the add-ons' titles, which only the browser has
+        # localized, and the bundled uBlock Origin's button is there too.
         views = browser.wait_settled(lambda: [v for v in browser.views('ToolbarActionView')
                                               if v.visible] or None, what='the toolbar buttons')
-        for view in sorted(views, key=lambda v: -v.bounds['x']):
+        for view in views:
             before = {t['id'] for t in browser.targets()}
             browser.click_view(view)
+            # A new page at an add-on's popup URL, not another page that an
+            # add-on opened meanwhile.
             try:
                 target = wait_for(lambda b=before: next(
                     (t for t in browser.targets() if t['id'] not in b and t['type'] == 'page'
-                     and t['url'].startswith(prefix)), None),
-                    timeout=POPUP, what='its popup')
+                     and any(t['url'] == popups[e] for e in batch if e not in found)), None),
+                    timeout=POPUP, what='a popup')
             except AssertionError:
-                # Another add-on's popup, if the click opened one.
-                for other in browser.targets():
-                    if other['id'] not in before and other['type'] == 'page':
-                        close(browser, Page(other))
                 continue
-            popup = Page(target)
-            # A popup that a dialog (alert()) holds never answers.
-            popup.ws.sock.settimeout(POPUP)
-            shows = ("[...document.querySelectorAll('body *')].some(e => {"
-                     " const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; })")
-            try:
-                wait_for(lambda: popup.eval(shows, gesture=False), timeout=POPUP)
-                return None
-            except AssertionError:
-                return 'the popup shows nothing'
-            except OSError:
-                return 'the popup does not answer'
-            finally:
-                popup.close()
-                close(browser, popup)
-        return 'the popup did not open'
-    finally:
-        set_pinned(browser, extension, False)
+            extension = target['url'].split('/')[2]
+            found[extension] = shows_something(target)
+            close(browser, types.SimpleNamespace(id=target['id']))
+        set_pinned(browser, batch, False)
+    return found
 
 
 def smoke_check(browser, extensions, manifests):
@@ -325,28 +351,39 @@ def smoke_check(browser, extensions, manifests):
     with their `manifests`: {item: error or None}, from what they did in it.
     Their uncaught errors are read afterwards."""
     errors = {}
-    # A tab for each add-on, so that one that takes a tab elsewhere (a
-    # redirect) doesn't take another's. The page for every site last, so
-    # that it is the active tab for the popups, as a web page where a user
-    # opens one.
-    urls = {item: content_url(manifests[item]) for item in extensions}
-    tabs = {item: serve(browser, url) for item, url in
-            sorted(urls.items(), key=lambda pair: pair[1] == EVERY_SITE) if url}
+    tabs = {}
     try:
+        # A tab for each add-on, so that one that takes a tab elsewhere (a
+        # redirect) doesn't take another's. The page for every site last, so
+        # that it is the active tab for the popups, as a web page where a
+        # user opens one.
+        urls = {item: content_url(manifests[item]) for item in extensions}
+        for item, url in sorted(urls.items(), key=lambda pair: pair[1] == EVERY_SITE):
+            if url:
+                try:
+                    tabs[item] = serve(browser, url)
+                except (OSError, AssertionError, RuntimeError):
+                    pass  # Another add-on closed it: it doesn't tell.
+        popups = {extensions[i]: popup_url(extensions[i], manifests[i]) for i in extensions}
+        popups = {e: url for e, url in popups.items() if url}
+        opened = open_popups(browser, popups) if popups else {}
         for item, extension in extensions.items():
-            if has_popup(manifests[item]):
-                errors[item] = open_popup(browser, extension)
+            if extension in popups:
+                errors[item] = opened.get(extension, 'the popup did not open')
         time.sleep(SETTLE)
         for item, tab in tabs.items():
             # A tab that left the page doesn't tell: another add-on may have
-            # taken it.
-            if errors.get(item) or tab.eval('location.href') != urls[item]:
+            # taken it, or closed it.
+            try:
+                if errors.get(item) or tab.eval('location.href') != tab.served:
+                    continue
+            except (OSError, AssertionError, RuntimeError):
                 continue
             worlds = {e['params']['context'].get('origin') for e in tab.events
                       if e['method'] == 'Runtime.executionContextCreated'
                       and e['params']['context'].get('auxData', {}).get('type') == 'isolated'}
             if f'chrome-extension://{extensions[item]}' not in worlds:
-                errors[item] = f'its content scripts did not run on {urls[item]}'
+                errors[item] = f'its content scripts did not run on {tab.served}'
     finally:
         for tab in tabs.values():
             close(browser, tab)
@@ -357,7 +394,7 @@ def close(browser, page):
     """Closes `page`, which may have closed itself (window.close())."""
     try:
         browser.close_target(page)
-    except OSError:
+    except (OSError, AssertionError):
         pass
 
 
