@@ -972,7 +972,6 @@ class FirefoxThemeTest(BrowserTest):
                             JSON.stringify({manifest_version: 2, name: 'Warnings',
                                             version: '1', permissions: ['theme']}))};
             })()''')
-            self.assertEqual(background.eval('self.updates'), [])
             self.set_dark(background, light['theme']['colors']['toolbar'])
             dark = background.eval('''(async () => ({
                 theme: await browser.theme.getCurrent(), updates: self.updates}))()''')
@@ -998,8 +997,12 @@ class FirefoxThemeTest(BrowserTest):
         self.assertLess(brightness(dark_colors['toolbar']), 0.4)
         self.assertGreater(brightness(dark_colors['toolbar_text']), 0.6)
         self.assertLess(brightness(dark_colors['frame']), brightness(colors['frame']))
-        # One update, with the new theme, for no window in particular.
-        self.assertEqual(dark['updates'], [{'theme': dark['theme']}])
+        # The last update carries the new theme, for no window in particular.
+        # The session's first notice of the system's theme (a caret blink rate,
+        # an accent colour) may give one with the light theme before it.
+        self.assertEqual(dark['updates'][-1], {'theme': dark['theme']})
+        for update in dark['updates'][:-1]:
+            self.assertEqual(update, {'theme': light['theme']})
         self.assertFalse(self.browser.extension_errors(add_on))
 
 if __name__ == '__main__':
