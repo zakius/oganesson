@@ -2333,5 +2333,101 @@ class FirefoxGeckoIdTest(BrowserTest):
                         .endswith('/second'))
 
 
+BOOKMARK_IDS_ADD_ON = {
+    'manifest.json': json.dumps({
+        'manifest_version': 2,
+        'name': 'Bookmark IDs test add-on',
+        'version': '1',
+        'browser_specific_settings': {'gecko': {'id': 'bookmark-ids@oganesson.test'}},
+        'background': {'scripts': ['background.js']},
+        'permissions': ['bookmarks'],
+    }),
+    'background.js': 'self.started = true;',
+}
+# Each of Firefox's folder IDs that takes bookmarks, as Pouch saves into
+# "unfiled_____": a bookmark created in it, then its folder's children read
+# through it, and Chromium's folder that it is. Mobile bookmarks, which
+# Chromium's desktop hides while the folder is empty, refuses a bookmark as
+# Chromium's own ID for it does.
+BOOKMARK_IDS_CALLS = """(async () => {
+    const ids = ['toolbar_____', 'menu________', 'unfiled_____'];
+    const created = {};
+    for (const id of ids) {
+        const bookmark = await browser.bookmarks.create(
+            {parentId: id, title: id, url: 'https://example.com/' + id});
+        created[id] = bookmark.id;
+    }
+    const [root] = await browser.bookmarks.getTree();
+    const folders = Object.fromEntries(root.children.map(f => [f.id, f.folderType]));
+    const read = {};
+    for (const id of ids) {
+        const [folder] = await browser.bookmarks.get(id);
+        read[id] = {
+            folder: folders[folder.id],
+            children: (await browser.bookmarks.getChildren(id)).map(b => b.title),
+            subTree: (await browser.bookmarks.getSubTree(id))[0].id === folder.id,
+        };
+    }
+    const error = call => call.then(() => null, e => e.message);
+    const moved = await browser.bookmarks.move(created['toolbar_____'], {parentId: 'unfiled_____'});
+    return {
+        read,
+        root: (await browser.bookmarks.get('root________'))[0].id === root.id,
+        moved: folders[moved.parentId],
+        createdInRoot: await error(browser.bookmarks.create({parentId: 'root________', title: 'x'})),
+        removeFolder: await error(browser.bookmarks.remove('menu________')),
+        unknown: await error(browser.bookmarks.get('places______')),
+        removed: await error(browser.bookmarks.remove(created['menu________'])),
+        mobile: await error(browser.bookmarks.create(
+            {parentId: 'mobile______', title: 'x', url: 'https://example.com/'})),
+        chromiumMobile: await error(browser.bookmarks.create(
+            {parentId: '3', title: 'x', url: 'https://example.com/'})),
+    };
+})()"""
+
+
+class FirefoxBookmarkIdsTest(BrowserTest):
+    """The bookmarks API takes Firefox's fixed folder IDs: "toolbar_____" is
+    the bookmarks bar, "menu________" and "unfiled_____" Other bookmarks,
+    "mobile______" Mobile bookmarks and "root________" the root."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.folder = Path(tempfile.mkdtemp(prefix='oganesson-firefox-bookmark-ids-'))
+        for file, text in BOOKMARK_IDS_ADD_ON.items():
+            (cls.folder / file).write_text(text)
+        cls.browser_args = (f'--load-extension={cls.folder}',)
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(cls.folder)
+
+    def test_bookmark_ids(self):
+        background = self.browser.extension_background(extension_id(self.folder))
+        try:
+            wait_for(lambda: background.eval('self.started === true'), what='the background script')
+            result = background.eval(BOOKMARK_IDS_CALLS)
+        finally:
+            background.close()
+        other = {'folder': 'other', 'children': ['menu________', 'unfiled_____'], 'subTree': True}
+        self.assertEqual(result['read'], {
+            'toolbar_____': {'folder': 'bookmarks-bar', 'children': ['toolbar_____'],
+                             'subTree': True},
+            'menu________': other,
+            'unfiled_____': other,
+        })
+        self.assertTrue(result['root'])
+        self.assertEqual(result['moved'], 'other')
+        self.assertEqual(result['createdInRoot'], "Can't modify the root bookmark folders.")
+        self.assertEqual(result['removeFolder'], "Can't modify the root bookmark folders.")
+        self.assertEqual(result['unknown'], 'Bookmark id is invalid.')
+        self.assertIsNone(result['removed'])
+        self.assertEqual(result['mobile'], "Can't find parent bookmark for id.")
+        self.assertEqual(result['chromiumMobile'], result['mobile'])
+        self.assertFalse(self.browser.extension_errors(extension_id(self.folder)))
+
+
 if __name__ == '__main__':
     unittest.main()
