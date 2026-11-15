@@ -18,8 +18,9 @@ L2  Its background page or service worker starts, if it has one, and nothing
     leave out, and it throws no uncaught error in its first seconds. Such
     an error nearly always comes from an API that isn't there. Any uncaught
     error counts, so the score errs low, but for RACES, errors whose timing
-    varies between runs. Chromium's own warnings for unknown
-    keys don't reach chrome://extensions here, hence the feature files.
+    varies between runs, and FIREFOX_TOO, errors that Firefox gives too.
+    Chromium's own warnings for unknown keys don't reach chrome://extensions
+    here, hence the feature files.
 
 A full run writes <dubna>/webextensions/score/oganesson.json: the date, the
 browser's version, how many add-ons reach each level (or a higher one), and
@@ -89,6 +90,18 @@ UNREADABLE = ('Manifest file is missing or unreadable', 'Manifest is not valid J
 # the add-on asks for it (the runner's own tabs).
 RACES = ('Receiving end does not exist', 'message channel closed before a response',
          'No tab with id')
+# Uncaught errors that Firefox gives too: no add-on may script the browser's
+# own pages or another add-on's, and Firefox refuses its about: and other
+# moz-extension: pages as well ("Missing host permission for the tab"). An
+# add-on that scripts every open tab at its start meets the runner's start
+# tab and the other add-ons' pages.
+FIREFOX_TOO = ('Cannot access a chrome:// URL',
+               'Cannot access a chrome-extension:// URL of different extension')
+
+
+def counts(message):
+    """Whether an uncaught error counts against the add-on's level."""
+    return 'Uncaught' in message and not any(text in message for text in RACES + FIREFOX_TOO)
 
 
 def feature_file(path):
@@ -236,11 +249,10 @@ def run_group(items, xpis, work):
             uncaught = [console_message(line) for line in log.splitlines()
                         if 'CONSOLE' in line
                         and f'", source: chrome-extension://{extension}/' in line
-                        and 'Uncaught' in line and not any(race in line for race in RACES)]
+                        and counts(line)]
             if info:
                 uncaught += [e['message'] for e in info.get('runtimeErrors', [])
-                             if 'Uncaught' in e['message']
-                             and not any(race in e['message'] for race in RACES)]
+                             if counts(e['message'])]
             background = (extension in started) if manifests[item_id].get('background') else None
             # An add-on whose background started was installed, even when it
             # is gone by now: some remove themselves (management.uninstallSelf).
