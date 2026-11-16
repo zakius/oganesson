@@ -2637,5 +2637,88 @@ class FirefoxXpiInstallTest(BrowserTest):
             self.browser.close_target(page)
         self.assertNotIn('Firefox .xpi install test add-on without a Gecko ID', names)
 
+
+FIRST_PARTY_DOMAIN_ADD_ON = {
+    'manifest.json': json.dumps({
+        'manifest_version': 2,
+        'name': 'Firefox firstPartyDomain test add-on',
+        'version': '1',
+        'browser_specific_settings': {'gecko': {'id': 'firefox-first-party-domain@oganesson.test'}},
+        'background': {'scripts': ['background.js']},
+        'permissions': ['cookies', 'http://127.0.0.1/*'],
+    }),
+    'background.js': 'self.started = true;',
+}
+
+FIRST_PARTY_DOMAIN_CALLS = """(async () => {
+    const error = async call => {
+        try {
+            return await call();
+        } catch (e) {
+            return e.message;
+        }
+    };
+    const url = '%(url)s';
+    const set = await browser.cookies.set({url, name: 'fpd', value: '1', firstPartyDomain: ''});
+    const names = cookies => cookies.map(c => [c.name, c.firstPartyDomain]);
+    return {
+        set: [set.name, set.firstPartyDomain],
+        setOther: await error(() => browser.cookies.set(
+            {url, name: 'other', value: '1', firstPartyDomain: 'example.com'})),
+        get: (await browser.cookies.get({url, name: 'fpd', firstPartyDomain: ''})).firstPartyDomain,
+        getOther: await browser.cookies.get({url, name: 'fpd', firstPartyDomain: 'example.com'}),
+        getAllNull: names(await browser.cookies.getAll({url, firstPartyDomain: null})),
+        getAllEmpty: names(await browser.cookies.getAll({url, firstPartyDomain: ''})),
+        getAllOther: names(await browser.cookies.getAll({url, firstPartyDomain: 'example.com'})),
+        getAllPlain: names(await browser.cookies.getAll({url})),
+        removeOther: await browser.cookies.remove({url, name: 'fpd', firstPartyDomain: 'example.com'}),
+        remove: (await browser.cookies.remove({url, name: 'fpd', firstPartyDomain: ''})).name,
+        left: names(await browser.cookies.getAll({url})),
+    };
+})()"""
+
+
+class FirefoxFirstPartyDomainTest(BrowserTest):
+    """Firefox's firstPartyDomain in the cookies API, as in Firefox with
+    first-party isolation off: every cookie has "", "" or null matches every
+    cookie, another value matches none, and set() refuses another value."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.folder = Path(tempfile.mkdtemp(prefix='oganesson-firefox-first-party-domain-'))
+        for file, text in FIRST_PARTY_DOMAIN_ADD_ON.items():
+            (cls.folder / file).write_text(text)
+        cls.browser_args = (f'--load-extension={cls.folder}',)
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(cls.folder)
+
+    def test_first_party_domain(self):
+        add_on = extension_id(self.folder)
+        background = self.browser.extension_background(add_on)
+        try:
+            wait_for(lambda: background.eval('self.started === true'), what='the background script')
+            result = background.eval(FIRST_PARTY_DOMAIN_CALLS % {'url': 'http://127.0.0.1/'})
+        finally:
+            background.close()
+        self.assertEqual(result, {
+            'set': ['fpd', ''],
+            'setOther': 'firstPartyDomain must be "": first-party isolation is off',
+            'get': '',
+            'getOther': None,
+            'getAllNull': [['fpd', '']],
+            'getAllEmpty': [['fpd', '']],
+            'getAllOther': [],
+            'getAllPlain': [['fpd', '']],
+            'removeOther': None,
+            'remove': 'fpd',
+            'left': [],
+        })
+        self.assertFalse(self.browser.extension_errors(add_on))
+
+
 if __name__ == '__main__':
     unittest.main()
