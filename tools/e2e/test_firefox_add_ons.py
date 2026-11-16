@@ -4,6 +4,7 @@ each on the same small Manifest V2 add-on, as most of AMO's are. An add-on in
 the profile's firefox_add_ons.named_firefox list is told it runs in Firefox."""
 
 import hashlib
+import io
 import json
 import shutil
 import tempfile
@@ -2519,6 +2520,122 @@ class FirefoxBookmarkIdsTest(BrowserTest):
         self.assertEqual(result['chromiumMobile'], result['mobile'])
         self.assertFalse(self.browser.extension_errors(extension_id(self.folder)))
 
+
+
+XPI_GECKO_ID = 'xpi-install@oganesson.test'
+
+
+def xpi_add_on(gecko_id):
+    """An .xpi, as AMO serves it: with its signature in META-INF/."""
+    manifest = {
+        'manifest_version': 2,
+        'name': f'Firefox .xpi install test add-on {gecko_id or "without a Gecko ID"}',
+        'version': '1',
+        'background': {'scripts': ['background.js']},
+        'permissions': ['storage'],
+    }
+    if gecko_id:
+        manifest['browser_specific_settings'] = {'gecko': {'id': gecko_id}}
+    files = {
+        'manifest.json': json.dumps(manifest),
+        'background.js': 'self.started = true;',
+        'META-INF/cose.sig': 'not checked',
+        'META-INF/mozilla.rsa': 'not checked',
+    }
+    data = io.BytesIO()
+    with zipfile.ZipFile(data, 'w') as archive:
+        for name, text in files.items():
+            archive.writestr(name, text)
+    return data.getvalue()
+
+
+class FirefoxXpiInstallTest(BrowserTest):
+    """A downloaded .xpi opens the install prompt. Accepted, an add-on with a
+    Gecko ID installs packed, without developer mode, with the ID from its
+    Gecko ID; a second download reinstalls it and keeps its storage. One
+    without a Gecko ID doesn't install outside developer mode."""
+
+    @classmethod
+    def setUpClass(cls):
+        xpi = (200, {'Content-Type': 'application/x-xpinstall'}, xpi_add_on(XPI_GECKO_ID))
+        no_id = (200, {'Content-Type': 'application/x-xpinstall'}, xpi_add_on(None))
+        cls.server = Server({'/add-on.xpi': xpi, '/no-id.xpi': no_id})
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        cls.server.stop()
+
+    def accept_prompt(self):
+        button = self.browser.wait_view(
+            'MdTextButton', match=lambda v: v['Enabled'] == 'true' and v['Text'] == 'Add extension')
+        self.browser.click_view(button)
+
+    def installed(self, add_on):
+        page = self.browser.new_tab('chrome://extensions')
+        try:
+            return page.eval(f"""new Promise(done => chrome.developerPrivate.getExtensionsInfo(
+                {{includeDisabled: true}}, all => done(all.filter(e => e.id === '{add_on}')
+                    .map(e => ({{location: e.location, state: e.state}})))))""")
+        finally:
+            self.browser.close_target(page)
+
+    def started(self, add_on, check='true'):
+        """The add-on's background once it has started and `check` holds."""
+        def ready():
+            try:
+                background = self.browser.extension_background(add_on, timeout=1)
+            except AssertionError:
+                return None
+            try:
+                if background.eval(f'self.started === true && {check}'):
+                    return background
+            except (OSError, RuntimeError, ConnectionError):
+                pass
+            background.close()
+            return None
+        return wait_for(ready, timeout=30, what='the background script')
+
+    def test_download_installs(self):
+        # Chromium's ID of the Gecko ID: its SHA-256, in letters a to p.
+        add_on = hashlib.sha256(XPI_GECKO_ID.encode()).hexdigest()[:32].translate(
+            str.maketrans('0123456789abcdef', 'abcdefghijklmnop'))
+        self.browser.new_tab(self.server.url('/add-on.xpi'))
+        self.accept_prompt()
+        background = self.started(add_on)
+        try:
+            background.eval("browser.storage.local.set({kept: 'from the first install'})")
+            background.eval('self.first = true')
+        finally:
+            background.close()
+        info = self.installed(add_on)
+        self.assertEqual(len(info), 1)
+        self.assertNotEqual(info[0]['location'], 'UNPACKED')
+        self.assertEqual(info[0]['state'], 'ENABLED')
+
+        self.browser.new_tab(self.server.url('/add-on.xpi'))
+        self.accept_prompt()
+        # The reinstalled add-on's new background page.
+        background = self.started(add_on, '!self.first')
+        try:
+            stored = background.eval("browser.storage.local.get('kept')")
+        finally:
+            background.close()
+        self.assertEqual(stored, {'kept': 'from the first install'})
+        self.assertEqual(len(self.installed(add_on)), 1)
+
+    def test_no_gecko_id_outside_developer_mode(self):
+        self.browser.new_tab(self.server.url('/no-id.xpi'))
+        wait_for(lambda: 'This add-on has no Gecko ID' in self.browser.log_path.read_text(
+            errors='replace'), timeout=30, what='the load error')
+        page = self.browser.new_tab('chrome://extensions')
+        try:
+            names = page.eval("""new Promise(done => chrome.developerPrivate.getExtensionsInfo(
+                {includeDisabled: true}, all => done(all.map(e => e.name))))""")
+        finally:
+            self.browser.close_target(page)
+        self.assertNotIn('Firefox .xpi install test add-on without a Gecko ID', names)
 
 if __name__ == '__main__':
     unittest.main()
