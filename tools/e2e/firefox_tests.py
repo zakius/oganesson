@@ -15,9 +15,9 @@ the date, the browser's version, how many ported files pass, how many are
 ported, how many files there are that aren't `n/a`, and each ported file's
 result with its first failure and the tests that pass. With --only (ports'
 file names, such as firefox/test_ext_scripting_mv2.py), it runs those and
-writes nothing. Either way it prints each port's result next to the score's
-before the run (the file as it is in --dubna's tree: a full run overwrites
-it), then each of its tests, pass or FAIL. It exits 3 when a test that
+writes nothing. Either way it prints each port's result next to the
+committed score's (HEAD of the --dubna tree, so a rerun compares with the
+same score), then each of its tests, pass or FAIL. It exits 3 when a test that
 passed then and still exists doesn't pass now (DOWN); any other exit status
 but 0 means the run itself failed.
 
@@ -87,6 +87,20 @@ def test_names(module):
     return sorted(names)
 
 
+def committed_score(dubna, score_path):
+    """The ported tests' results in the score committed in the dubna tree
+    (its HEAD), which no run overwrites; the file itself when the tree isn't
+    a Git checkout."""
+    relative = score_path.relative_to(dubna).as_posix()
+    shown = subprocess.run(['git', '-C', str(dubna), 'show', f'HEAD:{relative}'],
+                           capture_output=True, text=True, check=False)
+    if shown.returncode == 0:
+        return json.loads(shown.stdout)['tests']
+    if (dubna / '.git').exists():
+        return {}  # Not committed yet: nothing to compare with.
+    return json.loads(score_path.read_text())['tests'] if score_path.is_file() else {}
+
+
 def run_port(port):
     """Whether the port passes, its first failure, and its tests that pass."""
     module = port.removesuffix('.py').replace('/', '.')
@@ -132,7 +146,7 @@ def main():
                                  'passing': passing}
         print(f"{number}/{len(ported)} {'pass' if passed else 'FAIL'} {test['port']}"
               f"{'  ' + error if error else ''}", flush=True)
-    old = json.loads(score_path.read_text())['tests'] if score_path.is_file() else {}
+    old = committed_score(args.dubna, score_path)
     down = False
     for path, result in results.items():
         before = old.get(path)
