@@ -2754,9 +2754,9 @@ class FirefoxAmoUserAgentTest(BrowserTest):
     browser sends Firefox's user agent there, in the header and in
     navigator.userAgent, without user agent client hints. Other hosts get
     Chromium's, also after a link from AMO, whose override a navigation would
-    otherwise inherit. A page that a redirect onto AMO or away from it
-    commits with the other user agent loads again with the right one. A local
-    HTTPS server stands in for both hosts."""
+    otherwise inherit. AMO's page that a redirect onto AMO commits with
+    Chromium's user agent loads again with Firefox's; a redirect away from AMO
+    keeps Firefox's. A local HTTPS server stands in for both hosts."""
 
     @classmethod
     def setUpClass(cls):
@@ -2832,31 +2832,32 @@ class FirefoxAmoUserAgentTest(BrowserTest):
             return None
 
     def test_redirects(self):
-        other = self.open(f'https://{OTHER_HOST}/other')
+        page = self.open(f'https://{OTHER_HOST}/other')
         try:
-            chromium = other.eval('navigator.userAgent')
-        finally:
-            self.browser.close_target(other)
-        page = self.open(f'https://{AMO_HOST}/amo')
-        try:
-            firefox = page.eval('navigator.userAgent')
-            self.assert_firefox(firefox)
-            page.eval(f"location.href = 'https://{AMO_HOST}/to-other'")
-            wait_for(lambda: self.location_and_user_agent(page)
-                     == f'https://{OTHER_HOST}/redirected' + chromium,
-                     what="the redirected page with Chromium's user agent")
-            wait_for(lambda: self.server.headers['/redirected']['User-Agent'] == chromium,
-                     what="the redirected page's request with Chromium's user agent")
+            def on_amo_as_firefox():
+                state = self.location_and_user_agent(page) or ''
+                return (state.startswith(f'https://{AMO_HOST}/redirected-amo')
+                        and ' Firefox/' in state)
 
             page.eval(f"location.href = 'https://{OTHER_HOST}/to-amo'")
+            wait_for(on_amo_as_firefox, what="AMO's page with Firefox's user agent")
+            firefox = page.eval('navigator.userAgent')
+            self.assert_firefox(firefox)
+            self.assertEqual(self.server.headers['/redirected-amo']['User-Agent'], firefox)
+            # Once with Chromium's user agent, then once with Firefox's.
+            time.sleep(2)
+            self.assertEqual(self.server.requests.count('/redirected-amo'), 2)
+
+            # A redirect away from AMO keeps Firefox's user agent: its page
+            # loads once.
+            page.eval(f"location.href = 'https://{AMO_HOST}/to-other'")
             wait_for(lambda: self.location_and_user_agent(page)
-                     == f'https://{AMO_HOST}/redirected-amo' + firefox,
-                     what="AMO's page with Firefox's user agent")
-            wait_for(lambda: self.server.headers['/redirected-amo']['User-Agent'] == firefox,
-                     what="AMO's request with Firefox's user agent")
+                     == f'https://{OTHER_HOST}/redirected' + firefox,
+                     what='the redirected page')
+            time.sleep(2)
+            self.assertEqual(self.server.requests.count('/redirected'), 1)
         finally:
             self.browser.close_target(page)
-
 
 if __name__ == '__main__':
     unittest.main()
