@@ -12,7 +12,7 @@ Where Firefox gives an add-on with more than one item a submenu of its own
 """
 
 from extension_test_utils import FirefoxTest
-from harness import wait_for
+from harness import Page, wait_for
 from test_google_lens import png
 
 DIR = '/browser/browser/components/extensions/test/browser/'
@@ -179,3 +179,41 @@ def close_extension_context_menu(test, item=None, modifiers=None):
         for key in reversed(keys):
             browser.xdotool('keyup', key)
     wait_for(lambda: not browser.menus(), what='the menu to close')
+
+
+def open_new_browser_window(test):
+    """BrowserTestUtils.openNewBrowserWindow() and focusWindow(): a new
+    window with one blank tab, once it has the focus; its DevTools windowId."""
+    browser = test.browser
+    target = browser.browser_call('Target.createTarget', url='about:blank',
+                                  newWindow=True)['targetId']
+    page = Page(wait_for(lambda: next((t for t in browser.targets() if t['id'] == target), None),
+                         what='the new window'))
+    try:
+        wait_for(lambda: page.eval('document.hasFocus()'), what='the new window to have the focus')
+    finally:
+        page.close()
+    return browser.browser_call('Browser.getWindowForTarget', targetId=target)['windowId']
+
+
+def close_window(test, window_id):
+    """BrowserTestUtils.closeWindow(): closes the window's tabs, and so the
+    window."""
+    browser = test.browser
+
+    def tabs():
+        found = []
+        for target in browser.targets():
+            if target['type'] != 'page':
+                continue
+            try:
+                window = browser.browser_call('Browser.getWindowForTarget', targetId=target['id'])
+            except RuntimeError:
+                continue  # Closed meanwhile.
+            if window['windowId'] == window_id:
+                found.append(target)
+        return found
+
+    for target in tabs():
+        browser.browser_call('Target.closeTarget', targetId=target['id'])
+    wait_for(lambda: not tabs(), what='the window to close')
