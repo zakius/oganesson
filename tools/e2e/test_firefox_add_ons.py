@@ -7,6 +7,7 @@ import hashlib
 import io
 import json
 import shutil
+import subprocess
 import tempfile
 import threading
 import time
@@ -2742,6 +2743,79 @@ class FirefoxFirstPartyDomainTest(BrowserTest):
             'left': [],
         })
         self.assertFalse(self.browser.extension_errors(add_on))
+
+
+AMO_HOST = 'addons.mozilla.org'
+OTHER_HOST = 'other.oganesson.test'
+
+
+class FirefoxAmoUserAgentTest(BrowserTest):
+    """addons.mozilla.org (AMO) shows "Add to Firefox" only to Firefox, so the
+    browser sends Firefox's user agent there, in the header and in
+    navigator.userAgent, without user agent client hints. Other hosts get
+    Chromium's, also after a link from AMO, whose override a navigation would
+    otherwise inherit. A local HTTPS server stands in for both hosts."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.folder = Path(tempfile.mkdtemp(prefix='oganesson-amo-'))
+        cert, key = cls.folder / 'cert.pem', cls.folder / 'key.pem'
+        subprocess.run(['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1',
+                        '-subj', f'/CN={AMO_HOST}',
+                        '-addext', f'subjectAltName=DNS:{AMO_HOST},DNS:{OTHER_HOST}',
+                        '-keyout', str(key), '-out', str(cert)], check=True, capture_output=True)
+        html = (200, {'Content-Type': 'text/html'}, b'<p>page</p>')
+        cls.server = Server({'/amo': html, '/amo-again': html, '/api': html, '/other': html,
+                             '/from-amo': html}, tls=(str(cert), str(key)))
+        cls.browser_args = (f'--host-resolver-rules=MAP {AMO_HOST} 127.0.0.1:{cls.server.port},'
+                            f'MAP {OTHER_HOST} 127.0.0.1:{cls.server.port}',
+                            '--ignore-certificate-errors')
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        cls.server.stop()
+        shutil.rmtree(cls.folder)
+
+    def open(self, url):
+        page = self.browser.new_tab(url)
+        wait_for(lambda: page.eval('location.href + document.readyState', gesture=False)
+                 == url + 'complete', what=url)
+        return page
+
+    def follow(self, page, url):
+        """Navigates the page to `url` as a click on a link does."""
+        page.eval(f"location.href = '{url}'")
+        wait_for(lambda: page.eval('location.href + document.readyState', gesture=False)
+                 == url + 'complete', what=url)
+
+    def assert_firefox(self, user_agent):
+        self.assertRegex(user_agent, r'^Mozilla/5\.0 \([^)]*; rv:(\d+)\.0\) Gecko/\S+ Firefox/\1\.0$')
+
+    def test_firefox_on_amo_only(self):
+        page = self.open(f'https://{AMO_HOST}/amo')
+        try:
+            header = self.server.headers['/amo']['User-Agent']
+            self.assert_firefox(header)
+            self.assertFalse([h for h in self.server.headers['/amo'] if h.lower().startswith('sec-ch-ua')])
+            self.assertEqual(page.eval('navigator.userAgent'), header)
+            page.eval("fetch('/api').then(r => r.text())")
+            self.assertEqual(self.server.headers['/api']['User-Agent'], header)
+            self.follow(page, f'https://{AMO_HOST}/amo-again')
+            self.assertEqual(self.server.headers['/amo-again']['User-Agent'], header)
+
+            self.follow(page, f'https://{OTHER_HOST}/from-amo')
+            chromium = self.server.headers['/from-amo']['User-Agent']
+            self.assertIn(' Chrome/', chromium)
+            self.assertEqual(page.eval('navigator.userAgent'), chromium)
+        finally:
+            self.browser.close_target(page)
+        page = self.open(f'https://{OTHER_HOST}/other')
+        try:
+            self.assertEqual(self.server.headers['/other']['User-Agent'], chromium)
+        finally:
+            self.browser.close_target(page)
 
 
 if __name__ == '__main__':
