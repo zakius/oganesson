@@ -834,10 +834,31 @@ class Browser:
         finally:
             self.close_target(page)
         tooltip = title or name
-        return self.wait_settled(lambda: next(
-            (v for v in self.views('ToolbarActionView')
-             if v.visible and tooltip in v.props.values()), None),
-            what=f'the toolbar button {tooltip!r}')
+
+        def button():
+            # Add-ons may share a name, and its button has no ID: the toolbar
+            # shows the pinned add-ons in the order of the profile's list,
+            # before any that it shows for a while unpinned.
+            pinned = self.profile_prefs()['extensions']['pinned_extensions']['value']
+            buttons = sorted((v for v in self.views('ToolbarActionView') if v.visible),
+                             key=lambda v: v.bounds['x'])
+            if extension_id not in pinned or len(buttons) < len(pinned):
+                return None
+            found = buttons[pinned.index(extension_id)]
+            return found if tooltip in found.props.values() else None
+        return self.wait_settled(button, what=f'the toolbar button {tooltip!r}')
+
+    def profile_prefs(self):
+        """The profile's prefs as chrome://prefs-internals shows them: each
+        pref's dotted name is a path of keys, and its value is under
+        'value'."""
+        page = self.new_tab('chrome://prefs-internals')
+        try:
+            text = wait_for(lambda: page.eval('document.readyState') == 'complete'
+                            and page.eval('document.body.innerText'), what='the prefs')
+        finally:
+            self.close_target(page)
+        return json.loads(text)
 
     def wait_ubo_menu(self):
         """Waits for uBlock Origin's "Block element" context menu item, which
