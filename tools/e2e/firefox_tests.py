@@ -16,8 +16,10 @@ ported, how many files there are that aren't `n/a`, and each ported file's
 result with its first failure and the tests that pass. With --only (ports'
 file names, such as firefox/test_ext_scripting_mv2.py), it runs those and
 writes nothing. Either way it prints each port's result next to the score's
-before the run, and exits 1 when a test that passed then doesn't pass now
-(DOWN). A port that fails but never passed exits 0: read its line.
+before the run (the file as it is in --dubna's tree: a full run overwrites
+it), then each of its tests, pass or FAIL. It exits 3 when a test that
+passed then and still exists doesn't pass now (DOWN); any other exit status
+but 0 means the run itself failed.
 
 A port that the list sets `ported` only in a dubna worktree runs with
 --dubna pointing there.
@@ -49,6 +51,8 @@ from harness import BINARY  # noqa: E402
 TIMEOUT = 600
 # The longest failure a score keeps.
 ERROR_LENGTH = 300
+# The exit status for a drop; 1 is any other failure of the run.
+DOWN = 3
 
 
 def first_failure(output):
@@ -132,13 +136,18 @@ def main():
     down = False
     for path, result in results.items():
         before = old.get(path)
-        # A test that passed in the score before this run and doesn't now.
-        new = sorted(set(before.get('passing', [])) - set(result['passing'])) if before else []
+        names = test_names(result['port'].removesuffix('.py').replace('/', '.'))
+        # A test that passed in the score before this run, still exists, and
+        # doesn't pass now: a renamed or removed test isn't a drop.
+        new = sorted((set(before.get('passing', [])) & set(names)) - set(result['passing'])
+                     if before else [])
         down = down or bool(new)
         print(f"{result['port']}: {before['passed'] if before else '-'} -> {result['passed']}"
               f"{'  DOWN: ' + ', '.join(new) if new else ''}")
+        for name in names:
+            print(f"  {'pass' if name in result['passing'] else 'FAIL'} {name}")
     if args.only:
-        return 1 if down else 0
+        return DOWN if down else 0
     score = {
         'date': datetime.date.today().isoformat(),
         'browser': version(),
@@ -151,7 +160,7 @@ def main():
     score_path.write_text(json.dumps(score, indent=1, ensure_ascii=False) + '\n')
     print(f"{score_path}: {score['passing']} of {score['ported']} ported files pass, "
           f"of {score['total']}")
-    return 1 if down else 0
+    return DOWN if down else 0
 
 
 if __name__ == '__main__':
