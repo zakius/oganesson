@@ -968,7 +968,8 @@ class Relaunched:
 
 class Server:
     """A local HTTP server. `routes` maps a path to (status, headers, body), or
-    to a function of the request's headers that returns them. With `tls`, a
+    to a function of the request's headers that returns them; a header whose
+    value is a list is sent once for each value (Set-Cookie). With `tls`, a
     (certificate, key) pair of files, it speaks HTTPS; with `ipv6`, it listens
     on ::1 instead of 127.0.0.1. `requests` lists the paths the browser asked for, in order; `headers` maps a
     path to the headers of its last request, and `bodies` to the body of its
@@ -1006,7 +1007,8 @@ class Server:
                 status, headers, body = route if route else (404, {}, b'not found')
                 self.send_response(status)
                 for key, value in headers.items():
-                    self.send_header(key, value)
+                    for each in value if isinstance(value, list) else [value]:
+                        self.send_header(key, each)
                 self.send_header('Content-Length', str(len(body)))
                 self.end_headers()
                 self.wfile.write(body)
