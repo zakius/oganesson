@@ -17,9 +17,10 @@ result with its first failure and the tests that pass. With --only (ports'
 file names, such as firefox/test_ext_scripting_mv2.py), it runs those and
 writes nothing. Either way it prints each port's result next to the
 committed score's (HEAD of the --dubna tree, so a rerun compares with the
-same score), then each of its tests, pass or FAIL. It exits 3 when a test that
-passed then and still exists doesn't pass now (DOWN); any other exit status
-but 0 means the run itself failed.
+same score), then each of its tests, pass or FAIL. It exits 3 when a test
+that passed then and still exists doesn't pass now (DOWN), and keeps the
+profiles and logs of that port's failed tests; any other exit status but 0
+means the run itself failed.
 
 A port that the list sets `ported` only in a dubna worktree runs with
 --dubna pointing there.
@@ -33,8 +34,10 @@ import datetime
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -101,13 +104,14 @@ def committed_score(dubna, score_path):
     return json.loads(score_path.read_text())['tests'] if score_path.is_file() else {}
 
 
-def run_port(port):
-    """Whether the port passes, its first failure, and its tests that pass."""
+def run_port(port, tmp):
+    """Whether the port passes, its first failure, and its tests that pass.
+    The port's browsers keep a failed run's profile and log in `tmp`."""
     module = port.removesuffix('.py').replace('/', '.')
     try:
         done = subprocess.run([sys.executable, '-m', 'unittest', '-v', module], cwd=HERE,
                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-                              timeout=TIMEOUT, check=False)
+                              timeout=TIMEOUT, check=False, env=dict(os.environ, TMPDIR=str(tmp)))
     except subprocess.TimeoutExpired:
         return False, f'timed out after {TIMEOUT}s', []
     if done.returncode == 0:
@@ -140,8 +144,14 @@ def main():
     score_path = args.dubna / 'webextensions/score/oganesson-firefox-tests.json'
     lock = hold_builds_lock()  # noqa: F841 (held until exit)
     results = {}
+    # Each port's failed runs keep their profiles in a folder of its own,
+    # which goes unless the port has a drop: most failures are known gaps.
+    run_tmp = Path(tempfile.mkdtemp(prefix='firefox-tests-'))
+    tmps = {}
     for number, test in enumerate(ported, 1):
-        passed, error, passing = run_port(test['port'])
+        tmps[test['path']] = run_tmp / str(number)
+        tmps[test['path']].mkdir()
+        passed, error, passing = run_port(test['port'], tmps[test['path']])
         results[test['path']] = {'port': test['port'], 'passed': passed, 'error': error,
                                  'passing': passing}
         print(f"{number}/{len(ported)} {'pass' if passed else 'FAIL'} {test['port']}"
@@ -158,8 +168,16 @@ def main():
         down = down or bool(new)
         print(f"{result['port']}: {before['passed'] if before else '-'} -> {result['passed']}"
               f"{'  DOWN: ' + ', '.join(new) if new else ''}")
+        if new:
+            print(f'  kept {tmps[path]}')
+        else:
+            shutil.rmtree(tmps[path], ignore_errors=True)
         for name in names:
             print(f"  {'pass' if name in result['passing'] else 'FAIL'} {name}")
+    try:
+        run_tmp.rmdir()  # Empty unless a port with a drop kept its profiles.
+    except OSError:
+        pass
     if args.only:
         return DOWN if down else 0
     score = {
