@@ -1,11 +1,12 @@
 """Port of Firefox's
 toolkit/components/extensions/test/xpcshell/test_ext_contentScripts_register.js.
 
-Left out: test_contentscripts_register_all_options and
-test_contentscripts_register_matchOriginAsFallback, which check the scripts'
-properties in Gecko's WebExtensionPolicy, and in
-test_contentscripts_register_cookieStoreId, the same check of
-originAttributesPatterns. The add-ons' code is Firefox's, as it is.
+Left out: the checks of the registered scripts' properties in Gecko's
+WebExtensionPolicy (in test_contentscripts_register_all_options,
+test_contentscripts_register_matchOriginAsFallback and, for
+originAttributesPatterns, test_contentscripts_register_cookieStoreId); those
+tasks' add-ons still register their scripts. The add-ons' code is Firefox's,
+as it is.
 
 Firefox's containers 1 to 4 are Personal, Work, Banking and Shopping, as this
 browser's first four, whose cookieStoreIds are firefox-container-personal and
@@ -507,12 +508,70 @@ class ContentScriptsRegisterTest(FirefoxTest):
 
         extension.unload()
 
+    def test_04_contentscripts_register_all_options(self):
+        background = JS(r'''async function background() {
+  await browser.contentScripts.register({
+    js: [{ file: "content_script.js" }],
+    css: [{ file: "content_style.css" }],
+    matches: ["http://localhost/*"],
+    excludeMatches: ["http://localhost/exclude/*"],
+    excludeGlobs: ["*_exclude.html"],
+    includeGlobs: ["*_include.html"],
+    allFrames: true,
+    matchAboutBlank: true,
+    runAt: "document_start",
+    world: "MAIN",
+    cssOrigin: "USER",
+  });
+
+  browser.test.sendMessage("background-ready", window.location.origin);
+}''')
+
+        extension = self.load_extension(
+            manifest={
+                'permissions': ['http://localhost/*'],
+            },
+            background=background,
+            files={
+                'content_script.js': '',
+                'content_style.css': '',
+            })
+
+        extension.startup()
+
+        extension.await_message('background-ready')
+        # Left out: the script's properties in Gecko's WebExtensionPolicy.
+
+        extension.unload()
+
+    def test_05_contentscripts_register_matchOriginAsFallback(self):
+        background = JS(r'''async function background() {
+  await browser.contentScripts.register({
+    js: [{ file: "cs.js" }],
+    matches: ["http://localhost/*"],
+    matchOriginAsFallback: true,
+  });
+  browser.test.sendMessage("ready");
+}''')
+
+        extension = self.load_extension(
+            manifest={'permissions': ['http://localhost/*']},
+            background=background,
+            files={'cs.js': ''})
+        extension.startup()
+        extension.await_message('ready')
+        # Left out: matchOriginAsFallback and matchAboutBlank in Gecko's
+        # WebExtensionPolicy.
+
+        extension.unload()
+
     def open_in(self, url, options):
         """ExtensionTestUtils.loadContentPage(url, options): a page in a
         container ({userContextId}, 0 for none) or a private window
         ({privateBrowsing: true})."""
         before = {t['id'] for t in self.browser.targets()}
-        if options.get('privateBrowsing'):
+        private = options.get('privateBrowsing')
+        if private:
             self.browser.key('ctrl+shift+n')
         elif options.get('userContextId'):
             links = self.open_tab(self.server.url('/links', host='localhost'))
@@ -531,6 +590,8 @@ class ContentScriptsRegisterTest(FirefoxTest):
         page = Page(wait_for(lambda: next((t for t in self.browser.targets()
                                            if t['id'] not in before and t['type'] == 'page'),
                                           None), what='the new tab'))
+        if private:
+            self.watch(page)
         self.load_url(page, url)
         return page
 

@@ -27,9 +27,12 @@ A test class's `hosts` and `routes` stand for Firefox's test servers, and
 The add-on's pages, background and content scripts get Firefox's `browser.test`
 (`assertEq`, `assertTrue`, `assertFalse`, `assertDeepEq`, `assertThrows`,
 `assertRejects`, `sendMessage`, `onMessage`, `notifyPass`, `notifyFail`,
-`succeed`, `fail`, `log`), from TEST_API, which follows Firefox's ext-test.js.
+`succeed`, `fail`, `log`), from TEST_API, which follows Firefox's ext-test.js;
+so do the scripts it registers (`contentScripts.register`,
+`scripting.registerContentScripts`), but not those it injects once
+(`executeScript`).
 It reports to the test through console messages, which the browser's log
-keeps, and `extension.send_message()` reaches its background and pages (not
+keeps (a private window's, which it doesn't, through DevTools: watch()), and `extension.send_message()` reaches its background and pages (not
 its content scripts) through DevTools. A failed assertion fails the test, as
 it does in Firefox (at the test's end, so that a test reports all of them); so
 does a message nobody awaited when the add-on unloads.
@@ -217,6 +220,20 @@ TEST_API = r'''(() => {
       Object.defineProperty(namespace, "test", {value: test, configurable: true});
     }
   }
+  // Scripts that the add-on registers get browser.test too, as in Firefox:
+  // this file first. Not those it injects once (executeScript).
+  const withTestApi = (api, method, key, entry) => {
+    const original = api && api[method];
+    if (!original) {
+      return;
+    }
+    api[method] = function (options, ...rest) {
+      const add = o => (o && Array.isArray(o[key]) ? {...o, [key]: [entry, ...o[key]]} : o);
+      return original.call(this, Array.isArray(options) ? options.map(add) : add(options), ...rest);
+    };
+  };
+  withTestApi(globalThis.browser?.contentScripts, "register", "js", {file: "/%FILE%"});
+  withTestApi(globalThis.browser?.scripting, "registerContentScripts", "js", "/%FILE%");
   // The background has loaded: a page's load event, or the end of a
   // worker's scripts (generate_files()).
   globalThis.__fxtestReady = () => report("ready");
@@ -226,6 +243,7 @@ TEST_API = r'''(() => {
 })();
 '''
 TEST_API_FILE = 'fxtest-api.js'
+TEST_API = TEST_API.replace('%FILE%', TEST_API_FILE)
 # A report in the browser's log: `"__fxtest__{...}", source: <url> (<line>)`.
 REPORT = re.compile(r'"__fxtest__(\{.*\})", source: ')
 
@@ -256,8 +274,9 @@ def generate_files(manifest, background, files):
     """The add-on's files, as Firefox's ExtensionTestCommon.generateFiles()
     makes them, with the test API added to its background, pages and content
     scripts."""
-    # A file is text, JS(), or bytes (an image).
-    files = {name: text if isinstance(text, bytes) else str(text)
+    # A file is text, JS(), bytes (an image), or JSON as a dict or list.
+    files = {name: text if isinstance(text, bytes)
+             else json.dumps(text) if isinstance(text, (dict, list)) else str(text)
              for name, text in (files or {}).items()}
     manifest = json.loads(json.dumps(manifest or {}))
     manifest.setdefault('name', 'Generated extension')
@@ -322,19 +341,21 @@ class Extension:
                 (folder / name).write_bytes(content)
             else:
                 (folder / name).write_text(content)
+        failures = len(self.test.failures)
         self.id = self.test.browser.pipe_call('Extensions.loadUnpacked', path=str(folder))['id']
         self.state = 'running'
         self.test.extensions.append(self)
         if 'background' in self.manifest:
             self.test.wait_reports(lambda: self.ready, 'the background to load')
         if self.incognito_override == 'spanning':
-            self.allow_in_incognito(folder)
+            self.allow_in_incognito(folder, failures)
 
-    def allow_in_incognito(self, folder):
+    def allow_in_incognito(self, folder, failures):
         """incognitoOverride: "spanning": the user lets the add-on run in
-        private windows. That reloads it, so its reports start again, under a
-        new token: those of its first start, which Firefox's add-on never had,
-        don't count."""
+        private windows. That reloads it, so its background runs twice, where
+        Firefox's runs once. Its reports start again under a new token: those
+        of its first start, failures included, don't count."""
+        del self.test.failures[failures:]
         self.token = uuid.uuid4().hex
         (folder / TEST_API_FILE).write_text(TEST_API.replace('%TOKEN%', self.token))
         self.messages, self.done, self.ready = [], [], False
@@ -408,6 +429,7 @@ class Extension:
             self.test.read_reports()
         self.state = 'unloaded'
         self.test.extensions.remove(self)
+        self.test.unloaded.append(self)
         self.test.browser.pipe_call('Extensions.uninstall', id=self.id)
         if check:
             self.test.assertEqual(json.dumps([m[0] for m in self.messages]), '[]',
@@ -435,7 +457,7 @@ class FirefoxTest(BrowserTest):
         cls.server = Server(cls.routes) if cls.routes else None
         if cls.hosts:
             rules = ','.join(f'MAP {host} 127.0.0.1:{cls.server.port}' for host in cls.hosts)
-            cls.browser_args = (*FirefoxTest.browser_args, f'--host-resolver-rules={rules}')
+            cls.browser_args = (*cls.browser_args, f'--host-resolver-rules={rules}')
             # The servers speak plain HTTP, as Firefox's do: no HTTPS-Only
             # Mode, which this browser has on.
             cls.prefs = {'https_only_mode_enabled': False, **cls.prefs}
@@ -466,6 +488,11 @@ class FirefoxTest(BrowserTest):
 
     def setUp(self):
         self.extensions = []
+        # Their reports may still come, from another process: tearDown()
+        # reads them.
+        self.unloaded = []
+        # Pages whose console the log doesn't keep (watch()).
+        self.watched = []
         self.failures = []
 
     def tearDown(self):
@@ -473,6 +500,7 @@ class FirefoxTest(BrowserTest):
             # Those a failed test left.
             for extension in list(self.extensions):
                 extension.unload(check=False)
+            self.read_reports()
             if self.failures:
                 self.fail('browser.test: ' + ' | '.join(self.failures))
         finally:
@@ -490,24 +518,47 @@ class FirefoxTest(BrowserTest):
 
     def read_reports(self):
         """Hands the add-ons' new reports in the browser's log to them."""
-        by_token = {extension.token: extension for extension in self.extensions}
+        by_token = {e.token: e for e in self.extensions + self.unloaded}
         with open(self.browser.log_path, 'rb') as log:
             log.seek(type(self).log_offset)
             text = log.read()
         # Up to the last whole line: the browser may be writing one.
         end = text.rfind(b'\n') + 1
         type(self).log_offset += end
-        for line in text[:end].decode(errors='replace').splitlines():
-            match = REPORT.search(line)
-            if not match:
-                continue
+        reports = [m.group(1) for line in text[:end].decode(errors='replace').splitlines()
+                   for m in [REPORT.search(line)] if m]
+        for page in self.watched:
+            reports += self.console_reports(page)
+        for found in reports:
             try:
-                report = json.loads(match.group(1))
+                report = json.loads(found)
             except ValueError:
                 continue
             extension = by_token.get(report.get('token'))
             if extension:
                 extension.handle(report['kind'], report['args'])
+
+    def watch(self, page):
+        """Reads the add-ons' reports from `page`'s console through DevTools:
+        the browser doesn't log a private window's console."""
+        page.call('Runtime.enable')
+        self.watched.append(page)
+
+    @staticmethod
+    def console_reports(page):
+        """The reports in `page`'s console since the last call."""
+        try:
+            page.call('Runtime.evaluate', expression='0')  # Collects the events before it.
+        except (OSError, ConnectionError, RuntimeError):
+            pass
+        found = []
+        for event in page.events:
+            args = event.get('params', {}).get('args', [])
+            value = args[0].get('value') if event.get('method') == 'Runtime.consoleAPICalled' and args else None
+            if isinstance(value, str) and value.startswith('__fxtest__'):
+                found.append(value[len('__fxtest__'):])
+        page.events.clear()
+        return found
 
     def wait_reports(self, check, what, timeout=30):
         def found():

@@ -13,10 +13,10 @@ when all its tests pass.
 A full run writes <dubna>/webextensions/score/oganesson-firefox-tests.json:
 the date, the browser's version, how many ported files pass, how many are
 ported, how many files there are that aren't `n/a`, and each ported file's
-result with its first failure. With --only (ports' file names, such as
-firefox/test_ext_scripting_mv2.py), it runs those, prints each one's result
-next to the committed score's, writes nothing, and exits 1 when one that
-passed fails.
+result with its first failure and the tests that fail. With --only (ports'
+file names, such as firefox/test_ext_scripting_mv2.py), it runs those,
+prints each one's result next to the committed score's, writes nothing, and
+exits 1 when a test that passed then fails now.
 
 The run holds the builds lock ($BUILDS_LOCK, by default ~/dev/.builds.lock),
 and runs the browser from OGANESSON_BINARY, by default the release build in
@@ -59,18 +59,24 @@ def first_failure(output):
     return output.strip().splitlines()[-1][:ERROR_LENGTH] if output.strip() else 'no output'
 
 
+def failed_tests(output):
+    """The tests that failed or errored, from the headers of unittest's
+    failure blocks: a test's own "... FAIL" line may have other output in it."""
+    return sorted(set(re.findall(r'^(?:FAIL|ERROR): (test_\w+) \(', output, re.M)))
+
+
 def run_port(port):
-    """Whether the port passes, and its first failure."""
+    """Whether the port passes, its first failure, and its tests that fail."""
     module = port.removesuffix('.py').replace('/', '.')
     try:
         done = subprocess.run([sys.executable, '-m', 'unittest', '-v', module], cwd=HERE,
                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
                               timeout=TIMEOUT, check=False)
     except subprocess.TimeoutExpired:
-        return False, f'timed out after {TIMEOUT}s'
+        return False, f'timed out after {TIMEOUT}s', ['(the whole port)']
     if done.returncode == 0:
-        return True, None
-    return False, first_failure(done.stdout)
+        return True, None, []
+    return False, first_failure(done.stdout), failed_tests(done.stdout) or ['(the whole port)']
 
 
 def main():
@@ -96,19 +102,21 @@ def main():
     lock = hold_builds_lock()  # noqa: F841 (held until exit)
     results = {}
     for number, test in enumerate(ported, 1):
-        passed, error = run_port(test['port'])
-        results[test['path']] = {'port': test['port'], 'passed': passed, 'error': error}
+        passed, error, failed = run_port(test['port'])
+        results[test['path']] = {'port': test['port'], 'passed': passed, 'error': error,
+                                 'failed': failed}
         print(f"{number}/{len(ported)} {'pass' if passed else 'FAIL'} {test['port']}"
               f"{'  ' + error if error else ''}", flush=True)
     if args.only:
         old = json.loads(score_path.read_text())['tests'] if score_path.is_file() else {}
         down = False
         for path, result in results.items():
-            before = old.get(path, {}).get('passed')
-            went_down = before is True and not result['passed']
-            down = down or went_down
-            print(f"{result['port']}: {'-' if before is None else before} -> {result['passed']}"
-                  f"{'  DOWN' if went_down else ''}")
+            before = old.get(path)
+            # A test that passed in the committed score and fails now.
+            new = sorted(set(result['failed']) - set(before['failed'])) if before else []
+            down = down or bool(new)
+            print(f"{result['port']}: {before['passed'] if before else '-'} -> {result['passed']}"
+                  f"{'  DOWN: ' + ', '.join(new) if new else ''}")
         return 1 if down else 0
     score = {
         'date': datetime.date.today().isoformat(),
