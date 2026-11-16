@@ -5,12 +5,10 @@ redirect_to.sjs is head.py's route, which always sends the browser to
 ctxmenu-image.png."""
 
 from firefox import head
-from extension_test_utils import JS, FirefoxTest
+from extension_test_utils import JS
 
 
-class ContextMenusSrcUrlRedirectTest(FirefoxTest):
-    hosts = ('mochi.test',)
-    routes = head.ROUTES
+class ContextMenusSrcUrlRedirectTest(head.ContextMenuTest):
 
     def test_srcUrl_of_redirected_image(self):
         extension = self.load_extension(

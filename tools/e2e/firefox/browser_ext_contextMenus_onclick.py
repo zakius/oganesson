@@ -6,7 +6,7 @@ and each takes the messages for its own page. A click with modifiers holds
 the keys down around a real click (head.py's close_extension_context_menu())."""
 
 from firefox import head
-from extension_test_utils import JS, FirefoxTest
+from extension_test_utils import JS
 
 PAGE = f'{head.BASE}context.html'
 
@@ -109,9 +109,7 @@ TEST_SCRIPT = JS('''function testScript() {
 }''')
 
 
-class ContextMenusOnclickTest(FirefoxTest):
-    hosts = ('mochi.test',)
-    routes = head.ROUTES
+class ContextMenusOnclickTest(head.ContextMenuTest):
 
     def test_01(self):
         tab1 = self.open_tab(PAGE)

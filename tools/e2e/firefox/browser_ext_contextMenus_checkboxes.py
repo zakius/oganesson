@@ -6,12 +6,10 @@ as Firefox does on Linux, the branch that the port checks. A menu item's
 checked state is head.py's Menu.is_checked()."""
 
 from firefox import head
-from extension_test_utils import JS, FirefoxTest
+from extension_test_utils import JS
 
 
-class ContextMenusCheckboxesTest(FirefoxTest):
-    hosts = ('mochi.test',)
-    routes = head.ROUTES
+class ContextMenusCheckboxesTest(head.ContextMenuTest):
 
     def test_01(self):
         tab1 = self.open_tab(f'{head.BASE}context.html')

@@ -11,6 +11,7 @@ Where Firefox gives an add-on with more than one item a submenu of its own
 ("top-level-menu"), this browser does too, under the add-on's name.
 """
 
+from extension_test_utils import FirefoxTest
 from harness import wait_for
 from test_google_lens import png
 
@@ -54,6 +55,20 @@ ROUTES = {
 
 # Firefox's EventUtils modifiers, as xdotool's keys.
 MODIFIERS = {'shiftKey': 'shift', 'ctrlKey': 'ctrl', 'altKey': 'alt', 'metaKey': 'super'}
+
+
+class ContextMenuTest(FirefoxTest):
+    """A test file that opens context menus on head.py's test pages. A menu
+    that a failed test leaves open closes before the next test, whose right
+    click it would take."""
+    hosts = ('mochi.test',)
+    routes = ROUTES
+
+    def tearDown(self):
+        try:
+            close_context_menu(self)
+        finally:
+            super().tearDown()
 
 
 class Menu:

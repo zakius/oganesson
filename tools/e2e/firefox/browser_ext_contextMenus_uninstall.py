@@ -5,12 +5,10 @@ Firefox's top-level menu of an add-on ("top-level-menu") is, in this
 browser, the item with the add-on's name, here Firefox's default name."""
 
 from firefox import head
-from extension_test_utils import JS, FirefoxTest
+from extension_test_utils import JS
 
 
-class ContextMenusUninstallTest(FirefoxTest):
-    hosts = ('mochi.test',)
-    routes = head.ROUTES
+class ContextMenusUninstallTest(head.ContextMenuTest):
 
     def test_01(self):
         tab1 = self.open_tab(f'{head.BASE}context.html')

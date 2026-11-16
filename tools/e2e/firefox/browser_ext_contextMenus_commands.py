@@ -5,15 +5,13 @@ Firefox's menu label is the item's title; the add-on's submenu is under its
 name, "contextMenus commands"."""
 
 from firefox import head
-from extension_test_utils import JS, FirefoxTest
+from extension_test_utils import JS
 
 TEST_HTML = '<!DOCTYPE html><meta charset="utf-8"><script src="test.js"></script>'
 PAGE = f'{head.BASE}context.html?test=commands'
 
 
-class ContextMenusCommandsTest(FirefoxTest):
-    hosts = ('mochi.test',)
-    routes = head.ROUTES
+class ContextMenusCommandsTest(head.ContextMenuTest):
 
     def test_actions_context_menu(self):
         background = JS('''function background() {

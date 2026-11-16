@@ -6,12 +6,10 @@ show an item's label as an attribute of its own: the port reads the radio
 items by their labels in the order they show."""
 
 from firefox import head
-from extension_test_utils import JS, FirefoxTest
+from extension_test_utils import JS
 
 
-class ContextMenusRadioGroupsTest(FirefoxTest):
-    hosts = ('mochi.test',)
-    routes = head.ROUTES
+class ContextMenusRadioGroupsTest(head.ContextMenuTest):
 
     def test_01(self):
         tab1 = self.open_tab(f'{head.BASE}context.html')
