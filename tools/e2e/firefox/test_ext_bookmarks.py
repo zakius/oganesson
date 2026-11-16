@@ -9,7 +9,10 @@ Left out of test_get_recent_with_tag_and_query: the tag and the query bookmark
 browser doesn't have. Left out of test_bookmarks_event_page:
 assertPersistentListeners(), which reads Gecko's primed listeners. Its
 terminateBackground() needs EVENT_PAGE_ARGS, and its restart of the add-on
-manager is a restart of the browser (restart_browser())."""
+manager is a restart of the browser (restart_browser()). After the restart,
+Firefox's event page waits for an event; this browser starts it as it loads
+the add-on, so the port waits for it to stop again before the bookmark
+change that must wake it."""
 
 import json
 
@@ -1680,6 +1683,9 @@ class BookmarksTest(FirefoxTest):
         extension.await_message('onCreated')
 
         self.restart_browser()
+        # The event page starts with the browser here: the port lets it stop.
+        extension.await_message('ready')
+        extension.terminate_background()
 
         places.erase_everything()
         extension.await_message('ready')
