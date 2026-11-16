@@ -854,8 +854,10 @@ class Browser:
         'value'."""
         page = self.new_tab('chrome://prefs-internals')
         try:
-            text = wait_for(lambda: page.eval('document.readyState') == 'complete'
-                            and page.eval('document.body.innerText'), what='the prefs')
+            # One expression: the tab's first document, blank, may give way
+            # to the prefs between two, and has no body for a moment.
+            text = wait_for(lambda: page.eval("document.readyState == 'complete'"
+                                              ' && document.body?.innerText'), what='the prefs')
         finally:
             self.close_target(page)
         return json.loads(text)
