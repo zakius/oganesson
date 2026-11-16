@@ -23,8 +23,10 @@ L2  Its background page or service worker starts, if it has one, and nothing
     here, hence the feature files.
 L3  A smoke check passes, with no new uncaught error from the add-on: its
     toolbar popup, if its browser_action or action has one in its manifest,
-    opens on a real click with a web page active (a new page at that URL)
-    and shows something; and its content
+    opens on a real click with a web page active (a new page of the add-on
+    that chrome.extension.getViews() counts as a popup, or else a new page
+    of it in a tab, for an add-on that clears its popup at run time) and
+    shows something; and its content
     scripts, if it has some, run on a page they match. That page is the
     runner's own small page, in a tab of the add-on's own, at an https: URL
     made from the first https: or *: pattern of the first entry that runs
@@ -56,7 +58,6 @@ import datetime
 import fcntl
 import json
 import os
-import posixpath
 import re
 import subprocess
 import sys
@@ -234,15 +235,13 @@ def content_url(manifest):
     return None
 
 
-def popup_url(extension, manifest):
-    """The URL of the popup of the add-on's toolbar button in its manifest,
-    or None."""
+def has_popup(manifest):
+    """Whether the add-on's toolbar button has a popup in its manifest."""
     for key in ('browser_action', 'action'):
         action = manifest.get(key)
-        popup = action.get('default_popup') if isinstance(action, dict) else None
-        if isinstance(popup, str) and popup:
-            return f"chrome-extension://{extension}/{posixpath.normpath(popup).lstrip('/')}"
-    return None
+        if isinstance(action, dict) and action.get('default_popup'):
+            return True
+    return False
 
 
 def serve(browser, url):
@@ -292,6 +291,24 @@ def set_pinned(browser, extensions, pinned):
         close(browser, page)
 
 
+def is_popup(target):
+    """Whether the page `target` is its add-on's toolbar popup, or None while
+    it can't tell."""
+    try:
+        page = Page(target)
+    except OSError:
+        return None
+    page.ws.sock.settimeout(POPUP)
+    try:
+        return page.eval("document.readyState == 'complete' ? "
+                         "!!chrome.extension?.getViews?.({type: 'popup'}).includes(window) : null",
+                         gesture=False)
+    except (OSError, AssertionError):
+        return None
+    finally:
+        page.close()
+
+
 def shows_something(target):
     """None when the popup `target` shows something, else why not."""
     try:
@@ -313,12 +330,11 @@ def shows_something(target):
         popup.close()
 
 
-def open_popups(browser, popups):
-    """Clicks the toolbar buttons of the add-ons `popups` {extension: the
-    URL of its popup} and returns {extension: None, or why its popup failed}
-    for the popups that opened."""
+def open_popups(browser, extensions):
+    """Clicks the toolbar buttons of the add-ons `extensions`, whose actions
+    have popups, and returns {extension: None, or why its popup failed} for
+    the popups that opened."""
     found = {}
-    extensions = list(popups)
     for start in range(0, len(extensions), PINNED):
         batch = extensions[start:start + PINNED]
         set_pinned(browser, batch, True)
@@ -330,15 +346,36 @@ def open_popups(browser, popups):
         for view in views:
             before = {t['id'] for t in browser.targets()}
             browser.click_view(view)
-            # A new page at an add-on's popup URL, not another page that an
-            # add-on opened meanwhile.
+            # A new page of an add-on of the batch that is its popup, not
+            # another page that an add-on opened meanwhile.
+            checked = {}
+
+            def popup(before=before, checked=checked):
+                for target in browser.targets():
+                    extension = target['url'].split('/')[2] if '://' in target['url'] else ''
+                    if (target['id'] in before or target['type'] != 'page'
+                            or extension not in batch or extension in found):
+                        continue
+                    if checked.get(target['id']) is None:
+                        checked[target['id']] = is_popup(target)
+                    if checked[target['id']]:
+                        return target
+                return None
+
             try:
-                target = wait_for(lambda b=before: next(
-                    (t for t in browser.targets() if t['id'] not in b and t['type'] == 'page'
-                     and any(t['url'] == popups[e] for e in batch if e not in found)), None),
-                    timeout=POPUP, what='a popup')
+                target = wait_for(popup, timeout=POPUP, what='a popup')
             except AssertionError:
-                continue
+                # Another popup, the bundled uBlock Origin's, may be open: it
+                # would take the next click.
+                browser.key('Escape')
+                # An add-on that clears its popup at run time opens its page in
+                # a tab instead.
+                target = next((t for t in browser.targets() if t['id'] not in before
+                               and t['type'] == 'page' and '://' in t['url']
+                               and t['url'].split('/')[2] in batch
+                               and t['url'].split('/')[2] not in found), None)
+                if not target:
+                    continue
             extension = target['url'].split('/')[2]
             found[extension] = shows_something(target)
             close(browser, types.SimpleNamespace(id=target['id']))
@@ -364,8 +401,7 @@ def smoke_check(browser, extensions, manifests):
                     tabs[item] = serve(browser, url)
                 except (OSError, AssertionError, RuntimeError):
                     pass  # Another add-on closed it: it doesn't tell.
-        popups = {extensions[i]: popup_url(extensions[i], manifests[i]) for i in extensions}
-        popups = {e: url for e, url in popups.items() if url}
+        popups = [extensions[i] for i in extensions if has_popup(manifests[i])]
         opened = open_popups(browser, popups) if popups else {}
         for item, extension in extensions.items():
             if extension in popups:
