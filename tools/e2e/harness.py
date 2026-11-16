@@ -46,7 +46,8 @@ What's here:
 
 Tests to copy from: test_ubo_restart.py for the bundled uBlock Origin,
 test_tab_behavior.py for a test extension loaded with --load-extension,
-test_harness.py for an add-on from an .xpi, its errors and its popup.
+test_harness.py for an add-on from an .xpi, its errors and its popup,
+extension_test_utils.py for a port of one of Firefox's own WebExtensions tests.
 
 To explore outside a suite, run a script from tools/e2e with
 OGANESSON_BINARY=../../work/helium-linux/build/src/out/Default/oganesson and
