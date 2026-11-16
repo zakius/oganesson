@@ -55,13 +55,14 @@ ADDONS = {
                           'setTimeout(() => chrome.management.uninstallSelf(), 1000);', 'L3'),
     # It scripts every open tab, as Dark Background and Light Text does, and
     # meets the runner's start tab, a browser page: Firefox refuses its own
-    # pages too.
+    # pages too. It waits for the tab to load: before that, the tab has no
+    # page to script, in Firefox either.
     'scripts-every-tab': ({**BACKGROUND_MV2, 'permissions': ['<all_urls>']}, '''
         (async () => {
             let tabs = [];
             while (!tabs.length) {
                 await new Promise(resolve => setTimeout(resolve, 100));
-                tabs = await browser.tabs.query({});
+                tabs = await browser.tabs.query({status: 'complete'});
             }
             for (const tab of tabs) {
                 browser.tabs.executeScript(tab.id, {code: '1'});
