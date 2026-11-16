@@ -59,16 +59,14 @@ MODIFIERS = {'shiftKey': 'shift', 'ctrlKey': 'ctrl', 'altKey': 'alt', 'metaKey':
 
 class ContextMenuTest(FirefoxTest):
     """A test file that opens context menus on head.py's test pages. A menu
-    that a failed test leaves open closes before the next test, whose right
-    click it would take."""
+    that a failed test leaves open closes when the next test starts, whose
+    right click it would take; until then the failure's screenshot shows it."""
     hosts = ('mochi.test',)
     routes = ROUTES
 
-    def tearDown(self):
-        try:
-            close_context_menu(self)
-        finally:
-            super().tearDown()
+    def setUp(self):
+        super().setUp()
+        close_context_menu(self)
 
 
 class Menu:
