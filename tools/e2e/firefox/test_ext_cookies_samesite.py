@@ -7,9 +7,11 @@ no setting for either. network.cookie.sameSite.laxByDefault off: Chromium
 treats a cookie without SameSite as Lax too, but the cookies API gives its
 sameSite as "unspecified", as the test expects. network.cookie.sameSite.
 noneRequiresSecure off: Chromium always refuses a SameSite=None cookie that
-isn't Secure, as Firefox does by default, so the checks of test4 and of
-sameSite "no_restriction" fail here by that rule, not on a missing part of the
-API."""
+isn't Secure, as Firefox does by default. So test4 isn't set, and the
+add-on's background stops where it reads test4's sameSite: the checks after it
+(getAll, and set() with each sameSite, whose "no_restriction" Chromium refuses
+by the same rule) don't run. The port fails by that rule, not on a missing part
+of the API."""
 
 from extension_test_utils import JS, FirefoxTest
 

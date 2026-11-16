@@ -5,8 +5,9 @@ The add-ons' code is Firefox's, as it is. The test adds and removes a cookie
 with Gecko's cookie service; here DevTools does that in a tab's own cookie
 store (Network.setCookie and Network.deleteCookies): a tab of a private window
 for a private cookie. Left out: the checks that the event pages' listeners are
-primed (Gecko's assertPersistentListeners()); the port checks instead that the
-event page that the change should wake is running and the other one isn't.
+primed (Gecko's assertPersistentListeners()). The port checks instead that the
+non-private add-on's event page stays stopped after the private cookie's
+change; the private one's events show that its page woke.
 terminateBackground() needs EVENT_PAGE_ARGS."""
 
 import time
