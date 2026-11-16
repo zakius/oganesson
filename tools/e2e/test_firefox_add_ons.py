@@ -2575,8 +2575,11 @@ class FirefoxXpiInstallTest(BrowserTest):
     def download(self, path, gesture=True):
         """Downloads `path` from a page of the server, as a click on a link
         to it does, or as the page does by itself without `gesture`."""
-        page = self.browser.new_tab(self.server.url('/'))
-        wait_for(lambda: page.eval('document.readyState') == 'complete', what='the page')
+        url = self.server.url('/')
+        page = self.browser.new_tab(url)
+        # Without a gesture of its own: one would last for the next call.
+        wait_for(lambda: page.eval('location.href + document.readyState', gesture=False)
+                 == url + 'complete', what='the page')
         page.eval(f"location.href = '{path}'", gesture=gesture)
 
     def accept_prompt(self):
