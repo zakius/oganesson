@@ -635,6 +635,11 @@ class FirefoxTest(BrowserTest):
         if not passed:
             self.failures.append((token, message))
 
+    def is_(self, actual, expected, message):
+        """Firefox's is(), for the test's own checks: a failure fails the test
+        when it ends, and the test runs on."""
+        self.check(actual == expected, f'{message} - Expected: {expected}, Actual: {actual}')
+
     def read_reports(self):
         """Hands the add-ons' new reports in the browser's log to them."""
         by_token = {e.token: e for e in self.extensions + self.unloaded}
