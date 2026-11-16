@@ -558,8 +558,10 @@ class FirefoxTest(BrowserTest):
             rules = ','.join(f'MAP {host} 127.0.0.1:{cls.server.port}' for host in cls.hosts)
             cls.browser_args = (*cls.browser_args, f'--host-resolver-rules={rules}')
             # The servers speak plain HTTP, as Firefox's do: no HTTPS-Only
-            # Mode, which this browser has on.
-            cls.prefs = {'https_only_mode_enabled': False, **cls.prefs}
+            # Mode, which this browser has on, nor Chromium's HTTPS-First
+            # Mode in private windows.
+            cls.prefs = {'https_only_mode_enabled': False,
+                         'https_first_mode_incognito_enabled': False, **cls.prefs}
         super().setUpClass()
         cls.log_offset = 0
 

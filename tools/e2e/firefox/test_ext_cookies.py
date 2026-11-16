@@ -3,7 +3,8 @@ toolkit/components/extensions/test/mochitest/test_ext_cookies.html.
 
 The add-on's background is Firefox's, as it is. Firefox's prefs
 dom.security.https_first and https_first_pbm off take this browser's form:
-HTTPS-Only Mode off, as for every port with test hosts."""
+HTTPS-Only Mode off, and HTTPS-First Mode off in private windows, as for
+every port with test hosts."""
 
 from extension_test_utils import JS, FirefoxTest
 
