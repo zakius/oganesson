@@ -14,9 +14,13 @@ A full run writes <dubna>/webextensions/score/oganesson-firefox-tests.json:
 the date, the browser's version, how many ported files pass, how many are
 ported, how many files there are that aren't `n/a`, and each ported file's
 result with its first failure and the tests that pass. With --only (ports'
-file names, such as firefox/test_ext_scripting_mv2.py), it runs those,
-prints each one's result next to the committed score's, writes nothing, and
-exits 1 when a test that passed then doesn't pass now.
+file names, such as firefox/test_ext_scripting_mv2.py), it runs those and
+writes nothing. Either way it prints each port's result next to the score's
+before the run, and exits 1 when a test that passed then doesn't pass now
+(DOWN). A port that fails but never passed exits 0: read its line.
+
+A port that the list sets `ported` only in a dubna worktree runs with
+--dubna pointing there.
 
 The run holds the builds lock ($BUILDS_LOCK, by default ~/dev/.builds.lock),
 and runs the browser from OGANESSON_BINARY, by default the release build in
@@ -124,16 +128,16 @@ def main():
                                  'passing': passing}
         print(f"{number}/{len(ported)} {'pass' if passed else 'FAIL'} {test['port']}"
               f"{'  ' + error if error else ''}", flush=True)
+    old = json.loads(score_path.read_text())['tests'] if score_path.is_file() else {}
+    down = False
+    for path, result in results.items():
+        before = old.get(path)
+        # A test that passed in the score before this run and doesn't now.
+        new = sorted(set(before.get('passing', [])) - set(result['passing'])) if before else []
+        down = down or bool(new)
+        print(f"{result['port']}: {before['passed'] if before else '-'} -> {result['passed']}"
+              f"{'  DOWN: ' + ', '.join(new) if new else ''}")
     if args.only:
-        old = json.loads(score_path.read_text())['tests'] if score_path.is_file() else {}
-        down = False
-        for path, result in results.items():
-            before = old.get(path)
-            # A test that passed in the committed score and doesn't now.
-            new = sorted(set(before.get('passing', [])) - set(result['passing'])) if before else []
-            down = down or bool(new)
-            print(f"{result['port']}: {before['passed'] if before else '-'} -> {result['passed']}"
-                  f"{'  DOWN: ' + ', '.join(new) if new else ''}")
         return 1 if down else 0
     score = {
         'date': datetime.date.today().isoformat(),
@@ -147,7 +151,7 @@ def main():
     score_path.write_text(json.dumps(score, indent=1, ensure_ascii=False) + '\n')
     print(f"{score_path}: {score['passing']} of {score['ported']} ported files pass, "
           f"of {score['total']}")
-    return 0
+    return 1 if down else 0
 
 
 if __name__ == '__main__':
