@@ -469,6 +469,10 @@ class Browser:
         log = open(self.log_path, 'a')
         command, pass_fds = [str(self.binary)], ()
         if self.pipe:
+            if self.proc:
+                # A restart: the old browser's pipe ends.
+                os.close(self.pipe_writer)
+                os.close(self.pipe_reader)
             # The browser reads commands from fd 3 and writes replies to fd 4.
             to_browser, self.pipe_writer = os.pipe()
             self.pipe_reader, from_browser = os.pipe()
