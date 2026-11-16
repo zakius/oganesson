@@ -37,7 +37,6 @@ import re
 import shutil
 import subprocess
 import sys
-import tempfile
 import unittest
 from pathlib import Path
 
@@ -95,8 +94,10 @@ def committed_score(dubna, score_path):
     (its HEAD), which no run overwrites; the file itself when the tree isn't
     a Git checkout."""
     relative = score_path.relative_to(dubna).as_posix()
+    # Git's messages in English, which the check below reads.
     shown = subprocess.run(['git', '-C', str(dubna), 'show', f'HEAD:{relative}'],
-                           capture_output=True, text=True, check=False)
+                           capture_output=True, text=True, check=False,
+                           env=dict(os.environ, LC_ALL='C', LANGUAGE='C'))
     if shown.returncode == 0:
         return json.loads(shown.stdout)['tests']
     if not (dubna / '.git').exists():
@@ -109,22 +110,25 @@ def committed_score(dubna, score_path):
     sys.exit(f'firefox_tests.py: no committed score in {dubna}: {shown.stderr.strip()}')
 
 
-def run_port(port, tmp):
-    """Whether the port passes, its first failure, and its tests that pass.
-    The port's browsers keep a failed run's profile and log in `tmp`."""
+def run_port(port):
+    """Whether the port passes, its first failure, its tests that pass, and
+    the folders its browsers kept (harness.py's "kept <root>" lines: a failed
+    test's profile and log)."""
     module = port.removesuffix('.py').replace('/', '.')
     try:
         done = subprocess.run([sys.executable, '-m', 'unittest', '-v', module], cwd=HERE,
                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-                              timeout=TIMEOUT, check=False, env=dict(os.environ, TMPDIR=str(tmp)))
+                              timeout=TIMEOUT, check=False)
     except subprocess.TimeoutExpired:
-        return False, f'timed out after {TIMEOUT}s', []
+        # Killed: its browsers' folders stay in TMPDIR, unnamed.
+        return False, f'timed out after {TIMEOUT}s', [], []
+    kept = [Path(root) for root in re.findall(r'^ +kept (\S+) \(log: ', done.stdout, re.M)]
     if done.returncode == 0:
-        return True, None, test_names(module)
+        return True, None, test_names(module), kept
     failed = failed_tests(done.stdout)
     # A failure outside the tests (setUpClass) fails them all.
     passing = [name for name in test_names(module) if name not in failed] if failed else []
-    return False, first_failure(done.stdout), passing
+    return False, first_failure(done.stdout), passing, kept
 
 
 def main():
@@ -151,23 +155,28 @@ def main():
     old = committed_score(args.dubna, score_path)
     lock = hold_builds_lock()  # noqa: F841 (held until exit)
     results = {}
-    # Each port's failed runs keep their profiles in a folder of its own,
-    # which goes unless the port has a drop (or OGANESSON_E2E_KEEP=1): most
-    # failures are known gaps. Short names: the harness's Wayland socket is
-    # under it.
-    tmps = {}
+    # The folders that failed tests kept go unless their port has a drop (or
+    # OGANESSON_E2E_KEEP=1): most failures are known gaps.
+    kept = {}
     try:
-        for number, test in enumerate(ported, 1):
-            tmps[test['path']] = Path(tempfile.mkdtemp(prefix='ff-'))
-            passed, error, passing = run_port(test['port'], tmps[test['path']])
-            results[test['path']] = {'port': test['port'], 'passed': passed, 'error': error,
-                                     'passing': passing}
-            print(f"{number}/{len(ported)} {'pass' if passed else 'FAIL'} {test['port']}"
-                  f"{'  ' + error if error else ''}", flush=True)
+        return compare(ported, results, kept, old, args, tests, score_path)
     except BaseException:
-        for tmp in tmps.values():
-            print(f'  kept {tmp}', file=sys.stderr)
+        for roots in kept.values():
+            for root in roots:
+                if root.exists():
+                    print(f'  left {root}', file=sys.stderr)
         raise
+
+
+def compare(ported, results, kept, old, args, tests, score_path):
+    """Runs the ports, prints each one's result next to the committed
+    score's, and writes the score unless --only; the exit status."""
+    for number, test in enumerate(ported, 1):
+        passed, error, passing, kept[test['path']] = run_port(test['port'])
+        results[test['path']] = {'port': test['port'], 'passed': passed, 'error': error,
+                                 'passing': passing}
+        print(f"{number}/{len(ported)} {'pass' if passed else 'FAIL'} {test['port']}"
+              f"{'  ' + error if error else ''}", flush=True)
     down = False
     for path, result in results.items():
         before = old.get(path)
@@ -179,12 +188,13 @@ def main():
         down = down or bool(new)
         print(f"{result['port']}: {before['passed'] if before else '-'} -> {result['passed']}"
               f"{'  DOWN: ' + ', '.join(new) if new else ''}")
-        if new or KEEP:
-            print(f'  kept {tmps[path]}')
-        else:
-            shutil.rmtree(tmps[path], ignore_errors=True)
-            if tmps[path].exists():  # A browser that outlived its port wrote on.
-                print(f'  could not remove {tmps[path]}')
+        for root in kept[path]:
+            if new or KEEP:
+                print(f'  kept {root}')
+            else:
+                shutil.rmtree(root, ignore_errors=True)
+                if root.exists():  # A browser that outlived its port wrote on.
+                    print(f'  could not remove {root}')
         for name in names:
             print(f"  {'pass' if name in result['passing'] else 'FAIL'} {name}")
     if args.only:
