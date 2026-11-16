@@ -9,6 +9,7 @@ import json
 import shutil
 import tempfile
 import threading
+import time
 import unittest
 import zipfile
 from pathlib import Path
@@ -2550,22 +2551,33 @@ def xpi_add_on(gecko_id):
 
 
 class FirefoxXpiInstallTest(BrowserTest):
-    """A downloaded .xpi opens the install prompt. Accepted, an add-on with a
-    Gecko ID installs packed, without developer mode, with the ID from its
-    Gecko ID; a second download reinstalls it and keeps its storage. One
-    without a Gecko ID doesn't install outside developer mode."""
+    """A .xpi downloaded after a user gesture opens the install prompt.
+    Accepted, an add-on with a Gecko ID installs packed, without developer
+    mode, with the ID from its Gecko ID; a second download reinstalls it and
+    keeps its storage. One without a Gecko ID doesn't install, even in
+    developer mode, and without a gesture a .xpi stays a file."""
+
+    prefs = DEVELOPER_MODE
 
     @classmethod
     def setUpClass(cls):
         xpi = (200, {'Content-Type': 'application/x-xpinstall'}, xpi_add_on(XPI_GECKO_ID))
         no_id = (200, {'Content-Type': 'application/x-xpinstall'}, xpi_add_on(None))
-        cls.server = Server({'/add-on.xpi': xpi, '/no-id.xpi': no_id})
+        cls.server = Server({'/': (200, {'Content-Type': 'text/html'}, b'<p>add-ons</p>'),
+                             '/add-on.xpi': xpi, '/no-id.xpi': no_id, '/no-gesture.xpi': xpi})
         super().setUpClass()
 
     @classmethod
     def tearDownClass(cls):
         super().tearDownClass()
         cls.server.stop()
+
+    def download(self, path, gesture=True):
+        """Downloads `path` from a page of the server, as a click on a link
+        to it does, or as the page does by itself without `gesture`."""
+        page = self.browser.new_tab(self.server.url('/'))
+        wait_for(lambda: page.eval('document.readyState') == 'complete', what='the page')
+        page.eval(f"location.href = '{path}'", gesture=gesture)
 
     def accept_prompt(self):
         button = self.browser.wait_view(
@@ -2601,7 +2613,7 @@ class FirefoxXpiInstallTest(BrowserTest):
         # Chromium's ID of the Gecko ID: its SHA-256, in letters a to p.
         add_on = hashlib.sha256(XPI_GECKO_ID.encode()).hexdigest()[:32].translate(
             str.maketrans('0123456789abcdef', 'abcdefghijklmnop'))
-        self.browser.new_tab(self.server.url('/add-on.xpi'))
+        self.download('/add-on.xpi')
         self.accept_prompt()
         background = self.started(add_on)
         try:
@@ -2614,7 +2626,7 @@ class FirefoxXpiInstallTest(BrowserTest):
         self.assertNotEqual(info[0]['location'], 'UNPACKED')
         self.assertEqual(info[0]['state'], 'ENABLED')
 
-        self.browser.new_tab(self.server.url('/add-on.xpi'))
+        self.download('/add-on.xpi')
         self.accept_prompt()
         # The reinstalled add-on's new background page.
         background = self.started(add_on, '!self.first')
@@ -2625,8 +2637,8 @@ class FirefoxXpiInstallTest(BrowserTest):
         self.assertEqual(stored, {'kept': 'from the first install'})
         self.assertEqual(len(self.installed(add_on)), 1)
 
-    def test_no_gecko_id_outside_developer_mode(self):
-        self.browser.new_tab(self.server.url('/no-id.xpi'))
+    def test_no_gecko_id(self):
+        self.download('/no-id.xpi')
         wait_for(lambda: 'This add-on has no Gecko ID' in self.browser.log_path.read_text(
             errors='replace'), timeout=30, what='the load error')
         page = self.browser.new_tab('chrome://extensions')
@@ -2636,6 +2648,15 @@ class FirefoxXpiInstallTest(BrowserTest):
         finally:
             self.browser.close_target(page)
         self.assertNotIn('Firefox .xpi install test add-on without a Gecko ID', names)
+
+    def test_no_gesture(self):
+        self.download('/no-gesture.xpi', gesture=False)
+        wait_for(lambda: (self.browser.home / 'Downloads' / 'no-gesture.xpi').exists(),
+                 what='the download')
+        # The prompt would open as the download completes, in under a second.
+        time.sleep(2)
+        self.assertFalse([v for v in self.browser.views('MdTextButton', Text='Add extension')
+                          if v.visible])
 
 
 FIRST_PARTY_DOMAIN_ADD_ON = {
