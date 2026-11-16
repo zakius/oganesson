@@ -19,8 +19,8 @@ writes nothing. Either way it prints each port's result next to the
 committed score's (HEAD of the --dubna tree, so a rerun compares with the
 same score), then each of its tests, pass or FAIL. It exits 3 when a test
 that passed then and still exists doesn't pass now (DOWN), and keeps the
-profiles and logs of that port's failed tests; any other exit status but 0
-means the run itself failed.
+profiles and logs of that port's failed tests (OGANESSON_E2E_KEEP=1 keeps
+every port's); any other exit status but 0 means the run itself failed.
 
 A port that the list sets `ported` only in a dubna worktree runs with
 --dubna pointing there.
@@ -48,7 +48,7 @@ os.environ.setdefault('OGANESSON_BINARY',
 os.environ.setdefault('TMPDIR', str(ROOT / 'work/tmp'))
 # pylint: disable=wrong-import-position
 from corpus import hold_builds_lock, version  # noqa: E402
-from harness import BINARY  # noqa: E402
+from harness import BINARY, KEEP  # noqa: E402
 
 # A port's slowest run, with its browser's start and stop.
 TIMEOUT = 600
@@ -99,9 +99,14 @@ def committed_score(dubna, score_path):
                            capture_output=True, text=True, check=False)
     if shown.returncode == 0:
         return json.loads(shown.stdout)['tests']
-    if (dubna / '.git').exists():
-        return {}  # Not committed yet: nothing to compare with.
-    return json.loads(score_path.read_text())['tests'] if score_path.is_file() else {}
+    if not (dubna / '.git').exists():
+        return json.loads(score_path.read_text())['tests'] if score_path.is_file() else {}
+    # Not committed yet: nothing to compare with. Any other failure (an
+    # unsafe owner, a broken worktree) would hide every drop, so it stops.
+    if re.search(r"does not exist in 'HEAD'|but not in 'HEAD'|invalid object name 'HEAD'",
+                 shown.stderr):
+        return {}
+    sys.exit(f'firefox_tests.py: no committed score in {dubna}: {shown.stderr.strip()}')
 
 
 def run_port(port, tmp):
@@ -142,21 +147,27 @@ def main():
     if missing:
         sys.exit(f'ports missing from {HERE}: {missing}')
     score_path = args.dubna / 'webextensions/score/oganesson-firefox-tests.json'
+    # Read first: a run that can't compare stops before it starts.
+    old = committed_score(args.dubna, score_path)
     lock = hold_builds_lock()  # noqa: F841 (held until exit)
     results = {}
     # Each port's failed runs keep their profiles in a folder of its own,
-    # which goes unless the port has a drop: most failures are known gaps.
-    run_tmp = Path(tempfile.mkdtemp(prefix='firefox-tests-'))
+    # which goes unless the port has a drop (or OGANESSON_E2E_KEEP=1): most
+    # failures are known gaps. Short names: the harness's Wayland socket is
+    # under it.
     tmps = {}
-    for number, test in enumerate(ported, 1):
-        tmps[test['path']] = run_tmp / str(number)
-        tmps[test['path']].mkdir()
-        passed, error, passing = run_port(test['port'], tmps[test['path']])
-        results[test['path']] = {'port': test['port'], 'passed': passed, 'error': error,
-                                 'passing': passing}
-        print(f"{number}/{len(ported)} {'pass' if passed else 'FAIL'} {test['port']}"
-              f"{'  ' + error if error else ''}", flush=True)
-    old = committed_score(args.dubna, score_path)
+    try:
+        for number, test in enumerate(ported, 1):
+            tmps[test['path']] = Path(tempfile.mkdtemp(prefix='ff-'))
+            passed, error, passing = run_port(test['port'], tmps[test['path']])
+            results[test['path']] = {'port': test['port'], 'passed': passed, 'error': error,
+                                     'passing': passing}
+            print(f"{number}/{len(ported)} {'pass' if passed else 'FAIL'} {test['port']}"
+                  f"{'  ' + error if error else ''}", flush=True)
+    except BaseException:
+        for tmp in tmps.values():
+            print(f'  kept {tmp}', file=sys.stderr)
+        raise
     down = False
     for path, result in results.items():
         before = old.get(path)
@@ -168,16 +179,14 @@ def main():
         down = down or bool(new)
         print(f"{result['port']}: {before['passed'] if before else '-'} -> {result['passed']}"
               f"{'  DOWN: ' + ', '.join(new) if new else ''}")
-        if new:
+        if new or KEEP:
             print(f'  kept {tmps[path]}')
         else:
             shutil.rmtree(tmps[path], ignore_errors=True)
+            if tmps[path].exists():  # A browser that outlived its port wrote on.
+                print(f'  could not remove {tmps[path]}')
         for name in names:
             print(f"  {'pass' if name in result['passing'] else 'FAIL'} {name}")
-    try:
-        run_tmp.rmdir()  # Empty unless a port with a drop kept its profiles.
-    except OSError:
-        pass
     if args.only:
         return DOWN if down else 0
     score = {
