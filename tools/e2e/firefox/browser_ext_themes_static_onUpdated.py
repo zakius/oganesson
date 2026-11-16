@@ -2,13 +2,12 @@
 toolkit/components/extensions/test/browser/browser_ext_themes_static_onUpdated.js.
 
 Left out of test_on_updated_eventpage: assertPersistentListeners(), which
-reads Gecko's primed listeners. Its terminateBackground() is the event page's
-idle time, cut to a second for this browser (--event-page-idle-time)."""
+reads Gecko's primed listeners. Its terminateBackground() needs
+EVENT_PAGE_ARGS."""
 
 import base64
 
-from extension_test_utils import JS, FirefoxTest
-from harness import wait_for
+from extension_test_utils import EVENT_PAGE_ARGS, JS, FirefoxTest
 
 # head.js
 BACKGROUND = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAUAAAAFCAYAAACNbyblAAAAHElEQVQI12P4//8/w38GIAXDIBKE0DHxgljNBAAO9TXL0Y4OHwAAAABJRU5ErkJggg==')
@@ -34,8 +33,7 @@ THEME = {
 
 
 class ThemesStaticOnUpdatedTest(FirefoxTest):
-    browser_args = (*FirefoxTest.browser_args, '--event-page-idle-time=1000',
-                    '--event-page-suspending-time=1000')
+    browser_args = (*FirefoxTest.browser_args, *EVENT_PAGE_ARGS)
 
     def test_01_on_updated(self):
         theme = self.load_extension(**THEME)
@@ -86,10 +84,7 @@ class ThemesStaticOnUpdatedTest(FirefoxTest):
 
         extension.startup()
 
-        # extension.terminateBackground(): the event page goes idle.
-        wait_for(lambda: not any(t['url'].startswith(f'chrome-extension://{extension.id}/')
-                                 for t in self.browser.targets()),
-                 timeout=30, what='the event page to stop')
+        extension.terminate_background()
 
         # Testing update event on static theme startup
         theme.startup()

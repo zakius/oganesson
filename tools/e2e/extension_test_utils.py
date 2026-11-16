@@ -20,7 +20,11 @@ a Gecko ID when it has none, and its background as a script of a random name;
 `JS(source)` is a function's source, which runs as `(source)()`. The add-on is
 loaded and removed while the browser runs (DevTools' Extensions domain, over
 the debugging pipe); `incognito_override='spanning'` lets it into private
-windows, as the user does. `on_message()` is Firefox's `extension.onMessage()`.
+windows, as the user does. As in Firefox, such an add-on is temporary: a
+browser restart (`restart_browser()`, Firefox's promiseRestartManager())
+removes it. One that a test loads with `use_addon_manager='permanent'`
+restarts the browser to load it with --load-extension, as the corpus loads
+add-ons, and so it stays across restarts. `on_message()` is Firefox's `extension.onMessage()`.
 A test class's `hosts` and `routes` stand for Firefox's test servers, and
 `open_tab()` and `load_url()` for its content pages.
 
@@ -32,8 +36,9 @@ so do the scripts it registers (`contentScripts.register`,
 `scripting.registerContentScripts`), but not those it injects once
 (`executeScript`).
 It reports to the test through console messages, which the browser's log
-keeps (a private window's, which it doesn't, through DevTools: watch()), and `extension.send_message()` reaches its background and pages (not
-its content scripts) through DevTools. A failed assertion fails the test, as
+keeps (a private window's, which it doesn't, through DevTools: watch()), and
+`extension.send_message()` reaches its background, pages and content scripts
+through DevTools. A failed assertion fails the test, as
 it does in Firefox (at the test's end, so that a test reports all of them); so
 does a message nobody awaited when the add-on unloads.
 """
@@ -42,7 +47,7 @@ import json
 import re
 import uuid
 
-from harness import DEVELOPER_MODE, BrowserTest, Page, Server, wait_for
+from harness import DEVELOPER_MODE, BrowserTest, Page, Server, extension_id, wait_for
 
 # The add-on's browser.test, from Firefox's toolkit/components/extensions/
 # child/ext-test.js. %TOKEN% tells this add-on's reports from others'.
@@ -259,6 +264,9 @@ TEST_API = r'''(() => {
 '''
 TEST_API_FILE = 'fxtest-api.js'
 TEST_API = TEST_API.replace('%FILE%', TEST_API_FILE)
+# A test class's browser_args for terminate_background(): an idle event page
+# stops after a second.
+EVENT_PAGE_ARGS = ('--event-page-idle-time=1000', '--event-page-suspending-time=1000')
 # A report in the browser's log: `"__fxtest__{...}", source: <url> (<line>)`.
 REPORT = re.compile(r'"__fxtest__(\{.*\})", source: ')
 
@@ -332,9 +340,11 @@ class Extension:
     to and unloads."""
 
     def __init__(self, test, manifest=None, background=None, files=None,
-                 incognito_override=None):
+                 incognito_override=None, use_addon_manager=None):
         self.test = test
         self.incognito_override = incognito_override
+        self.permanent = use_addon_manager == 'permanent'
+        self.folder = None
         self.token = uuid.uuid4().hex
         self.files = generate_files(manifest, background, files)
         self.manifest = json.loads(self.files['manifest.json'])
@@ -350,16 +360,21 @@ class Extension:
 
     def startup(self):
         """Loads the add-on, and waits for its background to load."""
-        folder = self.test.browser.root / 'firefox-tests' / self.token
+        folder = self.folder = self.test.browser.root / 'firefox-tests' / self.token
         for name, content in self.files.items():
             (folder / name).parent.mkdir(parents=True, exist_ok=True)
             if isinstance(content, bytes):
                 (folder / name).write_bytes(content)
             else:
                 (folder / name).write_text(content)
-        self.id = self.test.browser.pipe_call('Extensions.loadUnpacked', path=str(folder))['id']
         self.state = 'running'
         self.test.extensions.append(self)
+        if self.permanent:
+            self.id = extension_id(folder)
+            self.test.permanent.append(folder)
+            self.test.restart_browser()
+        else:
+            self.id = self.test.browser.pipe_call('Extensions.loadUnpacked', path=str(folder))['id']
         if 'background' in self.manifest:
             self.test.wait_reports(lambda: self.ready, 'the background to load')
         if self.incognito_override == 'spanning':
@@ -427,17 +442,43 @@ class Extension:
         return actual
 
     def send_message(self, *args):
-        """test.onMessage in the add-on's background and pages."""
+        """test.onMessage in the add-on's background, pages and content
+        scripts."""
         prefix = f'chrome-extension://{self.id}/'
+        expression = f'globalThis.__fxtestDeliver && __fxtestDeliver({json.dumps(args)})'
         for target in self.test.browser.targets():
-            if target['url'].startswith(prefix) and target['type'] in (
-                    'background_page', 'service_worker', 'page', 'other'):
+            ours = target['url'].startswith(prefix)
+            if ours and target['type'] in ('background_page', 'service_worker', 'page', 'other'):
                 page = Page(target)
                 try:
-                    page.eval(f'globalThis.__fxtestDeliver && __fxtestDeliver({json.dumps(args)})',
-                              gesture=False)
+                    page.eval(expression, gesture=False)
                 finally:
                     page.close()
+            elif not ours and target['type'] in ('page', 'iframe'):
+                page = Page(target)
+                try:
+                    for context in self.content_script_contexts(page):
+                        page.call('Runtime.evaluate', expression=expression, contextId=context)
+                finally:
+                    page.close()
+
+    def content_script_contexts(self, page):
+        """The add-on's content scripts' worlds in `page`'s frames: Runtime.enable
+        names each context that exists before it returns."""
+        page.call('Runtime.enable')
+        origin = f'chrome-extension://{self.id}'
+        return [event['params']['context']['id'] for event in page.events
+                if event.get('method') == 'Runtime.executionContextCreated'
+                and event['params']['context'].get('origin') == origin
+                and event['params']['context'].get('auxData', {}).get('type') == 'isolated']
+
+    def terminate_background(self):
+        """terminateBackground(): the event page goes idle and stops, which
+        takes the test class's EVENT_PAGE_ARGS."""
+        prefix = f'chrome-extension://{self.id}/'
+        wait_for(lambda: not any(t['url'].startswith(prefix) and t['type'] == 'background_page'
+                                 for t in self.test.browser.targets()),
+                 timeout=30, what='the event page to stop')
 
     def flush(self):
         """Waits until the background's reports so far are in the log: the
@@ -466,7 +507,29 @@ class Extension:
         self.state = 'unloaded'
         self.test.extensions.remove(self)
         self.test.unloaded.append(self)
-        self.test.browser.pipe_call('Extensions.uninstall', id=self.id)
+        if self.permanent:
+            # DevTools removes only the add-ons that it loaded: the user
+            # removes this one, and confirms.
+            self.test.permanent.remove(self.folder)
+            page = self.test.open_tab('chrome://extensions')
+            browser = self.test.browser
+            target = json.dumps(self.id)
+            installed = f'chrome.management.getAll().then(all => all.some(e => e.id == {target}))'
+
+            def removed():
+                # The dialog ignores a click in its first moments.
+                if not page.eval(installed):
+                    return True
+                browser.click_view(browser.wait_view('MdTextButton', Text='Remove'))
+                return False
+
+            try:
+                page.call('Runtime.evaluate', expression=f'chrome.management.uninstall({target})')
+                wait_for(removed, interval=0.5, what='the add-on to go')
+            finally:
+                browser.close_target(page)
+        else:
+            self.test.browser.pipe_call('Extensions.uninstall', id=self.id)
         if check:
             self.test.assertEqual(json.dumps([m[0] for m in self.messages]), '[]',
                                   'message queue is empty')
@@ -524,6 +587,8 @@ class FirefoxTest(BrowserTest):
 
     def setUp(self):
         self.extensions = []
+        # The folders of the add-ons loaded with use_addon_manager='permanent'.
+        self.permanent = []
         # Their reports may still come, from another process: tearDown()
         # reads them.
         self.unloaded = []
@@ -543,8 +608,25 @@ class FirefoxTest(BrowserTest):
             super().tearDown()
 
     def load_extension(self, manifest=None, background=None, files=None,
-                       incognito_override=None):
-        return Extension(self, manifest, background, files, incognito_override)
+                       incognito_override=None, use_addon_manager=None):
+        return Extension(self, manifest, background, files, incognito_override,
+                         use_addon_manager)
+
+    def restart_browser(self):
+        """AddonTestUtils.promiseRestartManager(): the browser restarts, with
+        the add-ons loaded with use_addon_manager='permanent'. The others go,
+        as Firefox's temporary add-ons do."""
+        self.browser.quit()
+        self.browser.args = [arg for arg in self.browser.args
+                             if not arg.startswith('--load-extension=')]
+        if self.permanent:
+            self.browser.args.append(
+                '--load-extension=' + ','.join(str(folder) for folder in self.permanent))
+        self.browser.start()
+        for extension in [e for e in self.extensions if not e.permanent]:
+            extension.state = 'unloaded'
+            self.extensions.remove(extension)
+            self.unloaded.append(extension)
 
     def check(self, passed, message, token=None):
         """An assertion of the add-on's (reported under `token`): a failed one
