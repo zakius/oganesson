@@ -120,6 +120,10 @@ class Menu:
         self.items = items
         self.groups = groups or [items]
 
+    def ends_group(self, item):
+        """A separator follows `item`: it is the last of its group."""
+        return any(group[-1] is item for group in self.groups[:-1])
+
     def by_label(self, label):
         """getElementsByAttribute("label", label): the items with that label."""
         return [item for item in self.items if label_of(item) == label]
@@ -254,9 +258,7 @@ def open_action_context_menu(test, extension, kind):
     """openActionContextMenu(extension, kind): a right click on the add-on's
     toolbar button (`kind` "browser"), or on its page action's button in the
     location bar ("page"), which this browser doesn't have yet
-    (zakius/oganesson#68); the context menu that opens. Firefox's menu
-    starts with the add-on's items; this browser's starts with the add-on's
-    name, and its items are the menu's second group."""
+    (zakius/oganesson#68); the context menu that opens."""
     if kind == 'page':
         raise AssertionError('no page action button in the location bar (zakius/oganesson#68)')
     test.browser.click_view(test.browser.toolbar_button(extension.id), button=3)

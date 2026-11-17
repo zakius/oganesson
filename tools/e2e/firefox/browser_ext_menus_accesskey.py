@@ -386,7 +386,8 @@ class MenusAccesskeyTest(head.ContextMenuTest):
               // Round-trip to ensure that the menus have been registered.
               await browser.menus.update("item", {});
               browser.test.sendMessage("ready");
-            }'''))
+            }'''),
+            use_addon_manager='temporary')
 
         extension.startup()
         extension.await_message('ready')

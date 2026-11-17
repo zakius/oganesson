@@ -5,13 +5,14 @@ Firefox's menus are DOM trees; here a menu is the items it shows, in groups
 between separators (head.py). An item's `tagName` "menu" is an item that
 opens a submenu (head.has_submenu()). Firefox's item IDs
 (`<widget id>-menuitem-_<id>`) are Gecko's DOM, so the port checks which
-item it is by its label, as each item's label names its ID. Firefox's action
-menu starts with the add-on's items, and this browser's with the add-on's
-name, so the port reads the items from the menu's second group. Each kind
-of action menu is a subtest, so that the toolbar button's menu is checked
-while the page action has no button (zakius/oganesson#68). A check
-before a click on the item it reads ends the test when the item is missing,
-as Firefox's click on a missing item does.
+item it is by its label, as each item's label names its ID. A separator is
+the end of a group of items (head.Menu). Each kind of action menu is a
+subtest, so that the toolbar button's menu is checked while the page action
+has no button (zakius/oganesson#68). A check before a click on the item it
+reads ends the test when the item is missing, or isn't the one Firefox's
+test clicks, as Firefox's click on a missing item does. Left out, as
+Gecko's DOM: that the submenu opened is the item's own menupopup, and the
+overflow submenu's `ext-type` attribute; the submenu's label is checked.
 
 The bookmark task takes the bookmark bar for Firefox's bookmarks toolbar, as
 the contextMenus port does. Firefox's Tools menu is, in this browser, the app
@@ -104,13 +105,13 @@ class MenusTest(head.ContextMenuTest):
         for kind in ('page', 'browser'):
             with self.subTest(kind=kind):
                 menu = head.open_action_context_menu(self, extension, kind)
-                items = menu.groups[1] if len(menu.groups) > 1 else []
-                self.assertGreaterEqual(len(items), 6, "the menu has the add-on's items")
-                submenu, second, last = items[0], items[1], items[5]
+                submenu, second, last = menu.items[0], menu.items[1], menu.items[5]
 
                 self.is_(head.has_submenu(self, submenu), True, 'Correct submenu type')
                 self.is_(head.label_of(submenu), 'parent', 'Correct submenu title')
 
+                self.assertEqual(head.label_of(submenu), 'parent', 'the first item is parent')
+                self.assertTrue(head.has_submenu(self, submenu), 'parent opens a submenu')
                 popup = head.open_submenu(self, submenu)
                 self.is_(len(popup.items), 2, 'Correct number of submenu items')
 
@@ -119,13 +120,13 @@ class MenusTest(head.ContextMenuTest):
 
                 self.is_(head.has_submenu(self, last), True, 'Last menu item type is correct')
                 self.is_(head.label_of(last), 'Generated extension', 'Last menu item title is correct')
-                self.is_(len(items), 6, 'Separator after last menu item')
+                self.is_(menu.ends_group(last), True, 'Separator after last menu item')
 
                 # Verify that menu items exceeding ACTION_MENU_TOP_LEVEL_LIMIT are moved into a submenu.
                 head.close_context_menu(self)
                 menu = head.open_action_context_menu(self, extension, kind)
-                last = menu.groups[1][5]
-                self.assertTrue(head.has_submenu(self, last), 'the last item opens a submenu')
+                last = menu.items[5]
+                self.assertTrue(head.has_submenu(self, last), 'the sixth item opens a submenu')
                 overflow_popup = head.open_submenu(self, last)
                 self.is_(len(overflow_popup.items), 4, 'Excess items should be moved into a submenu')
                 self.is_(head.label_of(overflow_popup.items[0]), 'click 5',
@@ -186,7 +187,8 @@ class MenusTest(head.ContextMenuTest):
         self.is_(head.label_of(item), 'blarg', 'Menu item label is correct')
         ext.await_message('hello')  # onShown listener fired
 
-        head.close_context_menu(self)
+        self.assertEqual(head.label_of(item), 'blarg', "the last item is the add-on's")
+        head.close_extension_context_menu(self, item)
         ext.unload()
         head.toggle_bookmarks_toolbar(self, False)
 
