@@ -31,6 +31,20 @@
            category="[[contentSettingsTypesEnum_.BACKGROUND_SYNC]]"
            icon="cr:sync" label="$i18n{siteSettingsBackgroundSync}">
        </site-details-permission>
+--- a/chrome/browser/ui/webui/settings/site_settings_handler.cc
++++ b/chrome/browser/ui/webui/settings/site_settings_handler.cc
+@@ -1697,7 +1697,10 @@
+       }
+     }
+ 
+-    types = site_settings::GetVisiblePermissionCategories();
++    // oganesson: the origin's own rows too, so its page's Reset permissions
++    // clears its fingerprinting protection rule.
++    types = site_settings::GetVisiblePermissionCategories(origin_string,
++                                                          profile_);
+   }
+ 
+   HostContentSettingsMap* map =
 --- a/chrome/browser/ui/webui/settings/site_settings_helper.cc
 +++ b/chrome/browser/ui/webui/settings/site_settings_helper.cc
 @@ -680,6 +680,13 @@
