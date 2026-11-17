@@ -9,9 +9,10 @@ restart the browser, which Firefox's test doesn't, and which would take the
 control add-on away. The add-on manager's disable() and enable() are
 `management.setEnabled()` from chrome://extensions. Firefox's button ID
 (`<widget id>-browser-action`) is Gecko's DOM: the port looks for the menu
-add-on's toolbar button, the only one with the add-ons' name, since the
-control add-on has no action. Firefox checks the button at once; the port
-waits a few seconds for the toolbar to change.
+add-on's toolbar button by its place among the pinned add-ons, since the
+add-ons share their name, and pins it, as Firefox's `default_area` puts it
+on the toolbar. Firefox checks the button at once; the port waits a few
+seconds for the toolbar to change.
 """
 
 import json

@@ -444,12 +444,16 @@ def open_new_browser_window(test):
 
 def open_private_window(test):
     """BrowserTestUtils.openNewBrowserWindow({private: true}): a new private
-    window, as the user opens one (Ctrl+Shift+N); its tab."""
+    window, as the user opens one (Ctrl+Shift+N); its tab, once it has
+    loaded."""
     before = {target['id'] for target in test.browser.targets()}
     test.browser.key('ctrl+shift+n')
-    return Page(wait_for(lambda: next((target for target in test.browser.targets()
+    page = Page(wait_for(lambda: next((target for target in test.browser.targets()
                                        if target['id'] not in before and target['type'] == 'page'),
                                       None), what='the private window'))
+    wait_for(lambda: page.eval('document.readyState') == 'complete',
+             what='the private window to load')
+    return page
 
 
 def window_of(test, page):

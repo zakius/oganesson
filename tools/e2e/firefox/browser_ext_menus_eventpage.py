@@ -2,7 +2,8 @@
 browser/components/extensions/test/browser/browser_ext_menus_eventpage.js.
 
 Firefox's pref extensions.eventPages.enabled is on by default here: Manifest
-V2 event pages always run. terminateBackground() needs EVENT_PAGE_ARGS.
+V2 event pages always run. terminateBackground() is quick with
+EVENT_PAGE_ARGS (MenusEventPageIdReuseTest says why its task goes without).
 SimpleTest.monitorConsole() forbids Firefox's report of an unchecked
 `lastError`; the port forbids this browser's ("Unchecked runtime.lastError")
 in the browser's log while the task runs. Firefox's check that the
@@ -21,8 +22,8 @@ from extension_test_utils import EVENT_PAGE_ARGS, JS
 PAGE = f'{head.BASE}context.html?test=commands'
 
 
-class MenusEventPageTest(head.ContextMenuTest):
-    browser_args = (*head.ContextMenuTest.browser_args, *EVENT_PAGE_ARGS)
+class EventPageTest(head.ContextMenuTest):
+    """The tasks' helpers."""
 
     def get_extension(self, background, use_addon_manager=None):
         return self.load_extension(
@@ -54,6 +55,11 @@ class MenusEventPageTest(head.ContextMenuTest):
         prefix = f'chrome-extension://{extension.id}/'
         return any(target['url'].startswith(prefix) and target['type'] == 'background_page'
                    for target in self.browser.targets())
+
+
+
+class MenusEventPageTest(EventPageTest):
+    browser_args = (*EventPageTest.browser_args, *EVENT_PAGE_ARGS)
 
     def test_01_menu_create_id(self):
         since = self.log_size()
@@ -97,7 +103,7 @@ class MenusEventPageTest(head.ContextMenuTest):
           });
         }'''))
 
-        self.open_tab('about:blank')
+        blank = self.open_tab('about:blank')
         extension.startup()
         extension.terminate_background()  # Simulated suspend on idle.
         extension.await_message('suspended-test_menu_onclick')
@@ -116,6 +122,7 @@ class MenusEventPageTest(head.ContextMenuTest):
         self.check(clicked['tab']['id'] > -1, 'Click event tab ID is correct')
 
         extension.unload()
+        self.browser.close_target(blank)
 
     def test_03_menu_onshown(self):
         extension = self.get_extension(JS('''async function background() {
@@ -142,7 +149,7 @@ class MenusEventPageTest(head.ContextMenuTest):
           });
         }'''))
 
-        self.open_tab('about:blank')
+        blank = self.open_tab('about:blank')
         extension.startup()
         extension.terminate_background()  # Simulated suspend on idle.
         extension.await_message('suspended-test_menu_onshown')
@@ -164,6 +171,7 @@ class MenusEventPageTest(head.ContextMenuTest):
         self.check(clicked['tab']['id'] > -1, 'Click event tab ID is correct')
 
         extension.unload()
+        self.browser.close_target(blank)
 
     def test_04_actions_context_menu(self):
         extension = self.load_extension(
@@ -220,6 +228,15 @@ class MenusEventPageTest(head.ContextMenuTest):
         self.check(not self.background_running(extension), 'background is not running')
 
         extension.unload()
+
+
+
+class MenusEventPageIdReuseTest(EventPageTest):
+    """The last task, in a browser of its own: its add-on's event page has
+    to stay up until the task stops it, as Firefox's does, and
+    EVENT_PAGE_ARGS stops an idle one after a second, before a slow run's
+    message reaches it. Chromium's own idle time is longer than the task's
+    wait for it to stop."""
 
     def test_05_menu_create_id_reuse(self):
         since = self.log_size()

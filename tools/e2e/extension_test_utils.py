@@ -227,8 +227,7 @@ TEST_API = r'''(() => {
   }
   // Scripts that the add-on registers get browser.test too, as in Firefox:
   // this file first, unless they run in the page's own world, where Firefox
-  // gives none. The add-on doesn't see the file in what it reads back. Not
-  // the scripts it injects once (executeScript).
+  // gives none. The add-on doesn't see the file in what it reads back.
   const isOurs = entry => entry === "/%FILE%" || entry?.file === "/%FILE%";
   const withTestApi = (api, method, entry) => {
     const original = api && api[method];
