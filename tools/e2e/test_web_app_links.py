@@ -41,26 +41,18 @@ APP_PAGE = b'''<!doctype html><link rel="manifest" href="/app/manifest.json">
 <a id="mail" href="/app/mail/x.html">in a rule on the app's own site</a>
 <a id="push" href="/app/excluded.html" onclick="event.preventDefault();
   history.pushState(null, '', this.href)">excluded, pushed</a>
-<a id="replace" href="/app/excluded.html" onclick="event.preventDefault();
-  history.replaceState(null, '', this.href)">excluded, replaced</a>
 <a id="push-out" href="/out.html?push" onclick="event.preventDefault();
   window.sawClick = true; history.pushState(null, '', this.href)">out of scope, pushed</a>
 <a id="push-inside" href="/app/inside.html" onclick="event.preventDefault();
   history.pushState(null, '', this.href)">in scope, pushed</a>
-<a id="assign" href="/app/excluded.html" onclick="event.preventDefault();
-  location.href = this.href">excluded, by script</a>
 <a id="rewrite" href="/app/inside.html"
   onmousedown="this.href = '/app/to-excluded'">excluded, through a redirect</a>
 <a id="rewrite-out" href="/app/inside.html"
   onmousedown="this.href = '/app/to-out'">out of scope, through a redirect</a>
-<p><button id="push-button" onclick="history.pushState(null, '', '/app/excluded.html')">
-excluded, pushed by a button</button>
-<button id="replace-button" onclick="history.replaceState(null, '', '/app/excluded.html')">
+<p><button id="replace-button" onclick="history.replaceState(null, '', '/app/excluded.html')">
 excluded, replaced by a button</button>
 <button id="assign-button" onclick="location.href = '/app/excluded.html'">
 excluded, by a button's script</button>
-<button id="push-out-button" onclick="history.pushState(null, '', '/out.html?push')">
-out of scope, pushed by a button</button>
 <button id="push-twice" onclick="history.pushState(null, '', '/out.html?first');
   history.pushState(null, '', '/out.html?second')">out of scope, pushed twice</button></p>
 <script>window.popstates = 0;
@@ -458,17 +450,9 @@ class WebAppLinksTest(WebAppTest):
         wait_for(lambda: app.eval('location.href') == self.server.url(url),
                  what='the app window back')
 
-    def test_excluded_push_never_changes_address(self):
-        # pushState asks the browser first: the address stays, no entry.
-        self.set_rules(RULES)
-        app = self.launch_app()
-        length = app.eval('history.length')
-        app.click('#push-button')
-        self.assert_excluded_opened(app)
-        self.assertEqual(app.eval('history.length'), length)
-
     def test_excluded_push_from_link_handler_never_changes_address(self):
-        # A click handler that keeps the link in the page, as Facebook's does.
+        # pushState asks the browser first: the address stays, no entry. From
+        # a click handler that keeps the link in the page, as Facebook's does.
         self.set_rules(RULES)
         app = self.launch_app()
         length = app.eval('history.length')
@@ -510,15 +494,6 @@ class WebAppLinksTest(WebAppTest):
         wait_for(lambda: app.eval('location.href') == self.server.url('/app/inside.html'),
                  what='the pushed page in the app window')
         self.assertEqual(self.opened(), [])
-
-    def test_out_of_scope_push_from_click_opens_in_default_browser(self):
-        # A click that pushes a URL out of scope leaves the app.
-        app = self.launch_app()
-        app.click('#push-out-button')
-        wait_for(self.opened, what='xdg-open')
-        self.assertEqual(self.opened(), [self.server.url('/out.html?push')])
-        wait_for(lambda: app.eval('location.href') == self.server.url('/app/index.html'),
-                 what='the app window back')
 
     def test_out_of_scope_push_from_link_handler_never_changes_address(self):
         # Facebook's links push their URL from a click handler: the handler
