@@ -3,8 +3,9 @@
 The protection page's switch is the setting's default, off as oganesson
 ships it. Every http and https site's page in Site settings has a
 Fingerprinting protection row, whose Allow or Block wins over the switch
-from the site's next load, either way, and leaves other sites alone. A switch
-turned on before this change (the helium.noise.enabled pref) stays on.
+from the site's next load, either way, and leaves other sites alone. Private
+windows follow the switch and the sites' rules too. A switch turned on in the
+helium.noise.enabled pref, where it was kept before, stays on.
 
 The check reads back a canvas filled with one colour: with noise,
 getImageData returns some pixels off by a little.
@@ -12,7 +13,7 @@ getImageData returns some pixels off by a little.
 
 import json
 
-from harness import BrowserTest, Server, wait_for
+from harness import BrowserTest, Page, Server, wait_for
 
 CANVAS = b"""<!doctype html><title>canvas</title>
 <canvas id="c" width="32" height="32"></canvas>
@@ -74,6 +75,22 @@ class NoiseTest(BrowserTest):
         self.browser.close_target(page)
         return not exact
 
+    def noised_in_private_window(self, host):
+        url = self.server.url('/canvas.html', host)
+        before = {t['id'] for t in self.browser.targets()}
+        self.browser.key('ctrl+shift+n')
+        target = wait_for(lambda: next((t for t in self.browser.targets()
+                                        if t['type'] == 'page' and t['id'] not in before), None),
+                          what='the private window')
+        page = Page(target)
+        try:
+            page.call('Page.navigate', url=url)
+            wait_for(lambda: page.eval('location.href') == url
+                     and page.eval('typeof window.exact') == 'boolean', what=url)
+            return not page.eval('exact')
+        finally:
+            self.browser.close_window(target['id'])
+
 
 class NoiseSiteDetailsTest(NoiseTest):
 
@@ -85,19 +102,19 @@ class NoiseSiteDetailsTest(NoiseTest):
                                    f" && {ROW}?.site != null"), what='the site details')
         return page
 
+    def rules(self, page):
+        return [rule['setting'] for rule in page.eval(
+            "import('chrome://resources/js/cr.js').then(cr => "
+            "cr.sendWithPromise('getExceptionList', 'helium-noise'))")]
+
     def choose(self, page, value):
         """Picks `value` in the row's menu, as a click on it does; the test's
         cleanup picks the default again."""
-        def rules():
-            return [rule['setting'] for rule in page.eval(
-                "import('chrome://resources/js/cr.js').then(cr => "
-                "cr.sendWithPromise('getExceptionList', 'helium-noise'))")]
-
         def pick(value):
             page.eval(f"(() => {{ const s = {SELECT}; s.value = {json.dumps(value)};"
                       " s.dispatchEvent(new Event('change')); })()")
             stored = [] if value == 'default' else [value]
-            wait_for(lambda: rules() == stored, what=f'the rule set to {value}')
+            wait_for(lambda: self.rules(page) == stored, what=f'the rule set to {value}')
         pick(value)
         self.addCleanup(pick, 'default')
 
@@ -124,6 +141,15 @@ class NoiseSiteDetailsTest(NoiseTest):
         self.choose(page, 'block')
         self.assertFalse(self.noised('127.0.0.1'), 'no noise on the blocked site')
         self.assertTrue(self.noised('localhost'), 'noise on another site')
+
+    def test_private_window_follows_the_switch_and_the_site(self):
+        self.assertFalse(self.noised_in_private_window('127.0.0.1'), 'no noise while off')
+        self.set_protection(True)
+        self.addCleanup(self.set_protection, False)
+        self.assertTrue(self.noised_in_private_window('127.0.0.1'), 'noise while on')
+        self.choose(self.site_details('127.0.0.1'), 'block')
+        self.assertFalse(self.noised_in_private_window('127.0.0.1'), 'no noise on the blocked site')
+        self.assertTrue(self.noised_in_private_window('localhost'), 'noise on another site')
 
 
 class OldSwitchTest(NoiseTest):

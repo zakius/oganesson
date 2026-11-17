@@ -41,17 +41,26 @@
    prefs_[autofill::kGeneratedFindAndFillWithGeminiPref] =
 --- a/components/content_settings/core/browser/content_settings_registry.cc
 +++ b/components/content_settings/core/browser/content_settings_registry.cc
-@@ -832,8 +832,9 @@
+@@ -832,15 +832,17 @@
             ContentSettingsInfo::INHERIT_IN_INCOGNITO,
             PermissionSettingsInfo::EXCEPTIONS_ON_SECURE_AND_INSECURE_ORIGINS);
  
 +  // oganesson: off unless the user turns it on, for all sites or for some.
++  // Private windows follow the default and the sites' rules too.
    Register(ContentSettingsType::HELIUM_NOISE, "helium-noise",
 -           CONTENT_SETTING_ALLOW, WebsiteSettingsInfo::UNSYNCABLE,
 +           CONTENT_SETTING_BLOCK, WebsiteSettingsInfo::UNSYNCABLE,
             /*allowlisted_primary_schemes=*/{},
             /*valid_settings=*/
             {CONTENT_SETTING_ALLOW, CONTENT_SETTING_BLOCK},
+            WebsiteSettingsInfo::TOP_ORIGIN_ONLY_SCOPE,
+            WebsiteSettingsRegistry::DESKTOP |
+                WebsiteSettingsRegistry::PLATFORM_ANDROID,
+-           ContentSettingsInfo::DONT_INHERIT_IN_INCOGNITO,
++           ContentSettingsInfo::INHERIT_IN_INCOGNITO,
+            PermissionSettingsInfo::EXCEPTIONS_ON_SECURE_AND_INSECURE_ORIGINS);
+ }
+ 
 --- a/chrome/browser/helium_noise/helium_noise_settings.cc
 +++ b/chrome/browser/helium_noise/helium_noise_settings.cc
 @@ -41,18 +41,28 @@
