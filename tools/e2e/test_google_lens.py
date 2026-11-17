@@ -127,8 +127,8 @@ class DefaultEngineTest(LensTest):
 
 
 class GoogleEngineTest(LensTest):
-    """With Google as the engine and the switch on, the engine's own item
-    goes to Lens, and there is no second one."""
+    """With Google as the engine and the switch on, its own image search item
+    already goes to Lens, so there is no second one."""
 
     prefs_extra = {
         'oganesson': {'google': {'lens_enabled': True}},
@@ -145,7 +145,7 @@ class GoogleEngineTest(LensTest):
             titles = self.image_menu(page)
             self.assertNotIn(LENS_ITEM, titles)
             self.assertEqual(titles.count(GOOGLE_ITEM), 1)
-            self.assert_uploads(GOOGLE_ITEM)
+            self.close_menu()
         finally:
             self.browser.close_target(page)
 

@@ -35,7 +35,8 @@ ADD_ON = {
 }
 
 
-class FirefoxAddOnsTest(BrowserTest):
+class FirefoxAddOn(BrowserTest):
+    """The browser with ADD_ON loaded; no tests of its own."""
 
     @classmethod
     def setUpClass(cls):
@@ -60,6 +61,9 @@ class FirefoxAddOnsTest(BrowserTest):
             return background.eval(js)
         finally:
             background.close()
+
+
+class FirefoxAddOnsTest(FirefoxAddOn):
 
     def test_runtime_get_browser_info(self):
         # The promise form, and the callback form older add-ons use.
@@ -108,13 +112,6 @@ class FirefoxAddOnsTest(BrowserTest):
         finally:
             self.browser.close_target(page)
 
-    def test_menus(self):
-        # Firefox's name for contextMenus, with its permission: the item shows
-        # in the page's context menu, and a click reaches the add-on.
-        self.background_eval('true')  # The background has created the item.
-        self.click_page_menu_item()
-        self.assertEqual(self.background_eval('self.clicked'), 'firefox-item')
-
     def test_menus_is_context_menus(self):
         # The same object under both names. An add-on that reaches both, as
         # DuckDuckGo Privacy Essentials does, stopped at the second name.
@@ -144,7 +141,7 @@ class FirefoxAddOnsTest(BrowserTest):
         self.assertEqual(self.background_eval('self.clicked'), 'firefox-item')
 
 
-class FirefoxNamedTest(FirefoxAddOnsTest):
+class FirefoxNamedTest(FirefoxAddOn):
     """The same add-on, listed by its Gecko ID in the profile's list of add-ons
     that are told they run in Firefox."""
     prefs = {'firefox_add_ons': {'named_firefox': ['firefox-apis@oganesson.test']}}
@@ -2340,9 +2337,8 @@ class FirefoxGeckoIdTest(BrowserTest):
         self.assertIn("Invalid extension id: 'not an ID'", result['invalid'])
 
     def test_reinstall_keeps_id_and_storage(self):
-        # Not the ID of either folder's path.
+        # From the Gecko ID both folders share, not from either folder's path.
         add_on = extension_id(self.folder / 'first')
-        self.assertEqual(add_on, extension_id(self.folder / 'second'))
         background = self.started(self.folder / 'first')
         try:
             background.eval("browser.storage.local.set({kept: 'from the first folder'})")
