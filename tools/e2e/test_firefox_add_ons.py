@@ -2337,7 +2337,7 @@ class FirefoxGeckoIdTest(BrowserTest):
         self.assertIn("Invalid extension id: 'not an ID'", result['invalid'])
 
     def test_reinstall_keeps_id_and_storage(self):
-        # Not the ID of either folder's path.
+        # From the Gecko ID both folders share, not from either folder's path.
         add_on = extension_id(self.folder / 'first')
         background = self.started(self.folder / 'first')
         try:
