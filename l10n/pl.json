@@ -1095,6 +1095,16 @@
     "message": "Dodaje szum do canvas, dźwięku i podobnych, więc strony trudniej Cię rozpoznają. Niektóre strony przestają działać."
   },
   {
+    "name": "IDS_SETTINGS_NOISE_CUSTOM_DESCRIPTION",
+    "source": "Sites listed below follow their own setting instead of the one above. Inserting \"[*.]\" before a domain name applies it to the entire domain.",
+    "message": "Witryny z listy poniżej mają własne ustawienie zamiast tego powyżej. Wpisanie „[*.]” przed nazwą domeny stosuje je do całej domeny."
+  },
+  {
+    "name": "IDS_SETTINGS_NOISE_ALLOW_OVERRIDES_TITLE",
+    "source": "Sites with fingerprinting protection",
+    "message": "Witryny z ochroną przed fingerprintingiem"
+  },
+  {
     "name": "IDS_SETUP_DEFAULT_TITLE",
     "source": "Make oganesson your default browser?",
     "message": "Ustawić oganesson jako domyślną przeglądarkę?"
