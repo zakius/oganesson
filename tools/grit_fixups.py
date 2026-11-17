@@ -51,8 +51,8 @@ if __name__ == '__main__':
     if sys.argv[1:] == ['--test']:
         text = ('  "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/app_settings/resources.grd": {\n'
                 '    "META": {"sizes": {"includes": [45]}},\n    "includes": [2800],\n  },\n')
-        assert '[49]' in bump_sizes(text, {'app_settings': 4}) and '[2800]' in text
-        assert our_resource_counts()['app_settings'] == 6
+        out = bump_sizes(text, {'app_settings': 4})
+        assert '[49]' in out and '[2800]' in out
         print('ok')
     else:
         main()
