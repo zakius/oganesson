@@ -1,0 +1,92 @@
+# Fingerprinting protection: a site's rule wins over the global switch both ways. The switch is
+# HELIUM_NOISE's default (off, as oganesson ships it), shown in Settings under its old pref's name
+# (src/chrome/browser/content_settings/generated_helium_noise_pref.h); a pref turned on moves over once.
+--- a/chrome/browser/content_settings/BUILD.gn
++++ b/chrome/browser/content_settings/BUILD.gn
+@@ -115,6 +115,8 @@
+   } else {
+     sources += [
+       "generated_cookie_prefs.cc",
++      "generated_helium_noise_pref.cc",
++      "generated_helium_noise_pref.h",
+       "generated_javascript_optimizer_pref.cc",
+       "generated_permission_prompting_behavior_pref.cc",
+     ]
+--- a/chrome/browser/extensions/api/settings_private/generated_prefs.cc
++++ b/chrome/browser/extensions/api/settings_private/generated_prefs.cc
+@@ -10,6 +10,7 @@
+ #include "build/chromeos_buildflags.h"
+ #include "chrome/browser/autofill/generated_find_and_fill_with_gemini_pref.h"
+ #include "chrome/browser/content_settings/generated_cookie_prefs.h"
++#include "chrome/browser/content_settings/generated_helium_noise_pref.h"
+ #include "chrome/browser/content_settings/generated_javascript_optimizer_pref.h"
+ #include "chrome/browser/content_settings/generated_permission_prompting_behavior_pref.h"
+ #include "chrome/browser/extensions/api/settings_private/generated_pref.h"
+@@ -19,6 +20,7 @@
+ #include "chrome/browser/safe_browsing/generated_security_settings_bundle_pref.h"
+ #include "chrome/browser/ssl/generated_https_first_mode_pref.h"
+ #include "chrome/common/extensions/api/settings_private.h"
++#include "chrome/common/pref_names.h"
+ #include "components/content_settings/core/common/content_settings_types.h"
+ #include "components/content_settings/core/common/pref_names.h"
+ #include "components/permissions/features.h"
+@@ -118,6 +120,8 @@
+   prefs_[content_settings::kGeneratedJavascriptOptimizerPref] =
+       std::make_unique<content_settings::GeneratedJavascriptOptimizerPref>(
+           profile_);
++  prefs_[prefs::kHeliumNoiseEnabled] =
++      std::make_unique<content_settings::GeneratedHeliumNoisePref>(profile_);
+   prefs_[kGeneratedHttpsFirstModePref] =
+       std::make_unique<GeneratedHttpsFirstModePref>(profile_);
+   prefs_[autofill::kGeneratedFindAndFillWithGeminiPref] =
+--- a/components/content_settings/core/browser/content_settings_registry.cc
++++ b/components/content_settings/core/browser/content_settings_registry.cc
+@@ -832,8 +832,9 @@
+            ContentSettingsInfo::INHERIT_IN_INCOGNITO,
+            PermissionSettingsInfo::EXCEPTIONS_ON_SECURE_AND_INSECURE_ORIGINS);
+ 
++  // oganesson: off unless the user turns it on, for all sites or for some.
+   Register(ContentSettingsType::HELIUM_NOISE, "helium-noise",
+-           CONTENT_SETTING_ALLOW, WebsiteSettingsInfo::UNSYNCABLE,
++           CONTENT_SETTING_BLOCK, WebsiteSettingsInfo::UNSYNCABLE,
+            /*allowlisted_primary_schemes=*/{},
+            /*valid_settings=*/
+            {CONTENT_SETTING_ALLOW, CONTENT_SETTING_BLOCK},
+--- a/chrome/browser/helium_noise/helium_noise_settings.cc
++++ b/chrome/browser/helium_noise/helium_noise_settings.cc
+@@ -41,18 +41,28 @@
+     return HeliumNoiseState::kUnavailable;
+   }
+ 
+-  if (!profile->GetPrefs()->GetBoolean(prefs::kHeliumNoiseEnabled)) {
+-    return HeliumNoiseState::kGloballyDisabled;
+-  }
+-
+-  if (!CanSetHeliumNoiseForOrigin(url)) {
+-    return HeliumNoiseState::kEnabled;
++  // oganesson: the global switch is HELIUM_NOISE's default
++  // (generated_helium_noise_pref.h), so a site's rule wins over it both ways.
++  // A switch turned on in the pref moves to the default once.
++  Profile* original = profile->GetOriginalProfile();
++  if (original->GetPrefs()->GetBoolean(prefs::kHeliumNoiseEnabled)) {
++    HostContentSettingsMapFactory::GetForProfile(original)
++        ->SetDefaultContentSetting(ContentSettingsType::HELIUM_NOISE,
++                                   CONTENT_SETTING_ALLOW);
++    original->GetPrefs()->ClearPref(prefs::kHeliumNoiseEnabled);
+   }
+ 
+   HostContentSettingsMap* settings_map =
+       HostContentSettingsMapFactory::GetForProfile(profile);
+   if (!settings_map) {
+-    return HeliumNoiseState::kEnabled;
++    return HeliumNoiseState::kUnavailable;
++  }
++
++  if (!CanSetHeliumNoiseForOrigin(url)) {
++    return settings_map->GetDefaultContentSetting(
++               ContentSettingsType::HELIUM_NOISE) == CONTENT_SETTING_ALLOW
++               ? HeliumNoiseState::kEnabled
++               : HeliumNoiseState::kGloballyDisabled;
+   }
+ 
+   const ContentSetting noise_setting = settings_map->GetContentSetting(

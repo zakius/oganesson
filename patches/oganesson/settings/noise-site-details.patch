@@ -1,0 +1,49 @@
+# Site settings: a Fingerprinting protection row on each http and https site's page, with the
+# per-site rule of oganesson/core/noise-site-rules.patch; the protection page's text to match.
+--- a/chrome/app/settings_strings.grdp
++++ b/chrome/app/settings_strings.grdp
+@@ -2311,13 +2311,13 @@
+       Fingerprinting cannot be fully prevented, but Helium's analysis defenses make it harder to recover the original fingerprint.
+     </message>
+     <message name="IDS_SETTINGS_NOISE_CUSTOM_DESCRIPTION" desc="General explanation of fingerprinting protection site rules and wildcard behavior.">
+-      When the general fingerprinting protection feature is enabled, sites listed below follow a custom setting. Inserting "[*.]" before a domain name applies it to the entire domain.
++      Sites listed below follow their own setting instead of the one above. Inserting "[*.]" before a domain name applies it to the entire domain.
+     </message>
+     <message name="IDS_SETTINGS_NOISE_EXCEPTIONS_TITLE" desc="Title above the list of sites where fingerprinting protection is disabled.">
+       Sites without fingerprinting protection
+     </message>
+     <message name="IDS_SETTINGS_NOISE_ALLOW_OVERRIDES_TITLE" desc="Title above the list of sites where fingerprinting protection is explicitly allowed, overriding broader site exceptions.">
+-      Overrides to allow fingerprinting protection
++      Sites with fingerprinting protection
+     </message>
+     <message name="IDS_SETTINGS_TITLE_AND_COUNT" desc="The title of a section in the settings page with a count of the total number of items in the section">
+       <ph name="TITLE">$1<ex>Block</ex></ph> - <ph name="COUNT">$2<ex>42</ex></ph>
+--- a/chrome/browser/resources/settings/site_settings/site_details.html
++++ b/chrome/browser/resources/settings/site_settings/site_details.html
+@@ -182,6 +182,10 @@
+           icon="privacy:web-asset" label="$i18n{siteSettingsAds}">
+       </site-details-permission>
+       <site-details-permission
++          category="[[contentSettingsTypesEnum_.HELIUM_NOISE]]"
++          icon="settings20:shield" label="$i18n{noiseTitle}">
++      </site-details-permission>
++      <site-details-permission
+           category="[[contentSettingsTypesEnum_.BACKGROUND_SYNC]]"
+           icon="cr:sync" label="$i18n{siteSettingsBackgroundSync}">
+       </site-details-permission>
+--- a/chrome/browser/ui/webui/settings/site_settings_helper.cc
++++ b/chrome/browser/ui/webui/settings/site_settings_helper.cc
+@@ -680,6 +680,13 @@
+     types_for_origin.push_back(ContentSettingsType::AUTOMATIC_FULLSCREEN);
+   }
+ 
++  // oganesson: Helium's fingerprinting protection, whose rules apply to http
++  // and https sites only.
++  if (GURL(origin).SchemeIsHTTPOrHTTPS() &&
++      base::FeatureList::IsEnabled(blink::features::kHeliumNoise)) {
++    types_for_origin.push_back(ContentSettingsType::HELIUM_NOISE);
++  }
++
+ #if BUILDFLAG(IS_CHROMEOS)
+   if (base::FeatureList::IsEnabled(blink::features::kWebPrinting) &&
+       ShouldShowIwaContentSettingForOrigin(profile, origin,
