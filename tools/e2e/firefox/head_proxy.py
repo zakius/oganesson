@@ -197,16 +197,17 @@ class ProxyTest(FirefoxTest):
         page.eval(f'fetch({json.dumps(url)}, {{mode: "no-cors", cache: "no-store"}})'
                   '.catch(() => {}), 0', gesture=False)
 
-    def await_resolution(self, url, page, timeout=5):
+    def await_resolution(self, url, page, known, timeout=5):
         """The proxy list ("PROXY 1.2.3.4:8080;DIRECT") the browser resolves
-        for `url` from now on, within `timeout` seconds, or None. `page`
-        requests a closed local port meanwhile, so that the browser writes its
-        batches of events."""
+        for a request to `url` that isn't one of the `known` ones (the NetLog's
+        sources), within `timeout` seconds, or None. `page` requests a closed
+        local port meanwhile, so that the browser writes its batches of
+        events."""
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             for event in self.net_log.read():
                 if (event['name'] == 'PROXY_RESOLUTION_SERVICE_RESOLVED_PROXY_LIST'
-                        and event['url'] == url):
+                        and event['url'] == url and event['source']['id'] not in known):
                     return event['params']['proxy_info']
             self.fetch_in_page(page, f'http://127.0.0.1:{self.closed_port}/')
             time.sleep(0.2)
@@ -215,16 +216,23 @@ class ProxyTest(FirefoxTest):
     def proxy_info(self, url='http://www.mozilla.org/'):
         """Firefox's getProxyInfo(): the proxies the browser chose for `url`,
         as Gecko's nsIProxyInfo (firefox_proxy_info()), or None for a direct
-        connection or a URL that it doesn't request (ftp:). The request comes
-        from a blank tab of its own."""
+        connection. The request comes from a blank tab of its own. This
+        browser requests only http: and https: URLs (it has no FTP), so it
+        resolves no proxy for another: None. A request whose resolution
+        doesn't show fails the test."""
+        if not url.startswith(('http:', 'https:')):
+            return None
         page = self.open_tab('about:blank')
         try:
             self.net_log.read()
+            known = set(self.net_log.urls)
             self.fetch_in_page(page, url)
-            proxy_list = self.await_resolution(url, page)
-            return firefox_proxy_info(proxy_list) if proxy_list else None
+            proxy_list = self.await_resolution(url, page, known)
         finally:
             self.browser.close_target(page)
+        if proxy_list is None:
+            raise AssertionError(f"no proxy resolution for {url} in the browser's NetLog")
+        return firefox_proxy_info(proxy_list)
 
 
 class ProxyServer:

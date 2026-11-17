@@ -5,9 +5,12 @@ The add-ons' code is Firefox's, as it is. Gecko's proxy service, which the
 test asks for the proxies of a URL (getProxyInfo()), is the browser's NetLog
 here (head_proxy.py): Chromium's proxies have no credentials, its SOCKS 5
 proxy always resolves the host, and a proxy that fails stays out of use for
-5 minutes, where Firefox has the proxy's failoverTimeout. test_ws's proxy is
-head_proxy's ProxyServer, which refuses each CONNECT, as Firefox's test's
-server does."""
+5 minutes, where Firefox has the proxy's failoverTimeout. This browser has
+no FTP, so it resolves no proxy for an ftp: URL: test_ftp_disabled gets
+null, as in Firefox, without a request. test_ws's proxy is head_proxy's
+ProxyServer, which refuses each CONNECT, as Firefox's test's server does,
+and counts those for the WebSocket's host: the browser's own requests may
+go through it too."""
 
 import json
 
@@ -213,7 +216,7 @@ class ProxyListenerTest(ProxyTest):
             dummy.await_message('websocket_closed')
             dummy.unload()
 
-            proxy_request_count = sum(1 for request in proxy.requests if request[0] == 'connect')
+            proxy_request_count = proxy.requests.count(('connect', 'example.net:443'))
             self.equal(proxy_request_count, 1, 'Expected one proxy request')
             extension.unload()
         finally:

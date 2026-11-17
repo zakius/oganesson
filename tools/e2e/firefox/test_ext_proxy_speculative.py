@@ -50,10 +50,14 @@ class ProxySpeculativeTest(ProxyTest):
   }'''))
         handling_ext.startup()
 
+        # The add-on's onRequest logs from now on.
+        offset = self.browser.log_path.stat().st_size
+
         def asked():
-            with open(self.browser.log_path, errors='replace') as log:
-                return (f'"token":"{handling_ext.token}","kind":"test-log","args":[true,"onRequest '
-                        in log.read())
+            with open(self.browser.log_path, 'rb') as log:
+                log.seek(offset)
+                text = log.read().decode(errors='replace')
+            return f'"token":"{handling_ext.token}","kind":"test-log","args":[true,"onRequest ' in text
 
         page = self.open_tab('about:blank')
         try:
