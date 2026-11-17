@@ -280,8 +280,8 @@ TEST_API = r'''(() => {
 '''
 TEST_API_FILE = 'fxtest-api.js'
 TEST_API = TEST_API.replace('%FILE%', TEST_API_FILE)
-# A test class's browser_args for terminate_background(): an idle event page
-# stops after a second.
+# A test class's browser_args for a quick terminate_background(): an idle
+# event page stops after a second, where Chromium's stops after 15.
 EVENT_PAGE_ARGS = ('--event-page-idle-time=1000', '--event-page-suspending-time=1000')
 # A report in the browser's log: `"__fxtest__{...}", source: <url> (<line>)`.
 REPORT = re.compile(r'"__fxtest__(\{.*\})", source: ')
@@ -489,8 +489,8 @@ class Extension:
                 and event['params']['context'].get('auxData', {}).get('type') == 'isolated']
 
     def terminate_background(self):
-        """terminateBackground(): the event page goes idle and stops, which
-        takes the test class's EVENT_PAGE_ARGS."""
+        """terminateBackground(): the event page goes idle and stops, quickly
+        with the test class's EVENT_PAGE_ARGS."""
         prefix = f'chrome-extension://{self.id}/'
         wait_for(lambda: not any(t['url'].startswith(prefix) and t['type'] == 'background_page'
                                  for t in self.test.browser.targets()),

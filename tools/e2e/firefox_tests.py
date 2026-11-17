@@ -126,8 +126,11 @@ def run_port(port):
     if done.returncode == 0:
         return True, None, test_names(module), kept
     failed = failed_tests(done.stdout)
-    # A failure outside the tests (setUpClass) fails them all.
-    passing = [name for name in test_names(module) if name not in failed] if failed else []
+    # A failure outside the tests (a setUpClass of any of the port's
+    # classes, whose tests then don't run) fails them all.
+    outside = re.search(r'^(?:FAIL|ERROR): (?!test_)\w+ \(', done.stdout, re.M)
+    passing = ([name for name in test_names(module) if name not in failed]
+               if failed and not outside else [])
     return False, first_failure(done.stdout), passing, kept
 
 

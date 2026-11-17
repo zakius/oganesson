@@ -104,6 +104,7 @@ class MenusEventPageTest(EventPageTest):
         }'''))
 
         blank = self.open_tab('about:blank')
+        self.addCleanup(self.browser.close_target, blank)
         extension.startup()
         extension.terminate_background()  # Simulated suspend on idle.
         extension.await_message('suspended-test_menu_onclick')
@@ -122,7 +123,6 @@ class MenusEventPageTest(EventPageTest):
         self.check(clicked['tab']['id'] > -1, 'Click event tab ID is correct')
 
         extension.unload()
-        self.browser.close_target(blank)
 
     def test_03_menu_onshown(self):
         extension = self.get_extension(JS('''async function background() {
@@ -150,6 +150,7 @@ class MenusEventPageTest(EventPageTest):
         }'''))
 
         blank = self.open_tab('about:blank')
+        self.addCleanup(self.browser.close_target, blank)
         extension.startup()
         extension.terminate_background()  # Simulated suspend on idle.
         extension.await_message('suspended-test_menu_onshown')
@@ -171,7 +172,6 @@ class MenusEventPageTest(EventPageTest):
         self.check(clicked['tab']['id'] > -1, 'Click event tab ID is correct')
 
         extension.unload()
-        self.browser.close_target(blank)
 
     def test_04_actions_context_menu(self):
         extension = self.load_extension(
@@ -235,8 +235,8 @@ class MenusEventPageIdReuseTest(EventPageTest):
     """The last task, in a browser of its own: its add-on's event page has
     to stay up until the task stops it, as Firefox's does, and
     EVENT_PAGE_ARGS stops an idle one after a second, before a slow run's
-    message reaches it. Chromium's own idle time is longer than the task's
-    wait for it to stop."""
+    message reaches it. Chromium's own idle time (10 s, and 5 s to suspend)
+    is shorter than terminate_background()'s wait."""
 
     def test_05_menu_create_id_reuse(self):
         since = self.log_size()
