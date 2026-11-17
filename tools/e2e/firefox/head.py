@@ -13,7 +13,7 @@ Where Firefox gives an add-on with more than one item a submenu of its own
 
 import json
 
-from extension_test_utils import FirefoxTest
+from extension_test_utils import JS, FirefoxTest
 from harness import Page, wait_for
 from test_google_lens import png
 
@@ -219,8 +219,33 @@ POINT = '''((selector, frameIndex) => {
 })'''
 
 
+# The centre of an element, in the page's coordinates; (0, 0) for none.
+ELEMENT_POINT = '''(target => {
+  if (!target) {
+    return [0, 0];
+  }
+  const rect = target.getBoundingClientRect();
+  return [rect.left + rect.width / 2, rect.top + rect.height / 2];
+})'''
+
+
 def point(page, selector, frame_index=None):
+    """The point of synthesizeMouseAtCenter(selector): `selector` is a CSS
+    selector, or a function (JS) that runs in the page and returns the
+    element, as Firefox's test may pass."""
+    if isinstance(selector, JS):
+        return page.eval(f'{ELEMENT_POINT}(({selector.source.strip()})())')
     return page.eval(f'{POINT}({json.dumps(selector)}, {json.dumps(frame_index)})')
+
+
+def window_view(test, cls):
+    """The visible view of class `cls` in the newest window: a test's
+    window, as Firefox's `win`, is the one it opened last, which has the
+    focus. Widget node ids grow as widgets are created."""
+    def newest():
+        views = [view for view in test.browser.views(cls) if view.visible]
+        return max(views, key=lambda view: view.widget) if views else None
+    return test.browser.wait_settled(newest, what=f'a visible {cls}')
 
 
 def first_menu(test):
@@ -231,9 +256,9 @@ def first_menu(test):
 
 def open_context_menu(test, page, selector='#img1', frame_index=None):
     """openContextMenu(), or openContextMenuInFrame() with `frame_index`: a
-    right click on `selector` in `page`, the active tab, or in its frame;
-    the context menu that opens."""
-    contents = test.browser.wait_view('ContentsWebView')
+    right click on `selector` (point()) in `page`, the active tab of the
+    newest window, or in its frame; the context menu that opens."""
+    contents = window_view(test, 'ContentsWebView')
     x, y = point(page, selector, frame_index)
     test.browser.xdotool('mousemove', str(contents.bounds['x'] + int(x)),
                          str(contents.bounds['y'] + int(y)), 'click', '3')
@@ -268,8 +293,8 @@ def open_action_context_menu(test, extension, kind):
 def open_tools_menu(test):
     """openToolsMenu(): this browser has no Tools menu, and an add-on's
     `tools_menu` items go in the app menu's More tools (zakius/oganesson#98):
-    that submenu, open."""
-    test.browser.click_view(test.browser.wait_view('BrowserAppMenuButton'))
+    that submenu of the newest window, open."""
+    test.browser.click_view(window_view(test, 'BrowserAppMenuButton'))
     menu = first_menu(test)
     return open_submenu(test, menu.by_label('More tools')[0])
 
@@ -330,7 +355,8 @@ def open_whole_context_menu(test, page, selector='#img1', frame_index=None,
 def open_context_menu_in_sidebar(test, page, selector='body'):
     """openContextMenuInSidebar(): a right click on `selector` in `page`,
     an add-on's page in the side panel, as DevTools' input, since the side
-    panel isn't the tab's view; the context menu that opens."""
+    panel isn't the tab's view; the context menu that opens. The same for
+    openContextMenuInPopup(), with the add-on's popup (Browser.open_popup())."""
     x, y = point(page, selector)
     for kind in ('mousePressed', 'mouseReleased'):
         page.call('Input.dispatchMouseEvent', type=kind, x=x, y=y, button='right', clickCount=1)
@@ -414,6 +440,21 @@ def open_new_browser_window(test):
     finally:
         page.close()
     return browser.browser_call('Browser.getWindowForTarget', targetId=target)['windowId']
+
+
+def open_private_window(test):
+    """BrowserTestUtils.openNewBrowserWindow({private: true}): a new private
+    window, as the user opens one (Ctrl+Shift+N); its tab."""
+    before = {target['id'] for target in test.browser.targets()}
+    test.browser.key('ctrl+shift+n')
+    return Page(wait_for(lambda: next((target for target in test.browser.targets()
+                                       if target['id'] not in before and target['type'] == 'page'),
+                                      None), what='the private window'))
+
+
+def window_of(test, page):
+    """The DevTools windowId of `page`'s window."""
+    return test.browser.browser_call('Browser.getWindowForTarget', targetId=page.id)['windowId']
 
 
 def close_window(test, window_id):

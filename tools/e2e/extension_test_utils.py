@@ -33,8 +33,8 @@ The add-on's pages, background and content scripts get Firefox's `browser.test`
 `assertRejects`, `sendMessage`, `onMessage`, `notifyPass`, `notifyFail`,
 `succeed`, `fail`, `log`), from TEST_API, which follows Firefox's ext-test.js;
 so do the scripts it registers (`contentScripts.register`,
-`scripting.registerContentScripts`), but not those it injects once
-(`executeScript`).
+`scripting.registerContentScripts`) and those it injects with
+`tabs.executeScript`.
 It reports to the test through console messages, which the browser's log
 keeps (a private window's, which it doesn't, through DevTools: watch()), and
 `extension.send_message()` reaches its background, pages and content scripts
@@ -251,6 +251,23 @@ TEST_API = r'''(() => {
     browser.scripting.getRegisteredContentScripts = async function (...args) {
       const scripts = await getRegistered.apply(this, args);
       return scripts.map(s => (s.js ? {...s, js: s.js.filter(e => !isOurs(e))} : s));
+    };
+  }
+  // So do the scripts it injects with tabs.executeScript(), as in Firefox:
+  // this file runs first, in the same frames. A refusal refuses both.
+  const executeScript = globalThis.browser?.tabs?.executeScript;
+  if (executeScript) {
+    browser.tabs.executeScript = function (...args) {
+      const withTab = typeof args[0] !== "object" || args[0] === null;
+      const details = (withTab ? args[1] : args[0]) || {};
+      const ours = {file: "/%FILE%"};
+      for (const key of ["allFrames", "frameId", "matchAboutBlank", "runAt"]) {
+        if (details[key] !== undefined) {
+          ours[key] = details[key];
+        }
+      }
+      const run = () => executeScript.apply(this, args);
+      return executeScript.call(this, ...(withTab ? [args[0]] : []), ours).then(run, run);
     };
   }
   // The background has loaded: a page's load event, or the end of a
@@ -479,6 +496,18 @@ class Extension:
         wait_for(lambda: not any(t['url'].startswith(prefix) and t['type'] == 'background_page'
                                  for t in self.test.browser.targets()),
                  timeout=30, what='the event page to stop')
+
+    def wakeup_background(self):
+        """wakeupBackground(): the stopped event page starts again, as an
+        add-on page's runtime.getBackgroundPage() starts it; here the page is
+        the test API's file, which every add-on has."""
+        page = self.test.browser.new_tab(f'chrome-extension://{self.id}/{TEST_API_FILE}')
+        try:
+            wait_for(lambda: page.eval('!!globalThis.chrome?.runtime?.getBackgroundPage'),
+                     what="the add-on's page")
+            page.eval('new Promise(resolve => chrome.runtime.getBackgroundPage(resolve)).then(() => 0)')
+        finally:
+            self.test.browser.close_target(page)
 
     def flush(self):
         """Waits until the background's reports so far are in the log: the
