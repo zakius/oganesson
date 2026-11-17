@@ -3,7 +3,8 @@
 The protection page's switch is the setting's default, off as oganesson
 ships it. Every http and https site's page in Site settings has a
 Fingerprinting protection row, whose Allow or Block wins over the switch
-from the site's next load, either way, and leaves other sites alone. Private
+from the site's next load, either way, and leaves other sites alone. The
+page's Reset permissions clears the row's rule with the others. Private
 windows follow the switch and the sites' rules too. A switch turned on in the
 helium.noise.enabled pref, where it was kept before, stays on.
 
@@ -141,6 +142,15 @@ class NoiseSiteDetailsTest(NoiseTest):
         self.choose(page, 'block')
         self.assertFalse(self.noised('127.0.0.1'), 'no noise on the blocked site')
         self.assertTrue(self.noised('localhost'), 'noise on another site')
+
+    def test_reset_permissions_clears_the_rule(self):
+        page = self.site_details('127.0.0.1')
+        self.choose(page, 'allow')
+        details = f'{ROW}.getRootNode().host.shadowRoot'
+        page.eval(f"{details}.querySelector('#resetSettingsButton').click()")
+        page.eval(f"{details}.querySelector('#confirmResetSettings .action-button').click()")
+        wait_for(lambda: self.rules(page) == [], what='the rule cleared')
+        wait_for(lambda: page.eval(f'{SELECT}.value') == 'default', what='the row at its default')
 
     def test_private_window_follows_the_switch_and_the_site(self):
         self.assertFalse(self.noised_in_private_window('127.0.0.1'), 'no noise while off')
