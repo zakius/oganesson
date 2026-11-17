@@ -11,6 +11,8 @@ Where Firefox gives an add-on with more than one item a submenu of its own
 ("top-level-menu"), this browser does too, under the add-on's name.
 """
 
+import json
+
 from extension_test_utils import FirefoxTest
 from harness import Page, wait_for
 from test_google_lens import png
@@ -165,10 +167,74 @@ def open_menus(test):
     return wait_for(lambda: test.browser.menus(), what='a menu to open')
 
 
-def open_context_menu(test, page, selector='#img1'):
-    """openContextMenu(): a right click on `selector` in `page`, the active
-    tab; the context menu that opens."""
-    test.browser.click_element(page, selector, button=3)
+# synthesizeMouseAtCenter()'s point in a page: the centre of the first
+# match of a selector, in the page or in its frame number `frameIndex`, in
+# the page's coordinates; (0, 0) when nothing matches, where Firefox clicks
+# then.
+POINT = '''((selector, frameIndex) => {
+  let doc = document;
+  let left = 0;
+  let top = 0;
+  if (frameIndex !== null) {
+    const frame = window.frames[frameIndex].frameElement;
+    const rect = frame.getBoundingClientRect();
+    doc = frame.contentDocument;
+    left = rect.left;
+    top = rect.top;
+  }
+  const target = doc.querySelector(selector);
+  if (!target) {
+    return [0, 0];
+  }
+  const rect = target.getBoundingClientRect();
+  return [left + rect.left + rect.width / 2, top + rect.top + rect.height / 2];
+})'''
+
+
+def point(page, selector, frame_index=None):
+    return page.eval(f'{POINT}({json.dumps(selector)}, {json.dumps(frame_index)})')
+
+
+def open_context_menu(test, page, selector='#img1', frame_index=None):
+    """openContextMenu(), or openContextMenuInFrame() with `frame_index`: a
+    right click on `selector` in `page`, the active tab, or in its frame;
+    the context menu that opens."""
+    contents = test.browser.wait_view('ContentsWebView')
+    x, y = point(page, selector, frame_index)
+    test.browser.xdotool('mousemove', str(contents.bounds['x'] + int(x)),
+                         str(contents.bounds['y'] + int(y)), 'click', '3')
+    menus = open_menus(test)
+    return Menu(test, [item for group in menus[0] for item in group])
+
+
+def extension_tab(test, extension, name):
+    """The tab of the add-on's page `name`, which the add-on opened, once it
+    has loaded (BrowserTestUtils.waitForNewTab())."""
+    page = test.browser.page(f'chrome-extension://{extension.id}/{name}')
+    wait_for(lambda: page.eval('document.readyState') == 'complete', what=f'{name} to load')
+    return page
+
+
+def open_whole_context_menu(test, page, selector='#img1', frame_index=None,
+                            name='Generated extension'):
+    """openContextMenu() as a test reads it with getElementsByAttribute(),
+    which reaches into the closed submenu of an add-on with more than one
+    item: the context menu's items, and those of the submenu of the add-on
+    called `name`, opened."""
+    menu = open_context_menu(test, page, selector, frame_index)
+    top = menu.by_label(name)
+    if not top:
+        return menu
+    return Menu(test, menu.items + open_submenu(test, top[0]).items)
+
+
+def open_context_menu_in_sidebar(test, page, selector='body'):
+    """openContextMenuInSidebar(): a right click on `selector` in `page`,
+    an add-on's page in the side panel, as DevTools' input, since the side
+    panel isn't the tab's view; the context menu that opens."""
+    x, y = point(page, selector)
+    for kind in ('mousePressed', 'mouseReleased'):
+        page.call('Input.dispatchMouseEvent', type=kind, x=x, y=y, button='right', clickCount=1)
     menus = open_menus(test)
     return Menu(test, [item for group in menus[0] for item in group])
 
