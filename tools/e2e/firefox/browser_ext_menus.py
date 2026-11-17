@@ -14,6 +14,11 @@ test clicks, as Firefox's click on a missing item does. Left out, as
 Gecko's DOM: that the submenu opened is the item's own menupopup, and the
 overflow submenu's `ext-type` attribute; the submenu's label is checked.
 
+In the tab menu and the app menu's More tools, this browser puts the
+add-ons' items in a group of their own among its own items, where Firefox
+puts them last, after a separator: the port takes that group for Firefox's
+last three children, and its first item for the one after the separator.
+
 The bookmark task takes the bookmark bar for Firefox's bookmarks toolbar, as
 the contextMenus port does. Firefox's Tools menu is, in this browser, the app
 menu's More tools (head.open_tools_menu()). `http://example.com/` is the test
