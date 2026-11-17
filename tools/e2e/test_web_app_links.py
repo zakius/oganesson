@@ -41,10 +41,14 @@ APP_PAGE = b'''<!doctype html><link rel="manifest" href="/app/manifest.json">
 <a id="mail" href="/app/mail/x.html">in a rule on the app's own site</a>
 <a id="push" href="/app/excluded.html" onclick="event.preventDefault();
   history.pushState(null, '', this.href)">excluded, pushed</a>
+<a id="replace" href="/app/excluded.html" onclick="event.preventDefault();
+  history.replaceState(null, '', this.href)">excluded, replaced</a>
 <a id="push-out" href="/out.html?push" onclick="event.preventDefault();
   window.sawClick = true; history.pushState(null, '', this.href)">out of scope, pushed</a>
 <a id="push-inside" href="/app/inside.html" onclick="event.preventDefault();
   history.pushState(null, '', this.href)">in scope, pushed</a>
+<a id="assign" href="/app/excluded.html" onclick="event.preventDefault();
+  location.href = this.href">excluded, by script</a>
 <a id="rewrite" href="/app/inside.html"
   onmousedown="this.href = '/app/to-excluded'">excluded, through a redirect</a>
 <a id="rewrite-out" href="/app/inside.html"
