@@ -112,11 +112,13 @@ class ContextMenuTest(FirefoxTest):
 
 
 class Menu:
-    """An open menu's items (MenuItemViews), as they were when it opened."""
+    """An open menu's items (MenuItemViews), as they were when it opened, and
+    its groups of items between separators (harness.Browser.menus())."""
 
-    def __init__(self, test, items):
+    def __init__(self, test, items, groups=None):
         self.test = test
         self.items = items
+        self.groups = groups or [items]
 
     def by_label(self, label):
         """getElementsByAttribute("label", label): the items with that label."""
@@ -141,6 +143,28 @@ class Menu:
         x, y = image.center
         corner = image.bounds['x'], image.bounds['y']
         return self.test.browser.pixel(x, y) != self.test.browser.pixel(*corner)
+
+
+def has_submenu(test, item):
+    """tagName == "menu": the item opens a submenu, so it shows the submenu's
+    arrow, an image at its end."""
+    box = item.bounds
+    for image in test.browser.views('ImageView'):
+        x, y = image.center
+        inside = box['x'] <= x < box['x'] + box['width'] and box['y'] <= y < box['y'] + box['height']
+        if inside and image.visible and box['x'] + box['width'] - image.bounds['x'] < 40:
+            return True
+    return False
+
+
+def access_key(item):
+    """accessKey: the character after the title's first `&` that isn't
+    `&&`, which the menu underlines, or None."""
+    title = item['Title'].replace('&&', '')
+    index = title.find('&')
+    if index < 0 or index + 1 >= len(title):
+        return None
+    return title[index + 1]
 
 
 def label_of(item):
@@ -195,6 +219,12 @@ def point(page, selector, frame_index=None):
     return page.eval(f'{POINT}({json.dumps(selector)}, {json.dumps(frame_index)})')
 
 
+def first_menu(test):
+    """The menu that opens first, once it is open."""
+    groups = open_menus(test)[0]
+    return Menu(test, [item for group in groups for item in group], groups)
+
+
 def open_context_menu(test, page, selector='#img1', frame_index=None):
     """openContextMenu(), or openContextMenuInFrame() with `frame_index`: a
     right click on `selector` in `page`, the active tab, or in its frame;
@@ -203,8 +233,75 @@ def open_context_menu(test, page, selector='#img1', frame_index=None):
     x, y = point(page, selector, frame_index)
     test.browser.xdotool('mousemove', str(contents.bounds['x'] + int(x)),
                          str(contents.bounds['y'] + int(y)), 'click', '3')
-    menus = open_menus(test)
-    return Menu(test, [item for group in menus[0] for item in group])
+    return first_menu(test)
+
+
+def open_tab_context_menu(test, index=-1):
+    """openTabContextMenu(), or openChromeContextMenu("tabContextMenu",
+    ".tabbrowser-tab") with `index` 0: a right click on the tab at `index` in
+    the tab strip; the context menu that opens. The default, the last tab,
+    is the selected one when the test has just opened it. The click waits
+    for the tabs to stop moving: they slide into place as others close."""
+    tabs = test.browser.wait_settled(
+        lambda: sorted((view for view in test.browser.views('Tab') if view.visible),
+                       key=lambda view: view.bounds['x']),
+        what='the tab strip')
+    test.browser.click_view(tabs[index], button=3)
+    return first_menu(test)
+
+
+def open_action_context_menu(test, extension, kind):
+    """openActionContextMenu(extension, kind): a right click on the add-on's
+    toolbar button (`kind` "browser"), or on its page action's button in the
+    location bar ("page"), which this browser doesn't have yet
+    (zakius/oganesson#68); the context menu that opens. Firefox's menu
+    starts with the add-on's items; this browser's starts with the add-on's
+    name, and its items are the menu's second group."""
+    if kind == 'page':
+        raise AssertionError('no page action button in the location bar (zakius/oganesson#68)')
+    test.browser.click_view(test.browser.toolbar_button(extension.id), button=3)
+    return first_menu(test)
+
+
+def open_tools_menu(test):
+    """openToolsMenu(): this browser has no Tools menu, and an add-on's
+    `tools_menu` items go in the app menu's More tools (zakius/oganesson#98):
+    that submenu, open."""
+    test.browser.click_view(test.browser.wait_view('BrowserAppMenuButton'))
+    menu = first_menu(test)
+    return open_submenu(test, menu.by_label('More tools')[0])
+
+
+def open_extensions_panel(test):
+    """openExtensionsPanel(): Firefox's unified extensions panel is this
+    browser's Extensions menu, which the toolbar's Extensions button opens."""
+    test.browser.click_view(test.browser.wait_view('ExtensionsToolbarButton'))
+    wait_for(lambda: any(view.visible for view in test.browser.views('ExtensionMenuItemView')),
+             what='the Extensions menu')
+
+
+def close_extensions_panel(test):
+    """closeExtensionsPanel()."""
+    def closed():
+        if not any(view.visible for view in test.browser.views('ExtensionMenuItemView')):
+            return True
+        test.browser.key('Escape')
+        return False
+    wait_for(closed, interval=0.5, what='the Extensions menu to close')
+
+
+def open_unified_extensions_context_menu(test, name='Generated extension'):
+    """openUnifiedExtensionsContextMenu(): the context menu of the add-on
+    called `name` in the open Extensions menu, which its row's More options
+    button opens."""
+    browser = test.browser
+    label = browser.wait_view('ExtensionsMenuButton', Text=name)
+    row = next(view for view in browser.views('ExtensionMenuItemView')
+               if view.bounds['y'] <= label.center[1] < view.bounds['y'] + view.bounds['height'])
+    button = next(view for view in browser.views('HoverButton', TooltipText='More options')
+                  if row.bounds['y'] <= view.center[1] < row.bounds['y'] + row.bounds['height'])
+    browser.click_view(button)
+    return first_menu(test)
 
 
 def extension_tab(test, extension, name):
@@ -270,24 +367,32 @@ def open_submenu(test, item):
         menus = test.browser.menus()
         return menus[depth] if len(menus) > depth else None
     found = wait_for(submenu, what=f"{label_of(item)}'s submenu")
-    return Menu(test, [entry for group in found for entry in group])
+    return Menu(test, [entry for group in found for entry in group], found)
+
+
+def synthesize_mouse_at_center(test, item, button=0):
+    """EventUtils.synthesizeMouseAtCenter(item, {button}): a click on `item`
+    with Firefox's button number (0 left, 1 middle, 2 right)."""
+    x, y = item.center
+    test.browser.xdotool('mousemove', str(x), str(y), 'click', str(button + 1))
 
 
 def close_extension_context_menu(test, item=None, modifiers=None):
     """closeExtensionContextMenu(): a click on `item` with the keys of
-    `modifiers` held (Firefox's {shiftKey: true, ...}), or no item to
-    close the menu; either way the menus close."""
+    `modifiers` held (Firefox's {shiftKey: true, ...}) and its `button`
+    (synthesize_mouse_at_center()), or no item to close the menu; either way
+    the menus close."""
     if item is None:
         close_context_menu(test)
         return
-    keys = [MODIFIERS[name] for name, held in (modifiers or {}).items() if held]
-    x, y = item.center
+    modifiers = dict(modifiers or {})
+    button = modifiers.pop('button', 0)
+    keys = [MODIFIERS[name] for name, held in modifiers.items() if held]
     browser = test.browser
-    browser.xdotool('mousemove', str(x), str(y))
     for key in keys:
         browser.xdotool('keydown', key)
     try:
-        browser.xdotool('click', '1')
+        synthesize_mouse_at_center(test, item, button)
     finally:
         for key in reversed(keys):
             browser.xdotool('keyup', key)
@@ -354,5 +459,4 @@ def open_chrome_context_menu(test, view):
     """openChromeContextMenu(): a right click on a view of the browser's own
     UI (`view`, from harness.Browser.views()); the context menu that opens."""
     test.browser.click_view(view, button=3)
-    menus = open_menus(test)
-    return Menu(test, [item for group in menus[0] for item in group])
+    return first_menu(test)
