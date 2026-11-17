@@ -578,6 +578,8 @@ class FirefoxTest(BrowserTest):
     # reach.
     hosts = ()
     routes = {}
+    # More --host-resolver-rules, after those of `hosts`.
+    host_rules = ()
 
     @classmethod
     def setUpClass(cls):
@@ -585,9 +587,11 @@ class FirefoxTest(BrowserTest):
         # add-on that reloads (allow_in_incognito()).
         cls.prefs = {**DEVELOPER_MODE, **(cls.prefs or {})}
         cls.server = Server(cls.routes) if cls.routes else None
+        rules = [f'MAP {host} 127.0.0.1:{cls.server.port}' for host in cls.hosts]
+        rules += cls.host_rules
+        if rules:
+            cls.browser_args = (*cls.browser_args, f'--host-resolver-rules={",".join(rules)}')
         if cls.hosts:
-            rules = ','.join(f'MAP {host} 127.0.0.1:{cls.server.port}' for host in cls.hosts)
-            cls.browser_args = (*cls.browser_args, f'--host-resolver-rules={rules}')
             # The servers speak plain HTTP, as Firefox's do: no HTTPS-Only
             # Mode, which this browser has on, nor Chromium's HTTPS-First
             # Mode in private windows.
