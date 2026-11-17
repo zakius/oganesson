@@ -56,8 +56,11 @@ TEST_API = r'''(() => {
     return;
   }
   const TOKEN = "%TOKEN%";
+  // An Error keeps its name and message, as Firefox's structured clone of a
+  // message keeps them.
   const report = (kind, ...args) =>
-    console.log("__fxtest__" + JSON.stringify({token: TOKEN, kind, args}));
+    console.log("__fxtest__" + JSON.stringify({token: TOKEN, kind, args}, (key, value) =>
+      value instanceof Error ? {name: value.name, message: value.message} : value));
 
   const errorMatches = (error, expectedError) => {
     if (typeof expectedError === "function") {
