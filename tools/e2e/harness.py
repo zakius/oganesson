@@ -589,7 +589,9 @@ class Browser:
         return Page(target)
 
     def new_tab(self, url):
-        target = self._get('/json/new?' + url, method='PUT')
+        # DevTools reads the query as parameters, unescaped, so a raw `&`
+        # would end the URL.
+        target = self._get('/json/new?' + urllib.parse.quote(url, safe=''), method='PUT')
         self._get(f'/json/activate/{target["id"]}')
         return Page(target)
 
