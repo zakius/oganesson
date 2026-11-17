@@ -72,11 +72,6 @@ def key(record):
     return (record['hostname'], record.get('httpRealm'), record['username'])
 
 
-MAC = '@testpilot-containers'
-
-
-
-
 def check_backoff(raw_call, profiles, saved):
     """A token or storage server's 503 with Retry-After: syncs until then
     contact nothing and fail with the deadline, which a sync returns."""
