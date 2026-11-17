@@ -18,8 +18,7 @@ from test_google_lens import png
 DIR = '/browser/browser/components/extensions/test/browser/'
 BASE = f'http://mochi.test:8888{DIR}'
 
-# context.html, with the parts that the ports use: Firefox's has form fields
-# and a frame too.
+# Firefox's context.html and the frame in it, context_frame.html.
 CONTEXT_HTML = b'''<!DOCTYPE html>
 <html>
   <head>
@@ -32,6 +31,46 @@ CONTEXT_HTML = b'''<!DOCTYPE html>
   <p>
     <a href="some-link" id="link1">Some link</a>
   </p>
+
+  <p>
+    <a href="image-around-some-link">
+      <img src="ctxmenu-image.png" id="img-wrapped-in-link">
+    </a>
+  </p>
+
+  <p>
+    <input type="text" id="edit-me"><br>
+    <input id="readonly-text" type="text" readonly >
+    <input id="call-me-maybe" type="tel" value="0123456789">
+    <input id="number-input" type="number" value="123456789"><br>
+    <input type="password" id="password">
+    <input id="noneditablepassword" type="password" readonly >
+  </p>
+  <iframe id="frame" src="context_frame.html"></iframe>
+  <p id="longtext">Sed ut perspiciatis unde omnis iste natus error sit
+  voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque
+  ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta
+  sunt explicabo. Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut
+  odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem
+  sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum quia dolor sit
+  amet, consectetur, adipisci velit, sed quia non numquam eius modi tempora
+  incidunt ut labore et dolore magnam aliquam quaerat voluptatem. Ut enim ad
+  minima veniam, quis nostrum exercitationem ullam corporis suscipit
+  laboriosam, nisi ut aliquid ex ea commodi consequatur? Quis autem vel eum
+  iure reprehenderit qui in ea voluptate velit esse quam nihil molestiae
+  consequatur, vel illum qui dolorem eum fugiat quo voluptas nulla pariatur?</p>
+
+  <input id="editabletext" type="text" value="At vero eos et accusamus et iusto odio dignissimos ducimus qui blanditiis praesentium voluptatum deleniti atque corrupti quos dolores et quas molestias excepturi sint occaecati cupiditate non provident, similique sunt in culpa qui officia deserunt mollitia animi, id est laborum et dolorum fuga. Et harum quidem rerum facilis est et expedita distinctio. Nam libero tempore, cum soluta nobis est eligendi optio cumque nihil impedit quo minus id quod maxime placeat facere possimus, omnis voluptas assumenda est, omnis dolor repellendus. Temporibus autem quibusdam et aut officiis debitis aut rerum necessitatibus saepe eveniet ut et voluptates repudiandae sint et molestiae non recusandae. Itaque earum rerum hic tenetur a sapiente delectus, ut aut reiciendis voluptatibus maiores alias consequatur aut perferendis doloribus asperiores repellat." />
+  </body>
+</html>
+'''
+
+CONTEXT_FRAME_HTML = b'''<html>
+  <head>
+    <meta charset="utf-8">
+  </head>
+  <body>
+  Just some text
   </body>
 </html>
 '''
@@ -47,6 +86,7 @@ CONTEXT_WITH_REDIRECT_HTML = b'''<!DOCTYPE html>
 # ctxmenu-image.png, a 100 x 100 image as Firefox's is.
 ROUTES = {
     f'{DIR}context.html': (200, {'Content-Type': 'text/html'}, CONTEXT_HTML),
+    f'{DIR}context_frame.html': (200, {'Content-Type': 'text/html'}, CONTEXT_FRAME_HTML),
     f'{DIR}context_with_redirect.html': (200, {'Content-Type': 'text/html'},
                                          CONTEXT_WITH_REDIRECT_HTML),
     f'{DIR}ctxmenu-image.png': (200, {'Content-Type': 'image/png'}, png(100)),
@@ -151,13 +191,20 @@ def open_extension_context_menu(test, page, selector='#img1', name='Generated ex
     top = menu.by_label(name)
     if not top:
         return None
-    test.browser.click_view(top[0])
+    return open_submenu(test, top[0])
+
+
+def open_submenu(test, item):
+    """item.menupopup, open: a click on `item`, in the last open menu, opens
+    its submenu, the next menu."""
+    depth = len(test.browser.menus())
+    test.browser.click_view(item)
 
     def submenu():
         menus = test.browser.menus()
-        return menus[1] if len(menus) > 1 else None
-    found = wait_for(submenu, what=f"{name}'s submenu")
-    return Menu(test, [item for group in found for item in group])
+        return menus[depth] if len(menus) > depth else None
+    found = wait_for(submenu, what=f"{label_of(item)}'s submenu")
+    return Menu(test, [entry for group in found for entry in group])
 
 
 def close_extension_context_menu(test, item=None, modifiers=None):
@@ -217,3 +264,29 @@ def close_window(test, window_id):
     for target in tabs():
         browser.browser_call('Target.closeTarget', targetId=target['id'])
     wait_for(lambda: not tabs(), what='the window to close')
+
+
+def toggle_bookmarks_toolbar(test, visible=True):
+    """toggleBookmarksToolbar(): shows or hides the bookmark bar on every tab
+    (Ctrl+Shift+B), and waits until it has. The pref bookmark_bar.visibility_state
+    is 0 for every tab, 1 (the default) for the new tab page only and 2 for
+    none; the key toggles between 0 and 2."""
+    def on_all_tabs():
+        prefs = test.browser.profile_prefs()
+        return prefs.get('bookmark_bar', {}).get('visibility_state', {}).get('value', 1) == 0
+    if on_all_tabs() != visible:
+        test.browser.key('ctrl+shift+b')
+    wait_for(lambda: on_all_tabs() == visible, interval=0.5,
+             what=f'the bookmark bar to be {"shown" if visible else "hidden"} on every tab')
+    if visible:
+        wait_for(lambda: any(view.visible and view.bounds['height']
+                             for view in test.browser.views('BookmarkBarView')),
+                 what='the bookmark bar to show')
+
+
+def open_chrome_context_menu(test, view):
+    """openChromeContextMenu(): a right click on a view of the browser's own
+    UI (`view`, from harness.Browser.views()); the context menu that opens."""
+    test.browser.click_view(view, button=3)
+    menus = open_menus(test)
+    return Menu(test, [item for group in menus[0] for item in group])
