@@ -7,7 +7,10 @@ pages declare no favicon, so that a tab requests nothing more, as Firefox's
 content page doesn't. Firefox's network.proxy.no_proxies_on, its proxy
 settings' exceptions, is the bypass list of this browser's proxy pref (a
 fixed proxy that nothing reaches), which the browser reads at its start: that
-part of Firefox's task is test_02, in a browser of its own. Left out: the
+part of Firefox's task is test_02, in a browser of its own. There, before the
+bypassed host, the add-on proxies example.org, which isn't on the list, as
+Firefox's task first shows that it proxies example.com; the control counts the
+requests that reach the proxy, not `proxyInfo` in webRequest's details. Left out: the
 checks with network.proxy.allow_hijacking_localhost on, a Gecko pref that
 lets add-ons proxy localhost, which this browser never does (its default is
 Firefox's)."""
@@ -96,11 +99,14 @@ class ProxyBypassBase(ProxyTest):
 
     def check_page(self, extension, url, completed, proxied, message):
         """Loads `url` in a tab (loadContentPage()), and checks the add-on's
-        requestCompleted and the requests the proxy and the server got."""
+        requestCompleted (unless `completed` is None) and the requests the
+        proxy and the server got."""
         proxy_count = self.proxy_count()
         server_count = self.server_count()
         content_page = self.browser.new_tab(url)
-        self.equal(extension.await_message('requestCompleted'), completed, 'requestCompleted')
+        result = extension.await_message('requestCompleted')
+        if completed is not None:
+            self.equal(result, completed, 'requestCompleted')
         if proxied:
             self.equal(self.proxy_count(), proxy_count + 1, message)
             self.equal(self.server_count(), server_count, 'No extra direct requests')
@@ -128,6 +134,7 @@ class ProxyBypassLocalhostTest(ProxyBypassBase):
 
 
 class ProxyBypassListTest(ProxyBypassBase):
+    hosts = ('example.com', 'example.org')
 
     @classmethod
     def setUpClass(cls):
@@ -140,6 +147,11 @@ class ProxyBypassListTest(ProxyBypassBase):
 
     def test_02_webRequest_auth_proxy_no_proxies_on(self):
         extension = self.get_extension()
+
+        # The add-on's proxy applies in this browser: a host that isn't on
+        # the bypass list goes through it.
+        self.check_page(extension, f'http://example.org:{self.server.port}/', None,
+                        True, 'A host off the bypass list is proxied')
 
         # Now check that the pref is respected by addon requests too.
         self.check_page(extension, f'http://example.com:{self.server.port}/', 'not_proxied',

@@ -6,11 +6,15 @@ The add-on's code is Firefox's, as it is. Firefox's speculative connection
 to a host the proxy applies to (Firefox's test server is at localhost, which
 this browser never proxies), and the test waits for the add-on's onRequest
 log, where Firefox's waits for Gecko's "speculative-connect-request"
-notification. This browser preconnects only with "Preload pages" on,
+notification, for the preconnect's URL: not one of the browser's own
+requests, which the add-on's <all_urls> listener sees too. This browser
+preconnects only with "Preload pages" on,
 which is off by default, and the bundled uBlock Origin turns it off again by
 default: the port turns both on, as the user can."""
 
-from extension_test_utils import JS
+import json
+
+from extension_test_utils import JS, REPORT
 from firefox.head_proxy import ProxyTest
 from harness import wait_for
 
@@ -57,7 +61,15 @@ class ProxySpeculativeTest(ProxyTest):
             with open(self.browser.log_path, 'rb') as log:
                 log.seek(offset)
                 text = log.read().decode(errors='replace')
-            return f'"token":"{handling_ext.token}","kind":"test-log","args":[true,"onRequest ' in text
+            for match in REPORT.finditer(text):
+                report = json.loads(match.group(1))
+                if report['token'] != handling_ext.token or report['kind'] != 'test-log':
+                    continue
+                message = report['args'][1]
+                if (message.startswith('onRequest ')
+                        and json.loads(message[len('onRequest '):]).get('url') == URL):
+                    return True
+            return False
 
         page = self.open_tab('about:blank')
         try:
