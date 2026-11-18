@@ -1507,28 +1507,31 @@ class FirefoxLoadingTabTest(BrowserTest):
         self.assertFalse(self.browser.extension_errors(extension_id(self.unpacked['firefox'])))
 
 
-def window_action_add_on(manifest_version):
+def window_action_add_on(manifest_version, firefox=True):
     """An add-on that sets its action's values per window, as Save Screenshot
     (browserAction, Manifest V2) and Cookie Auto Decline (action, Manifest V3)
-    do."""
+    do; with `firefox` false, a Chrome extension: no gecko key."""
     key = 'browser_action' if manifest_version == 2 else 'action'
+    manifest = {
+        'manifest_version': manifest_version,
+        'name': f'Firefox window action test add-on {manifest_version}',
+        'version': '1',
+        'background': {'scripts': ['background.js']},
+        key: {'default_title': 'Default'},
+    }
+    if firefox:
+        manifest['browser_specific_settings'] = {
+            'gecko': {'id': f'firefox-window-action-{manifest_version}@oganesson.test'}}
     return {
-        'manifest.json': json.dumps({
-            'manifest_version': manifest_version,
-            'name': f'Firefox window action test add-on {manifest_version}',
-            'version': '1',
-            'browser_specific_settings': {
-                'gecko': {'id': f'firefox-window-action-{manifest_version}@oganesson.test'}},
-            'background': {'scripts': ['background.js']},
-            key: {'default_title': 'Default'},
-        }),
+        'manifest.json': json.dumps(manifest),
         'background.js': 'self.started = true;',
         'page.html': '<!doctype html><p>A page',
         'icon.png': png(16),
     }
 
 
-WINDOW_ACTION_ADD_ONS = {'mv2': window_action_add_on(2), 'mv3': window_action_add_on(3)}
+WINDOW_ACTION_ADD_ONS = {'mv2': window_action_add_on(2), 'mv3': window_action_add_on(3),
+                         'chrome': window_action_add_on(2, firefox=False)}
 
 # Two tabs of one window, one with its own title, and a tab of another window.
 WINDOW_ACTION_CALLS = '''(async () => {
@@ -1549,8 +1552,7 @@ WINDOW_ACTION_CALLS = '''(async () => {
     // path; a callback gets the error as runtime.lastError.
     const chromeApi = chrome.browserAction || chrome.action;
     const iconCallbackError = details => new Promise(resolve => chromeApi.setIcon(
-        {path: 'icon.png', ...details},
-        () => resolve(chrome.runtime.lastError?.message ?? null)));
+        details, () => resolve(chrome.runtime.lastError?.message ?? null)));
     const failure = promise => promise.then(() => null, e => e.message);
     const wrong = [{tabId: tab1.id, windowId: window1.id}, {windowId: 2147483647}];
     const errors = [];
@@ -1564,7 +1566,10 @@ WINDOW_ACTION_CALLS = '''(async () => {
         errors.push(await failure(api.setIcon({path: 'icon.png', ...details})));
     }
     for (const details of wrong) {
-        errors.push(await iconCallbackError(details));
+        errors.push(await iconCallbackError({imageData: new ImageData(16, 16), ...details}));
+    }
+    for (const details of wrong) {
+        errors.push(await iconCallbackError({path: 'icon.png', ...details}));
     }
     const title = details => api.getTitle(details);
     const badge = details => api.getBadgeText(details);
@@ -1631,7 +1636,7 @@ class FirefoxWindowActionTest(BrowserTest):
         self.assertEqual(result['titles'], ['Window', 'Own', 'Global', 'Window', 'Global', 'Global'])
         self.assertEqual(result['badges'], ['W', ''])
         self.assertEqual(result['errors'], ['Only one of tabId and windowId can be specified.',
-                                            'Invalid window ID: 2147483647'] * 4)
+                                            'Invalid window ID: 2147483647'] * 5)
         self.assertEqual(result['navigated'], 'Window')
         self.assertEqual(result['current'], ['Current', 'Current', 'Global'])
         self.assertFalse(self.browser.extension_errors(add_on))
@@ -1641,6 +1646,24 @@ class FirefoxWindowActionTest(BrowserTest):
 
     def test_action(self):
         self.check('mv3')
+
+    def test_chrome_extension(self):
+        """A Chrome extension keeps Chromium's setIcon: its promise resolves
+        on the browser's error, which a callback gets as runtime.lastError."""
+        background = self.browser.extension_background(extension_id(self.unpacked['chrome']))
+        try:
+            wait_for(lambda: background.eval('self.started === true'), what='the background script')
+            result = background.eval('''(async () => {
+                const details = {path: 'icon.png', windowId: 2147483647};
+                return [
+                    await chrome.browserAction.setIcon(details).then(() => 'resolved', e => e.message),
+                    await new Promise(resolve => chrome.browserAction.setIcon(
+                        details, () => resolve(chrome.runtime.lastError?.message ?? null))),
+                ];
+            })()''')
+        finally:
+            background.close()
+        self.assertEqual(result, ['resolved', 'Invalid window ID: 2147483647'])
 
 
 CONTEXTUAL_IDENTITIES_ADD_ON = {
