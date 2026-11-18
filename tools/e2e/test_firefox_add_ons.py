@@ -2865,5 +2865,62 @@ class FirefoxAmoUserAgentTest(BrowserTest):
         finally:
             self.browser.close_target(page)
 
+BLANK_HASH_ADD_ON = {
+    'manifest.json': json.dumps({
+        'manifest_version': 2,
+        'name': 'Firefox about:blank hash test add-on',
+        'version': '1',
+        'browser_specific_settings': {'gecko': {'id': 'firefox-blank-hash@oganesson.test'}},
+        'background': {'scripts': ['background.js']},
+        'permissions': ['tabs'],
+    }),
+    'background.js': 'self.started = true;',
+}
+
+
+class FirefoxBlankHashTest(BrowserTest):
+    """An add-on's tabs.update() to about:blank#ref on a new tab's about:blank
+    is a same-document navigation, as in Firefox: the tab keeps its document.
+    Chromium's check of that about:blank's site took the add-on's origin for
+    the document's, and crashed the browser (Firefox's pageAction tests change
+    the hash so)."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.folder = Path(tempfile.mkdtemp(prefix='oganesson-firefox-blank-hash-'))
+        xpi = cls.folder / 'add-on.xpi'
+        with zipfile.ZipFile(xpi, 'w') as archive:
+            for name, text in BLANK_HASH_ADD_ON.items():
+                archive.writestr(name, text)
+        cls.unpacked = unpack_xpi(xpi, cls.folder / 'unpacked')
+        cls.browser_args = (f'--load-extension={cls.unpacked}',)
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(cls.folder)
+
+    def test_update_to_hash(self):
+        page = self.browser.new_tab('about:blank')
+        background = self.browser.extension_background(extension_id(self.unpacked))
+        try:
+            wait_for(lambda: background.eval('self.started === true'), what='the background script')
+            page.eval('window.marker = "same document"')
+            tab_id = background.eval('browser.tabs.query({active: true, lastFocusedWindow: true})'
+                                     '.then(([tab]) => tab.id)')
+            self.assertEqual(background.eval(f'browser.tabs.get({tab_id}).then(tab => tab.url)'),
+                             'about:blank')
+            background.eval(f"browser.tabs.update({tab_id}, {{url: 'about:blank#ref'}})"
+                            ".then(() => true)")
+            wait_for(lambda: page.eval('location.href') == 'about:blank#ref', what='the new hash')
+            self.assertEqual(page.eval('window.marker'), 'same document')
+            self.assertEqual(background.eval(f'browser.tabs.get({tab_id}).then(tab => tab.url)'),
+                             'about:blank#ref')
+        finally:
+            background.close()
+            self.browser.close_target(page)
+
+
 if __name__ == '__main__':
     unittest.main()
