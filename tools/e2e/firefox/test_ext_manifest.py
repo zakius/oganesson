@@ -211,6 +211,7 @@ class ManifestTest(FirefoxTest):
         info = self.browser.extension_info(extension.id)
         self.is_(info['installWarnings'], [], 'expected no warnings')
 
+        self.check(self.get_addon_by_id(extension.id), 'got an add-on')
         # The ID that the browser takes from the Gecko ID: the manifest has no
         # other.
         self.is_(extension.id, extension_id(extension.folder), 'got expected ID')
