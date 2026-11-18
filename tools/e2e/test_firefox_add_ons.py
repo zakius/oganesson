@@ -2692,6 +2692,28 @@ class FirefoxXpiInstallTest(BrowserTest):
                           if v.visible])
 
 
+class FirefoxXpiAskWhereToSaveTest(FirefoxXpiInstallTest):
+    """With "Ask where to save each file" on, a .xpi that installs doesn't
+    ask where to save it: the install prompt opens, as in Firefox, and as on
+    Android, which asks where to save every download by default."""
+
+    prefs = {**DEVELOPER_MODE, 'download': {'prompt_for_download': True}}
+
+    # Not the base class's tests again: unittest runs only what is callable.
+    test_download_installs = test_no_gecko_id = test_no_gesture = None
+
+    def test_ask_where_to_save(self):
+        add_on = hashlib.sha256(XPI_GECKO_ID.encode()).hexdigest()[:32].translate(
+            str.maketrans('0123456789abcdef', 'abcdefghijklmnop'))
+        self.download('/add-on.xpi')
+        self.accept_prompt()
+        self.started(add_on).close()
+        info = self.installed(add_on)
+        self.assertEqual(len(info), 1)
+        self.assertNotEqual(info[0]['location'], 'UNPACKED')
+        self.assertEqual(info[0]['state'], 'ENABLED')
+
+
 FIRST_PARTY_DOMAIN_ADD_ON = {
     'manifest.json': json.dumps({
         'manifest_version': 2,
