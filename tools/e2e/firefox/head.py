@@ -11,6 +11,7 @@ Where Firefox gives an add-on with more than one item a submenu of its own
 ("top-level-menu"), this browser does too, under the add-on's name.
 """
 
+import base64
 import json
 import subprocess
 
@@ -531,18 +532,6 @@ def open_chrome_context_menu(test, view):
     return first_menu(test)
 
 
-def active_tab_id(test, extension):
-    """tabTracker.getId(tab) of the tab the test has just opened or
-    selected: the add-on's ID of the focused window's active tab, which its
-    background reads (through DevTools)."""
-    background = test.browser.extension_background(extension.id)
-    try:
-        return background.eval('browser.tabs.query({active: true, lastFocusedWindow: true})'
-                               '.then(([tab]) => tab.id)')
-    finally:
-        background.close()
-
-
 def screen_pixels(test, x, y, width, height):
     """The screen's colours in a rectangle, as rows of (r, g, b)
     (ImageMagick's import)."""
@@ -638,3 +627,52 @@ def action_button_state(test, images):
         text = max(inside, key=difference)
     return {'title': button['TooltipText'], 'icon': shown, 'enabled': enabled, 'badge': badge,
             'badge_background': background, 'badge_text_color': text}
+
+
+# Firefox's imageBuffer: a 1 x 1 PNG.
+IMAGE_BUFFER = base64.b64decode(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQImWNgYGBgAAAABQABh6FO1AAAAABJRU5ErkJggg==')
+
+
+def page_action_button(test, extension):
+    """getPageActionButton(), or the element of the id that
+    BrowserPageActions.urlbarButtonNodeIDForActionID() gives: the add-on's
+    page action button in the location bar, which shows where the page action
+    is shown, or None. This browser doesn't have that button yet
+    (zakius/oganesson#68): None. Chromium's toolbar button for a Manifest V2
+    add-on whose only action is a page action isn't it: that button stays in
+    the toolbar on every tab, greyed out where the page action is hidden, and
+    a page action next to another action has no button at all."""
+    return None
+
+
+def click_page_action(test, extension):
+    """clickPageAction(): a click on the add-on's page action button in the
+    location bar, which this browser doesn't have yet (zakius/oganesson#68)."""
+    raise AssertionError('no page action button in the location bar (zakius/oganesson#68)')
+
+
+def tab_location(page):
+    """The tab's location as the browser has it (gBrowser's currentURI): its
+    current history entry's URL."""
+    history = page.call('Page.getNavigationHistory')
+    return history['entries'][history['currentIndex']]['url']
+
+
+def history_push_state(page, url):
+    """historyPushState(): history.pushState() to `url` in the tab's page,
+    once the browser has the tab's new location."""
+    page.eval(f'history.pushState(null, null, {json.dumps(url)})')
+    wait_for(lambda: tab_location(page) == url, what=f'the location {url}')
+
+
+def active_tab_id(test, extension):
+    """tabTracker.getId() of the selected tab: the tabs API's ID of the active
+    tab of the last focused window, which the test asks the add-on's
+    background for through DevTools."""
+    page = test.browser.extension_background(extension.id)
+    try:
+        return page.eval('chrome.tabs.query({active: true, lastFocusedWindow: true})'
+                         '.then(tabs => tabs[0].id)', gesture=False)
+    finally:
+        page.close()
