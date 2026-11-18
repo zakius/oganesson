@@ -386,14 +386,15 @@ class Extension:
                 (folder / name).write_bytes(content)
             else:
                 (folder / name).write_text(content)
-        self.state = 'running'
-        self.test.extensions.append(self)
         if self.permanent:
             self.id = extension_id(folder)
             self.test.permanent.append(folder)
             self.test.restart_browser()
         else:
             self.id = self.test.browser.pipe_call('Extensions.loadUnpacked', path=str(folder))['id']
+        # Only a loaded add-on is one that the test's end removes.
+        self.state = 'running'
+        self.test.extensions.append(self)
         if 'background' in self.manifest:
             self.test.wait_reports(lambda: self.ready, 'the background to load')
         if self.incognito_override == 'spanning':
