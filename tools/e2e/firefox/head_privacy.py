@@ -20,7 +20,7 @@ given in Firefox's form:
   on and 0 when off.
 - network.cookie.cookieBehavior (cookieConfig): cookies blocked in Settings
   (profile.default_content_setting_values.cookies) are 2 (reject all), and
-  third-party cookies blocked (profile.cookie_controls_mode 2) are 1 (reject
+  third-party cookies blocked (profile.cookie_controls_mode 1) are 1 (reject
   third-party); 0 (accept) otherwise. Firefox's 3, 4 and 5 (visited, trackers,
   trackers and partitioned) have no equal.
 - privacy.globalprivacycontrol.enabled (globalPrivacyControl): Helium's
@@ -55,7 +55,7 @@ PREDICTION_DISABLED = 2
 SPECULATIVE_PARALLEL_LIMIT = 6
 # Chromium's CookieControlsMode (profile.cookie_controls_mode).
 COOKIES_ALLOW_THIRD_PARTY = 0
-COOKIES_BLOCK_THIRD_PARTY = 2
+COOKIES_BLOCK_THIRD_PARTY = 1
 # Chromium's ContentSetting.
 CONTENT_SETTING_BLOCK = 2
 # Firefox's nsICookieService behaviors (network.cookie.cookieBehavior).
