@@ -12,7 +12,8 @@ Firefox's negotiation tasks also mock the languages that Firefox ships
 `ca-ES-valencia`, a Gecko internal. This browser's UI languages are the ones
 it ships, so the port requests only those of Firefox's that it has: `en-US` and
 `ca`, where Firefox's test also requests `jp` and the two others. The add-ons
-keep all of their locales.
+keep all of their locales. So test_03 checks only that a browser in `en-US`
+gives the `en_US` message, and test_04 an exact match and the default.
 
 Firefox's content page loads before the add-on starts in every task but the
 first, and Firefox runs the add-on's content scripts in it: the port opens it
@@ -21,8 +22,9 @@ at the same point.
 test_07's text of French and English can't pass here: Chromium's language
 detector (CLD3) finds French alone in it, where Firefox's (CLD2) finds both,
 with their shares, and the add-on's check then throws. That is the detector's
-model, not the API, so it has no step. The task stays, since its first checks
-guard the shape of what detectLanguage() gives."""
+model, not the API, so it has no step, and the file can't pass. It stays
+ported for its other tasks, and test_07's first checks guard the shape of what
+detectLanguage() gives."""
 
 import json
 
