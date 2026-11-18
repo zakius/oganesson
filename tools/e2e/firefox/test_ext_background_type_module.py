@@ -8,7 +8,7 @@ script's URL is its resolved `src`, as in Firefox's page. A script without a
 `type` attribute is JavaScript, as HTML says, so the port takes it for
 Firefox's `text/javascript`. The harness's own script (the test API), which it
 adds first to every background, is left out. Firefox's manifest error is the
-browser's refusal to load the add-on.
+browser's refusal to load the add-on, with Firefox's text.
 """
 
 from extension_test_utils import TEST_API_FILE, FirefoxTest
@@ -104,5 +104,8 @@ class BackgroundTypeModuleTest(FirefoxTest):
             },
             files={'main.js': '', 'anotherScript.js': ''})
 
-        with self.assertRaises(RuntimeError, msg='Expected install to fail'):
+        with self.assertRaisesRegex(
+                RuntimeError,
+                'Error processing background.type: Invalid enumeration value "invalid"',
+                msg='Expected install to fail'):
             extension.startup()
