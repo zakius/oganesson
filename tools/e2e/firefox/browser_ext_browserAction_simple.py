@@ -79,11 +79,10 @@ class BrowserActionSimpleTest(FirefoxTest):
             self.browser.close_target(popup)
 
         warnings = self.browser.extension_info(extension.id)['installWarnings']
-        property_name = f'{action}.unrecognized_property'
-        self.check(any(property_name in warning for warning in warnings),
-                   f'Reading manifest: Warning processing {property_name}: '
-                   f'An unexpected property was found - Expected: the warning, '
-                   f'Actual: {warnings}')
+        expected = (f'Reading manifest: Warning processing {action}.unrecognized_property: '
+                    'An unexpected property was found')
+        self.check(any(expected in warning for warning in warnings),
+                   f'{expected} - Expected: the warning, Actual: {warnings}')
         extension.unload()
 
     def test_01_browser_action(self):
