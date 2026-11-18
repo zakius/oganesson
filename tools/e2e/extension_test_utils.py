@@ -286,6 +286,14 @@ TEST_API = TEST_API.replace('%FILE%', TEST_API_FILE)
 # A test class's browser_args for a quick terminate_background(): an idle
 # event page stops after a second, where Chromium's stops after 15.
 EVENT_PAGE_ARGS = ('--event-page-idle-time=1000', '--event-page-suspending-time=1000')
+# Firefox's ExtensionTestUtils.normalizeManifest() takes the manifest over
+# this one (ExtensionXPCShellUtils.sys.mjs).
+BASE_MANIFEST = {
+    'browser_specific_settings': {'gecko': {'id': 'test@web.ext'}},
+    'manifest_version': 2,
+    'name': 'name',
+    'version': '0',
+}
 # A report in the browser's log: `"__fxtest__{...}", source: <url> (<line>)`.
 REPORT = re.compile(r'"__fxtest__(\{.*\})", source: ')
 
@@ -326,8 +334,11 @@ def generate_files(manifest, background, files):
     manifest.setdefault('version', '1.0')
     if manifest['manifest_version'] == 2 and 'host_permissions' in manifest:
         manifest['permissions'] = (manifest.get('permissions') or []) + manifest.pop('host_permissions')
-    gecko = manifest.setdefault('browser_specific_settings', {}).setdefault('gecko', {})
-    gecko.setdefault('id', '{' + str(uuid.uuid4()) + '}')
+    # A Gecko ID, unless the add-on has one in Firefox's older key.
+    applications = manifest.get('applications', {}).get('gecko', {})
+    if 'id' not in applications:
+        gecko = manifest.setdefault('browser_specific_settings', {}).setdefault('gecko', {})
+        gecko.setdefault('id', '{' + str(uuid.uuid4()) + '}')
     if background is not None:
         name = f'{uuid.uuid4()}.js'
         manifest.setdefault('background', {})['scripts'] = [name]
@@ -367,7 +378,6 @@ class Extension:
         self.token = uuid.uuid4().hex
         self.files = generate_files(manifest, background, files)
         self.manifest = json.loads(self.files['manifest.json'])
-        self.gecko_id = self.manifest['browser_specific_settings']['gecko']['id']
         self.files[TEST_API_FILE] = TEST_API.replace('%TOKEN%', self.token)
         self.id = None
         self.messages = []
@@ -649,6 +659,23 @@ class FirefoxTest(BrowserTest):
                        incognito_override=None, use_addon_manager=None):
         return Extension(self, manifest, background, files, incognito_override,
                          use_addon_manager)
+
+    def normalize_manifest(self, manifest):
+        """ExtensionTestUtils.normalizeManifest(): an add-on with `manifest`
+        over Firefox's base manifest loads, and goes again. As in Firefox, the
+        result's `error` is the manifest's error, here the browser's refusal
+        to load it (None when it loads), and `errors` its warnings, here the
+        add-on's install warnings, which chrome://extensions shows. A refusal
+        is one of the `errors` too: the add-on that didn't load can't show
+        that it has no warnings."""
+        extension = self.load_extension(manifest={**BASE_MANIFEST, **manifest})
+        try:
+            extension.startup()
+        except RuntimeError as refused:
+            return {'error': str(refused), 'errors': [str(refused)]}
+        warnings = self.browser.extension_info(extension.id)['installWarnings']
+        extension.unload()
+        return {'error': None, 'errors': warnings}
 
     def restart_browser(self):
         """AddonTestUtils.promiseRestartManager(): the browser restarts, with
