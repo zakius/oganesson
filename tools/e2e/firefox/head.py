@@ -14,7 +14,7 @@ Where Firefox gives an add-on with more than one item a submenu of its own
 import json
 
 from extension_test_utils import JS, FirefoxTest
-from harness import Page, wait_for
+from harness import DEVELOPER_MODE, Page, wait_for
 from test_google_lens import png
 
 DIR = '/browser/browser/components/extensions/test/browser/'
@@ -500,6 +500,27 @@ def toggle_bookmarks_toolbar(test, visible=True):
         wait_for(lambda: any(view.visible and view.bounds['height']
                              for view in test.browser.views('BookmarkBarView')),
                  what='the bookmark bar to show')
+
+
+# The `prefs` of a port whose add-ons start without their buttons pinned, as
+# Firefox puts a new add-on's button in the add-ons panel unless its manifest's
+# `default_area` names a toolbar: this browser pins new extensions unless its
+# setting says not to.
+NOT_PINNED_BY_DEFAULT = {'extensions': {**DEVELOPER_MODE['extensions'], 'pinned_by_default': False}}
+
+
+def pin_to_toolbar(test, extension, pinned):
+    """pinToToolbar() of Firefox's action tests: CustomizableUI's move of the
+    add-on's button to the navigation bar or to the add-ons panel is the
+    add-on pinned to the toolbar or unpinned into the Extensions menu, as the
+    user does on its page in chrome://extensions."""
+    page = test.browser.new_tab('chrome://extensions')
+    try:
+        wait_for(lambda: page.eval('!!chrome.developerPrivate'), what='chrome://extensions')
+        page.eval('chrome.developerPrivate.updateExtensionConfiguration('
+                  f'{{extensionId: {json.dumps(extension.id)}, pinnedToToolbar: {json.dumps(pinned)}}})')
+    finally:
+        test.browser.close_target(page)
 
 
 def open_chrome_context_menu(test, view):
