@@ -676,3 +676,15 @@ def active_tab_id(test, extension):
                          '.then(tabs => tabs[0].id)', gesture=False)
     finally:
         page.close()
+
+
+def set_enabled(test, extension, enabled):
+    """AddonManager's disable() and enable(): management.setEnabled() from
+    chrome://extensions."""
+    page = test.open_tab('chrome://extensions')
+    try:
+        wait_for(lambda: page.eval('!!chrome.management'), what='chrome://extensions')
+        page.eval(f'chrome.management.setEnabled({json.dumps(extension.id)}, '
+                  f'{json.dumps(enabled)})')
+    finally:
+        test.browser.close_target(page)

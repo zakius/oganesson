@@ -15,8 +15,6 @@ on the toolbar. Firefox checks the button at once; the port waits a few
 seconds for the toolbar to change.
 """
 
-import json
-
 from firefox import head
 from extension_test_utils import JS
 from harness import wait_for
@@ -60,16 +58,6 @@ class MenusStartupRestoredTest(head.ContextMenuTest):
                 wait_for(lambda: not self.button_shown(), timeout=5, interval=0.5, what=message)
         except AssertionError:
             self.check(False, message)
-
-    def set_enabled(self, extension, enabled):
-        """AddonManager's disable() and enable()."""
-        page = self.open_tab('chrome://extensions')
-        try:
-            wait_for(lambda: page.eval('!!chrome.management'), what='chrome://extensions')
-            page.eval(f'chrome.management.setEnabled({json.dumps(extension.id)}, '
-                      f'{json.dumps(enabled)})')
-        finally:
-            self.browser.close_target(page)
 
     def menu_labels(self, extension):
         menu = head.open_action_context_menu(self, extension, 'browser')
@@ -120,11 +108,11 @@ class MenusStartupRestoredTest(head.ContextMenuTest):
         head.close_context_menu(self)
 
         # Disable the extension and check that the action button has been removed.
-        self.set_enabled(menu_extension, False)
+        head.set_enabled(self, menu_extension, False)
         self.check_button(False, 'Button should have been removed')
 
         # Re-enable the extension and check, that the menu entry is correctly restored.
-        self.set_enabled(menu_extension, True)
+        head.set_enabled(self, menu_extension, True)
         control_extension.await_message('done')
         self.check_button(True, 'Button should have been re-created')
         self.check('testItem' in self.menu_labels(menu_extension),
