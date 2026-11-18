@@ -8,10 +8,10 @@ which this browser doesn't have: its windows show a page of their own. Firefox's
 keysets are Gecko internals: the port leaves out their counts, and checks that
 an add-on's shortcuts work in a window by pressing them. In the private window,
 where Firefox's keyset is missing without the add-on's private access, the
-port presses a shortcut and checks that no command comes, and it leaves out
-the checks that the keysets go with the add-on. The console warning for the
-unrecognized property is one of the add-on's install warnings, which
-chrome://extensions shows. Left out of test_02_commands_event_page:
+port presses one of the shortcuts (Ctrl+A) and checks that no command comes,
+and it leaves out the checks that the keysets go with the add-on. The console
+warning for the unrecognized property is one of the add-on's install
+warnings, which chrome://extensions shows. Left out of test_02_commands_event_page:
 assertPersistentListeners(), which reads Gecko's primed listeners.
 `terminateBackground()` is quick with EVENT_PAGE_ARGS.
 """
