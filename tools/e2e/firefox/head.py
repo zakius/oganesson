@@ -12,6 +12,7 @@ Where Firefox gives an add-on with more than one item a submenu of its own
 """
 
 import json
+import subprocess
 
 from extension_test_utils import JS, FirefoxTest
 from harness import DEVELOPER_MODE, Page, wait_for
@@ -528,3 +529,112 @@ def open_chrome_context_menu(test, view):
     UI (`view`, from harness.Browser.views()); the context menu that opens."""
     test.browser.click_view(view, button=3)
     return first_menu(test)
+
+
+def active_tab_id(test, extension):
+    """tabTracker.getId(tab) of the tab the test has just opened or
+    selected: the add-on's ID of the focused window's active tab, which its
+    background reads (through DevTools)."""
+    background = test.browser.extension_background(extension.id)
+    try:
+        return background.eval('browser.tabs.query({active: true, lastFocusedWindow: true})'
+                               '.then(([tab]) => tab.id)')
+    finally:
+        background.close()
+
+
+def screen_pixels(test, x, y, width, height):
+    """The screen's colours in a rectangle, as rows of (r, g, b)
+    (ImageMagick's import)."""
+    out = subprocess.run(['import', '-window', 'root', '-crop', f'{width}x{height}+{x}+{y}',
+                          '-depth', '8', 'rgb:-'],
+                         env=test.browser.env(), capture_output=True, check=True).stdout
+    rows = []
+    for row in range(height):
+        start = row * width * 3
+        rows.append([tuple(out[start + i * 3:start + i * 3 + 3]) for i in range(width)])
+    return rows
+
+
+def action_button(test):
+    """The add-on's toolbar button in the newest window, as Firefox's tests
+    read the widget of their add-on in their window (window_view()): the
+    last one pinned, as the test's add-on is the newest, and this browser
+    pins a new add-on's button."""
+    def newest():
+        views = [view for view in test.browser.views('ToolbarActionView') if view.visible]
+        if not views:
+            return None
+        window = max(view.widget for view in views)
+        return max((view for view in views if view.widget == window),
+                   key=lambda view: view.bounds['x'])
+    return test.browser.wait_settled(newest, what="the add-on's toolbar button")
+
+
+def greyed(colour):
+    """The grey that a disabled action's icon of `colour` shows: no
+    saturation, and lightness shifted up a fifth (IconWithBadgeImageSource's
+    HSL shift)."""
+    lightness = (max(colour) + min(colour)) / 2
+    return lightness + (255 - lightness) * 0.2
+
+
+# Points on a toolbar button, 28 x 28 here (IconWithBadgeImageSource): the
+# icon, 16 x 16 from (6, 6); a badge, 14 high along the bottom and at least
+# 14 wide, right-aligned or centred, with the icon cleared 1 pixel around
+# it; the badge's background above its text, which starts at row 18.
+ICON_POINT = (9, 9)
+BADGE_GAP_POINT = (20, 13)
+BADGE_POINT = (20, 16)
+
+
+def action_button_state(test, images):
+    """What the add-on's toolbar button (action_button()) shows, where
+    Firefox's tests read its widget's `tooltiptext`, `label`, `image`,
+    `disabled` and `badge`: `title`, its tooltip; `icon`, the name of the
+    image of `images` ({file name: (r, g, b)}, a PNG of that one colour) that
+    it shows, or None; `enabled`, False when the icon is grey, as this
+    browser shows a disabled action, whose button can still be clicked;
+    `badge`, whether it shows a badge; and the badge's `badge_background`
+    and `badge_text_color`, (r, g, b), its text's being the colour that
+    differs most from its background. The badge's text is painted on the
+    button and can't be read. The mouse moves off the button first: a
+    hovered button is tinted."""
+    test.browser.xdotool('mousemove', '650', '500')
+    button = action_button(test)
+    left, top = button.bounds['x'], button.bounds['y']
+    # From 2 pixels above the button: the toolbar.
+    rows = screen_pixels(test, left, top - 2, 28, 30)
+
+    def at(x, y):
+        return rows[y + 2][x]
+
+    toolbar = rows[0][14]
+    icon = at(*ICON_POINT)
+    enabled = not icon[0] == icon[1] == icon[2]
+    shown = None
+    for name, colour in images.items():
+        if enabled and icon == tuple(colour):
+            shown = name
+        if not enabled and abs(icon[0] - greyed(colour)) <= 2:
+            shown = name
+    badge = at(*BADGE_GAP_POINT) == toolbar and at(*BADGE_POINT) != toolbar
+    background = None
+    text = None
+    if badge:
+        background = at(*BADGE_POINT)
+        # The badge's row, then 3 pixels in from its ends: its rounded
+        # corners blend with the toolbar.
+        left, top = BADGE_POINT
+        while left > 0 and at(left - 1, top) == background:
+            left -= 1
+        right = BADGE_POINT[0]
+        while right < 27 and at(right + 1, top) == background:
+            right += 1
+
+        def difference(pixel):
+            return sum(abs(a - b) for a, b in zip(pixel, background))
+        inside = [at(x, y) for y in range(top + 1, 28) for x in range(left + 3, right - 2)]
+        text = max(inside, key=difference)
+    return {'title': button['TooltipText'], 'icon': shown, 'enabled': enabled, 'badge': badge,
+            'badge_background': background, 'badge_text_color': text}
