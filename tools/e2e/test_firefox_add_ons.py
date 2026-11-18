@@ -17,6 +17,7 @@ from pathlib import Path
 
 from harness import (DEVELOPER_MODE, BrowserTest, Page, Server, extension_id, unpack_xpi,
                      wait_for)
+from test_google_lens import png
 
 ADD_ON = {
     'manifest.json': json.dumps({
@@ -1523,6 +1524,7 @@ def window_action_add_on(manifest_version):
         }),
         'background.js': 'self.started = true;',
         'page.html': '<!doctype html><p>A page',
+        'icon.png': png(16),
     }
 
 
@@ -1541,20 +1543,28 @@ WINDOW_ACTION_CALLS = '''(async () => {
     await api.setTitle({title: 'Own', tabId: own.id});
     await api.setBadgeText({text: 'W', windowId: window1.id});
     await api.setIcon({imageData: new ImageData(16, 16), windowId: window1.id});
-    // setIcon goes through a binding of its own, which must pass windowId on.
-    // Its promise never rejects, for Chromium's own errors too, so its errors
-    // are read from runtime.lastError.
+    await api.setIcon({path: 'icon.png', windowId: window1.id});
+    // setIcon goes through a binding of its own, which must pass windowId on,
+    // and reject on the browser's error, as in Firefox, with imageData or a
+    // path; a callback gets the error as runtime.lastError.
     const chromeApi = chrome.browserAction || chrome.action;
-    const iconError = details => new Promise(resolve => chromeApi.setIcon(
-        {imageData: new ImageData(16, 16), ...details},
+    const iconCallbackError = details => new Promise(resolve => chromeApi.setIcon(
+        {path: 'icon.png', ...details},
         () => resolve(chrome.runtime.lastError?.message ?? null)));
+    const failure = promise => promise.then(() => null, e => e.message);
+    const wrong = [{tabId: tab1.id, windowId: window1.id}, {windowId: 2147483647}];
     const errors = [];
-    for (const details of [{tabId: tab1.id, windowId: window1.id}, {windowId: 2147483647}]) {
-        await api.setTitle({title: 'Wrong', ...details})
-            .then(() => errors.push(null), e => errors.push(e.message));
+    for (const details of wrong) {
+        errors.push(await failure(api.setTitle({title: 'Wrong', ...details})));
     }
-    for (const details of [{tabId: tab1.id, windowId: window1.id}, {windowId: 2147483647}]) {
-        errors.push(await iconError(details));
+    for (const details of wrong) {
+        errors.push(await failure(api.setIcon({imageData: new ImageData(16, 16), ...details})));
+    }
+    for (const details of wrong) {
+        errors.push(await failure(api.setIcon({path: 'icon.png', ...details})));
+    }
+    for (const details of wrong) {
+        errors.push(await iconCallbackError(details));
     }
     const title = details => api.getTitle(details);
     const badge = details => api.getBadgeText(details);
@@ -1621,7 +1631,7 @@ class FirefoxWindowActionTest(BrowserTest):
         self.assertEqual(result['titles'], ['Window', 'Own', 'Global', 'Window', 'Global', 'Global'])
         self.assertEqual(result['badges'], ['W', ''])
         self.assertEqual(result['errors'], ['Only one of tabId and windowId can be specified.',
-                                            'Invalid window ID: 2147483647'] * 2)
+                                            'Invalid window ID: 2147483647'] * 4)
         self.assertEqual(result['navigated'], 'Window')
         self.assertEqual(result['current'], ['Current', 'Current', 'Global'])
         self.assertFalse(self.browser.extension_errors(add_on))
