@@ -53,7 +53,8 @@ each add-on's level and the first error that kept it from the next one. With
 add-on that changed level next to the score it found in the dubna tree before
 the run (with --only, every add-on it ran), and exits 1 when one went down a
 level. An add-on that went down is run once more first, and the better level
-counts: some levels vary between runs.
+counts: some levels vary between runs. A drop of an add-on in VARIES, whose
+level depends on its own servers, is printed but doesn't count.
 
 The add-ons install in groups of GROUP to a browser start, so one bad add-on
 doesn't stop the run, and one after another, so each install error is the
@@ -87,6 +88,11 @@ os.environ.setdefault('TMPDIR', str(ROOT / 'work/tmp'))
 from harness import (BINARY, DEVELOPER_MODE, Browser, Page, Server, gecko_id, unpack_xpi,
                      wait_for)
 
+# Add-ons whose level depends on their own servers' timing, alone too, so
+# a run can't tell a drop from luck: a drop is printed but doesn't fail the
+# run (zakius/oganesson#85). ZenMate reads its campaign settings before its
+# server has sent them (L1, L3, L1 in three runs alone on one build).
+VARIES = {'firefox-webext@zenmate.com'}
 LEVELS = ('L0', 'L1', 'L2', 'L3')
 GROUP = 20
 # The manifest keys that Firefox reads (MDN's manifest.json keys that Firefox
@@ -790,10 +796,13 @@ def main():
     down = False
     for item_id, result in addons.items():
         before = old.get(item_id, {}).get('level')
-        down = down or went_down(before, result['level'])
+        lower = went_down(before, result['level'])
+        down = down or (lower and item_id not in VARIES)
         if args.only or before != result['level']:
-            print(f"{item_id}: {before or '-'} -> {result['level'] or '-'}"
-                  f"{'  DOWN' if went_down(before, result['level']) else ''}"
+            mark = ''
+            if lower:
+                mark = '  DOWN (varies)' if item_id in VARIES else '  DOWN'
+            print(f"{item_id}: {before or '-'} -> {result['level'] or '-'}{mark}"
                   f"  {result['error'] or ''}")
     if args.only:
         return 1 if down else 0
