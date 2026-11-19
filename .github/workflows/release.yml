@@ -33,7 +33,8 @@ jobs:
             exit 1
           fi
           git merge -q --ff-only origin/main
-          # The scores that an earlier run's tests wrote ("Firefox's WebExtensions tests").
+          # The scores that an earlier run wrote ("Firefox's WebExtensions tests", "Firefox add-ons
+          # corpus").
           if [ -e dubna/.git ]; then git -C dubna checkout -q -- webextensions/score; fi
           git submodule update --init -q
           echo "RELEASE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
@@ -50,6 +51,17 @@ jobs:
           python3 tools/e2e/firefox_tests.py
           mkdir -p work/release-scores
           cp dubna/webextensions/score/oganesson-firefox-tests.json work/release-scores/
+      # The full corpus of AMO add-ons (dubna's webextensions/README.md, "Corpus score"), also
+      # before Windows: an add-on that is lower than in the score committed in dubna, also after
+      # a second run of it, stops the release (exit 1). The run takes the lock itself; a flock
+      # around it would wait for itself. It reads the .xpi files from the runner's cache of dubna's
+      # tools/amo_corpus.py fetch, writes the new score in the dubna submodule, and a copy goes to
+      # work/release-scores/ for the stage that tagged to commit to dubna.
+      - name: Firefox add-ons corpus
+        run: |
+          cd "$MAIN"
+          python3 tools/e2e/corpus.py
+          cp dubna/webextensions/score/oganesson.json work/release-scores/
       # Windows builds while Linux packs and uploads, which leave most CPUs idle. Its own session,
       # so the step's end doesn't stop it; the job's end does. Its log and exit code go to work/,
       # for the Windows step to wait on.
