@@ -1063,6 +1063,11 @@ class FirefoxThemeTest(BrowserTest):
         does, and waits for an onUpdated with another toolbar colour."""
         settings = self.browser.new_tab('chrome://settings/appearance')
         try:
+            # The new tab starts on about:blank, where chrome://resources
+            # doesn't load.
+            wait_for(lambda: settings.eval('location.href.startsWith("chrome://settings/")'
+                                           ' && document.readyState === "complete"'),
+                     what='the settings page')
             settings.eval('''(async () => {
                 const {browserProxyFactory, ColorSchemeMode} = await import(
                     'chrome://resources/cr_components/customize_color_scheme_mode/' +
