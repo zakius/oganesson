@@ -2783,6 +2783,11 @@ def svg_xpi(gecko_id, action, color):
     return data.getvalue()
 
 
+def near(color, other):
+    """Whether two screen colours are the same, give or take rounding."""
+    return all(abs(a - b) <= 8 for a, b in zip(color, other))
+
+
 SVG_BROWSER_ACTION_COLOR = (0, 160, 0)
 SVG_PAGE_ACTION_COLOR = (160, 0, 160)
 SVG_SET_COLOR = (0, 0, 255)
@@ -2791,7 +2796,9 @@ SVG_SET_COLOR = (0, 0, 255)
 class FirefoxXpiSvgIconsTest(BrowserTest):
     """A .xpi with SVG icons, as uBlock Origin and Pouch have, installs from a
     download, and its toolbar button shows the SVG: the browser action's, a
-    page action's, and one that setIcon() sets by its path."""
+    page action's, and one that setIcon() sets by its path, drawn at the
+    icon's size with its aspect ratio. Cleared, that one gives way to the
+    manifest's again."""
 
     @classmethod
     def setUpClass(cls):
@@ -2828,12 +2835,14 @@ class FirefoxXpiSvgIconsTest(BrowserTest):
         return wait_for(started, timeout=30, what=f'the background of {gecko_id}')
 
     def icon_color(self, gecko_id, title, color):
-        """Waits for the toolbar button's middle to be `color`."""
+        """Waits for the toolbar button's middle to be `color`, and returns
+        the middle."""
         add_on = gecko_extension_id(gecko_id)
         button = self.browser.toolbar_button(add_on, title)
         x, y = button.center
-        wait_for(lambda: all(abs(a - b) <= 8 for a, b in zip(self.browser.pixel(x, y), color)),
+        wait_for(lambda: near(self.browser.pixel(x, y), color),
                  timeout=30, what=f'the toolbar button in rgb{color}')
+        return x, y
 
     def test_browser_action(self):
         gecko_id = 'svg-browser-action@oganesson.test'
@@ -2843,7 +2852,17 @@ class FirefoxXpiSvgIconsTest(BrowserTest):
             background.eval("browser.browserAction.setIcon({path: '/icons/tall.svg'})")
         finally:
             background.close()
-        self.icon_color(gecko_id, 'browser_action', SVG_SET_COLOR)
+        x, y = self.icon_color(gecko_id, 'browser_action', SVG_SET_COLOR)
+        # Half as wide as tall, it is drawn in the middle of the 16 px icon,
+        # not stretched: 6 px left of the middle, the toolbar shows through.
+        self.assertFalse(near(self.browser.pixel(x - 6, y), SVG_SET_COLOR))
+        # Cleared, the icon the add-on set gives way to the manifest's again.
+        background = self.browser.extension_background(gecko_extension_id(gecko_id))
+        try:
+            background.eval('browser.browserAction.setIcon({path: null})')
+        finally:
+            background.close()
+        self.icon_color(gecko_id, 'browser_action', SVG_BROWSER_ACTION_COLOR)
 
     def test_page_action(self):
         gecko_id = 'svg-page-action@oganesson.test'
