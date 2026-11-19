@@ -33,10 +33,23 @@ jobs:
             exit 1
           fi
           git merge -q --ff-only origin/main
+          # The scores that an earlier run's tests wrote ("Firefox's WebExtensions tests").
+          if [ -e dubna/.git ]; then git -C dubna checkout -q -- webextensions/score; fi
           git submodule update --init -q
           echo "RELEASE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
       - name: Linux build and browser tests
         run: cd "$MAIN" && flock "$BUILDS_LOCK" sh -c './oganesson.py build --release && ./oganesson.py test --release'
+      # All of Firefox's ported WebExtensions tests (dubna's webextensions/README.md, "Test
+      # score"), before Windows takes the builds lock: a test that passed in the score committed
+      # in dubna and fails now stops the release (exit 3). The run takes the lock itself. It
+      # writes the new score in the dubna submodule, where the release notes read it, and a copy
+      # goes to work/release-scores/ for the climb to commit.
+      - name: Firefox's WebExtensions tests
+        run: |
+          cd "$MAIN"
+          python3 tools/e2e/firefox_tests.py
+          mkdir -p work/release-scores
+          cp dubna/webextensions/score/oganesson-firefox-tests.json work/release-scores/
       # Windows builds while Linux packs and uploads, which leave most CPUs idle. Its own session,
       # so the step's end doesn't stop it; the job's end does. Its log and exit code go to work/,
       # for the Windows step to wait on.
