@@ -981,6 +981,26 @@ class FirefoxBrowserSettingsTest(BrowserTest):
         self.assertFalse(self.browser.extension_errors(add_on))
 
 
+class FirefoxBrowserSettingsNewTabHomeTest(FirefoxBrowserSettingsTest):
+    """With the new tab page as the home page, Chromium's default,
+    homepageOverride gives Firefox's about:newtab, not chrome://newtab/: that
+    is the page of an add-on that overrides the new tab page, so one that
+    opens the home page there (New Tab Homepage) opened itself forever."""
+    prefs = {**DEVELOPER_MODE, 'homepage_is_newtabpage': True}
+
+    test_browser_settings = None
+
+    def test_new_tab_home_page(self):
+        background = self.browser.extension_background(extension_id(self.unpacked))
+        try:
+            wait_for(lambda: background.eval('self.started === true'), what='the background script')
+            home = background.eval(
+                'browser.browserSettings.homepageOverride.get({}).then(setting => setting.value)')
+        finally:
+            background.close()
+        self.assertEqual(home, 'about:newtab')
+
+
 
 THEME_ADD_ON = {
     'manifest.json': json.dumps({
