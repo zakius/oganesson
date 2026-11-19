@@ -54,6 +54,9 @@ OGANESSON_BINARY=../../work/helium-linux/build/src/out/Default/oganesson and
 TMPDIR=../../work/tmp that starts `harness.Browser()`; add-on errors are the
 `CONSOLE` lines of its `browser.log`.
 
+From its import on, a script that imports this module and what it starts
+run with the CPUs and memory of the build containers (build_slice.py).
+
 Needs Python 3, Xvfb, xdotool and xwd (screen pixels), and labwc for Wayland.
 Stdlib only.
 """
@@ -81,6 +84,11 @@ import urllib.parse
 import urllib.request
 import zipfile
 from pathlib import Path
+
+import build_slice
+
+# Before any browser or display starts.
+build_slice.enter()
 
 BINARY = Path(os.environ.get('OGANESSON_BINARY', ''))
 # Failed runs keep their profile and log here for inspection.
