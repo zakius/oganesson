@@ -3,12 +3,13 @@
 "Test score"): Firefox's own WebExtensions tests, ported to this harness, run
 in oganesson.
 
-  firefox_tests.py [--only PORT[,PORT...]] [--dubna DIR]
+  firefox_tests.py [--only PORT[,PORT...]] [--dubna DIR] [--jobs N]
 
 It runs the port (`port` in dubna's webextensions/firefox-tests.json, a file
 in firefox/ made with extension_test_utils.py) of each test file whose state
-is `ported`, each port in a process and a browser of its own. A port passes
-when all its tests pass.
+is `ported`, each port in a process and a browser of its own, --jobs of
+them at a time (by default as `./oganesson.py test` does: a quarter of the
+CPUs, at most 8). A port passes when all its tests pass.
 
 A full run writes <dubna>/webextensions/score/oganesson-firefox-tests.json:
 the date, the browser's version, how many ported files pass, how many are
@@ -38,6 +39,7 @@ import shutil
 import subprocess
 import sys
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -140,6 +142,8 @@ def main():
     parser.add_argument('--only', help='the ports to run, comma-separated')
     parser.add_argument('--dubna', type=Path, default=ROOT / 'dubna',
                         help='the dubna checkout: its firefox-tests.json, and the score it gets')
+    parser.add_argument('-j', '--jobs', type=int, default=max(1, min(8, os.cpu_count() // 4)),
+                        help='how many ports run at once')
     args = parser.parse_args()
     if not BINARY.is_file():
         sys.exit(f'no browser binary at {BINARY}; run ./oganesson.py build --release')
@@ -174,12 +178,15 @@ def main():
 def compare(ported, results, kept, old, args, tests, score_path):
     """Runs the ports, prints each one's result next to the committed
     score's, and writes the score unless --only; the exit status."""
-    for number, test in enumerate(ported, 1):
-        passed, error, passing, kept[test['path']] = run_port(test['port'])
-        results[test['path']] = {'port': test['port'], 'passed': passed, 'error': error,
-                                 'passing': passing}
-        print(f"{number}/{len(ported)} {'pass' if passed else 'FAIL'} {test['port']}"
-              f"{'  ' + error if error else ''}", flush=True)
+    with ThreadPoolExecutor(args.jobs) as pool:
+        # map() gives the results in the list's order, each once it is done.
+        runs = pool.map(run_port, [test['port'] for test in ported])
+        for number, (test, run) in enumerate(zip(ported, runs), 1):
+            passed, error, passing, kept[test['path']] = run
+            results[test['path']] = {'port': test['port'], 'passed': passed, 'error': error,
+                                     'passing': passing}
+            print(f"{number}/{len(ported)} {'pass' if passed else 'FAIL'} {test['port']}"
+                  f"{'  ' + error if error else ''}", flush=True)
     down = False
     for path, result in results.items():
         before = old.get(path)
