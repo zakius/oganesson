@@ -60,6 +60,7 @@ A build needs Linux x86-64, Python 3, Git, Docker, and room for a Chromium build
 
 ```sh
 ./oganesson.py check-patches            # every patch, zero fuzz, without compiling
+./oganesson.py check-patches --chromium-version 159.0.8154.13   # ours on the next milestone's beta
 ./oganesson.py build --release          # without --release: the dev build
 ./oganesson.py build --windows          # the Windows build and its packages (docs/windows.md)
 ./oganesson.py test --release           # all browser tests, or name suites: toolbar web_app_links
