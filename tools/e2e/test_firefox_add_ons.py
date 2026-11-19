@@ -2632,6 +2632,31 @@ def localized_xpi():
     return data.getvalue()
 
 
+LARGE_ICON_GECKO_ID = 'xpi-large-icon@oganesson.test'
+
+
+def large_icon_xpi():
+    """A .xpi whose 48 px icon is a 2800×2800 PNG, as Clipboard Watchdog's:
+    31 MB decoded, more than the 16 MB that Chromium's image decoder takes."""
+    files = {
+        'manifest.json': json.dumps({
+            'manifest_version': 2,
+            'name': 'Firefox .xpi install test add-on with a very large icon',
+            'version': '1',
+            'browser_specific_settings': {'gecko': {'id': LARGE_ICON_GECKO_ID}},
+            'icons': {'48': 'icon48.png'},
+            'background': {'scripts': ['background.js']},
+        }),
+        'icon48.png': png(2800),
+        'background.js': 'self.started = true;',
+    }
+    data = io.BytesIO()
+    with zipfile.ZipFile(data, 'w') as archive:
+        for name, content in files.items():
+            archive.writestr(name, content)
+    return data.getvalue()
+
+
 class FirefoxXpiInstallTest(BrowserTest):
     """A .xpi downloaded after a user gesture opens the install prompt.
     Accepted, an add-on with a Gecko ID installs packed, without developer
@@ -2639,7 +2664,8 @@ class FirefoxXpiInstallTest(BrowserTest):
     keeps its storage. One without a Gecko ID installs with the ID of its AMO
     signature (META-INF/mozilla.rsa), as in Firefox. One with neither doesn't
     install, even in developer mode, and without a gesture a .xpi stays a
-    file."""
+    file. An icon too large for Chromium's image decoder is scaled down to
+    fit, and the add-on installs."""
 
     prefs = DEVELOPER_MODE
 
@@ -2745,6 +2771,27 @@ class FirefoxXpiInstallTest(BrowserTest):
         self.assertNotEqual(info[0]['location'], 'UNPACKED')
         self.assertEqual(info[0]['state'], 'ENABLED')
 
+    def test_large_png_icon(self):
+        # Clipboard Watchdog's: the decoder refused the icon, which failed the
+        # install.
+        self.server.routes['/large-icon.xpi'] = (
+            200, {'Content-Type': 'application/x-xpinstall'}, large_icon_xpi())
+        add_on = gecko_extension_id(LARGE_ICON_GECKO_ID)
+        self.browser.download(self.server.url('/'), '/large-icon.xpi')
+        self.browser.accept_install_prompt()
+        background = self.started(add_on)
+        try:
+            # The install saved the icon again, halved until it fit.
+            size = background.eval("fetch('/icon48.png').then(r => r.blob())"
+                                   '.then(createImageBitmap).then(b => [b.width, b.height])')
+        finally:
+            background.close()
+        self.assertEqual(size, [1400, 1400])
+        info = self.installed(add_on)
+        self.assertEqual(len(info), 1)
+        self.assertNotEqual(info[0]['location'], 'UNPACKED')
+        self.assertEqual(info[0]['state'], 'ENABLED')
+
     def test_no_gecko_id(self):
         # Its signature is fake, so it has no ID there either.
         self.browser.download(self.server.url('/'), '/no-id.xpi')
@@ -2778,6 +2825,7 @@ class FirefoxXpiAskWhereToSaveTest(FirefoxXpiInstallTest):
     # Not the base class's tests again: unittest runs only what is callable.
     test_download_installs = test_no_gecko_id = test_no_gesture = None
     test_localized_homepage_url = test_gecko_id_from_signature = None
+    test_large_png_icon = None
 
     def test_ask_where_to_save(self):
         add_on = hashlib.sha256(XPI_GECKO_ID.encode()).hexdigest()[:32].translate(
