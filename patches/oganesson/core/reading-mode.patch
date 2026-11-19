@@ -5,7 +5,7 @@
 # with the rules-based algorithm.
 --- a/chrome/renderer/BUILD.gn
 +++ b/chrome/renderer/BUILD.gn
-@@ -347,6 +347,8 @@ static_library("renderer") {
+@@ -348,6 +348,8 @@ static_library("renderer") {
      deps += [ "//chrome/common/wallet:mojo_bindings" ]
    } else {
      sources += [
@@ -14,7 +14,7 @@
        "accessibility/phrase_segmentation/base_phrase_segmenter.cc",
        "accessibility/phrase_segmentation/base_phrase_segmenter.h",
        "accessibility/phrase_segmentation/dependency_parser_model.cc",
-@@ -363,6 +365,23 @@ static_library("renderer") {
+@@ -364,6 +366,23 @@ static_library("renderer") {
        "accessibility/phrase_segmentation/tokenized_sentence.h",
        "accessibility/phrase_segmentation/tokenizer.cc",
        "accessibility/phrase_segmentation/tokenizer.h",
@@ -40,7 +40,7 @@
        "password_manager/remote_actor_credential_sharing_extension.cc",
 --- a/chrome/renderer/accessibility/ax_tree_distiller.cc
 +++ b/chrome/renderer/accessibility/ax_tree_distiller.cc
-@@ -155,23 +155,8 @@ AXTreeDistiller::~AXTreeDistiller() = default;
+@@ -159,23 +159,8 @@ AXTreeDistiller::~AXTreeDistiller() = default;
  void AXTreeDistiller::Distill(const ui::AXTree& tree,
                                const ui::AXTreeUpdate& snapshot,
                                const ukm::SourceId ukm_source_id) {
@@ -64,7 +64,7 @@
    on_ax_tree_distilled_callback_.Run(tree.GetAXTreeID(), content_node_ids);
  }
  
-@@ -208,112 +193,3 @@ void AXTreeDistiller::RecordRulesMetrics(ukm::SourceId ukm_source_id,
+@@ -212,112 +197,3 @@ void AXTreeDistiller::RecordRulesMetrics(ukm::SourceId ukm_source_id,
          .Record(ukm_recorder_.get());
    }
  }
@@ -296,18 +296,18 @@
      // is the same as the text content of its child static text node.
      const ui::AXNode* const parent = ax_node->GetParent();
 +#if BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
-     if (const std::string_view text = ax_node->GetTextContentUTF8();
-         text == l10n_util::GetStringUTF8(IDS_PDF_OCR_RESULT_BEGIN)) {
-       if (role == ax::mojom::Role::kBanner ||
-@@ -76,6 +78,7 @@ bool IsIgnored(const ui::AXNode* const ax_node, bool is_pdf) {
-                parent && parent->GetRole() == ax::mojom::Role::kContentInfo) {
+     if ((role == ax::mojom::Role::kBanner ||
+          (parent && parent->GetRole() == ax::mojom::Role::kBanner)) &&
+         ax_node->GetTextContentUTF8() ==
+@@ -77,6 +79,7 @@ bool IsIgnored(const ui::AXNode* const ax_node, bool is_pdf) {
+             l10n_util::GetStringUTF8(IDS_PDF_OCR_RESULT_END)) {
        return true;
      }
 +#endif
    }
  
    // Ignore interactive elements, except for text fields and aria-related
-@@ -159,10 +162,12 @@ std::string GetHtmlTagForPDF(const ui::AXNode* ax_node,
+@@ -160,10 +163,12 @@ std::string GetHtmlTagForPDF(const ui::AXNode* ax_node,
      // Add a line break after each page of an inaccessible PDF for readability
      // since there is no other formatting included in the OCR output.
      case ax::mojom::Role::kContentInfo:

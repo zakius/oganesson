@@ -30,10 +30,10 @@
      <div id="noResults" class="cr-row secondary">
 --- a/chrome/browser/resources/settings/system_page/browser_shortcuts_page.ts
 +++ b/chrome/browser/resources/settings/system_page/browser_shortcuts_page.ts
-@@ -9,6 +9,9 @@ import 'chrome://resources/cr_elements/cr_icon_button/cr_icon_button.js';
- import 'chrome://resources/js/action_link.js';
+@@ -9,6 +9,9 @@ import 'chrome://resources/js/action_link.js';
  import '../settings_page/settings_subpage.js';
  import '../settings_shared.css.js';
+ import '../site_settings/action_link.css.js';
 +import './add_gesture.js';
 +import './extension_gestures.js';
 +import './gesture_chips.js';

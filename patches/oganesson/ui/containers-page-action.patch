@@ -3,17 +3,17 @@
 # per-tab controller in TabFeatures that shows the container's icon.
 --- a/chrome/browser/ui/actions/chrome_action_id.h
 +++ b/chrome/browser/ui/actions/chrome_action_id.h
-@@ -567,6 +567,7 @@
-   E(kActionShowAiOverlayDialog) \
+@@ -398,6 +398,7 @@
    E(kActionAutofillPayment) \
    E(kActionWalletReminderNotice) \
+   E(kActionGmailOtpOptIn) \
 +  E(kActionShowContainer) \
    E(kActionTtcToolbar) \
  
  #define SUBMENU_ACTION_IDS                                                     \
 --- a/chrome/browser/ui/browser_actions.cc
 +++ b/chrome/browser/ui/browser_actions.cc
-@@ -23,6 +23,7 @@
+@@ -24,6 +24,7 @@
  #include "chrome/app/chrome_command_ids.h"
  #include "chrome/app/vector_icons/vector_icons.h"
  #include "chrome/browser/browsing_data/browsing_data_important_sites_util.h"
@@ -21,7 +21,7 @@
  #include "chrome/browser/contextual_cueing/contextual_cueing_controller.h"
  #include "chrome/browser/contextual_cueing/features.h"
  #include "chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.h"
-@@ -912,6 +913,9 @@
+@@ -1006,6 +1007,9 @@ void BrowserActions::InitializePageActionIconActions() {
                    ? kCreditCardIcon
                    : kCreditCardChromeRefreshOldIcon))
            .Build());
@@ -33,30 +33,30 @@
  void BrowserActions::InitializeChromeMenuActions() {
 --- a/chrome/browser/ui/page_action/action_ids.h
 +++ b/chrome/browser/ui/page_action/action_ids.h
-@@ -55,6 +55,7 @@
-     kActionShowPaymentsChurnedUsersBubble,
+@@ -56,6 +56,7 @@ inline constexpr auto kActionIds = std::to_array<actions::ActionId>({
      kActionFakePageActionForDebug,
      kActionWalletReminderNotice,
+     kActionGmailOtpOptIn,
 +    kActionShowContainer,
  
      // Add any new page actions before this line to ensure that the bookmark
      // star is always the right-most page action.
 --- a/chrome/browser/ui/page_action/page_action_icon_type.h
 +++ b/chrome/browser/ui/page_action/page_action_icon_type.h
-@@ -62,7 +62,8 @@
-   kPaymentsChurnedUsers = 47,
+@@ -63,7 +63,8 @@ enum class PageActionIconType {
    kFakePageActionForDebug = 48,
    kWalletReminderNotice = 49,
--  kMaxValue = kWalletReminderNotice,
-+  kContainer = 50,
+   kGmailOtpOptIn = 50,
+-  kMaxValue = kGmailOtpOptIn,
++  kContainer = 51,
 +  kMaxValue = kContainer,
  };
  // LINT.ThenChange(//tools/metrics/histograms/metadata/page/enums.xml:PageActionIconType)
  
 --- a/chrome/browser/ui/page_action/page_action_properties_provider.cc
 +++ b/chrome/browser/ui/page_action/page_action_properties_provider.cc
-@@ -342,6 +342,14 @@
-             .element_identifier = kPageActionWalletReminderNoticeElementId,
+@@ -350,6 +350,14 @@ constexpr auto kPageActionProperties = base::MakeFixedFlatMap<
+             .element_identifier = kPageActionGmailOtpOptInElementId,
          },
      },
 +    {
@@ -72,7 +72,7 @@
  
 --- a/chrome/browser/ui/tabs/public/tab_features.h
 +++ b/chrome/browser/ui/tabs/public/tab_features.h
-@@ -179,6 +179,10 @@
+@@ -181,6 +181,10 @@ namespace client_hints {
  class ClientHintsWebContentsObserver;
  }  // namespace client_hints
  
@@ -83,7 +83,7 @@
  namespace content {
  class WebContents;
  }  // namespace content
-@@ -689,6 +693,7 @@
+@@ -663,6 +667,7 @@ class TabFeatures {
    // Manages the Cookie Controls page action.
    std::unique_ptr<CookieControlsPageActionController>
        cookie_controls_page_action_controller_;
@@ -101,7 +101,7 @@
  #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
  #include "chrome/browser/content_settings/mixed_content_settings_tab_helper.h"
  #include "chrome/browser/content_settings/page_specific_content_settings_delegate.h"
-@@ -560,6 +561,8 @@
+@@ -576,6 +577,8 @@ void TabFeatures::Init(TabInterface& tab, Profile* profile) {
              tab, tab, *profile, *page_action_controller_);
      cookie_controls_page_action_controller_->Init();
    }

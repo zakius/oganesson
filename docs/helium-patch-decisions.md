@@ -83,6 +83,12 @@ The model is my own code in dubna (`components/browser_traffic`), not a copy of 
 
 ## Notes on carried patches
 
+- `helium/core/ui-density-prefs`, `helium/settings/ui-density-settings` (Helium 0.22.1.1): Settings > Appearance > Interface density, Default or Spacious (larger tabs, toolbar buttons and address bar), applied after a relaunch. Default keeps today's sizes. Carried as Helium ships it, 2026-11-19.
+- `helium/settings/simplify-side-panel-position` (Helium 0.22.1.1): Appearance's side panel position is one setting again instead of one per side panel, and Chromium 158's contextual tasks side panel (its Google search panel) is off. Carried as Helium ships it, 2026-11-19.
+- `helium/core/disable-reading-mode-omnibox-chip` (Helium 0.22.1.1): turns off Chromium 158's reading mode chip in the address bar. Reading mode's entry stays the page context menu's (above). Carried as Helium ships it, 2026-11-19.
+- `helium/core/remove-history-sync-promo` (Helium 0.22.1.1): History no longer offers Google's history sync. Carried as Helium ships it, 2026-11-19.
+- `upstream-fixes/wasm-interpreter-trustedcast-raw`, `upstream-fixes/wasm-interpreter-sharedfunctioninfo` (Helium 0.22.1.1): V8 build fixes for the WebAssembly interpreter. Carried as Helium ships them, 2026-11-19.
+- helium-windows' `upstream-fixes/backport-clang-fpm-helper-linkage` (helium-windows 0.22.1.1) is dropped (`windows/helium-windows-drops.txt`): it fixes an arm64 header of the clang the build downloads, for Windows arm64 builds, and oganesson builds x64. 2026-11-19.
 - `helium/core/ridiculous-google-compat-exceptions` (Helium 0.19.2): keeps Google sign-in, session cookies and security-key enrollment working under domain substitution. My decision, 2026-10-09.
 - `upstream-fixes/tab-restore-live-tabs` (Helium 0.19.1): kept, vendored before `helium/core/lazy-session-restore`. My decision, 2026-10-08. Helium 0.20.1.1 removed it in its refresh for Chromium 156.
 - `upstream-fixes/wasm-interpreter-fixes` (Helium 0.20.1.1): a V8 build fix for the WebAssembly interpreter. Carried as Helium ships it, 2026-10-22. Helium 0.21.1.1 removed it in its refresh for Chromium 157.

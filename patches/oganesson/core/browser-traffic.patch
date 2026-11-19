@@ -13,7 +13,7 @@
 # and opens the Browser traffic page.
 --- a/chrome/app/generated_resources.grd
 +++ b/chrome/app/generated_resources.grd
-@@ -7033,7 +7033,7 @@ Keep your key file in a safe place. You will need it to create new versions of y
+@@ -7041,7 +7041,7 @@ Keep your key file in a safe place. You will need it to create new versions of y
          Update error
        </message>
        <message name="IDS_COMPONENTS_SVC_STATUS_ERROR_HELIUM_SERVICES" desc="Service Status">
@@ -24,7 +24,7 @@
          Unknown
 --- a/chrome/browser/BUILD.gn
 +++ b/chrome/browser/BUILD.gn
-@@ -1014,6 +1014,8 @@ source_set("core") {
+@@ -1016,6 +1016,8 @@ source_set("core") {
      "firefox_about_urls.cc",
      "firefox_about_urls.h",
      "browser_process_impl.cc",
@@ -33,7 +33,7 @@
      "chrome_browser_field_trials.cc",
      "chrome_browser_interface_binders.cc",
      "chrome_browser_interface_binders.h",
-@@ -1298,6 +1300,7 @@ source_set("core") {
+@@ -1310,6 +1312,7 @@ source_set("core") {
      "//components/blocked_content",
      "//components/breadcrumbs/core",
      "//components/breadcrumbs/core:status",
@@ -51,7 +51,7 @@
  #include "chrome/browser/chrome_browser_main_extra_parts.h"
  #include "chrome/browser/component_updater/registration.h"
  #include "chrome/browser/crash_upload_list/helium_crash_reporting.h"
-@@ -1301,6 +1302,7 @@ int ChromeBrowserMainParts::PreCreateThreadsImpl() {
+@@ -1310,6 +1311,7 @@ int ChromeBrowserMainParts::PreCreateThreadsImpl() {
    }
  
    helium::InitializeCrashReportingMode();
@@ -59,7 +59,7 @@
  
  #if !BUILDFLAG(IS_CHROMEOS)
    std::optional<std::string> managed_by =
-@@ -1732,6 +1734,7 @@ void ChromeBrowserMainParts::PostBrowserStart() {
+@@ -1736,6 +1738,7 @@ void ChromeBrowserMainParts::PostBrowserStart() {
    }
  
    browser_process_->browser_policy_connector()->OnBrowserStarted();
@@ -67,7 +67,7 @@
  
  #if BUILDFLAG(ENABLE_PROCESS_SINGLETON)
    // Allow ProcessSingleton to process messages.
-@@ -2249,6 +2252,8 @@ void ChromeBrowserMainParts::PostMainMessageLoopRun() {
+@@ -2254,6 +2257,8 @@ void ChromeBrowserMainParts::PostMainMessageLoopRun() {
    synthetic_trial_syncer_.reset();
  
    restart_mode_ = browser_shutdown::ShutdownPreThreadsStop();
@@ -75,8 +75,8 @@
 +  browser_traffic::StopMonitor();
    browser_process_->StartTearDown();
  
-   publisher_host_factory_resetter_.reset();
-@@ -2292,6 +2297,7 @@ void ChromeBrowserMainParts::PostDestroyThreads() {
+   // After the user profiles, which may own WebContents in this profile.
+@@ -2300,6 +2305,7 @@ void ChromeBrowserMainParts::PostDestroyThreads() {
    // Since we use |browser_process_|'s local state for this call, it must be
    // done before |browser_process_| is released.
    metrics::Shutdown(browser_process_->local_state());
@@ -171,7 +171,7 @@
  std::string ChromeConfigurator::GetProdId() const {
 --- a/chrome/browser/extensions/extension_service.cc
 +++ b/chrome/browser/extensions/extension_service.cc
-@@ -149,6 +149,24 @@ namespace {
+@@ -148,6 +148,24 @@ namespace {
  // Wait this long after an extensions becomes idle before updating it.
  constexpr base::TimeDelta kUpdateIdleDelay = base::Seconds(5);
  
@@ -196,7 +196,7 @@
  // IDs of component extensions that have been obsoleted and need to be
  // uninstalled.
  // Note: We preserve at least one entry here for continued testing coverage.
-@@ -217,7 +235,7 @@ ExtensionService::ExtensionService(
+@@ -216,7 +234,7 @@ ExtensionService::ExtensionService(
        ready_(ready),
        updater_(ExtensionUpdater::Get(profile)),
        component_loader_(ComponentLoader::Get(profile_)),
@@ -205,7 +205,7 @@
        error_controller_(error_controller),
        external_install_manager_(ExternalInstallManager::Get(profile)),
        extension_registrar_delegate_(
-@@ -311,12 +329,12 @@ void ExtensionService::ToggleUBlockExtension() {
+@@ -307,12 +325,12 @@ void ExtensionService::ToggleUBlockExtension() {
      return;
    }
  
@@ -223,7 +223,7 @@
      content::GetUIThreadTaskRunner({base::TaskPriority::BEST_EFFORT})->PostDelayedTask(
 --- a/chrome/browser/extensions/extension_service.h
 +++ b/chrome/browser/extensions/extension_service.h
-@@ -363,7 +363,8 @@ class ExtensionService : public ExtensionServiceInterface,
+@@ -362,7 +362,8 @@ class ExtensionService : public ExtensionServiceInterface,
    // Used in test to ensure the service's shutdown method has been called.
    bool is_shut_down_executed_ = false;
  
@@ -288,7 +288,7 @@
  
 --- a/chrome/browser/prefs/browser_prefs.cc
 +++ b/chrome/browser/prefs/browser_prefs.cc
-@@ -64,6 +64,7 @@
+@@ -65,6 +65,7 @@
  #include "chrome/browser/prefs/chrome_pref_service_factory.h"
  #include "chrome/browser/prefs/incognito_mode_prefs.h"
  #include "chrome/browser/prefs/oganesson_prefs.h"
@@ -296,7 +296,7 @@
  #include "chrome/browser/prefs/session_startup_pref.h"
  #include "chrome/browser/preloading/prefetch/prefetch_service/prefetch_origin_decider.h"
  #include "chrome/browser/preloading/prefetch/search_prefetch/search_prefetch_service.h"
-@@ -1675,6 +1676,7 @@ void RegisterLocalState(PrefRegistrySimple* registry) {
+@@ -1734,6 +1735,7 @@ void RegisterLocalState(PrefRegistrySimple* registry) {
    registry->RegisterIntegerPref(
        prefs::kHeliumCrashReportingMode,
        static_cast<int>(helium::CrashReportingMode::kDisabled));
@@ -387,7 +387,7 @@
  #include "components/helium_services/pref_names.h"
  #include "components/helium_services/schema.h"
  #include "components/prefs/pref_change_registrar.h"
-@@ -144,8 +145,9 @@
+@@ -145,8 +146,9 @@ AppMenuIconController::AppMenuIconController(UpgradeDetector* upgrade_detector,
  
    if (auto* prefs = profile->GetPrefs()) {
      registrar_.Init(prefs);
@@ -398,7 +398,7 @@
          base::BindRepeating(&AppMenuIconController::OnGlobalErrorsChanged,
                              base::Unretained(this)));
    }
-@@ -247,7 +249,7 @@
+@@ -248,7 +250,7 @@ std::u16string AppMenuIconController::GetIconLabel(IconType type,
  #endif
    } else if (type == IconType::kHeliumServicesUpdate) {
      return l10n_util::GetStringUTF16(
@@ -407,7 +407,7 @@
    } else {
      const int text_id = severity == Severity::kLow
                              ? IDS_APP_MENU_BUTTON_ACTION_REQUIRED
-@@ -282,7 +284,7 @@
+@@ -283,7 +285,7 @@ std::u16string AppMenuIconController::GetIconTooltip(IconType type,
  #endif
      return l10n_util::GetStringUTF16(IDS_APPMENU_TOOLTIP_UPDATE_AVAILABLE);
    } else if (type == IconType::kHeliumServicesUpdate) {
@@ -418,7 +418,7 @@
    }
 --- a/chrome/browser/ui/toolbar/app_menu_model.cc
 +++ b/chrome/browser/ui/toolbar/app_menu_model.cc
-@@ -115,6 +115,7 @@
+@@ -116,6 +116,7 @@
  #include "chrome/common/pref_names.h"
  #include "chrome/grit/branded_strings.h"
  #include "chrome/grit/generated_resources.h"
@@ -426,7 +426,7 @@
  #include "chrome/grit/theme_resources.h"
  #include "components/autofill/core/common/autofill_features.h"
  #include "components/bookmarks/common/bookmark_bar_visibility_state.h"
-@@ -2312,7 +2313,7 @@
+@@ -2361,7 +2362,7 @@ bool AppMenuModel::AddHeliumSchemaItem() {
        omnibox::kProductChromeRefreshOldIcon, ui::kColorMenuIcon, kDefaultIconSize);
    AddItemWithIcon(
        IDC_HELIUM_SERVICES_OPEN,
@@ -850,7 +850,7 @@
    const raw_ref<PrefService> prefs_;
 --- a/components/search_engines/template_url_service.cc
 +++ b/components/search_engines/template_url_service.cc
-@@ -1728,8 +1728,19 @@ void TemplateURLService::LoadBangs() {
+@@ -1747,8 +1747,19 @@ void TemplateURLService::LoadBangs() {
                            weak_ptr_factory_.GetWeakPtr()));
  }
  
@@ -872,7 +872,7 @@
    }
 --- a/components/search_engines/template_url_service.h
 +++ b/components/search_engines/template_url_service.h
-@@ -548,6 +548,9 @@ class TemplateURLService final : public WebDataServiceConsumer,
+@@ -552,6 +552,9 @@ class TemplateURLService final : public WebDataServiceConsumer,
    void Load();
  
    void LoadBangs();
@@ -882,7 +882,7 @@
  
    // Registers a callback to be called when the service has loaded.
    //
-@@ -996,6 +999,8 @@ class TemplateURLService final : public WebDataServiceConsumer,
+@@ -1005,6 +1008,8 @@ class TemplateURLService final : public WebDataServiceConsumer,
  
    std::unique_ptr<Bangs::BangManager> bang_manager_;
    scoped_refptr<const Bangs::Catalogue> bang_catalogue_;
@@ -931,7 +931,7 @@
        [](base::OnceCallback<void(const std::multimap<std::string, std::string>&,
 --- a/extensions/browser/api/storage/storage_frontend.cc
 +++ b/extensions/browser/api/storage/storage_frontend.cc
-@@ -281,9 +281,22 @@ void StorageFrontend::OnReadFinished(
+@@ -283,9 +283,22 @@ void StorageFrontend::OnReadFinished(
  
      Profile* profile_ = Profile::FromBrowserContext(browser_context_);
  
@@ -956,7 +956,7 @@
  
        if (!get_result.data->FindDict("adminSettings")) {
          get_result.data->Set("adminSettings", base::DictValue());
-@@ -291,10 +304,17 @@ void StorageFrontend::OnReadFinished(
+@@ -293,10 +306,17 @@ void StorageFrontend::OnReadFinished(
  
        base::DictValue* adminSettings = get_result.data->FindDict("adminSettings");
  

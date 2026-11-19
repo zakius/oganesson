@@ -1,6 +1,6 @@
 --- a/chrome/app/chrome_command_ids.h
 +++ b/chrome/app/chrome_command_ids.h
-@@ -339,6 +339,8 @@
+@@ -330,6 +330,8 @@
  #define IDC_CONTENT_CONTEXT_OPENLINKSPLITVIEW 50111
  #define IDC_CONTENT_CONTEXT_ADD_LINK_TO_READING_LIST 50112
  #define IDC_CONTENT_CONTEXT_OPENLINK_ISOLATED 50113
@@ -11,7 +11,7 @@
  #define IDC_CONTENT_CONTEXT_COPYIMAGELOCATION 50121
 --- a/chrome/browser/renderer_context_menu/render_view_context_menu.cc
 +++ b/chrome/browser/renderer_context_menu/render_view_context_menu.cc
-@@ -150,6 +150,7 @@
+@@ -152,6 +152,7 @@
  #include "chrome/browser/ui/ui_features.h"
  #include "chrome/browser/ui/user_education/browser_user_education_interface.h"
  #include "chrome/browser/ui/web_applications/app_browser_controller.h"
@@ -19,7 +19,7 @@
  #include "chrome/browser/ui/webauthn/context_menu_helper.h"
  #include "chrome/browser/ui/webui/history/foreign_session_handler.h"
  #include "chrome/browser/user_education/user_education_service.h"
-@@ -776,6 +777,11 @@ int CollapseCommandsForUMA(int id) {
+@@ -788,6 +789,11 @@ int CollapseCommandsForUMA(int id) {
      return IDC_OPEN_LINK_IN_PROFILE_FIRST;
    }
  
@@ -31,7 +31,7 @@
    return id;
  }
  
-@@ -2026,6 +2032,11 @@ void RenderViewContextMenu::AppendLinkItems() {
+@@ -2029,6 +2035,11 @@ void RenderViewContextMenu::AppendLinkItems() {
                   : IDS_CONTENT_CONTEXT_OPENLINKNEWTAB);
      }
  
@@ -43,7 +43,7 @@
      if (show_open_in_new_window) {
        AddItemWithOptionalIcon(IDC_CONTENT_CONTEXT_OPENLINKNEWWINDOW,
                                IDS_CONTENT_CONTEXT_OPENLINKNEWWINDOW,
-@@ -3732,6 +3743,8 @@ bool RenderViewContextMenu::IsCommandIdEnabled(int id) const {
+@@ -3776,6 +3787,8 @@ bool RenderViewContextMenu::IsCommandIdEnabled(int id) const {
      case IDC_CONTENT_CONTEXT_VIDEO_FRAME:
      case IDC_SPELLCHECK_MENU:
      case IDC_CONTENT_CONTEXT_OPENLINKWITH:
@@ -52,7 +52,7 @@
      case IDC_CONTENT_CONTEXT_PROTOCOL_HANDLER_SETTINGS:
      case IDC_CONTENT_CONTEXT_GENERATEPASSWORD:
      case IDC_CONTENT_CONTEXT_SHOWALLSAVEDPASSWORDS:
-@@ -3902,6 +3915,13 @@ void RenderViewContextMenu::ExecuteCommand(int id, int event_flags) {
+@@ -3947,6 +3960,13 @@ void RenderViewContextMenu::ExecuteCommand(int id, int event_flags) {
    }
  
    switch (id) {
@@ -65,7 +65,7 @@
 +
      case IDC_CONTENT_CONTEXT_OPENLINKNEWTAB: {
        WindowOpenDisposition new_tab_disposition =
-           WindowOpenDisposition::NEW_BACKGROUND_TAB;
+           WindowOpenDisposition::kNewBackgroundTab;
 --- a/chrome/browser/resources/app_settings/BUILD.gn
 +++ b/chrome/browser/resources/app_settings/BUILD.gn
 @@ -28,6 +28,10 @@ build_webui("build") {
@@ -109,7 +109,7 @@
  import './icons.html.js';
 --- a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
 +++ b/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
-@@ -54,6 +54,7 @@
+@@ -55,6 +55,7 @@
  #include "chrome/browser/ui/views/frame/contents_web_view.h"
  #include "chrome/browser/ui/views/status_bubble_views.h"
  #include "chrome/browser/ui/web_applications/app_browser_controller.h"
@@ -117,7 +117,7 @@
  #include "chrome/browser/web_applications/web_app_provider.h"
  #include "chrome/browser/web_applications/web_app_registrar.h"
  #include "chrome/browser/web_applications/web_app_tab_helper.h"
-@@ -510,6 +511,10 @@ content::PreloadingEligibility
+@@ -549,6 +550,10 @@ content::PreloadingEligibility
  BrowserWebContentsDelegate::IsPrerender2Supported(
      content::WebContents& web_contents,
      content::PreloadingTriggerType trigger_type) {
@@ -138,7 +138,7 @@
  #include "chrome/browser/ui/web_applications/web_app_launch_navigation_handle_user_data.h"
  #include "chrome/browser/ui/web_applications/web_app_launch_utils.h"
  #include "chrome/browser/ui/web_applications/web_app_tabbed_utils.h"
-@@ -860,6 +861,10 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
+@@ -935,6 +936,10 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
          params->source_contents, contents_to_navigate_or_insert);
    }
  
@@ -172,7 +172,7 @@
  
 --- a/chrome/browser/ui/web_applications/BUILD.gn
 +++ b/chrome/browser/ui/web_applications/BUILD.gn
-@@ -155,6 +155,7 @@ source_set("impl") {
+@@ -161,6 +161,7 @@ source_set("impl") {
        "diagnostics/web_app_icon_health_checks.cc",
        "navigation_capturing_process.cc",
        "navigation_capturing_redirection_throttle.cc",
@@ -258,19 +258,19 @@
 +        GetUserAppStartUrl(*profile_->GetPrefs(), params_->app_id,
 +                           registrar_->GetAppLaunchUrl(params_->app_id));
    }
-   DCHECK(launch_url.is_valid());
+   CHECK(launch_url.is_valid(), base::NotFatalUntil::M162);
  
 --- a/chrome/browser/ui/web_applications/web_app_launch_utils.cc
 +++ b/chrome/browser/ui/web_applications/web_app_launch_utils.cc
 @@ -58,6 +58,7 @@
- #include "chrome/browser/ui/tabs/tab_strip_model.h"
+ #include "chrome/browser/ui/unload_controller.h"
  #include "chrome/browser/ui/views/frame/browser_view.h"
  #include "chrome/browser/ui/web_applications/app_browser_controller.h"
 +#include "chrome/browser/ui/web_applications/out_of_scope_links.h"
  #include "chrome/browser/ui/web_applications/web_app_browser_controller.h"
  #include "chrome/browser/ui/web_applications/web_app_launch_navigation_handle_user_data.h"
  #include "chrome/browser/ui/web_applications/web_app_launch_process.h"
-@@ -341,6 +342,12 @@ void ReparentWebContentsIntoBrowserImpl(BrowserWindowInterface* source_browser,
+@@ -373,6 +374,12 @@ void ReparentWebContentsIntoBrowserImpl(BrowserWindowInterface* source_browser,
      web_contents->UpdateWindowControlsOverlay(gfx::Rect());
    }
  
@@ -340,7 +340,7 @@
      "user_display_mode.cc",
      "user_display_mode.h",
      "user_uninstalled_preinstalled_web_app_prefs.cc",
-@@ -588,6 +590,7 @@ source_set("web_applications") {
+@@ -589,6 +591,7 @@ source_set("web_applications") {
      "//components/site_engagement/core/mojom:mojo_bindings",
      "//components/sync",
      "//components/ukm",
@@ -379,7 +379,7 @@
  }
  
  bool WebAppRegistrar::IsSystemApp(const webapps::AppId& app_id) const {
-@@ -1071,6 +1075,8 @@ std::optional<webapps::AppId> WebAppRegistrar::FindBestAppWithUrlInScope(
+@@ -1074,6 +1078,8 @@ std::optional<webapps::AppId> WebAppRegistrar::FindBestAppWithUrlInScope(
      }
  
      int score = scope->GetScopeScore(url, scope_score_options);
@@ -388,7 +388,7 @@
      if (score > 0 && score > best_score) {
        best_app_id = app_id;
        best_score = score;
-@@ -1481,7 +1487,9 @@ WebAppRegistrar::GetAllAppsControllingUrl(
+@@ -1484,7 +1490,9 @@ WebAppRegistrar::GetAllAppsControllingUrl(
  
      std::optional<WebAppScope> scope = GetEffectiveScope(app_id);
      if (scope.has_value() &&

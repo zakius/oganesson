@@ -3,7 +3,7 @@
 # unless the engine's own item goes to Lens already. Logic in src/.../tab_contents/google_lens.h.
 --- a/chrome/browser/renderer_context_menu/render_view_context_menu.cc
 +++ b/chrome/browser/renderer_context_menu/render_view_context_menu.cc
-@@ -141,6 +141,7 @@
+@@ -143,6 +143,7 @@
  #include "chrome/browser/ui/send_tab_to_self/send_tab_to_self_bubble.h"
  #include "chrome/browser/ui/send_tab_to_self/send_tab_to_self_sub_menu_model.h"
  #include "chrome/browser/ui/tab_contents/core_tab_helper.h"
@@ -11,7 +11,7 @@
  #include "chrome/browser/ui/tabs/features.h"
  #include "chrome/browser/ui/tabs/page_context_eligibility_helper.h"
  #include "chrome/browser/ui/tabs/public/tab_features.h"
-@@ -1357,6 +1358,17 @@
+@@ -1367,6 +1368,17 @@ void RenderViewContextMenu::InitMenu() {
      if (content_type_->SupportsGroup(
              ContextMenuContentType::ITEM_GROUP_SEARCHWEBFORIMAGE)) {
        AppendSearchWebForImageItems();
@@ -29,6 +29,20 @@
      }
  
      if (content_type_->SupportsGroup(
+--- a/chrome/browser/resources/settings/search_page/search_page.html.ts
++++ b/chrome/browser/resources/settings/search_page/search_page.html.ts
+@@ -61,6 +61,11 @@ export function getHtml(this: SettingsSearchPageElement) {
+         label="$i18n{searchSuggestPref}"
+         sub-label="$i18n{searchSuggestPrefDesc}">
+     </settings-toggle-button>
++    <settings-toggle-button id="googleLens" class="hr"
++        pref-key="oganesson.google.lens_enabled"
++        label="$i18n{googleLens}"
++        sub-label="$i18n{googleLensDescription}">
++    </settings-toggle-button>
+ 
+     ${this.defaultSearchProviderDataPref_?.extensionId ? html`
+       ${this.searchSettingsUpdateEnabled_ ? html`
 --- a/chrome/browser/ui/tab_contents/core_tab_helper.cc
 +++ b/chrome/browser/ui/tab_contents/core_tab_helper.cc
 @@ -19,6 +19,7 @@
@@ -39,7 +53,7 @@
  #include "chrome/browser/ui/ui_features.h"
  #include "chrome/common/chrome_render_frame.mojom.h"
  #include "chrome/common/chrome_switches.h"
-@@ -523,8 +524,15 @@
+@@ -523,8 +524,15 @@ void CoreTabHelper::DoSearchByImage(
    }
  
    TemplateURLService* template_url_service = GetTemplateURLService();
@@ -53,20 +67,6 @@
 -      template_url_service->GetDefaultSearchProvider();
 +      lens_engine ? lens_engine.get()
 +                  : template_url_service->GetDefaultSearchProvider();
-   DCHECK(default_provider);
+   CHECK(default_provider, base::NotFatalUntil::M162);
  
    std::string additional_query_params_modified = additional_query_params;
---- a/chrome/browser/resources/settings/search_page/search_page.html.ts
-+++ b/chrome/browser/resources/settings/search_page/search_page.html.ts
-@@ -50,6 +50,11 @@
-         label="$i18n{searchSuggestPref}"
-         sub-label="$i18n{searchSuggestPrefDesc}">
-     </settings-toggle-button>
-+    <settings-toggle-button id="googleLens" class="hr"
-+        pref-key="oganesson.google.lens_enabled"
-+        label="$i18n{googleLens}"
-+        sub-label="$i18n{googleLensDescription}">
-+    </settings-toggle-button>
- 
-     ${this.defaultSearchProviderDataPref_?.extensionId ? html`
-       ${this.searchSettingsUpdateEnabled_ ? html`

@@ -13,7 +13,8 @@
  import './safety_hub/safety_hub_page.js';
 --- a/chrome/browser/resources/settings/privacy_page/privacy_page.html
 +++ b/chrome/browser/resources/settings/privacy_page/privacy_page.html
-@@ -47,8 +47,8 @@
+@@ -46,9 +46,9 @@
+         sub-label="$i18n{siteSettingsSublabel}"
          @click="${this.onSiteSettingsLinkRowClick_}"
          role-description="$i18n{subpageArrowRoleDescription}"></cr-link-row>
 -    <cr-link-row id="heliumServicesLinkRow" start-icon="cr:chrome-product"
@@ -27,14 +28,13 @@
      <cr-toast id="deleteBrowsingDataToast" duration="5000">
 --- a/chrome/browser/resources/settings/privacy_page/privacy_page_index.html
 +++ b/chrome/browser/resources/settings/privacy_page/privacy_page_index.html
-@@ -24,10 +24,10 @@
+@@ -23,10 +23,10 @@
  
    <template is="dom-if" if="[[renderView_(
        routes_.HELIUM_SERVICES, currentRoute, inSearchMode)]]">
 -    <settings-helium-services-page slot="view" id="heliumServices"
--        data-parent-view-id="privacy" prefs="{{prefs}}"
 +    <settings-browser-traffic-page slot="view" id="heliumServices"
-+        data-parent-view-id="privacy"
+         data-parent-view-id="privacy"
          route-path$="[[routes_.HELIUM_SERVICES.path]]">
 -    </settings-helium-services-page>
 +    </settings-browser-traffic-page>

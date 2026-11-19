@@ -2,3 +2,4 @@
 # helium-windows' series), as patches/helium-drops.txt does for Helium's. One per line: path in
 # helium-windows' series<TAB>reason.
 helium/windows/updater/helper.patch	The elevated updater for all-users installs requires an Authenticode signature, which oganesson's packages don't have: those installs update by hand (windows/late/updater.patch)
+upstream-fixes/backport-clang-fpm-helper-linkage.patch	Patches the arm64 header of the clang that the build downloads (third_party/llvm-build), for Windows arm64 builds; oganesson builds x64, and the patch check's tree has no downloaded clang to apply it to

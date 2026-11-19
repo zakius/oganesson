@@ -104,7 +104,7 @@
  import './icons.html.js';
 --- a/chrome/browser/ui/browser_commands.cc
 +++ b/chrome/browser/ui/browser_commands.cc
-@@ -130,6 +130,7 @@
+@@ -131,6 +131,7 @@
  #include "chrome/browser/ui/views/frame/browser_view.h"
  #include "chrome/browser/ui/waap/initial_webui_window_metrics_manager.h"
  #include "chrome/browser/ui/web_applications/app_browser_controller.h"
@@ -112,7 +112,7 @@
  #include "chrome/browser/ui/web_applications/web_app_launch_utils.h"
  #include "chrome/browser/ui/web_applications/web_app_tabbed_utils.h"
  #include "chrome/browser/ui/webui/tab_search/tab_search.mojom.h"
-@@ -1485,6 +1486,12 @@ void NewTabFromClipboardURL(BrowserWindowInterface* browser) {
+@@ -1476,6 +1477,12 @@ void NewTabFromClipboardURL(BrowserWindowInterface* browser) {
  void CloseTab(BrowserWindowInterface* browser) {
    base::RecordAction(UserMetricsAction("CloseTab_Accelerator"));
  
@@ -127,7 +127,7 @@
      return;
 --- a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
 +++ b/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
-@@ -54,6 +54,7 @@
+@@ -55,6 +55,7 @@
  #include "chrome/browser/ui/views/frame/contents_web_view.h"
  #include "chrome/browser/ui/views/status_bubble_views.h"
  #include "chrome/browser/ui/web_applications/app_browser_controller.h"
@@ -135,7 +135,7 @@
  #include "chrome/browser/ui/web_applications/out_of_scope_links.h"
  #include "chrome/browser/web_applications/web_app_provider.h"
  #include "chrome/browser/web_applications/web_app_registrar.h"
-@@ -749,6 +750,7 @@ void BrowserWebContentsDelegate::ActivateContents(
+@@ -804,6 +805,7 @@ void BrowserWebContentsDelegate::ActivateContents(
      return;
    }
    browser_->GetTabStripModel()->ActivateTabAt(index);
@@ -145,7 +145,7 @@
  
 --- a/chrome/browser/ui/views/frame/browser_view.cc
 +++ b/chrome/browser/ui/views/frame/browser_view.cc
-@@ -246,6 +246,7 @@
+@@ -248,6 +248,7 @@
  #include "chrome/browser/ui/waap/initial_web_ui_manager.h"
  #include "chrome/browser/ui/waap/initial_webui_window_metrics_manager.h"
  #include "chrome/browser/ui/web_applications/app_browser_controller.h"
@@ -153,7 +153,7 @@
  #include "chrome/browser/ui/webui/top_chrome/webui_contents_preload_manager.h"
  #include "chrome/browser/ui/window_feature_controller/window_feature_controller.h"
  #include "chrome/browser/ui/window_metadata/window_metadata_controller.h"
-@@ -5300,6 +5301,11 @@ views::CloseRequestResult BrowserView::OnWindowCloseRequested() {
+@@ -5328,6 +5329,11 @@ views::CloseRequestResult BrowserView::OnWindowCloseRequested() {
      return views::CloseRequestResult::kCannotClose;
    }
  
@@ -202,7 +202,7 @@
        status_icon_linux_.reset();
 --- a/chrome/browser/ui/web_applications/BUILD.gn
 +++ b/chrome/browser/ui/web_applications/BUILD.gn
-@@ -155,6 +155,7 @@ source_set("impl") {
+@@ -161,6 +161,7 @@ source_set("impl") {
        "diagnostics/web_app_icon_health_checks.cc",
        "navigation_capturing_process.cc",
        "navigation_capturing_redirection_throttle.cc",
@@ -210,7 +210,7 @@
        "out_of_scope_links.cc",
        "share_target_utils.cc",
        "tabbed_web_app_navigation_throttle.cc",
-@@ -200,6 +201,7 @@ source_set("impl") {
+@@ -206,6 +207,7 @@ source_set("impl") {
        "//chrome/browser/web_applications:features",
        "//chrome/browser/web_applications/app_service",
        "//chrome/browser/web_applications/isolated_web_apps/window_management",
@@ -273,7 +273,7 @@
    }
 @@ -260,6 +266,16 @@ content::WebContents* WebAppLaunchProcess::Run() {
        !existing_tab ||
-       navigation_disposition != WindowOpenDisposition::CURRENT_TAB;
+       navigation_disposition != WindowOpenDisposition::kCurrentTab;
  
 +  // oganesson: a tray app's window stays as it was, unless the launch has a
 +  // URL of its own.
@@ -295,7 +295,7 @@
 -  if (registrar_->IsPreventCloseEnabled(params_->app_id)) {
 +  if (registrar_->IsPreventCloseEnabled(params_->app_id) ||
 +      IsTrayApp(*profile_->GetPrefs(), params_->app_id)) {
-     return WindowOpenDisposition::CURRENT_TAB;
+     return WindowOpenDisposition::kCurrentTab;
    }
  
 @@ -484,7 +501,8 @@ BrowserWindowInterface* WebAppLaunchProcess::MaybeFindBrowserForLaunch() const {

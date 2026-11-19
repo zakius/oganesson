@@ -1,6 +1,6 @@
 --- a/chrome/browser/ui/views/frame/BUILD.gn
 +++ b/chrome/browser/ui/views/frame/BUILD.gn
-@@ -767,7 +767,12 @@ source_set("browser_view_header") {
+@@ -756,7 +756,12 @@ source_set("browser_view_header") {
  }
  
  source_set("browser_view") {
@@ -11,12 +11,12 @@
 +    "mouse_gesture_event_rewriter.h",
 +    "mouse_gesture_tracker.h",
 +  ]
-   public_deps = [
-     ":browser_view_header",
-     "//chrome/browser:browser_public_dependencies",
+   public_deps = [ ":browser_view_header" ]
+   deps = [
+     ":app_menu_button",
 --- a/chrome/browser/ui/views/frame/browser_view.cc
 +++ b/chrome/browser/ui/views/frame/browser_view.cc
-@@ -410,6 +410,10 @@
+@@ -413,6 +413,10 @@
  #include "components/remote_cocoa/browser/application_host.h"
  #endif
  
@@ -27,7 +27,7 @@
  #if defined(USE_AURA)
  #include "chrome/browser/ui/views/theme_profile_key.h"
  #include "ui/aura/client/window_parenting_client.h"
-@@ -5704,6 +5708,9 @@ void BrowserView::ViewHierarchyChanged(
+@@ -5742,6 +5746,9 @@ void BrowserView::ViewHierarchyChanged(
  }
  
  void BrowserView::AddedToWidget() {

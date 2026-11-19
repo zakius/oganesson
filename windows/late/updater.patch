@@ -13,28 +13,28 @@
          sub-label="$i18n{heliumServicesToggleDescription}">
      </settings-toggle-button>
 +    <settings-toggle-button id="updatesToggleButton"
-+        pref="{{prefs.helium.services.browser_updates}}"
++        pref-key="helium.services.browser_updates"
 +        label="$i18n{heliumUpdatesToggle}"
 +        sub-label="$i18n{heliumUpdatesToggleDescription}">
 +    </settings-toggle-button>
      <div class="cr-col">
-         <cr-collapse id="servicesCollapse" opened="[[prefs.helium.services.enabled.value]]">
+         <cr-collapse id="servicesCollapse" opened="[[servicesEnabledPref_.value]]">
              <settings-toggle-button id="extProxyToggleButton"
 @@ -105,11 +110,6 @@
                      sub-label="$i18n{heliumSpellcheckToggleDescription}">
                  </settings-toggle-button>
              </if>
 -            <settings-toggle-button id="updatesToggleButton"
--                pref="{{prefs.helium.services.browser_updates}}"
+-                pref-key="helium.services.browser_updates"
 -                label="$i18n{heliumUpdatesToggle}"
 -                sub-label="$i18n{heliumUpdatesToggleDescription}">
 -            </settings-toggle-button>
              <settings-toggle-button id="filterlistToggleButton"
-                 pref="{{prefs.helium.services.ublock_assets}}"
+                 pref-key="helium.services.ublock_assets"
                  label="$i18n{heliumUboToggle}"
 --- a/chrome/browser/ui/browser_ui_prefs.cc
 +++ b/chrome/browser/ui/browser_ui_prefs.cc
-@@ -276,9 +276,10 @@ void RegisterBrowserUserPrefs(user_prefs::PrefRegistrySyncable* registry) {
+@@ -279,8 +279,9 @@ void RegisterBrowserUserPrefs(user_prefs::PrefRegistrySyncable* registry) {
      // oganesson: no onboarding; a first run opens a normal window.
      registry->RegisterBooleanPref(prefs::kHeliumDidOnboarding, true);
      registry->RegisterBooleanPref(prefs::kHeliumServicesConsented, false);
@@ -46,7 +46,6 @@
      registry->RegisterBooleanPref(prefs::kHeliumUBlockAssetsEnabled, true);
      // oganesson: push messages are an opt-in.
      registry->RegisterBooleanPref(prefs::kHeliumWebPushEnabled, false);
-     registry->RegisterStringPref(prefs::kHeliumPushServer, "");
 --- a/chrome/browser/win/winsparkle_glue.cc
 +++ b/chrome/browser/win/winsparkle_glue.cc
 @@ -71,7 +71,10 @@ void DisableUpdatesForUnsupportedInstallation();

@@ -3,143 +3,9 @@
 # Windows the shortcuts. src/.../ui/app_icon has the code: started before the first window, its
 # choice is each window's default icon. Linux ships the variants as PNGs in app_icons/, Windows
 # as icons in chrome.exe after Chromium's own, numbered 7 to 12.
---- a/chrome/app/chrome_exe.rc
-+++ b/chrome/app/chrome_exe.rc
-@@ -81,6 +81,14 @@
- IDR_X007_PDF_DOC        ICON       "theme\\chromium\\win\\chromium_pdf.ico"
- IDR_X008_ISOLATED       ICON       "theme\\chromium\\win\\isolated.ico"
- IDR_X009_OMNIBOX_EVERYWHERE ICON   "theme\\chromium\\win\\omnibox_everywhere.ico"
-+// oganesson: the app icon's variants (Settings > Appearance > App icon),
-+// numbered 7 to 12. chrome/browser/ui/app_icon names them.
-+IDR_X010_OGANESSON_TEAL ICON       "theme\\chromium\\win\\oganesson_teal.ico"
-+IDR_X011_OGANESSON_CRIMSON ICON    "theme\\chromium\\win\\oganesson_crimson.ico"
-+IDR_X012_OGANESSON_BLACK ICON      "theme\\chromium\\win\\oganesson_black.ico"
-+IDR_X013_OGANESSON_WHITE ICON      "theme\\chromium\\win\\oganesson_white.ico"
-+IDR_X014_OGANESSON_CLEAR_WHITE ICON "theme\\chromium\\win\\oganesson_clear_white.ico"
-+IDR_X015_OGANESSON_CLEAR_BLACK ICON "theme\\chromium\\win\\oganesson_clear_black.ico"
- #endif
- 
- 
---- a/chrome/browser/BUILD.gn
-+++ b/chrome/browser/BUILD.gn
-@@ -1302,6 +1302,7 @@
-     "//components/breadcrumbs/core",
-     "//components/breadcrumbs/core:status",
-     "//components/browser_traffic",
-+    "//chrome/browser/ui/app_icon",
-     "//components/browser_actuator/public",
-     "//components/browser_apis/tab_drag/sessions",
-     "//components/browser_apis/tab_drag/sessions:impl",
---- a/chrome/browser/chrome_browser_main.cc
-+++ b/chrome/browser/chrome_browser_main.cc
-@@ -35,6 +35,7 @@
- #include "chrome/browser/browser_process.h"
- #include "chrome/browser/browser_process_impl.h"
- #include "chrome/browser/browser_traffic/browser_traffic_monitor.h"
-+#include "chrome/browser/ui/app_icon/oganesson_app_icon.h"
- #include "chrome/browser/chrome_browser_main_extra_parts.h"
- #include "chrome/browser/component_updater/registration.h"
- #include "chrome/browser/crash_upload_list/helium_crash_reporting.h"
-@@ -1725,6 +1726,10 @@
- #if BUILDFLAG(IS_WIN)
-   StartupLaunchManager::From(g_browser_process)->CommitLaunchOnStartupState();
- #endif  // BUILDFLAG(IS_WIN)
-+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_WIN)
-+  // Before the first window, which then opens with the chosen icon.
-+  oganesson_app_icon::Start(g_browser_process->local_state());
-+#endif
- }
- 
- void ChromeBrowserMainParts::PostBrowserStart() {
-@@ -2254,6 +2259,9 @@
-   restart_mode_ = browser_shutdown::ShutdownPreThreadsStop();
-   // Before the component updater and the profiles go.
-   browser_traffic::StopMonitor();
-+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_WIN)
-+  oganesson_app_icon::Stop();
-+#endif
-   browser_process_->StartTearDown();
- 
-   publisher_host_factory_resetter_.reset();
---- a/chrome/browser/prefs/browser_prefs.cc
-+++ b/chrome/browser/prefs/browser_prefs.cc
-@@ -1991,6 +1991,8 @@
-       policy::policy_prefs::kLocalNetworkAccessPermissionsPolicyDefaultEnabled,
-       false);
- 
-+  RegisterOganessonLocalStatePrefs(registry);
-+
-   // This is intentionally last.
-   RegisterLocalStatePrefsForMigration(registry);
- }
---- a/chrome/browser/ui/views/BUILD.gn
-+++ b/chrome/browser/ui/views/BUILD.gn
-@@ -1243,6 +1243,7 @@
-     deps += [
-       "//build:branding_buildflags",
-       "//chrome/app/theme:chrome_unscaled_resources",
-+      "//chrome/browser/ui/app_icon",
-       "//chrome/browser/ui/views:native_widget_factory",
-       "//chrome/common:channel_info",
-       "//ui/base",
-@@ -1258,6 +1259,7 @@
-   if (is_win) {
-     sources += [ "chrome_views_delegate_win.cc" ]
-     deps += [
-+      "//chrome/browser/ui/app_icon",
-       "//chrome/browser/ui/views:native_widget_factory",
-       "//chrome/browser/win",
-     ]
---- a/chrome/browser/ui/views/chrome_views_delegate_linux.cc
-+++ b/chrome/browser/ui/views/chrome_views_delegate_linux.cc
-@@ -8,6 +8,7 @@
- #include "base/feature_list.h"
- #include "base/nix/xdg_util.h"
- #include "build/branding_buildflags.h"
-+#include "chrome/browser/ui/app_icon/oganesson_app_icon.h"
- #include "chrome/browser/ui/views/native_widget_factory.h"
- #include "chrome/common/channel_info.h"
- #include "chrome/grit/chrome_unscaled_resources.h"
-@@ -104,6 +105,9 @@
- 
- #if BUILDFLAG(IS_LINUX)
- gfx::ImageSkia* ChromeViewsDelegate::GetDefaultWindowIcon() const {
-+  if (gfx::ImageSkia* icon = oganesson_app_icon::GetWindowIcon()) {
-+    return icon;
-+  }
-   ui::ResourceBundle& rb = ui::ResourceBundle::GetSharedInstance();
-   return rb.GetImageSkiaNamed(GetWindowIconResourceId());
- }
---- a/chrome/browser/ui/views/chrome_views_delegate_win.cc
-+++ b/chrome/browser/ui/views/chrome_views_delegate_win.cc
-@@ -12,6 +12,7 @@
- #include "base/functional/bind.h"
- #include "base/task/thread_pool.h"
- #include "base/win/windows_version.h"
-+#include "chrome/browser/ui/app_icon/oganesson_app_icon.h"
- #include "chrome/browser/ui/views/native_widget_factory.h"
- #include "chrome/browser/win/app_icon.h"
- #include "components/keep_alive_registry/scoped_keep_alive.h"
-@@ -114,10 +115,16 @@
- }  // namespace
- 
- HICON ChromeViewsDelegate::GetDefaultWindowIcon() const {
-+  if (HICON icon = oganesson_app_icon::GetWindowIcon(/*small_icon=*/false)) {
-+    return icon;
-+  }
-   return GetAppIcon();
- }
- 
- HICON ChromeViewsDelegate::GetSmallWindowIcon() const {
-+  if (HICON icon = oganesson_app_icon::GetWindowIcon(/*small_icon=*/true)) {
-+    return icon;
-+  }
-   return GetSmallAppIcon();
- }
- 
 --- a/chrome/BUILD.gn
 +++ b/chrome/BUILD.gn
-@@ -2028,6 +2028,24 @@
+@@ -2043,6 +2043,24 @@ if (is_linux || is_chromeos) {
            [ "//chrome/app/theme/$branding_path_component/product_logo_48.png" ]
      }
      outputs = [ "$root_out_dir/{{source_file_part}}" ]
@@ -162,5 +28,139 @@
 +    ]
 +    outputs = [ "$root_out_dir/app_icons/{{source_file_part}}" ]
    }
+ }
+ 
+--- a/chrome/app/chrome_exe.rc
++++ b/chrome/app/chrome_exe.rc
+@@ -81,6 +81,14 @@ IDR_X006_HTML_DOC       ICON       "theme\\chromium\\win\\chromium_doc.ico"
+ IDR_X007_PDF_DOC        ICON       "theme\\chromium\\win\\chromium_pdf.ico"
+ IDR_X008_ISOLATED       ICON       "theme\\chromium\\win\\isolated.ico"
+ IDR_X009_OMNIBOX_EVERYWHERE ICON   "theme\\chromium\\win\\omnibox_everywhere.ico"
++// oganesson: the app icon's variants (Settings > Appearance > App icon),
++// numbered 7 to 12. chrome/browser/ui/app_icon names them.
++IDR_X010_OGANESSON_TEAL ICON       "theme\\chromium\\win\\oganesson_teal.ico"
++IDR_X011_OGANESSON_CRIMSON ICON    "theme\\chromium\\win\\oganesson_crimson.ico"
++IDR_X012_OGANESSON_BLACK ICON      "theme\\chromium\\win\\oganesson_black.ico"
++IDR_X013_OGANESSON_WHITE ICON      "theme\\chromium\\win\\oganesson_white.ico"
++IDR_X014_OGANESSON_CLEAR_WHITE ICON "theme\\chromium\\win\\oganesson_clear_white.ico"
++IDR_X015_OGANESSON_CLEAR_BLACK ICON "theme\\chromium\\win\\oganesson_clear_black.ico"
+ #endif
+ 
+ 
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -1314,6 +1314,7 @@ source_set("core") {
+     "//components/breadcrumbs/core",
+     "//components/breadcrumbs/core:status",
+     "//components/browser_traffic",
++    "//chrome/browser/ui/app_icon",
+     "//components/browser_actuator/public",
+     "//components/browser_apis/tab_drag/sessions",
+     "//components/browser_apis/tab_drag/sessions:impl",
+--- a/chrome/browser/chrome_browser_main.cc
++++ b/chrome/browser/chrome_browser_main.cc
+@@ -35,6 +35,7 @@
+ #include "chrome/browser/browser_process.h"
+ #include "chrome/browser/browser_process_impl.h"
+ #include "chrome/browser/browser_traffic/browser_traffic_monitor.h"
++#include "chrome/browser/ui/app_icon/oganesson_app_icon.h"
+ #include "chrome/browser/chrome_browser_main_extra_parts.h"
+ #include "chrome/browser/component_updater/registration.h"
+ #include "chrome/browser/crash_upload_list/helium_crash_reporting.h"
+@@ -1729,6 +1730,10 @@ void ChromeBrowserMainParts::PreBrowserStart() {
+ #if BUILDFLAG(IS_WIN)
+   StartupLaunchManager::From(g_browser_process)->CommitLaunchOnStartupState();
+ #endif  // BUILDFLAG(IS_WIN)
++#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_WIN)
++  // Before the first window, which then opens with the chosen icon.
++  oganesson_app_icon::Start(g_browser_process->local_state());
++#endif
+ }
+ 
+ void ChromeBrowserMainParts::PostBrowserStart() {
+@@ -2259,6 +2264,9 @@ void ChromeBrowserMainParts::PostMainMessageLoopRun() {
+   restart_mode_ = browser_shutdown::ShutdownPreThreadsStop();
+   // Before the component updater and the profiles go.
+   browser_traffic::StopMonitor();
++#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_WIN)
++  oganesson_app_icon::Stop();
++#endif
+   browser_process_->StartTearDown();
+ 
+   // After the user profiles, which may own WebContents in this profile.
+--- a/chrome/browser/prefs/browser_prefs.cc
++++ b/chrome/browser/prefs/browser_prefs.cc
+@@ -2047,6 +2047,8 @@ void RegisterLocalState(PrefRegistrySimple* registry) {
+       policy::policy_prefs::kLocalNetworkAccessPermissionsPolicyDefaultEnabled,
+       false);
+ 
++  RegisterOganessonLocalStatePrefs(registry);
++
+   // This is intentionally last.
+   RegisterLocalStatePrefsForMigration(registry);
+ }
+--- a/chrome/browser/ui/views/BUILD.gn
++++ b/chrome/browser/ui/views/BUILD.gn
+@@ -1245,6 +1245,7 @@ source_set("chrome_views_delegate") {
+     deps += [
+       "//build:branding_buildflags",
+       "//chrome/app/theme:chrome_unscaled_resources",
++      "//chrome/browser/ui/app_icon",
+       "//chrome/browser/ui/views:native_widget_factory",
+       "//chrome/common:channel_info",
+       "//ui/base",
+@@ -1260,6 +1261,7 @@ source_set("chrome_views_delegate") {
+   if (is_win) {
+     sources += [ "chrome_views_delegate_win.cc" ]
+     deps += [
++      "//chrome/browser/ui/app_icon",
+       "//chrome/browser/ui/views:native_widget_factory",
+       "//chrome/browser/win",
+     ]
+--- a/chrome/browser/ui/views/chrome_views_delegate_linux.cc
++++ b/chrome/browser/ui/views/chrome_views_delegate_linux.cc
+@@ -8,6 +8,7 @@
+ #include "base/feature_list.h"
+ #include "base/nix/xdg_util.h"
+ #include "build/branding_buildflags.h"
++#include "chrome/browser/ui/app_icon/oganesson_app_icon.h"
+ #include "chrome/browser/ui/views/native_widget_factory.h"
+ #include "chrome/common/channel_info.h"
+ #include "chrome/grit/chrome_unscaled_resources.h"
+@@ -104,6 +105,9 @@ views::NativeWidget* ChromeViewsDelegate::CreateNativeWidget(
+ 
+ #if BUILDFLAG(IS_LINUX)
+ gfx::ImageSkia* ChromeViewsDelegate::GetDefaultWindowIcon() const {
++  if (gfx::ImageSkia* icon = oganesson_app_icon::GetWindowIcon()) {
++    return icon;
++  }
+   ui::ResourceBundle& rb = ui::ResourceBundle::GetSharedInstance();
+   return rb.GetImageSkiaNamed(GetWindowIconResourceId());
+ }
+--- a/chrome/browser/ui/views/chrome_views_delegate_win.cc
++++ b/chrome/browser/ui/views/chrome_views_delegate_win.cc
+@@ -12,6 +12,7 @@
+ #include "base/functional/bind.h"
+ #include "base/task/thread_pool.h"
+ #include "base/win/windows_version.h"
++#include "chrome/browser/ui/app_icon/oganesson_app_icon.h"
+ #include "chrome/browser/ui/views/native_widget_factory.h"
+ #include "chrome/browser/win/app_icon.h"
+ #include "components/keep_alive_registry/scoped_keep_alive.h"
+@@ -114,10 +115,16 @@ int GetAppbarAutohideEdgesOnWorkerThread(HMONITOR monitor) {
+ }  // namespace
+ 
+ HICON ChromeViewsDelegate::GetDefaultWindowIcon() const {
++  if (HICON icon = oganesson_app_icon::GetWindowIcon(/*small_icon=*/false)) {
++    return icon;
++  }
+   return GetAppIcon();
+ }
+ 
+ HICON ChromeViewsDelegate::GetSmallWindowIcon() const {
++  if (HICON icon = oganesson_app_icon::GetWindowIcon(/*small_icon=*/true)) {
++    return icon;
++  }
+   return GetSmallAppIcon();
  }
  

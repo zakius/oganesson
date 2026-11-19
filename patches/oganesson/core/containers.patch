@@ -20,7 +20,7 @@
 #   9), listed on the shortcuts page (brave-core#38435).
 --- a/chrome/app/chrome_command_ids.h
 +++ b/chrome/app/chrome_command_ids.h
-@@ -465,6 +465,17 @@
+@@ -458,6 +458,17 @@
  #define IDC_OGANESSON_SEND_TO_ALL_DEVICES 51047
  #define IDC_OGANESSON_SEND_TO_DEVICE_FIRST 51050
  #define IDC_OGANESSON_SEND_TO_DEVICE_LAST 51069
@@ -38,9 +38,35 @@
  
  // ChromeOS clipboard history
  #define IDC_CONTENT_PASTE_FROM_CLIPBOARD 51037
+--- a/chrome/browser/sessions/session_restore.cc
++++ b/chrome/browser/sessions/session_restore.cc
+@@ -41,6 +41,7 @@
+ #include "chrome/browser/after_startup_task_utils.h"
+ #include "chrome/browser/browser_process.h"
+ #include "chrome/browser/buildflags.h"
++#include "chrome/browser/containers/containers_service.h"
+ #include "chrome/browser/prefs/session_startup_pref.h"
+ #include "chrome/browser/profiles/keep_alive/profile_keep_alive_types.h"
+ #include "chrome/browser/profiles/keep_alive/scoped_profile_keep_alive.h"
+@@ -809,6 +810,7 @@ class SessionRestoreImpl : public BrowserCollectionObserver {
+       // Restore was unsuccessful. The cookie/storage systems can also delete
+       // their data, since no session restore will happen at a later point.
+       profile_->GetDefaultStoragePartition()->DeleteStaleSessionData();
++      containers::ContainersService::DeleteStaleSessionData(profile_);
+       return FinishedTabCreation(false, false, restored_tabs);
+     }
+ 
+@@ -1029,6 +1031,7 @@ class SessionRestoreImpl : public BrowserCollectionObserver {
+     // Session cookies/storage needed for the session restore have now been
+     // recreated by RestoreTab so it's safe to start deleting leftover data.
+     profile_->GetDefaultStoragePartition()->DeleteStaleSessionData();
++    containers::ContainersService::DeleteStaleSessionData(profile_);
+ 
+     return last_normal_browser ? last_normal_browser : last_app_browser;
+   }
 --- a/chrome/browser/ui/accelerator_table.cc
 +++ b/chrome/browser/ui/accelerator_table.cc
-@@ -109,6 +109,25 @@ const AcceleratorMapping kAcceleratorMap[] = {
+@@ -100,6 +100,25 @@ constexpr AcceleratorMapping kAcceleratorMap[] = {
      {ui::VKEY_NUMPAD7, ui::EF_PLATFORM_ACCELERATOR, IDC_SELECT_TAB_6},
      {ui::VKEY_8, ui::EF_PLATFORM_ACCELERATOR, IDC_SELECT_TAB_7},
      {ui::VKEY_NUMPAD8, ui::EF_PLATFORM_ACCELERATOR, IDC_SELECT_TAB_7},
@@ -63,9 +89,9 @@
 +     IDC_OGANESSON_NEW_TAB_IN_CONTAINER_FIRST + 7},
 +    {ui::VKEY_9, ui::EF_SHIFT_DOWN | ui::EF_PLATFORM_ACCELERATOR,
 +     IDC_OGANESSON_NEW_TAB_IN_CONTAINER_FIRST + 8},
- #if BUILDFLAG(IS_LINUX)
-     {ui::VKEY_1, ui::EF_ALT_DOWN, IDC_SELECT_TAB_0},
-     {ui::VKEY_NUMPAD1, ui::EF_ALT_DOWN, IDC_SELECT_TAB_0},
+     {ui::VKEY_B, ui::EF_SHIFT_DOWN | ui::EF_PLATFORM_ACCELERATOR,
+      IDC_SHOW_BOOKMARK_BAR},
+     {ui::VKEY_OEM_MINUS, ui::EF_PLATFORM_ACCELERATOR, IDC_ZOOM_MINUS},
 --- a/chrome/browser/ui/browser_command_controller.cc
 +++ b/chrome/browser/ui/browser_command_controller.cc
 @@ -27,6 +27,7 @@
@@ -76,17 +102,17 @@
  #include "chrome/browser/browser_process.h"
  #include "chrome/browser/browsing_data/browsing_data_important_sites_util.h"
  #include "chrome/browser/defaults.h"
-@@ -697,6 +698,9 @@ void BrowserCommandController::HandleCommandWithDisposition(
-     base::TimeTicks time_stamp) {
-   DCHECK(IsCommandEnabled(id)) << "Invalid/disabled command " << id;
- 
+@@ -713,6 +714,9 @@ void BrowserCommandController::HandleCommandWithDisposition(
+   //    E(kActionFoo, IDC_FOO)
+   // 2. Wire callback in BrowserActions::Initialize...() (browser_actions.cc).
+   // ===========================================================================
 +  if (containers::ExecuteCommand(browser_, id)) {
 +    return;
 +  }
    // The order of commands in this switch statement must match the function
    // declaration order in browser.h!
    switch (id) {
-@@ -2218,6 +2222,9 @@ void BrowserCommandController::InitCommandState() {
+@@ -2239,6 +2243,9 @@ void BrowserCommandController::InitCommandState() {
    command_updater_->UpdateCommandEnabled(IDC_FORCE_PASTE, true);
    command_updater_->UpdateCommandEnabled(IDC_SCROLL_TO_TOP, true);
    command_updater_->UpdateCommandEnabled(IDC_SCROLL_TO_BOTTOM, true);
@@ -106,7 +132,7 @@
  #include "chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.h"
  #include "chrome/browser/contextual_tasks/contextual_tasks_utils.h"
  #include "chrome/browser/devtools/devtools_window.h"
-@@ -1307,7 +1308,7 @@ base::WeakPtr<content::NavigationHandle> OpenCurrentURL(
+@@ -1297,7 +1298,7 @@ base::WeakPtr<content::NavigationHandle> OpenCurrentURL(
    params.url_typed_with_http_scheme =
        location_bar->navigation_params().url_typed_with_http_scheme;
    params.extra_headers = location_bar->navigation_params().extra_headers;
@@ -125,7 +151,7 @@
  #include "build/build_config.h"
  #include "chrome/app/chrome_command_ids.h"
  #include "chrome/browser/ui/helium/helium_layout_state_controller.h"
-@@ -76,6 +77,12 @@ std::optional<BrowserShortcutCommandLabel> GetBrowserShortcutCommandLabel(
+@@ -77,6 +78,12 @@ std::optional<BrowserShortcutCommandLabel> GetBrowserShortcutCommandLabel(
    if (ShouldHideBrowserShortcutCommand(command_id)) {
      return std::nullopt;
    }
@@ -138,7 +164,7 @@
  
    switch (command_id) {
      case IDC_BACK:
-@@ -228,6 +235,8 @@ std::optional<BrowserShortcutCommandLabel> GetBrowserShortcutCommandLabel(
+@@ -229,6 +236,8 @@ std::optional<BrowserShortcutCommandLabel> GetBrowserShortcutCommandLabel(
        return Label(IDS_SHORTCUT_COMMAND_SCROLL_TO_TOP);
      case IDC_SCROLL_TO_BOTTOM:
        return Label(IDS_SHORTCUT_COMMAND_SCROLL_TO_BOTTOM);
@@ -147,7 +173,7 @@
      case IDC_FOCUS_LOCATION:
        return Label(IDS_SHORTCUT_COMMAND_FOCUS_LOCATION);
      case IDC_FOCUS_SEARCH:
-@@ -319,6 +328,7 @@ std::vector<int> GetBrowserShortcutCommandsWithoutDefault(
+@@ -320,6 +329,7 @@ std::vector<int> GetBrowserShortcutCommandsWithoutDefault(
    commands.push_back(IDC_TOGGLE_VERTICAL_TABS_COLLAPSE);
    commands.push_back(IDC_SCROLL_TO_TOP);
    commands.push_back(IDC_SCROLL_TO_BOTTOM);
@@ -157,15 +183,15 @@
                                                        : IDC_COPY_URL);
 --- a/chrome/browser/ui/browser_tabrestore.cc
 +++ b/chrome/browser/ui/browser_tabrestore.cc
-@@ -11,6 +11,7 @@
- #include "base/containers/span.h"
+@@ -12,6 +12,7 @@
  #include "build/build_config.h"
  #include "chrome/browser/apps/app_service/web_contents_app_id_utils.h"
+ #include "chrome/browser/contextual_tasks/contextual_tasks_tab_restore_data.h"
 +#include "chrome/browser/containers/containers_tabs.h"
  #include "chrome/browser/glic/glic_tab_restore_helper.h"
  #include "chrome/browser/profiles/profile.h"
  #include "chrome/browser/sessions/session_restore.h"
-@@ -72,6 +73,10 @@
+@@ -73,6 +74,10 @@ std::unique_ptr<WebContents> CreateRestoredTab(
        content::CreateMapWithDefaultSessionStorageNamespace(
            browser->GetProfile(), session_storage_namespace);
    WebContents::CreateParams create_params(browser->GetProfile());
@@ -207,7 +233,7 @@
  #include "chrome/browser/firefox_about_urls.h"
  #include "chrome/browser/picture_in_picture/picture_in_picture_window_manager.h"
  #include "chrome/browser/platform_util.h"
-@@ -575,6 +576,10 @@ std::unique_ptr<content::WebContents> CreateTargetContents(
+@@ -647,6 +648,10 @@ std::unique_ptr<content::WebContents> CreateTargetContents(
        params.opener ? params.opener->GetSiteInstance()
                      : tab_util::GetSiteInstanceForNewTab(
                            params.browser->GetProfile(), url);
@@ -230,7 +256,7 @@
  #include "chrome/browser/ui/navigator/browser_navigator.h"
  #include "chrome/browser/ui/navigator/browser_navigator_params.h"
  #include "chrome/browser/ui/startup/infobar_utils.h"
-@@ -473,7 +476,8 @@
+@@ -470,7 +473,8 @@ BrowserWindowInterface* StartupBrowserCreatorImpl::OpenTabsInBrowser(
  
      // Pinned tabs from the startup-tab provider do not pass through the session
      // restore tab loader, so add background ones without loading them.
@@ -240,7 +266,7 @@
        AddDeferredPinnedStartupTab(browser, tab.url);
        continue;
      }
-@@ -508,7 +512,8 @@
+@@ -505,7 +509,8 @@ BrowserWindowInterface* StartupBrowserCreatorImpl::OpenTabsInBrowser(
      }
  #endif  // BUILDFLAG(ENABLE_RLZ)
  
@@ -250,7 +276,7 @@
      first_tab = false;
    }
    if (!browser->GetTabStripModel()->GetActiveWebContents() &&
-@@ -857,6 +862,7 @@
+@@ -854,6 +859,7 @@ BrowserWindowInterface* StartupBrowserCreatorImpl::RestoreOrCreateBrowser(
    // cookie/storage, unless this is a crash recovery.
    if (!is_post_crash_launch) {
      profile_->GetDefaultStoragePartition()->DeleteStaleSessionData();
@@ -328,7 +354,7 @@
  #include "chrome/browser/defaults.h"
  #include "chrome/browser/profiles/profile.h"
  #include "chrome/browser/ui/browser_commands.h"
-@@ -673,7 +674,7 @@ void BrowserRootView::NavigateToDroppedUrls(
+@@ -686,7 +687,7 @@ void BrowserRootView::NavigateToDroppedUrls(
      }
      params.initiator_origin = event.data().GetRendererTaintedOrigin();
      params.window_action = NavigateParams::WindowAction::kShowWindow;
@@ -337,29 +363,3 @@
    }
  
    // Ensure that the leftmost affected tab is the active one. If this drop was
---- a/chrome/browser/sessions/session_restore.cc
-+++ b/chrome/browser/sessions/session_restore.cc
-@@ -41,6 +41,7 @@
- #include "chrome/browser/after_startup_task_utils.h"
- #include "chrome/browser/browser_process.h"
- #include "chrome/browser/buildflags.h"
-+#include "chrome/browser/containers/containers_service.h"
- #include "chrome/browser/prefs/session_startup_pref.h"
- #include "chrome/browser/profiles/keep_alive/profile_keep_alive_types.h"
- #include "chrome/browser/profiles/keep_alive/scoped_profile_keep_alive.h"
-@@ -809,6 +810,7 @@
-       // Restore was unsuccessful. The cookie/storage systems can also delete
-       // their data, since no session restore will happen at a later point.
-       profile_->GetDefaultStoragePartition()->DeleteStaleSessionData();
-+      containers::ContainersService::DeleteStaleSessionData(profile_);
-       return FinishedTabCreation(false, false, restored_tabs);
-     }
- 
-@@ -1022,6 +1024,7 @@
-     // Session cookies/storage needed for the session restore have now been
-     // recreated by RestoreTab so it's safe to start deleting leftover data.
-     profile_->GetDefaultStoragePartition()->DeleteStaleSessionData();
-+    containers::ContainersService::DeleteStaleSessionData(profile_);
- 
-     return last_normal_browser ? last_normal_browser : last_app_browser;
-   }

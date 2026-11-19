@@ -1,6 +1,6 @@
 --- a/chrome/browser/ui/views/BUILD.gn
 +++ b/chrome/browser/ui/views/BUILD.gn
-@@ -799,6 +799,7 @@
+@@ -800,6 +800,7 @@ if (use_aura) {
      deps = [
        ":javascript_app_modal_event_blocker",
        "//base",
@@ -10,7 +10,7 @@
        "//ui/events",
 --- a/chrome/browser/ui/views/frame/BUILD.gn
 +++ b/chrome/browser/ui/views/frame/BUILD.gn
-@@ -766,6 +766,15 @@
+@@ -755,6 +755,15 @@ source_set("browser_view_header") {
    ]
  }
  
@@ -26,8 +26,8 @@
  source_set("browser_view") {
    sources = [
      "browser_view.cc",
-@@ -779,6 +788,7 @@
-   ]
+@@ -765,6 +774,7 @@ source_set("browser_view") {
+   public_deps = [ ":browser_view_header" ]
    deps = [
      ":app_menu_button",
 +    ":app_modal_dialog_scope",
@@ -36,7 +36,7 @@
      ":browser_view_layout",
 --- a/chrome/browser/ui/views/frame/browser_view.cc
 +++ b/chrome/browser/ui/views/frame/browser_view.cc
-@@ -166,6 +166,7 @@
+@@ -168,6 +168,7 @@
  #include "chrome/browser/ui/views/find_bar_host.h"
  #include "chrome/browser/ui/views/find_bar_owner.h"
  #include "chrome/browser/ui/views/frame/app_menu_button.h"
@@ -44,7 +44,7 @@
  #include "chrome/browser/ui/views/frame/browser_frame_view.h"
  #include "chrome/browser/ui/views/frame/browser_native_widget.h"
  #include "chrome/browser/ui/views/frame/browser_widget.h"
-@@ -4336,6 +4337,12 @@
+@@ -4367,6 +4368,12 @@ bool BrowserView::CanActivate() const {
        !queue->active_dialog()->view()->IsShowing()) {
      return true;
    }
@@ -67,7 +67,7 @@
  #include "chrome/browser/ui/views/frame/browser_view.h"
  #include "chrome/browser/ui/views/javascript_app_modal_event_blocker.h"
  #include "ui/aura/env.h"
-@@ -59,7 +60,12 @@
+@@ -59,7 +60,12 @@ bool JavascriptAppModalEventBlockerAura::ShouldStopPropagationTo(
    }
    BrowserView* browser_view =
        BrowserView::GetBrowserViewForNativeWindow(window);
