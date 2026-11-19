@@ -3,7 +3,7 @@
 the level each add-on of dubna's webextensions/corpus.json reaches in
 oganesson.
 
-  corpus.py [--only ID[,ID...]] [--dubna DIR] [--cache DIR]
+  corpus.py [--only ID[,ID...]] [--dubna DIR] [--cache DIR] [--jobs N]
 
 Each add-on gets the highest level it passes:
 
@@ -49,12 +49,16 @@ L3  A smoke check passes, with no new uncaught error from the add-on: its
 A full run writes <dubna>/webextensions/score/oganesson.json: the date, the
 browser's version, how many add-ons reach each level (or a higher one), and
 each add-on's level and the first error that kept it from the next one. With
---only, it runs those add-ons, prints each one's level next to the committed
-score's, writes nothing, and exits 1 when one went down a level.
+--only, it runs those add-ons and writes nothing. Either way it prints each
+add-on that changed level next to the score it found in the dubna tree before
+the run (with --only, every add-on it ran), and exits 1 when one went down a
+level. An add-on that went down is run once more first, and the better level
+counts: some levels vary between runs.
 
 The add-ons install in groups of GROUP to a browser start, so one bad add-on
 doesn't stop the run, and one after another, so each install error is the
-add-on's own. The run holds the builds lock ($BUILDS_LOCK, by default
+add-on's own. --jobs groups run at once, each in a browser of its own (by
+default as `./oganesson.py test` does: a quarter of the CPUs, at most 8). The run holds the builds lock ($BUILDS_LOCK, by default
 ~/dev/.builds.lock). It reads the .xpi files from the cache of dubna's
 `tools/amo_corpus.py fetch`, and the browser from OGANESSON_BINARY, by default
 the release build in work/.
@@ -72,6 +76,7 @@ import sys
 import tempfile
 import time
 import types
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -696,6 +701,37 @@ def at_least(found, name):
     return found is not None and LEVELS.index(found) >= LEVELS.index(name)
 
 
+def went_down(before, now):
+    """Whether an add-on at `before` in the score is lower `now`."""
+    return at_least(before, 'L0') and not at_least(now, before)
+
+
+def run_all(corpus, xpis, work, jobs, report):
+    """run_safely() for each group of the corpus, `jobs` groups at once:
+    {id: (level, error)}. With `report`, prints the counts after each group,
+    in the corpus's order."""
+    starts = range(0, len(corpus), GROUP)
+    results = {}
+    with ThreadPoolExecutor(jobs) as pool:
+        groups = pool.map(lambda start: run_safely(corpus[start:start + GROUP],
+                                                   xpis[start:start + GROUP],
+                                                   work / str(start)), starts)
+        try:
+            for group in groups:
+                results.update(group)
+                if report:
+                    l2 = sum(1 for r in results.values() if at_least(r[0], 'L2'))
+                    l3 = sum(1 for r in results.values() if r[0] == 'L3')
+                    print(f'{len(results)} of {len(corpus)} add-ons, {l2} at L2 or higher, '
+                          f'{l3} at L3', flush=True)
+        except BaseException:
+            # An interrupt reaches this thread alone: start no more groups.
+            # The running ones end by themselves, a few minutes at most.
+            pool.shutdown(wait=False, cancel_futures=True)
+            raise
+    return results
+
+
 def hold_builds_lock():
     lock = open(os.environ.get('BUILDS_LOCK', Path.home() / 'dev/.builds.lock'), 'a')
     try:
@@ -714,6 +750,8 @@ def main():
                         help='the dubna checkout: its corpus.json, and the score it gets')
     parser.add_argument('--cache', type=Path, default=Path.home() / '.cache/dubna-amo-corpus',
                         help='the .xpi files of amo_corpus.py fetch')
+    parser.add_argument('-j', '--jobs', type=int, default=max(1, min(8, os.cpu_count() // 4)),
+                        help='how many groups run at once')
     args = parser.parse_args()
     if not BINARY.is_file():
         sys.exit(f'no browser binary at {BINARY}; run ./oganesson.py build --release')
@@ -729,28 +767,31 @@ def main():
     if absent:
         sys.exit(f'{len(absent)} .xpi files are not in {args.cache}; '
                  'run dubna/tools/amo_corpus.py fetch')
+    # Read first: a full run writes the file.
+    old = json.loads(score_path.read_text())['addons'] if score_path.is_file() else {}
     lock = hold_builds_lock()  # noqa: F841 (held until exit)
-    results = {}
     with tempfile.TemporaryDirectory(prefix='oganesson-corpus-') as work:
-        for start in range(0, len(corpus), GROUP):
-            items = corpus[start:start + GROUP]
-            results.update(run_safely(items, xpis[start:start + GROUP],
-                                      Path(work) / str(start)))
-            l2 = sum(1 for r in results.values() if at_least(r[0], 'L2'))
-            l3 = sum(1 for r in results.values() if r[0] == 'L3')
-            print(f'{len(results)} of {len(corpus)} add-ons, {l2} at L2 or higher, {l3} at L3',
-                  flush=True)
+        results = run_all(corpus, xpis, Path(work) / 'run', args.jobs, True)
+        dropped = [n for n, item in enumerate(corpus)
+                   if went_down(old.get(item['id'], {}).get('level'), results[item['id']][0])]
+        if dropped:
+            print(f'{len(dropped)} add-ons went down: running them once more', flush=True)
+            again = run_all([corpus[n] for n in dropped], [xpis[n] for n in dropped],
+                            Path(work) / 'again', args.jobs, False)
+            for item_id, result in again.items():
+                if LEVELS.index(result[0] or 'L0') > LEVELS.index(results[item_id][0] or 'L0'):
+                    results[item_id] = result
     addons = {item['id']: {'level': results[item['id']][0], 'error': results[item['id']][1]}
               for item in corpus}
-    if args.only:
-        old = json.loads(score_path.read_text())['addons'] if score_path.is_file() else {}
-        down = False
-        for item_id, result in addons.items():
-            before = old.get(item_id, {}).get('level')
-            went_down = at_least(before, 'L0') and not at_least(result['level'], before)
-            down = down or went_down
+    down = False
+    for item_id, result in addons.items():
+        before = old.get(item_id, {}).get('level')
+        down = down or went_down(before, result['level'])
+        if args.only or before != result['level']:
             print(f"{item_id}: {before or '-'} -> {result['level'] or '-'}"
-                  f"{'  DOWN' if went_down else ''}  {result['error'] or ''}")
+                  f"{'  DOWN' if went_down(before, result['level']) else ''}"
+                  f"  {result['error'] or ''}")
+    if args.only:
         return 1 if down else 0
     score = {
         'date': datetime.date.today().isoformat(),
@@ -762,7 +803,7 @@ def main():
     score_path.parent.mkdir(exist_ok=True)
     score_path.write_text(json.dumps(score, indent=1, ensure_ascii=False) + '\n')
     print(f"{score_path}: {', '.join(f'{k} {v}' for k, v in score['levels'].items())}")
-    return 0
+    return 1 if down else 0
 
 
 if __name__ == '__main__':
