@@ -145,3 +145,13 @@
        ContentSettingsType::STORAGE_ACCESS,
        ContentSettingsType::TOP_LEVEL_STORAGE_ACCESS,
        ContentSettingsType::USB_GUARD,
+--- a/chrome/browser/resources/settings_shared/prefs2/pref_service.ts
++++ b/chrome/browser/resources/settings_shared/prefs2/pref_service.ts
+@@ -17,6 +17,7 @@ const CATEGORY_DEFAULT_SYNTHETIC_PREFS: string[] = [
+   'ads',
+   'ar',
+   'auto-picture-in-picture',
++  'autoplay',
+   'background-sync',
+   'bluetooth-devices',
+   'bluetooth-scanning',
