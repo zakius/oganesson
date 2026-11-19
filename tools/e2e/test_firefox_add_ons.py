@@ -2699,6 +2699,121 @@ class FirefoxXpiAskWhereToSaveTest(FirefoxXpiInstallTest):
         self.assertEqual(info[0]['state'], 'ENABLED')
 
 
+def gecko_extension_id(gecko_id):
+    """The ID that an add-on installed from a .xpi gets from its Gecko ID:
+    its SHA-256, in letters a to p."""
+    digest = hashlib.sha256(gecko_id.encode()).hexdigest()[:32]
+    return digest.translate(str.maketrans('0123456789abcdef', 'abcdefghijklmnop'))
+
+
+def svg(color, view_box='0 0 16 16'):
+    """An SVG icon in one colour, as Firefox add-ons ship them."""
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{view_box}">'
+            f'<rect width="100%" height="100%" fill="rgb{color}"/></svg>')
+
+
+def svg_xpi(gecko_id, action, color):
+    """A .xpi whose icons and `action`'s icon are one SVG in `color`, as
+    Pouch's are."""
+    manifest = {
+        'manifest_version': 2,
+        'name': f'Firefox SVG icons test add-on {gecko_id}',
+        'version': '1',
+        'browser_specific_settings': {'gecko': {'id': gecko_id}},
+        'icons': {size: 'icons/icon.svg' for size in ('16', '32', '48', '96', '128')},
+        action: {'default_icon': {'48': 'icons/icon.svg'}, 'default_title': action},
+        'background': {'page': 'background/background.html'},
+    }
+    files = {
+        'manifest.json': json.dumps(manifest),
+        'icons/icon.svg': svg(color),
+        # Taller than wide, with only a viewBox: drawn at the middle.
+        'icons/tall.svg': svg(SVG_SET_COLOR, view_box='0 0 8 16'),
+        'background/background.html': '<!doctype html><script src="background.js"></script>',
+        'background/background.js': 'self.started = true;',
+    }
+    data = io.BytesIO()
+    with zipfile.ZipFile(data, 'w') as archive:
+        for name, text in files.items():
+            archive.writestr(name, text)
+    return data.getvalue()
+
+
+SVG_BROWSER_ACTION_COLOR = (0, 160, 0)
+SVG_PAGE_ACTION_COLOR = (160, 0, 160)
+SVG_SET_COLOR = (0, 0, 255)
+
+
+class FirefoxXpiSvgIconsTest(BrowserTest):
+    """A .xpi with SVG icons, as uBlock Origin and Pouch have, installs from a
+    download, and its toolbar button shows the SVG: the browser action's, a
+    page action's, and one that setIcon() sets by its path."""
+
+    @classmethod
+    def setUpClass(cls):
+        xpi = 'application/x-xpinstall'
+        cls.server = Server({
+            '/': (200, {'Content-Type': 'text/html'}, b'<p>add-ons</p>'),
+            '/browser-action.xpi': (200, {'Content-Type': xpi}, svg_xpi(
+                'svg-browser-action@oganesson.test', 'browser_action', SVG_BROWSER_ACTION_COLOR)),
+            '/page-action.xpi': (200, {'Content-Type': xpi}, svg_xpi(
+                'svg-page-action@oganesson.test', 'page_action', SVG_PAGE_ACTION_COLOR)),
+        })
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        cls.server.stop()
+
+    def install(self, path, gecko_id):
+        """Installs the .xpi at `path` and returns its background page."""
+        add_on = gecko_extension_id(gecko_id)
+        self.browser.download(self.server.url('/'), path)
+        self.browser.accept_install_prompt()
+
+        def started():
+            try:
+                background = self.browser.extension_background(add_on, timeout=1)
+            except AssertionError:
+                return None
+            if background.eval('self.started === true'):
+                return background
+            background.close()
+            return None
+        return wait_for(started, timeout=30, what=f'the background of {gecko_id}')
+
+    def icon_color(self, gecko_id, title, color):
+        """Waits for the toolbar button's middle to be `color`."""
+        add_on = gecko_extension_id(gecko_id)
+        button = self.browser.toolbar_button(add_on, title)
+        x, y = button.center
+        wait_for(lambda: all(abs(a - b) <= 8 for a, b in zip(self.browser.pixel(x, y), color)),
+                 timeout=30, what=f'the toolbar button in rgb{color}')
+
+    def test_browser_action(self):
+        gecko_id = 'svg-browser-action@oganesson.test'
+        background = self.install('/browser-action.xpi', gecko_id)
+        try:
+            self.icon_color(gecko_id, 'browser_action', SVG_BROWSER_ACTION_COLOR)
+            background.eval("browser.browserAction.setIcon({path: '/icons/tall.svg'})")
+        finally:
+            background.close()
+        self.icon_color(gecko_id, 'browser_action', SVG_SET_COLOR)
+
+    def test_page_action(self):
+        gecko_id = 'svg-page-action@oganesson.test'
+        background = self.install('/page-action.xpi', gecko_id)
+        try:
+            # Pinned first: the button greys a page action that isn't shown.
+            self.browser.toolbar_button(gecko_extension_id(gecko_id), 'page_action')
+            background.eval('browser.tabs.query({active: true, lastFocusedWindow: true})'
+                            '.then(([tab]) => browser.pageAction.show(tab.id))')
+        finally:
+            background.close()
+        self.icon_color(gecko_id, 'page_action', SVG_PAGE_ACTION_COLOR)
+
+
 FIRST_PARTY_DOMAIN_ADD_ON = {
     'manifest.json': json.dumps({
         'manifest_version': 2,
