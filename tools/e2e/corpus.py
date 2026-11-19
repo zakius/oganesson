@@ -12,7 +12,8 @@ L1  It installs as a user's download does: a page of the runner's local
     server goes to the add-on's .xpi with a user gesture, the browser installs
     it packed (InstallUnpackedCrx, through the sandboxed unpacker), and the
     runner accepts the install prompt. Its ID comes from its Gecko ID, so one
-    without a Gecko ID doesn't install, as it doesn't from AMO. An add-on that
+    without a Gecko ID in its manifest doesn't install, though Firefox takes
+    its ID from AMO's signature (zakius/dubna#208). An add-on that
     doesn't install stays at L0 with the browser's error, its "Extension
     error:" line in the log. The levels above run on the installed add-on.
 L2  Its background page or service worker starts, if it has one, and nothing
@@ -662,7 +663,10 @@ def run_safely(items, xpis, work):
         for number, (item, xpi) in enumerate(zip(items, xpis)):
             error = results.get(item['id'], (None, None))[1] or ''
             if error.startswith('the smoke check failed'):
-                results.update(run_safely([item], [xpi], work / f'alone-{number}'))
+                alone = run_safely([item], [xpi], work / f'alone-{number}')[item['id']]
+                # Alone, an install can fail by itself: the better level counts.
+                if LEVELS.index(alone[0] or 'L0') >= LEVELS.index(results[item['id']][0]):
+                    results[item['id']] = alone
     return results
 
 
