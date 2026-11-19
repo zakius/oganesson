@@ -38,6 +38,7 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -57,8 +58,10 @@ TIMEOUT = 600
 ERROR_LENGTH = 300
 # The exit status for a drop; 1 is any other failure of the run.
 DOWN = 3
-# The ports' processes that run now, for an interrupt to stop.
+# The ports' processes that run now, for an interrupt to stop, and the
+# interrupt's flag, for a port that starts while it stops the others.
 RUNNING = set()
+STOP = threading.Event()
 
 
 def first_failure(output):
@@ -122,6 +125,8 @@ def run_port(port):
     with subprocess.Popen([sys.executable, '-m', 'unittest', '-v', module], cwd=HERE,
                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True) as child:
         RUNNING.add(child)
+        if STOP.is_set():
+            child.terminate()
         try:
             output = child.communicate(timeout=TIMEOUT)[0]
         except subprocess.TimeoutExpired:
@@ -199,6 +204,7 @@ def compare(ported, results, kept, old, args, tests, score_path):
             # An interrupt (harness.py makes SIGTERM one) reaches this thread
             # alone: stop the running ports, or the pool waits for them with
             # the builds lock held.
+            STOP.set()
             pool.shutdown(wait=False, cancel_futures=True)
             for child in list(RUNNING):
                 child.terminate()

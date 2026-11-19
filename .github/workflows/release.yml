@@ -43,7 +43,7 @@ jobs:
       # score"), before Windows takes the builds lock: a test that passed in the score committed
       # in dubna and fails now stops the release (exit 3). The run takes the lock itself. It
       # writes the new score in the dubna submodule, where the release notes read it, and a copy
-      # goes to work/release-scores/ for the climb to commit.
+      # goes to work/release-scores/ for the stage that tagged to commit to dubna.
       - name: Firefox's WebExtensions tests
         run: |
           cd "$MAIN"
