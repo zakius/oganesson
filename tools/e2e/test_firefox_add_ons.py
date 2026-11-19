@@ -2554,13 +2554,39 @@ class FirefoxBookmarkIdsTest(BrowserTest):
 
 
 XPI_GECKO_ID = 'xpi-install@oganesson.test'
+# The ID of an add-on without a Gecko ID, in its signature.
+SIGNED_GECKO_ID = '{e8f509f0-b677-11de-8a39-0800200c9a66}'
 
 
-def xpi_add_on(gecko_id):
-    """An .xpi, as AMO serves it: with its signature in META-INF/."""
+def amo_signature(gecko_id):
+    """A META-INF/mozilla.rsa as AMO's is: a DER PKCS #7 with the add-on's
+    certificate, whose common name is `gecko_id`, and the one of the CA that
+    signed it. AMO's lists the add-on's first; this one lists the CA's first,
+    so the ID comes from the common name, not the order."""
+    with tempfile.TemporaryDirectory(prefix='oganesson-amo-signature-') as folder:
+        folder = Path(folder)
+
+        def openssl(*args):
+            subprocess.run(['openssl', *args], cwd=folder, check=True, capture_output=True)
+
+        openssl('req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1',
+                '-subj', '/CN=signingca.oganesson.test', '-keyout', 'ca.key', '-out', 'ca.pem')
+        openssl('req', '-newkey', 'rsa:2048', '-nodes', '-subj', f'/CN={gecko_id}',
+                '-keyout', 'add-on.key', '-out', 'add-on.csr')
+        openssl('x509', '-req', '-in', 'add-on.csr', '-CA', 'ca.pem', '-CAkey', 'ca.key',
+                '-set_serial', '1', '-days', '1', '-out', 'add-on.pem')
+        openssl('crl2pkcs7', '-nocrl', '-certfile', 'ca.pem', '-certfile', 'add-on.pem',
+                '-outform', 'DER', '-out', 'mozilla.rsa')
+        return (folder / 'mozilla.rsa').read_bytes()
+
+
+def xpi_add_on(gecko_id, signed_id=None):
+    """An .xpi, as AMO serves it: with its signature in META-INF/, a fake one
+    unless `signed_id` is the ID the signature names."""
     manifest = {
         'manifest_version': 2,
-        'name': f'Firefox .xpi install test add-on {gecko_id or "without a Gecko ID"}',
+        'name': ('Firefox .xpi install test add-on '
+                 f'{gecko_id or signed_id or "without a Gecko ID"}'),
         'version': '1',
         'background': {'scripts': ['background.js']},
         'permissions': ['storage'],
@@ -2571,7 +2597,7 @@ def xpi_add_on(gecko_id):
         'manifest.json': json.dumps(manifest),
         'background.js': 'self.started = true;',
         'META-INF/cose.sig': 'not checked',
-        'META-INF/mozilla.rsa': 'not checked',
+        'META-INF/mozilla.rsa': amo_signature(signed_id) if signed_id else 'not checked',
     }
     data = io.BytesIO()
     with zipfile.ZipFile(data, 'w') as archive:
@@ -2610,8 +2636,10 @@ class FirefoxXpiInstallTest(BrowserTest):
     """A .xpi downloaded after a user gesture opens the install prompt.
     Accepted, an add-on with a Gecko ID installs packed, without developer
     mode, with the ID from its Gecko ID; a second download reinstalls it and
-    keeps its storage. One without a Gecko ID doesn't install, even in
-    developer mode, and without a gesture a .xpi stays a file."""
+    keeps its storage. One without a Gecko ID installs with the ID of its AMO
+    signature (META-INF/mozilla.rsa), as in Firefox. One with neither doesn't
+    install, even in developer mode, and without a gesture a .xpi stays a
+    file."""
 
     prefs = DEVELOPER_MODE
 
@@ -2619,10 +2647,12 @@ class FirefoxXpiInstallTest(BrowserTest):
     def setUpClass(cls):
         xpi = (200, {'Content-Type': 'application/x-xpinstall'}, xpi_add_on(XPI_GECKO_ID))
         no_id = (200, {'Content-Type': 'application/x-xpinstall'}, xpi_add_on(None))
+        signed = (200, {'Content-Type': 'application/x-xpinstall'},
+                  xpi_add_on(None, SIGNED_GECKO_ID))
         localized = (200, {'Content-Type': 'application/x-xpinstall'}, localized_xpi())
         cls.server = Server({'/': (200, {'Content-Type': 'text/html'}, b'<p>add-ons</p>'),
                              '/add-on.xpi': xpi, '/no-id.xpi': no_id, '/no-gesture.xpi': xpi,
-                             '/localized.xpi': localized})
+                             '/localized.xpi': localized, '/signed.xpi': signed})
         super().setUpClass()
 
     @classmethod
@@ -2698,7 +2728,25 @@ class FirefoxXpiInstallTest(BrowserTest):
             self.browser.close_target(page)
         self.assertEqual(home, 'https://example.com/localized')
 
+    def test_gecko_id_from_signature(self):
+        add_on = gecko_extension_id(SIGNED_GECKO_ID)
+        self.browser.download(self.server.url('/'), '/signed.xpi')
+        self.browser.accept_install_prompt()
+        background = self.started(add_on)
+        try:
+            # In its manifest, so it counts as a Firefox add-on.
+            manifest_id = background.eval(
+                'browser.runtime.getManifest().browser_specific_settings.gecko.id')
+        finally:
+            background.close()
+        self.assertEqual(manifest_id, SIGNED_GECKO_ID)
+        info = self.installed(add_on)
+        self.assertEqual(len(info), 1)
+        self.assertNotEqual(info[0]['location'], 'UNPACKED')
+        self.assertEqual(info[0]['state'], 'ENABLED')
+
     def test_no_gecko_id(self):
+        # Its signature is fake, so it has no ID there either.
         self.browser.download(self.server.url('/'), '/no-id.xpi')
         wait_for(lambda: 'This add-on has no Gecko ID' in self.browser.log_path.read_text(
             errors='replace'), timeout=30, what='the load error')
@@ -2729,7 +2777,7 @@ class FirefoxXpiAskWhereToSaveTest(FirefoxXpiInstallTest):
 
     # Not the base class's tests again: unittest runs only what is callable.
     test_download_installs = test_no_gecko_id = test_no_gesture = None
-    test_localized_homepage_url = None
+    test_localized_homepage_url = test_gecko_id_from_signature = None
 
     def test_ask_where_to_save(self):
         add_on = hashlib.sha256(XPI_GECKO_ID.encode()).hexdigest()[:32].translate(

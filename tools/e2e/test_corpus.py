@@ -18,7 +18,7 @@ KEY = ('MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDJnRbHexNTjRkPiiY/aArVJM+iKGwGLV6K
        'Tlq8b5NE5Aj3BJwfRQVHtfdYj92BuW9zflWZPMDwIDAQAB')
 # The keyed add-on's ID: from its Gecko ID, as the .xpi install makes it, not
 # from KEY, as --load-extension would.
-KEYED_ID = corpus.installed_id({'browser_specific_settings': {
+KEYED_ID = corpus.installed_id(Path('/nonexistent'), {'browser_specific_settings': {
     'gecko': {'id': 'keyed@corpus.test'}}})
 POPUP = {'browser_action': {'default_popup': 'popup.html'}}
 CONTENT = {'content_scripts': [{'matches': ['https://*.example.org/*'], 'js': ['content.js']}]}

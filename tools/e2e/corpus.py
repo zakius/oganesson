@@ -11,11 +11,11 @@ L0  Its manifest is JSON: the install fails, if it does, past that.
 L1  It installs as a user's download does: a page of the runner's local
     server goes to the add-on's .xpi with a user gesture, the browser installs
     it packed (InstallUnpackedCrx, through the sandboxed unpacker), and the
-    runner accepts the install prompt. Its ID comes from its Gecko ID, so one
-    without a Gecko ID in its manifest doesn't install, though Firefox takes
-    its ID from AMO's signature (zakius/dubna#208). An add-on that
-    doesn't install stays at L0 with the browser's error, its "Extension
-    error:" line in the log. The levels above run on the installed add-on.
+    runner accepts the install prompt. Its ID comes from its Gecko ID, or
+    without one from AMO's signature (META-INF/mozilla.rsa), as Firefox takes
+    it (zakius/dubna#208). An add-on that doesn't install stays at L0 with
+    the browser's error, its "Extension error:" line in the log. The levels
+    above run on the installed add-on.
 L2  Its background page or service worker starts, if it has one, and nothing
     names a missing API or manifest key: its manifest has no key that Firefox
     reads (FIREFOX_KEYS) and no permission that the feature files of the
@@ -450,11 +450,28 @@ def read_manifest(folder):
     return manifest if isinstance(manifest, dict) else {}
 
 
-def installed_id(manifest):
+def signature_id(folder):
+    """The ID in the add-on's AMO signature: the first common name of the
+    certificates in META-INF/mozilla.rsa that is a Gecko ID, as dubna's
+    firefox_xpi_signature.cc reads it, or None."""
+    signature = folder / 'META-INF' / 'mozilla.rsa'
+    if not signature.is_file():
+        return None
+    certificates = subprocess.run(
+        ['openssl', 'pkcs7', '-inform', 'DER', '-in', str(signature), '-print_certs', '-noout'],
+        capture_output=True, text=True, check=False).stdout
+    for name in re.findall(r'^subject=.*?CN ?= ?([^,/\n]+)', certificates, re.M):
+        if gecko_id({'browser_specific_settings': {'gecko': {'id': name.strip()}}}):
+            return name.strip()
+    return None
+
+
+def installed_id(folder, manifest):
     """The ID of the add-on installed from its .xpi, which dubna's
     firefox_xpi_installer.cc makes from its Gecko ID (the key in the manifest
-    doesn't count), or None: without a Gecko ID it doesn't install."""
-    found = gecko_id(manifest)
+    doesn't count), or from its AMO signature's ID, or None: without either it
+    doesn't install."""
+    found = gecko_id(manifest) or signature_id(folder)
     if not found:
         return None
     digest = hashlib.sha256(found.encode()).hexdigest()[:32]
@@ -585,7 +602,7 @@ def run_group(items, xpis, work):
     server = Server(routes)
     try:
         manifests = {i: read_manifest(f) for i, f in folders.items() if f}
-        ids = {i: installed_id(m) for i, m in manifests.items()}
+        ids = {i: installed_id(folders[i], m) for i, m in manifests.items()}
         started = set()
         extensions_page = browser.new_tab('chrome://extensions')
         wait_for(lambda: extensions_page.eval('!!chrome.developerPrivate'),
