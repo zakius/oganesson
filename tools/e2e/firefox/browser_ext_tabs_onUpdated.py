@@ -4,10 +4,16 @@ browser/components/extensions/test/browser/browser_ext_tabs_onUpdated.js.
 mochi.test:8888 is a local server here, with Firefox's
 context_tabs_onUpdated_page.html and its frame, and a page at /. Left out:
 the last task, forceGC(), a Gecko internal. The add-ons' code is Firefox's,
-as it is."""
+as it is.
+
+Firefox's first task's listener sees every tab's updates, and Firefox runs it
+in a browser whose tabs have loaded. Here the browser has just started, so
+the task first waits for its tabs to load: its new tab page, still loading,
+gave the listener updates of its own."""
 
 from extension_test_utils import JS, FirefoxTest
 from firefox.head import DIR, close_window, open_new_browser_window
+from harness import Page, wait_for
 
 HTML = {'Content-Type': 'text/html'}
 PAGE = b'''<html>
@@ -59,8 +65,19 @@ class TabsOnUpdatedTest(FirefoxTest):
         f'{DIR}context_tabs_onUpdated_iframe.html': (200, HTML, IFRAME),
     }
 
+    def wait_for_tabs_to_load(self):
+        for target in self.browser.targets():
+            if target['type'] == 'page':
+                page = Page(target)
+                try:
+                    wait_for(lambda: page.eval('document.readyState', gesture=False) == 'complete',
+                             what=f'{target["url"]} to load')
+                finally:
+                    page.close()
+
     def test_01_onUpdated_sequence(self):
         win1 = open_new_browser_window(self)
+        self.wait_for_tabs_to_load()
 
         extension = self.load_extension(
             manifest={
