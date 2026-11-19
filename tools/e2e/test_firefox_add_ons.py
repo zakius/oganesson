@@ -2602,21 +2602,6 @@ class FirefoxXpiInstallTest(BrowserTest):
         super().tearDownClass()
         cls.server.stop()
 
-    def download(self, path, gesture=True):
-        """Downloads `path` from a page of the server, as a click on a link
-        to it does, or as the page does by itself without `gesture`."""
-        url = self.server.url('/')
-        page = self.browser.new_tab(url)
-        # Without a gesture of its own: one would last for the next call.
-        wait_for(lambda: page.eval('location.href + document.readyState', gesture=False)
-                 == url + 'complete', what='the page')
-        page.eval(f"location.href = '{path}'", gesture=gesture)
-
-    def accept_prompt(self):
-        button = self.browser.wait_view(
-            'MdTextButton', match=lambda v: v['Enabled'] == 'true' and v['Text'] == 'Add extension')
-        self.browser.click_view(button)
-
     def installed(self, add_on):
         page = self.browser.new_tab('chrome://extensions')
         try:
@@ -2646,8 +2631,8 @@ class FirefoxXpiInstallTest(BrowserTest):
         # Chromium's ID of the Gecko ID: its SHA-256, in letters a to p.
         add_on = hashlib.sha256(XPI_GECKO_ID.encode()).hexdigest()[:32].translate(
             str.maketrans('0123456789abcdef', 'abcdefghijklmnop'))
-        self.download('/add-on.xpi')
-        self.accept_prompt()
+        self.browser.download(self.server.url('/'), '/add-on.xpi')
+        self.browser.accept_install_prompt()
         background = self.started(add_on)
         try:
             background.eval("browser.storage.local.set({kept: 'from the first install'})")
@@ -2659,8 +2644,8 @@ class FirefoxXpiInstallTest(BrowserTest):
         self.assertNotEqual(info[0]['location'], 'UNPACKED')
         self.assertEqual(info[0]['state'], 'ENABLED')
 
-        self.download('/add-on.xpi')
-        self.accept_prompt()
+        self.browser.download(self.server.url('/'), '/add-on.xpi')
+        self.browser.accept_install_prompt()
         # The reinstalled add-on's new background page.
         background = self.started(add_on, '!self.first')
         try:
@@ -2671,7 +2656,7 @@ class FirefoxXpiInstallTest(BrowserTest):
         self.assertEqual(len(self.installed(add_on)), 1)
 
     def test_no_gecko_id(self):
-        self.download('/no-id.xpi')
+        self.browser.download(self.server.url('/'), '/no-id.xpi')
         wait_for(lambda: 'This add-on has no Gecko ID' in self.browser.log_path.read_text(
             errors='replace'), timeout=30, what='the load error')
         page = self.browser.new_tab('chrome://extensions')
@@ -2683,7 +2668,7 @@ class FirefoxXpiInstallTest(BrowserTest):
         self.assertNotIn('Firefox .xpi install test add-on without a Gecko ID', names)
 
     def test_no_gesture(self):
-        self.download('/no-gesture.xpi', gesture=False)
+        self.browser.download(self.server.url('/'), '/no-gesture.xpi', gesture=False)
         wait_for(lambda: (self.browser.home / 'Downloads' / 'no-gesture.xpi').exists(),
                  what='the download')
         # The prompt would open as the download completes, in under a second.
@@ -2705,8 +2690,8 @@ class FirefoxXpiAskWhereToSaveTest(FirefoxXpiInstallTest):
     def test_ask_where_to_save(self):
         add_on = hashlib.sha256(XPI_GECKO_ID.encode()).hexdigest()[:32].translate(
             str.maketrans('0123456789abcdef', 'abcdefghijklmnop'))
-        self.download('/add-on.xpi')
-        self.accept_prompt()
+        self.browser.download(self.server.url('/'), '/add-on.xpi')
+        self.browser.accept_install_prompt()
         self.started(add_on).close()
         info = self.installed(add_on)
         self.assertEqual(len(info), 1)

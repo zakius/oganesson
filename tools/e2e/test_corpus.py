@@ -1,8 +1,8 @@
 """The WebExtensions climb's corpus runner (corpus.py): small add-ons of each
-kind it tells apart get the levels it gives them."""
+kind it tells apart get the levels it gives them. Each installs from its .xpi
+with the Gecko ID that test_levels() gives it, but where it has a
+browser_specific_settings of its own."""
 
-import base64
-import hashlib
 import json
 import tempfile
 import unittest
@@ -16,9 +16,10 @@ BACKGROUND_MV2 = {'manifest_version': 2, 'name': 'probe', 'version': '1',
 KEY = ('MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDJnRbHexNTjRkPiiY/aArVJM+iKGwGLV6K7ivyrBfl1hwn8'
        'AjDF2aD2+1AsxJ2LeZL8z7FxJ7WPxJAoIyCfMOULQPV9LJ8Pq8egUMcC5YKvZN4rpIuEvLvWdAtwZlcFj6K2+'
        'Tlq8b5NE5Aj3BJwfRQVHtfdYj92BuW9zflWZPMDwIDAQAB')
-# Chromium's ID for KEY: the first 32 hex digits of the key's SHA-256, as a to p.
-KEYED_ID = ''.join(chr(ord('a') + int(digit, 16))
-                   for digit in hashlib.sha256(base64.b64decode(KEY)).hexdigest()[:32])
+# The keyed add-on's ID: from its Gecko ID, as the .xpi install makes it, not
+# from KEY, as --load-extension would.
+KEYED_ID = corpus.installed_id({'browser_specific_settings': {
+    'gecko': {'id': 'keyed@corpus.test'}}})
 POPUP = {'browser_action': {'default_popup': 'popup.html'}}
 CONTENT = {'content_scripts': [{'matches': ['https://*.example.org/*'], 'js': ['content.js']}]}
 # Each add-on: its manifest (text or JSON), background.js, the level, and its
@@ -27,7 +28,7 @@ ADDONS = {
     'works': (BACKGROUND_MV2, 'self.started = true;', 'L3'),
     'firefox-metadata': ({**BACKGROUND_MV2, 'browser_specific_settings': {
         'gecko': {'id': 'probe@example.org'}}}, 'self.started = true;', 'L3'),
-    # Its ID comes from the key, not from its folder.
+    # Its ID comes from its Gecko ID, not from the key.
     'keyed': ({**BACKGROUND_MV2, 'key': KEY}, 'self.started = true;', 'L3'),
     # Its error names the keyed add-on's page, which keeps that one at L2.
     'names-another': (BACKGROUND_MV2,
@@ -69,6 +70,13 @@ ADDONS = {
             }
         })();''', 'L3'),
     'not-json': ('{"manifest_version": 2,', '', None),
+    # Add-ons that load with --load-extension but whose .xpi doesn't
+    # install: one without a Gecko ID (it has Firefox's other settings), and
+    # one whose icon isn't an image, which only the install decodes.
+    'no-gecko-id': ({**BACKGROUND_MV2, 'browser_specific_settings': {
+        'gecko': {'strict_min_version': '109.0'}}}, 'self.started = true;', 'L0'),
+    'broken-icon': ({**BACKGROUND_MV2, 'icons': {'48': 'icon.png'}}, 'self.started = true;',
+                    'L0', {'icon.png': 'not a PNG'}),
     # The smoke check (L3): a popup, and content scripts on a site's page.
     'popup-shows': ({**BACKGROUND_MV2, **POPUP}, 'self.started = true;', 'L3',
                     {'popup.html': '<!doctype html><p>Popup</p>'}),
@@ -96,9 +104,11 @@ class CorpusTest(unittest.TestCase):
             items, xpis = [], []
             for number, (name, (manifest, background, _, *files)) in enumerate(ADDONS.items()):
                 xpi = folder / f'{name}.xpi'
+                if isinstance(manifest, dict):
+                    manifest = json.dumps({'browser_specific_settings': {
+                        'gecko': {'id': f'{name}@corpus.test'}}, **manifest})
                 with zipfile.ZipFile(xpi, 'w') as archive:
-                    archive.writestr('manifest.json', manifest if isinstance(manifest, str)
-                                     else json.dumps(manifest))
+                    archive.writestr('manifest.json', manifest)
                     archive.writestr('background.js', background)
                     for file, text in (files[0] if files else {}).items():
                         archive.writestr(file, text)
@@ -114,6 +124,8 @@ class CorpusTest(unittest.TestCase):
         self.assertIn("reading 'call'", results['popup-throws'][1])
         self.assertEqual(results['popup-empty'][1], 'the popup shows nothing')
         self.assertIn("reading 'remove'", results['content-throws'][1])
+        self.assertIn('This add-on has no Gecko ID', results['no-gecko-id'][1])
+        self.assertIn("Could not decode image: 'icon.png'", results['broken-icon'][1])
 
     def test_content_url(self):
         for scripts, url in (

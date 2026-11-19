@@ -777,6 +777,24 @@ class Browser:
                                        None), timeout=timeout, what=f'the background of {prefix}')
         return Page(target)
 
+    def download(self, url, path, gesture=True):
+        """Downloads `path` from a new tab at `url`, a page of the same
+        server, as a click on a link to it does, or as the page does by
+        itself without `gesture`. Returns the tab."""
+        page = self.new_tab(url)
+        # Without a gesture of its own: one would last for the next call.
+        wait_for(lambda: page.eval('location.href + document.readyState', gesture=False)
+                 == url + 'complete', what='the page')
+        page.eval(f"location.href = '{path}'", gesture=gesture)
+        return page
+
+    def accept_install_prompt(self):
+        """Clicks "Add extension" in the install prompt of an add-on, once it
+        can be clicked."""
+        button = self.wait_view(
+            'MdTextButton', match=lambda v: v['Enabled'] == 'true' and v['Text'] == 'Add extension')
+        self.click_view(button)
+
     def extension_info(self, extension_id, collect_errors=False):
         """What chrome://extensions knows of the add-on (developerPrivate's
         ExtensionInfo: `name`, `installWarnings`, `manifestErrors`,

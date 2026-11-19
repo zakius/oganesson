@@ -7,9 +7,14 @@ oganesson.
 
 Each add-on gets the highest level it passes:
 
-L0  Chromium reads its manifest: loading fails, if it does, past that.
-L1  It installs, unpacked with --load-extension (until the .xpi install step
-    ships).
+L0  Its manifest is JSON: the install fails, if it does, past that.
+L1  It installs as a user's download does: a page of the runner's local
+    server goes to the add-on's .xpi with a user gesture, the browser installs
+    it packed (InstallUnpackedCrx, through the sandboxed unpacker), and the
+    runner accepts the install prompt. Its ID comes from its Gecko ID, so one
+    without a Gecko ID doesn't install, as it doesn't from AMO. An add-on that
+    doesn't install stays at L0 with the browser's error, its "Extension
+    error:" line in the log. The levels above run on the installed add-on.
 L2  Its background page or service worker starts, if it has one, and nothing
     names a missing API or manifest key: its manifest has no key that Firefox
     reads (FIREFOX_KEYS) and no permission that the feature files of the
@@ -46,8 +51,9 @@ each add-on's level and the first error that kept it from the next one. With
 --only, it runs those add-ons, prints each one's level next to the committed
 score's, writes nothing, and exits 1 when one went down a level.
 
-The add-ons load in groups of GROUP to a browser start, so one bad add-on
-doesn't stop the run. The run holds the builds lock ($BUILDS_LOCK, by default
+The add-ons install in groups of GROUP to a browser start, so one bad add-on
+doesn't stop the run, and one after another, so each install error is the
+add-on's own. The run holds the builds lock ($BUILDS_LOCK, by default
 ~/dev/.builds.lock). It reads the .xpi files from the cache of dubna's
 `tools/amo_corpus.py fetch`, and the browser from OGANESSON_BINARY, by default
 the release build in work/.
@@ -56,6 +62,7 @@ import argparse
 import base64
 import datetime
 import fcntl
+import hashlib
 import json
 import os
 import re
@@ -71,7 +78,8 @@ os.environ.setdefault('OGANESSON_BINARY',
                       str(ROOT / 'work/helium-linux/build/src/out/Release/oganesson'))
 os.environ.setdefault('TMPDIR', str(ROOT / 'work/tmp'))
 # pylint: disable=wrong-import-position
-from harness import BINARY, DEVELOPER_MODE, Browser, Page, extension_id, unpack_xpi, wait_for
+from harness import (BINARY, DEVELOPER_MODE, Browser, Page, Server, gecko_id, unpack_xpi,
+                     wait_for)
 
 LEVELS = ('L0', 'L1', 'L2', 'L3')
 GROUP = 20
@@ -101,9 +109,10 @@ ALIASES = ('chrome/common/extensions/permissions/chrome_api_permissions.cc',
 # to report errors from their start.
 START = 10
 SETTLE = 2
+# How long an install gets to show its prompt, and then to finish.
+INSTALL = 30
 # The longest error a score keeps.
 ERROR_LENGTH = 300
-UNREADABLE = ('Manifest file is missing or unreadable', 'Manifest is not valid JSON')
 # Uncaught errors that name no missing API and come and go between runs: a
 # message sent at the start before the page that listens for it is up, a
 # reply whose page went away before it answered, and a tab gone by the time
@@ -191,17 +200,14 @@ def unknown(manifest, keys, permissions):
     return found
 
 
-def level(load_error, installed, background, missing, uncaught):
+def level(install_error, background, missing, uncaught):
     """The level and the error that kept it from the next one, from what the
-    browser showed: `load_error`, Chromium's error for a failed load, or None;
-    `installed`, whether the add-on is installed; `background`, whether its
-    background started (None: it has none); `missing`, what its manifest asks
-    for that Chromium doesn't know (unknown()); `uncaught`, its uncaught
-    errors."""
-    if load_error and any(text in load_error for text in UNREADABLE):
-        return None, load_error
-    if not installed:
-        return 'L0', load_error or 'not installed'
+    browser showed: `install_error`, its error for a failed install, or None;
+    `background`, whether its background started (None: it has none);
+    `missing`, what its manifest asks for that Chromium doesn't know
+    (unknown()); `uncaught`, its uncaught errors."""
+    if install_error:
+        return 'L0', install_error
     if background is False:
         return 'L1', uncaught[0] if uncaught else 'the background did not start'
     named = missing + uncaught
@@ -443,6 +449,63 @@ def read_manifest(folder):
     return manifest if isinstance(manifest, dict) else {}
 
 
+def installed_id(manifest):
+    """The ID of the add-on installed from its .xpi, which dubna's
+    firefox_xpi_installer.cc makes from its Gecko ID (the key in the manifest
+    doesn't count), or None: without a Gecko ID it doesn't install."""
+    found = gecko_id(manifest)
+    if not found:
+        return None
+    digest = hashlib.sha256(found.encode()).hexdigest()[:32]
+    return digest.translate(str.maketrans('0123456789abcdef', 'abcdefghijklmnop'))
+
+
+def backgrounds(browser):
+    """The add-ons whose background page or service worker runs."""
+    return {t['url'].split('/')[2] for t in browser.targets()
+            if t['type'] in ('background_page', 'service_worker')
+            and t['url'].startswith('chrome-extension://')}
+
+
+def install(browser, server, path, extension, extensions_page, started):
+    """Installs the add-on `extension` from its .xpi at `path` of `server` as
+    a user's download does, accepting the install prompt, and returns None,
+    or else the browser's error. `extensions_page` is a chrome://extensions
+    tab. The add-ons whose backgrounds run meanwhile join `started`."""
+    log_start = len(browser.log_path.read_text(errors='replace'))
+
+    def error():
+        log = browser.log_path.read_text(errors='replace')[log_start:]
+        found = next((line.split('Extension error: ', 1)[1] for line in log.splitlines()
+                      if 'Extension error: ' in line), None)
+        # "Failed to load extension from: <the download's path>. <error>"
+        return found and found.split('.xpi. ', 1)[-1]
+
+    def installed():
+        # A background seen once counts: an add-on may remove itself after
+        # its start (management.uninstallSelf).
+        started.update(backgrounds(browser))
+        return extension in started or extensions_page.eval(
+            'new Promise(r => chrome.developerPrivate.getExtensionsInfo('
+            '{includeDisabled: true, includeTerminated: true}, '
+            f'all => r(all.some(e => e.id === {json.dumps(extension)}))))')
+
+    def prompt():
+        return [v for v in browser.views('MdTextButton', Text='Add extension') if v.visible]
+
+    tab = browser.download(server.url('/'), path)
+    try:
+        # A theme installs without a prompt, and a broken add-on fails before it.
+        wait_for(lambda: error() or installed() or prompt(), timeout=INSTALL,
+                 what='the install prompt')
+        if not (error() or installed()):
+            browser.accept_install_prompt()
+            wait_for(lambda: error() or installed(), timeout=INSTALL, what='the install')
+        return error()
+    finally:
+        close(browser, tab)
+
+
 def console_message(line):
     """A console line of browser.log, as `"<message>", source: <url> (<line>)`,
     as the message and the file and line it came from."""
@@ -498,7 +561,7 @@ def smoke_levels(browser, at_l2, manifests, installed, log):
 
 
 def run_group(items, xpis, work):
-    """Loads the add-ons `items` (corpus entries) from their .xpi files
+    """Installs the add-ons `items` (corpus entries) from their .xpi files
     `xpis` in one browser and returns {id: (level, error)}."""
     folders = {}
     for item, xpi in zip(items, xpis):
@@ -508,47 +571,62 @@ def run_group(items, xpis, work):
         except Exception as error:  # pylint: disable=broad-except
             folders[item['id']] = None
             print(f"{item['id']}: {error}", file=sys.stderr)
-    loadable = [f for f in folders.values() if f]
     results = {i: (None, 'the .xpi does not unpack') for i, f in folders.items() if not f}
-    if not loadable:
+    if not any(folders.values()):
         return results
-    # --noerrdialogs: a failed load would hold the start with a message box.
     keys, permissions = known('manifest'), known('permission')
-    browser = Browser(args=['--noerrdialogs',
-                            f"--load-extension={','.join(str(f) for f in loadable)}"],
-                      prefs=DEVELOPER_MODE)
+    routes = {'/': (200, {'Content-Type': 'text/html'}, b'<p>Add-ons</p>')}
+    for number, xpi in enumerate(xpis):
+        routes[f'/{number}.xpi'] = (200, {'Content-Type': 'application/x-xpinstall'},
+                                    xpi.read_bytes())
+    # --noerrdialogs: a failed install would hold the run with a message box.
+    browser = Browser(args=['--noerrdialogs'], prefs=DEVELOPER_MODE)
+    server = Server(routes)
     try:
-        ids = {i: extension_id(f) for i, f in folders.items() if f}
         manifests = {i: read_manifest(f) for i, f in folders.items() if f}
-        expected = {ids[i] for i, m in manifests.items() if m.get('background')}
-        # Every background that will start, or the end of START. One seen once
-        # counts: an add-on may remove itself after its start.
+        ids = {i: installed_id(m) for i, m in manifests.items()}
         started = set()
+        extensions_page = browser.new_tab('chrome://extensions')
+        wait_for(lambda: extensions_page.eval('!!chrome.developerPrivate'),
+                 what='chrome://extensions')
+        install_errors = {}
+        for number, item in enumerate(items):
+            if folders[item['id']]:
+                install_errors[item['id']] = install(browser, server, f'/{number}.xpi',
+                                                     ids[item['id']], extensions_page, started)
+        close(browser, extensions_page)
+        # An install pins its add-on, so a group's buttons overflow the
+        # toolbar: the smoke check pins a few at a time.
+        set_pinned(browser, [ids[i] for i, error in install_errors.items() if not error], False)
+        # L2 and L3 run on a browser that starts with the add-ons installed,
+        # as they did with --load-extension: while they installed, their
+        # content scripts met the runner's own pages, and their errors there
+        # would count at L2. A background seen during the installs counts.
+        browser.quit()
+        restart = len(browser.log_path.read_text(errors='replace'))
+        browser.start()
+        expected = {ids[i] for i, error in install_errors.items()
+                    if not error and manifests[i].get('background')}
+        # Every background that will start, or the end of START.
         deadline = time.monotonic() + START
         while time.monotonic() < deadline:
-            started |= {t['url'].split('/')[2] for t in browser.targets()
-                       if t['type'] in ('background_page', 'service_worker')
-                       and t['url'].startswith('chrome-extension://')}
+            started |= backgrounds(browser)
             if expected <= started:
                 break
             time.sleep(0.5)
         time.sleep(SETTLE)
         installed = installed_info(browser)
         log = browser.log_path.read_text(errors='replace')
-        for item_id, folder in folders.items():
-            if not folder:
+        for item_id, install_error in install_errors.items():
+            if install_error and not manifests[item_id]:
+                # Not JSON: the browser refuses it for want of a Gecko ID.
+                results[item_id] = (None, 'its manifest does not parse')
                 continue
             extension = ids[item_id]
-            # "Failed to load extension from: <the folder's real path>. <error>"
-            prefix = f'{folder.resolve()}. '
-            load_error = next((line.split(prefix, 1)[1] for line in log.splitlines()
-                               if 'Extension error: ' in line and prefix in line), None)
             info = installed.get(extension)
-            uncaught = uncaught_errors(extension, log, info)
+            uncaught = uncaught_errors(extension, log[restart:], info)
             background = (extension in started) if manifests[item_id].get('background') else None
-            # An add-on whose background started was installed, even when it
-            # is gone by now: some remove themselves (management.uninstallSelf).
-            found, error = level(load_error, bool(info) or extension in started, background,
+            found, error = level(install_error, background,
                                  unknown(manifests[item_id], keys, permissions), uncaught)
             results[item_id] = (found, error and error[:ERROR_LENGTH])
         at_l2 = {i: ids[i] for i, (found, _) in results.items() if found == 'L2'}
@@ -560,21 +638,31 @@ def run_group(items, xpis, work):
                 for item_id in at_l2:
                     results[item_id] = ('L2', f'the smoke check failed: {error}'[:ERROR_LENGTH])
     finally:
+        server.stop()
         browser.stop()
     return results
 
 
 def run_safely(items, xpis, work):
     """run_group(), and when the browser fails with a group, each add-on of it
-    alone: one that the browser still fails with gets L0 and the failure."""
+    alone: one that the browser still fails with gets L0 and the failure. So
+    too for each add-on whose smoke check failed in a group."""
     try:
-        return run_group(items, xpis, work)
+        results = run_group(items, xpis, work)
     except Exception as error:  # pylint: disable=broad-except
         if len(items) == 1:
             return {items[0]['id']: ('L0', f'the browser failed: {error}'[:ERROR_LENGTH])}
-    results = {}
-    for number, (item, xpi) in enumerate(zip(items, xpis)):
-        results.update(run_safely([item], [xpi], work / f'alone-{number}'))
+        results = {}
+        for number, (item, xpi) in enumerate(zip(items, xpis)):
+            results.update(run_safely([item], [xpi], work / f'alone-{number}'))
+        return results
+    # One add-on's popup can end its group's smoke check, as OneTab's, which
+    # closes every tab: the add-ons it stopped are checked again alone.
+    if len(items) > 1:
+        for number, (item, xpi) in enumerate(zip(items, xpis)):
+            error = results.get(item['id'], (None, None))[1] or ''
+            if error.startswith('the smoke check failed'):
+                results.update(run_safely([item], [xpi], work / f'alone-{number}'))
     return results
 
 
