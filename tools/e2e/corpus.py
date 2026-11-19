@@ -92,7 +92,10 @@ from harness import (BINARY, DEVELOPER_MODE, Browser, Page, Server, gecko_id, un
 # a run can't tell a drop from luck: a drop is printed but doesn't fail the
 # run (zakius/oganesson#85). ZenMate reads its campaign settings before its
 # server has sent them (L1, L3, L1 in three runs alone on one build).
-VARIES = {'firefox-webext@zenmate.com'}
+# anonymoX reads its profiles and gateways from its server's answer: L3 in
+# the score of 2026-11-19, L1 in five runs alone later that day, on the
+# installed previous release too.
+VARIES = {'firefox-webext@zenmate.com', 'client@anonymox.net'}
 LEVELS = ('L0', 'L1', 'L2', 'L3')
 GROUP = 20
 # The manifest keys that Firefox reads (MDN's manifest.json keys that Firefox
