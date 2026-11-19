@@ -2580,6 +2580,32 @@ def xpi_add_on(gecko_id):
     return data.getvalue()
 
 
+LOCALIZED_GECKO_ID = 'xpi-localized@oganesson.test'
+
+
+def localized_xpi():
+    """A .xpi whose homepage_url is a message of its locale files."""
+    files = {
+        'manifest.json': json.dumps({
+            'manifest_version': 2,
+            'name': 'Firefox .xpi install test add-on with a localized homepage',
+            'version': '1',
+            'default_locale': 'en',
+            'homepage_url': '__MSG_homepage__',
+            'browser_specific_settings': {'gecko': {'id': LOCALIZED_GECKO_ID}},
+            'background': {'scripts': ['background.js']},
+        }),
+        '_locales/en/messages.json': json.dumps(
+            {'homepage': {'message': 'https://example.com/localized'}}),
+        'background.js': 'self.started = true;',
+    }
+    data = io.BytesIO()
+    with zipfile.ZipFile(data, 'w') as archive:
+        for name, text in files.items():
+            archive.writestr(name, text)
+    return data.getvalue()
+
+
 class FirefoxXpiInstallTest(BrowserTest):
     """A .xpi downloaded after a user gesture opens the install prompt.
     Accepted, an add-on with a Gecko ID installs packed, without developer
@@ -2593,8 +2619,10 @@ class FirefoxXpiInstallTest(BrowserTest):
     def setUpClass(cls):
         xpi = (200, {'Content-Type': 'application/x-xpinstall'}, xpi_add_on(XPI_GECKO_ID))
         no_id = (200, {'Content-Type': 'application/x-xpinstall'}, xpi_add_on(None))
+        localized = (200, {'Content-Type': 'application/x-xpinstall'}, localized_xpi())
         cls.server = Server({'/': (200, {'Content-Type': 'text/html'}, b'<p>add-ons</p>'),
-                             '/add-on.xpi': xpi, '/no-id.xpi': no_id, '/no-gesture.xpi': xpi})
+                             '/add-on.xpi': xpi, '/no-id.xpi': no_id, '/no-gesture.xpi': xpi,
+                             '/localized.xpi': localized})
         super().setUpClass()
 
     @classmethod
@@ -2655,6 +2683,21 @@ class FirefoxXpiInstallTest(BrowserTest):
         self.assertEqual(stored, {'kept': 'from the first install'})
         self.assertEqual(len(self.installed(add_on)), 1)
 
+    def test_localized_homepage_url(self):
+        # Tab Rotator's: a packed install read it before it localized it.
+        add_on = gecko_extension_id(LOCALIZED_GECKO_ID)
+        self.browser.download(self.server.url('/'), '/localized.xpi')
+        self.browser.accept_install_prompt()
+        self.started(add_on).close()
+        page = self.browser.new_tab('chrome://extensions')
+        try:
+            wait_for(lambda: page.eval('!!chrome.developerPrivate'), what='chrome://extensions')
+            home = page.eval(f'chrome.developerPrivate.getExtensionInfo({json.dumps(add_on)})'
+                             '.then(info => info.homePage.url)')
+        finally:
+            self.browser.close_target(page)
+        self.assertEqual(home, 'https://example.com/localized')
+
     def test_no_gecko_id(self):
         self.browser.download(self.server.url('/'), '/no-id.xpi')
         wait_for(lambda: 'This add-on has no Gecko ID' in self.browser.log_path.read_text(
@@ -2686,6 +2729,7 @@ class FirefoxXpiAskWhereToSaveTest(FirefoxXpiInstallTest):
 
     # Not the base class's tests again: unittest runs only what is callable.
     test_download_installs = test_no_gecko_id = test_no_gesture = None
+    test_localized_homepage_url = None
 
     def test_ask_where_to_save(self):
         add_on = hashlib.sha256(XPI_GECKO_ID.encode()).hexdigest()[:32].translate(
