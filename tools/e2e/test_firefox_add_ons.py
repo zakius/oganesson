@@ -1907,6 +1907,7 @@ UPDATE_FILTER_ADD_ON = {
         listen('default', {cookieStoreId: 'firefox-default'});
         listen('container', {cookieStoreId: 'firefox-container-work'});
         listen('noWindow', {windowId: 2147483647});
+        listen('current', {windowId: browser.windows.WINDOW_ID_CURRENT});
         // Patterns that don't parse here throw nothing, as in Firefox, and
         // match no URL: Firefox's own scheme among them.
         listen('badPatterns', {urls: ['not a pattern', 'moz-extension://*/*']});
@@ -1935,6 +1936,14 @@ UPDATE_FILTER_ADD_ON = {
         }
         self.started = true;
     ''',
+    # An add-on page in a tab, which filters on the current window too.
+    'page.html': '<!doctype html><script src="page.js"></script>',
+    'page.js': '''
+        self.tabs = [];
+        browser.tabs.onUpdated.addListener(id => self.tabs.push(id),
+                                           {windowId: browser.windows.WINDOW_ID_CURRENT});
+        self.started = true;
+    ''',
 }
 
 # Opens a tab on `url`, with a listener for its id alone, and waits until it
@@ -1955,10 +1964,32 @@ UPDATE_FILTER_OPEN = '''(async url => {
 })'''
 
 
+# Opens a tab on `url` in a window, in the background, and waits until it
+# has loaded with its title.
+UPDATE_FILTER_OPEN_IN = '''(async (windowId, url) => {
+    const tab = await browser.tabs.create({windowId, url: 'about:blank', active: false});
+    const done = new Promise(resolve => browser.tabs.onUpdated.addListener(
+        function loaded(id, change, updated) {
+            if (id === tab.id && updated.status === 'complete' && updated.title === 'Titled') {
+                browser.tabs.onUpdated.removeListener(loaded);
+                resolve();
+            }
+        }));
+    await browser.tabs.update(tab.id, {url});
+    await done;
+    return tab.id;
+})'''
+
+
 class FirefoxUpdateFilterTest(BrowserTest):
     """Firefox's filter of tabs.onUpdated: a listener runs only for the
     updates that match its urls, properties, tabId, windowId and
-    cookieStoreId. Chromium threw "This event does not support filters"."""
+    cookieStoreId. Chromium threw "This event does not support filters".
+    With `properties`, its changeInfo has only those properties; a windowId
+    of WINDOW_ID_CURRENT is the last focused window, for the background page
+    and an add-on page alike, so a tab in another window doesn't reach it;
+    and a Work tab that DevTools sends to
+    about:blank stays in Work, with its cookieStoreId."""
 
     @classmethod
     def setUpClass(cls):
@@ -1981,6 +2012,8 @@ class FirefoxUpdateFilterTest(BrowserTest):
 
     def test_filters(self):
         add_on = extension_id(self.unpacked)
+        page = self.browser.new_tab(f'chrome-extension://{add_on}/page.html')
+        wait_for(lambda: page.eval('self.started === true'), what='the add-on page')
         background = self.browser.extension_background(add_on)
         try:
             wait_for(lambda: background.eval('self.started === true'), what='the background script')
@@ -1991,7 +2024,9 @@ class FirefoxUpdateFilterTest(BrowserTest):
             other = background.eval(f'{UPDATE_FILTER_OPEN}({urls[1]})')
         finally:
             background.close()
-        work = self.container_tab(add_on)
+        work, blank_stores = self.container_tab(add_on)
+        page_tabs = set(page.eval('self.tabs'))
+        self.browser.close_target(page)
         background = self.browser.extension_background(add_on)
         try:
             calls = background.eval('self.calls')
@@ -2031,9 +2066,15 @@ class FirefoxUpdateFilterTest(BrowserTest):
         self.assertNotIn(work, tabs('default'))
         self.assertEqual(calls['default'], [c for c in calls['all'] if c[0] != work])
         self.assertTrue(with_key('status'))
-        self.assertEqual(calls['status'], with_key('status'))
+        self.assertEqual(calls['status'], [[tab, ['status']] for tab, _ in with_key('status')])
         self.assertTrue(with_key('title'))
-        self.assertEqual(calls['title'], with_key('title'))
+        self.assertEqual(calls['title'], [[tab, ['title']] for tab, _ in with_key('title')])
+        # One window: the current one has every tab that changed since.
+        ours = {filtered, other, work}
+        self.assertEqual([c for c in calls['current'] if c[0] in ours],
+                         [c for c in calls['all'] if c[0] in ours])
+        self.assertTrue(ours <= page_tabs)
+        self.assertEqual(blank_stores, ['firefox-container-work'] * 2)
         self.assertEqual(tabs('urls'), {filtered})
         self.assertEqual(tabs(f'tab{filtered}'), {filtered})
         self.assertEqual(tabs(f'tab{other}'), {other})
@@ -2041,9 +2082,41 @@ class FirefoxUpdateFilterTest(BrowserTest):
             self.assertEqual(calls[name], [], name)
         self.assertFalse(self.browser.extension_errors(add_on))
 
+    def test_current_window_follows_focus(self):
+        """WINDOW_ID_CURRENT is the last focused window at each update: with a
+        second window focused, a tab that loads in the first one doesn't
+        reach the listener, and one in the second does."""
+        add_on = extension_id(self.unpacked)
+        background = self.browser.extension_background(add_on)
+        try:
+            wait_for(lambda: background.eval('self.started === true'), what='the background script')
+            first = background.eval('browser.windows.getLastFocused().then(w => w.id)')
+            background.eval("self.listen('current2', {windowId: browser.windows.WINDOW_ID_CURRENT})")
+            background.eval("self.listen('all2')")
+            second = background.eval(
+                "browser.windows.create({url: 'about:blank', focused: true}).then(w => w.id)")
+            wait_for(lambda: background.eval(
+                'browser.windows.getLastFocused().then(w => w.id)') == second,
+                what='the second window to have the focus')
+            url = json.dumps(self.server.url('/other?unfocused'))
+            in_first = background.eval(f'{UPDATE_FILTER_OPEN_IN}({first}, {url})')
+            url = json.dumps(self.server.url('/other?focused'))
+            in_second = background.eval(f'{UPDATE_FILTER_OPEN_IN}({second}, {url})')
+            calls = background.eval('self.calls')
+            background.eval(f'browser.tabs.remove({in_first}).then(() => browser.windows.remove({second}))')
+        finally:
+            background.close()
+        all_tabs = {tab for tab, _ in calls['all2']}
+        current_tabs = {tab for tab, _ in calls['current2']}
+        self.assertTrue({in_first, in_second} <= all_tabs)
+        self.assertIn(in_second, current_tabs)
+        self.assertNotIn(in_first, current_tabs)
+
     def container_tab(self, add_on):
         """Opens a tab in the Work container, as the user does, loads a page
-        in it from the add-on, and returns its id."""
+        in it from the add-on, and returns its id, with its cookieStoreId
+        after DevTools sends it to about:blank and after it loads a page
+        again."""
         def set_new_tab(container):
             page = self.browser.new_tab('chrome://settings/containers')
             try:
@@ -2063,7 +2136,7 @@ class FirefoxUpdateFilterTest(BrowserTest):
                     what='the new tab')
             finally:
                 set_new_tab('')
-            url = json.dumps(self.server.url('/other'))
+            url = json.dumps(self.server.url('/other?work'))
             background.eval(f'''new Promise(resolve => {{
                 browser.tabs.onUpdated.addListener(function loaded(id, change, tab) {{
                     if (id === {work} && tab.status === 'complete' && tab.title === 'Titled') {{
@@ -2073,7 +2146,19 @@ class FirefoxUpdateFilterTest(BrowserTest):
                 }});
                 browser.tabs.update({work}, {{url: {url}}});
             }})''')
-            return work
+            # Navigations without an initiator, as Firefox's test makes.
+            tab = self.browser.page('/other?work')
+            stores = []
+            try:
+                for next_url in ('about:blank?2', self.server.url('/other?work2')):
+                    tab.call('Page.navigate', url=next_url)
+                    wait_for(lambda: tab.eval('location.href + document.readyState', gesture=False)
+                             == next_url + 'complete', what=f'{next_url} to load')
+                    stores.append(background.eval(
+                        f'browser.tabs.get({work}).then(t => t.cookieStoreId)'))
+            finally:
+                tab.close()
+            return work, stores
         finally:
             background.close()
 
