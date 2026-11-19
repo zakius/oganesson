@@ -166,7 +166,7 @@ base::WeakPtr<content::NavigationHandle> NavigateInContainer(
   content::WebContents::CreateParams create_params(
       profile, SiteInstanceIn(profile, id, params->url));
   create_params.initially_hidden =
-      params->disposition == WindowOpenDisposition::NEW_BACKGROUND_TAB;
+      params->disposition == WindowOpenDisposition::kNewBackgroundTab;
   params->contents_to_insert = content::WebContents::Create(create_params);
   content::WebContents* contents = params->contents_to_insert.get();
   Navigate(params);
@@ -189,9 +189,9 @@ base::WeakPtr<content::NavigationHandle> NavigateFromActiveTab(
   content::WebContents* active =
       params->browser->GetTabStripModel()->GetActiveWebContents();
   const bool new_contents =
-      params->disposition == WindowOpenDisposition::NEW_FOREGROUND_TAB ||
-      params->disposition == WindowOpenDisposition::NEW_BACKGROUND_TAB ||
-      params->disposition == WindowOpenDisposition::NEW_WINDOW;
+      params->disposition == WindowOpenDisposition::kNewForegroundTab ||
+      params->disposition == WindowOpenDisposition::kNewBackgroundTab ||
+      params->disposition == WindowOpenDisposition::kNewWindow;
   // The browser's own pages stay outside containers, as restored ones do.
   if (!active || !new_contents || content::HasWebUIScheme(params->url)) {
     return Navigate(params);
@@ -222,7 +222,7 @@ std::string NewTabContainer(BrowserWindowInterface* browser) {
 
 void NewTabInContainer(BrowserWindowInterface* browser, const std::string& id) {
   OpenInContainer(browser, chrome::GetNewTabURL(browser), id,
-                  WindowOpenDisposition::NEW_FOREGROUND_TAB);
+                  WindowOpenDisposition::kNewForegroundTab);
 }
 
 std::vector<int> CommandIds(BrowserWindowInterface* browser) {
@@ -271,8 +271,8 @@ void ReopenTabsInContainer(const std::vector<tabs::TabInterface*>& tabs,
     const bool pinned = tab->IsPinned();
     content::WebContents* contents = OpenInContainer(
         browser, old_contents->GetLastCommittedURL(), id,
-        tab->IsActivated() ? WindowOpenDisposition::NEW_FOREGROUND_TAB
-                           : WindowOpenDisposition::NEW_BACKGROUND_TAB,
+        tab->IsActivated() ? WindowOpenDisposition::kNewForegroundTab
+                           : WindowOpenDisposition::kNewBackgroundTab,
         old_contents);
     int index = contents ? model->GetIndexOfWebContents(contents)
                          : TabStripModel::kNoTab;

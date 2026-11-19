@@ -59,7 +59,7 @@ void ContainersMenu::AppendForLink(ui::SimpleMenuModel* menu,
                           : nullptr;
                if (tab && tab->GetBrowserWindowInterface()) {
                  OpenInContainer(tab->GetBrowserWindowInterface(), url, id,
-                                 WindowOpenDisposition::NEW_BACKGROUND_TAB,
+                                 WindowOpenDisposition::kNewBackgroundTab,
                                  source.get());
                }
              },
@@ -234,8 +234,8 @@ void ContainersMenu::AppendForBookmarks(
                for (const GURL& url : urls) {
                  OpenInContainer(browser.get(), url, id,
                                  &url == &urls.front()
-                                     ? WindowOpenDisposition::NEW_FOREGROUND_TAB
-                                     : WindowOpenDisposition::NEW_BACKGROUND_TAB);
+                                     ? WindowOpenDisposition::kNewForegroundTab
+                                     : WindowOpenDisposition::kNewBackgroundTab);
                }
              },
              browser->GetWeakPtr(), std::move(urls)),

@@ -76,8 +76,8 @@ void OpenInThisBrowser(Profile& profile, const GURL& url, bool background) {
   NavigateParams params(&profile, url, ui::PAGE_TRANSITION_LINK);
   params.browser =
       ProfileBrowserCollection::GetForProfile(&profile)->FindTabbedBrowser();
-  params.disposition = background ? WindowOpenDisposition::NEW_BACKGROUND_TAB
-                                  : WindowOpenDisposition::NEW_FOREGROUND_TAB;
+  params.disposition = background ? WindowOpenDisposition::kNewBackgroundTab
+                                  : WindowOpenDisposition::kNewForegroundTab;
   using WindowAction = NavigateParams::WindowAction;
   params.window_action = !background ? WindowAction::kShowWindow
                          : params.browser ? WindowAction::kNoAction

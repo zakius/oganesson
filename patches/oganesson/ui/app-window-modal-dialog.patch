@@ -10,7 +10,7 @@
        "//ui/events",
 --- a/chrome/browser/ui/views/frame/BUILD.gn
 +++ b/chrome/browser/ui/views/frame/BUILD.gn
-@@ -755,6 +755,15 @@ source_set("browser_view_header") {
+@@ -755,6 +755,14 @@ source_set("browser_view_header") {
    ]
  }
  
@@ -19,14 +19,13 @@
 +    "app_modal_dialog_scope.cc",
 +    "app_modal_dialog_scope.h",
 +  ]
-+  public_deps = [ "//chrome/browser:browser_public_dependencies" ]
 +  deps = [ "//chrome/browser/ui/web_applications" ]
 +}
 +
  source_set("browser_view") {
    sources = [
      "browser_view.cc",
-@@ -765,6 +774,7 @@ source_set("browser_view") {
+@@ -765,6 +773,7 @@ source_set("browser_view") {
    public_deps = [ ":browser_view_header" ]
    deps = [
      ":app_menu_button",

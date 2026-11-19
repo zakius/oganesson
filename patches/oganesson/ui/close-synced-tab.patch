@@ -94,7 +94,7 @@
        timestamp: session.timestamp,
        tabs: tabs,
        tag: session.tag,
-+      canCloseTabs: !!session.canCloseTabs,
++      canCloseTabs: session.canCloseTabs,
      };
    }
  

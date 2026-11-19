@@ -91,8 +91,8 @@ void ReopenNavigation(content::WebContents* source,
   NavigateParams params(browser, url, transition);
   params.initiator_origin = initiator;
   params.disposition = tab->IsActivated()
-                           ? WindowOpenDisposition::NEW_FOREGROUND_TAB
-                           : WindowOpenDisposition::NEW_BACKGROUND_TAB;
+                           ? WindowOpenDisposition::kNewForegroundTab
+                           : WindowOpenDisposition::kNewBackgroundTab;
   params.source_contents = source;
   params.tabstrip_add_types |= AddTabTypes::ADD_INHERIT_OPENER;
   NavigateInContainer(&params, container_id);

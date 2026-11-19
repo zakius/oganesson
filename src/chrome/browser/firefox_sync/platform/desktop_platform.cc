@@ -111,7 +111,7 @@ class DesktopPlatform : public Platform, public BrowserCollectionObserver {
 
   content::WebContents* OpenTab(const GURL& url) override {
     NavigateParams params(profile_, url, ui::PAGE_TRANSITION_LINK);
-    params.disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
+    params.disposition = WindowOpenDisposition::kNewForegroundTab;
     Navigate(&params);
     return params.navigated_or_inserted_contents.get();
   }
@@ -122,7 +122,7 @@ class DesktopPlatform : public Platform, public BrowserCollectionObserver {
                        const GURL& url,
                        const std::string& title) override {
     NavigateParams params(profile_, url, ui::PAGE_TRANSITION_LINK);
-    params.disposition = WindowOpenDisposition::NEW_BACKGROUND_TAB;
+    params.disposition = WindowOpenDisposition::kNewBackgroundTab;
     Navigate(&params);
     content::WebContents* contents = params.navigated_or_inserted_contents.get();
     if (!contents) {
