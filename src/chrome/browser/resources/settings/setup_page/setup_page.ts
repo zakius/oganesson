@@ -14,11 +14,11 @@ import 'chrome://resources/cr_elements/cr_button/cr_button.js';
 import 'chrome://resources/cr_elements/cr_checkbox/cr_checkbox.js';
 import 'chrome://resources/cr_elements/cr_toggle/cr_toggle.js';
 import 'chrome://resources/cr_elements/md_select.css.js';
-import '/shared/settings/prefs/prefs.js';
 import '../privacy_page/browser_traffic_page.js';
 import '../settings_shared.css.js';
 
-import {PrefsMixin} from '/shared/settings/prefs/prefs_mixin.js';
+import {PrefService} from '/shared/settings/prefs2/pref_service.js';
+import {PrefServiceObserverMixin} from '/shared/settings/prefs2/pref_service_observer_mixin.js';
 import {I18nMixin} from 'chrome://resources/cr_elements/i18n_mixin.js';
 import {WebUiListenerMixin} from 'chrome://resources/cr_elements/web_ui_listener_mixin.js';
 import {addWebUiListener, removeWebUiListener, sendWithPromise} from 'chrome://resources/js/cr.js';
@@ -61,7 +61,7 @@ const IMPORT_TYPES = [
 ];
 
 const SettingsSetupPageElementBase =
-    PrefsMixin(I18nMixin(WebUiListenerMixin(PolymerElement)));
+    PrefServiceObserverMixin(I18nMixin(WebUiListenerMixin(PolymerElement)));
 
 export class SettingsSetupPageElement extends SettingsSetupPageElementBase {
   static get is() {
@@ -188,8 +188,6 @@ export class SettingsSetupPageElement extends SettingsSetupPageElementBase {
           margin-inline: calc(-1 * var(--cr-section-padding));
         }
       </style>
-      <!-- Settings keeps no prefs element of its own: each page has one. -->
-      <settings-prefs id="prefs" prefs="{{prefs}}"></settings-prefs>
       <div id="window">
         <nav aria-hidden="true">
           <template is="dom-repeat" items="[[steps_]]" as="step">
@@ -593,6 +591,14 @@ export class SettingsSetupPageElement extends SettingsSetupPageElementBase {
         browsers => this.browsers_ =
             browsers.map(browser => ({...browser, selected: false})));
     this.loadEngines_();
+    const keys = new Set([
+      ...Object.values(TAB_PRESETS).flatMap(knobs => Object.keys(knobs)),
+      'credentials_enable_service', 'helium.noise.enabled', LENS_PREF,
+      TRANSLATE_PREF, TRANSLATE_ENGINE_PREF, CAST_PREF, PUSH_PREF,
+    ]);
+    for (const key of keys) {
+      this.addPrefObserver(key, () => this.prefsChanged_());
+    }
     sendWithPromise<{mode: number}>('getHeliumCrashReporting')
         .then(state => this.crashMode_ = String(state.mode));
     sendWithPromise<{browserUpdates: string}>('getBrowserTraffic')
@@ -602,24 +608,27 @@ export class SettingsSetupPageElement extends SettingsSetupPageElementBase {
                       'setupDefaultWindows'));
   }
 
-  // The prefs come with the prefs element, after connectedCallback.
-  static get observers() {
-    return ['prefsChanged_(prefs.*)'];
+  private getPref_<T>(key: string) {
+    return PrefService.getInstance().getPref<T>(key);
+  }
+
+  private setPrefValue_(key: string, value: unknown) {
+    PrefService.getInstance().setPrefValue(key, value);
   }
 
   private prefsChanged_() {
     const tabs = Object.entries(TAB_PRESETS).find(
         ([, knobs]) => Object.entries(knobs).every(
-            ([key, value]) => this.getPref(key)?.value === value));
+            ([key, value]) => this.getPref_(key).value === value));
     this.tabs_ = tabs ? tabs[0] : '';
     this.savePasswords_ =
-        !!this.getPref('credentials_enable_service')?.value;
-    this.noise_ = !!this.getPref('helium.noise.enabled')?.value;
-    this.lens_ = !!this.getPref(LENS_PREF)?.value;
-    this.translate_ = !!this.getPref(TRANSLATE_PREF)?.value;
-    this.translateEngine_ = this.getPref<string>(TRANSLATE_ENGINE_PREF)?.value;
-    this.cast_ = !!this.getPref(CAST_PREF)?.value;
-    this.push_ = !!this.getPref(PUSH_PREF)?.value;
+        !!this.getPref_('credentials_enable_service').value;
+    this.noise_ = !!this.getPref_('helium.noise.enabled').value;
+    this.lens_ = !!this.getPref_(LENS_PREF).value;
+    this.translate_ = !!this.getPref_(TRANSLATE_PREF).value;
+    this.translateEngine_ = this.getPref_<string>(TRANSLATE_ENGINE_PREF).value;
+    this.cast_ = !!this.getPref_(CAST_PREF).value;
+    this.push_ = !!this.getPref_(PUSH_PREF).value;
   }
 
   private loadEngines_() {
@@ -777,7 +786,7 @@ export class SettingsSetupPageElement extends SettingsSetupPageElementBase {
 
   private setTabs_(preset: string) {
     for (const [key, value] of Object.entries(TAB_PRESETS[preset])) {
-      this.setPrefValue(key, value);
+      this.setPrefValue_(key, value);
     }
   }
 
@@ -790,11 +799,11 @@ export class SettingsSetupPageElement extends SettingsSetupPageElementBase {
   }
 
   private onSavePasswords_() {
-    this.setPrefValue('credentials_enable_service', true);
+    this.setPrefValue_('credentials_enable_service', true);
   }
 
   private onDontSavePasswords_() {
-    this.setPrefValue('credentials_enable_service', false);
+    this.setPrefValue_('credentials_enable_service', false);
   }
 
   private onCrashModeChange_(e: Event) {
@@ -803,32 +812,32 @@ export class SettingsSetupPageElement extends SettingsSetupPageElementBase {
   }
 
   private onNoiseChange_(e: Event) {
-    this.setPrefValue('helium.noise.enabled',
+    this.setPrefValue_('helium.noise.enabled',
                       (e.target as HTMLInputElement).checked);
   }
 
   private onLensChange_(e: CustomEvent<boolean>) {
-    this.setPrefValue(LENS_PREF, e.detail);
+    this.setPrefValue_(LENS_PREF, e.detail);
   }
 
   private onTranslateChange_(e: CustomEvent<boolean>) {
-    this.setPrefValue(TRANSLATE_PREF, e.detail);
+    this.setPrefValue_(TRANSLATE_PREF, e.detail);
   }
 
   private onCastChange_(e: CustomEvent<boolean>) {
-    this.setPrefValue(CAST_PREF, e.detail);
+    this.setPrefValue_(CAST_PREF, e.detail);
   }
 
   private onPushChange_(e: CustomEvent<boolean>) {
-    this.setPrefValue(PUSH_PREF, e.detail);
+    this.setPrefValue_(PUSH_PREF, e.detail);
   }
 
   private onDeviceEngine_() {
-    this.setPrefValue(TRANSLATE_ENGINE_PREF, 'device');
+    this.setPrefValue_(TRANSLATE_ENGINE_PREF, 'device');
   }
 
   private onGoogleEngine_() {
-    this.setPrefValue(TRANSLATE_ENGINE_PREF, 'google');
+    this.setPrefValue_(TRANSLATE_ENGINE_PREF, 'google');
   }
 
   private onMakeDefault_() {
