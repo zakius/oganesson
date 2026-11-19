@@ -131,9 +131,13 @@ RACES = ('Receiving end does not exist', 'message channel closed before a respon
 # add-on that scripts every open tab at its start meets the runner's start
 # tab and the other add-ons' pages. Chromium gives the same messages for the
 # zoom and debugger calls on such a page, which this can't tell apart: for
-# those the score errs high.
+# those the score errs high. A content script registered with
+# scripting.registerContentScripts() persists across a restart by default, in
+# Firefox too, so registering its ID again at the next start is refused there
+# as well ("is already registered"); 7TV does it at every start, uncaught.
 FIREFOX_TOO = ('Cannot access a chrome:// URL',
-               'Cannot access a chrome-extension:// URL of different extension')
+               'Cannot access a chrome-extension:// URL of different extension',
+               'Duplicate script ID')
 # Chromium's other message for another add-on's page, which names it.
 OTHER_ADD_ON_PAGE = re.compile(r'Cannot access contents of url "chrome-extension://([a-p]{32})/')
 # The smoke check's page for content scripts that run on every site, and the
