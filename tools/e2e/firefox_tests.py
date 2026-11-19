@@ -57,6 +57,8 @@ TIMEOUT = 600
 ERROR_LENGTH = 300
 # The exit status for a drop; 1 is any other failure of the run.
 DOWN = 3
+# The ports' processes that run now, for an interrupt to stop.
+RUNNING = set()
 
 
 def first_failure(output):
@@ -117,23 +119,28 @@ def run_port(port):
     the folders its browsers kept (harness.py's "kept <root>" lines: a failed
     test's profile and log)."""
     module = port.removesuffix('.py').replace('/', '.')
-    try:
-        done = subprocess.run([sys.executable, '-m', 'unittest', '-v', module], cwd=HERE,
-                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-                              timeout=TIMEOUT, check=False)
-    except subprocess.TimeoutExpired:
-        # Killed: its browsers' folders stay in TMPDIR, unnamed.
-        return False, f'timed out after {TIMEOUT}s', [], []
-    kept = [Path(root) for root in re.findall(r'^ +kept (\S+) \(log: ', done.stdout, re.M)]
-    if done.returncode == 0:
+    with subprocess.Popen([sys.executable, '-m', 'unittest', '-v', module], cwd=HERE,
+                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True) as child:
+        RUNNING.add(child)
+        try:
+            output = child.communicate(timeout=TIMEOUT)[0]
+        except subprocess.TimeoutExpired:
+            child.kill()
+            child.communicate()
+            # Killed: its browsers' folders stay in TMPDIR, unnamed.
+            return False, f'timed out after {TIMEOUT}s', [], []
+        finally:
+            RUNNING.discard(child)
+    kept = [Path(root) for root in re.findall(r'^ +kept (\S+) \(log: ', output, re.M)]
+    if child.returncode == 0:
         return True, None, test_names(module), kept
-    failed = failed_tests(done.stdout)
+    failed = failed_tests(output)
     # A failure outside the tests (a setUpClass of any of the port's
     # classes, whose tests then don't run) fails them all.
-    outside = re.search(r'^(?:FAIL|ERROR): (?!test_)\w+ \(', done.stdout, re.M)
+    outside = re.search(r'^(?:FAIL|ERROR): (?!test_)\w+ \(', output, re.M)
     passing = ([name for name in test_names(module) if name not in failed]
                if failed and not outside else [])
-    return False, first_failure(done.stdout), passing, kept
+    return False, first_failure(output), passing, kept
 
 
 def main():
@@ -179,14 +186,23 @@ def compare(ported, results, kept, old, args, tests, score_path):
     """Runs the ports, prints each one's result next to the committed
     score's, and writes the score unless --only; the exit status."""
     with ThreadPoolExecutor(args.jobs) as pool:
-        # map() gives the results in the list's order, each once it is done.
-        runs = pool.map(run_port, [test['port'] for test in ported])
-        for number, (test, run) in enumerate(zip(ported, runs), 1):
-            passed, error, passing, kept[test['path']] = run
-            results[test['path']] = {'port': test['port'], 'passed': passed, 'error': error,
-                                     'passing': passing}
-            print(f"{number}/{len(ported)} {'pass' if passed else 'FAIL'} {test['port']}"
-                  f"{'  ' + error if error else ''}", flush=True)
+        try:
+            # map() gives the results in the list's order, each once it is done.
+            runs = pool.map(run_port, [test['port'] for test in ported])
+            for number, (test, run) in enumerate(zip(ported, runs), 1):
+                passed, error, passing, kept[test['path']] = run
+                results[test['path']] = {'port': test['port'], 'passed': passed,
+                                         'error': error, 'passing': passing}
+                print(f"{number}/{len(ported)} {'pass' if passed else 'FAIL'} {test['port']}"
+                      f"{'  ' + error if error else ''}", flush=True)
+        except BaseException:
+            # An interrupt (harness.py makes SIGTERM one) reaches this thread
+            # alone: stop the running ports, or the pool waits for them with
+            # the builds lock held.
+            pool.shutdown(wait=False, cancel_futures=True)
+            for child in list(RUNNING):
+                child.terminate()
+            raise
     down = False
     for path, result in results.items():
         before = old.get(path)
