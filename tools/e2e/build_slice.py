@@ -48,11 +48,13 @@ def enter():
          scope, 'fail', str(len(properties)), *[part for prop in properties for part in prop],
          '0'],
         capture_output=True, text=True, check=False)
-    # The move is a job of the user manager, done a moment after the call.
-    deadline = time.monotonic() + 5
+    # The move is a job of the user manager, done some 20 ms after the call,
+    # but seconds later when the manager is busy: what the process starts
+    # before it moves stays out.
+    deadline = time.monotonic() + 30
     while moved.returncode == 0 and not in_slice() and time.monotonic() < deadline:
         time.sleep(0.05)
     if not in_slice():
-        why = moved.stderr.strip() or 'the scope never came'
+        why = moved.stderr.strip() or 'the user manager hasn\'t moved it after 30 s'
         print(f'build_slice: running without the build containers\' limits: {why}',
               file=sys.stderr)
