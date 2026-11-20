@@ -79,5 +79,6 @@ oganesson/settings/translation-settings.patch
 oganesson/core/cast-opt-in.patch
 oganesson/settings/cast-settings.patch
 oganesson/core/push-opt-in.patch
+../dubna/patches/prerender-cross-origin-frames.patch
 oganesson/core/pgo-pinned-profile.patch
 oganesson/core/v8-version-include.patch
