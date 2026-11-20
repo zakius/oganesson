@@ -3467,5 +3467,41 @@ class FirefoxMenusClickTest(head.ContextMenuTest):
                          {'id': 'action', 'modifiers': ['Ctrl'], 'button': 0})
 
 
+class FirefoxMenusRefreshTest(head.ContextMenuTest):
+    """menus.refresh() (dubna#43) rebuilds an add-on's items in the open menu
+    and nothing else: refreshed again and again, a page's menu keeps one
+    separator before them, as an add-on whose items are the only extension
+    items once got one more at each refresh()."""
+
+    def test_refresh_keeps_one_separator(self):
+        extension = self.load_extension(
+            manifest={'permissions': ['menus']},
+            background=JS('''function background() {
+              browser.menus.create({id: "a", title: "item a", contexts: ["all"]});
+              browser.test.onMessage.addListener(async () => {
+                await browser.menus.refresh();
+                browser.test.sendMessage("refreshed");
+              });
+              browser.test.sendMessage("ready");
+            }'''))
+        tab = self.open_tab(MENUS_PAGE)
+        extension.startup()
+        extension.await_message('ready')
+        head.open_context_menu(self, tab, 'body')
+
+        def gap_above_item():
+            # A second separator shows as a wider gap between the groups.
+            items = [item for group in self.browser.menus()[0] for item in group]
+            index = [head.label_of(item) for item in items].index('item a')
+            above = items[index - 1]
+            return items[index].bounds['y'] - above.bounds['y'] - above.bounds['height']
+        gap = gap_above_item()
+        for _ in range(3):
+            extension.send_message('refresh')
+            extension.await_message('refreshed')
+            self.assertEqual(wait_for(gap_above_item), gap)
+        head.close_context_menu(self)
+
+
 if __name__ == '__main__':
     unittest.main()
