@@ -5,7 +5,12 @@ runs it. Only the functions that a port runs are here.
 
 Left out of test_storage_change_event_page: assertPersistentListeners(),
 which reads Gecko's primed listeners. Its terminateBackground() needs the
-test class's EVENT_PAGE_ARGS."""
+test class's EVENT_PAGE_ARGS.
+
+As in Firefox, test_contentscript_storage() and
+test_contentscript_storage_area_getBytesInUse() open their content page
+before the add-on starts, and Firefox runs the add-on's content script in
+it."""
 
 import json
 
@@ -756,6 +761,302 @@ CHECK_GET_BYTES_IN_USE = r'''async function check_get_bytes_in_use(areaName, idb
 }'''
 
 
+STORAGE_CONTENT_SCRIPT = r'''async function testStorageContentScript(checkGet) {
+  let globalChanges, gResolve;
+  function clearGlobalChanges() {
+    globalChanges = new Promise(resolve => {
+      gResolve = resolve;
+    });
+  }
+  clearGlobalChanges();
+  let expectedAreaName;
+
+  browser.storage.onChanged.addListener((changes, areaName) => {
+    browser.test.assertEq(
+      expectedAreaName,
+      areaName,
+      "Expected area name received by listener"
+    );
+    gResolve(changes);
+  });
+
+  async function checkChanges(areaName, changes, message) {
+    function checkSub(obj1, obj2) {
+      for (let prop in obj1) {
+        browser.test.assertTrue(
+          obj1[prop] !== undefined,
+          `checkChanges ${areaName} ${prop} is missing (${message})`
+        );
+        browser.test.assertTrue(
+          obj2[prop] !== undefined,
+          `checkChanges ${areaName} ${prop} is missing (${message})`
+        );
+        browser.test.assertEq(
+          obj1[prop].oldValue,
+          obj2[prop].oldValue,
+          `checkChanges ${areaName} ${prop} old (${message})`
+        );
+        browser.test.assertEq(
+          obj1[prop].newValue,
+          obj2[prop].newValue,
+          `checkChanges ${areaName} ${prop} new (${message})`
+        );
+      }
+    }
+
+    const recentChanges = await globalChanges;
+    checkSub(changes, recentChanges);
+    checkSub(recentChanges, changes);
+    clearGlobalChanges();
+  }
+
+  /* eslint-disable dot-notation */
+  async function runTests(areaName) {
+    expectedAreaName = areaName;
+    let storage = browser.storage[areaName];
+    // Set some data and then test getters.
+    try {
+      await storage.set({ "test-prop1": "value1", "test-prop2": "value2" });
+      await checkChanges(
+        areaName,
+        {
+          "test-prop1": { newValue: "value1" },
+          "test-prop2": { newValue: "value2" },
+        },
+        "set (a)"
+      );
+
+      await checkGet(areaName, "test-prop1", "value1");
+      await checkGet(areaName, "test-prop2", "value2");
+
+      let data = await storage.get({
+        "test-prop1": undefined,
+        "test-prop2": undefined,
+        other: "default",
+      });
+      browser.test.assertEq("value1", data["test-prop1"], "prop1 correct (a)");
+      browser.test.assertEq("value2", data["test-prop2"], "prop2 correct (a)");
+      browser.test.assertEq("default", data["other"], "other correct");
+
+      data = await storage.get(["test-prop1", "test-prop2", "other"]);
+      browser.test.assertEq("value1", data["test-prop1"], "prop1 correct (b)");
+      browser.test.assertEq("value2", data["test-prop2"], "prop2 correct (b)");
+      browser.test.assertFalse("other" in data, "other correct");
+
+      // Remove data in various ways.
+      await storage.remove("test-prop1");
+      await checkChanges(
+        areaName,
+        { "test-prop1": { oldValue: "value1" } },
+        "remove string"
+      );
+
+      data = await storage.get(["test-prop1", "test-prop2"]);
+      browser.test.assertFalse(
+        "test-prop1" in data,
+        "prop1 absent (remove string)"
+      );
+      browser.test.assertTrue(
+        "test-prop2" in data,
+        "prop2 present (remove string)"
+      );
+
+      await storage.set({ "test-prop1": "value1" });
+      await checkChanges(
+        areaName,
+        { "test-prop1": { newValue: "value1" } },
+        "set (c)"
+      );
+
+      data = await storage.get(["test-prop1", "test-prop2"]);
+      browser.test.assertEq(data["test-prop1"], "value1", "prop1 correct (c)");
+      browser.test.assertEq(data["test-prop2"], "value2", "prop2 correct (c)");
+
+      await storage.remove(["test-prop1", "test-prop2"]);
+      await checkChanges(
+        areaName,
+        {
+          "test-prop1": { oldValue: "value1" },
+          "test-prop2": { oldValue: "value2" },
+        },
+        "remove array"
+      );
+
+      data = await storage.get(["test-prop1", "test-prop2"]);
+      browser.test.assertFalse(
+        "test-prop1" in data,
+        "prop1 absent (remove array)"
+      );
+      browser.test.assertFalse(
+        "test-prop2" in data,
+        "prop2 absent (remove array)"
+      );
+
+      // test storage.clear
+      await storage.set({ "test-prop1": "value1", "test-prop2": "value2" });
+      // Make sure that set() handler happened before we clear the
+      // promise again.
+      await globalChanges;
+
+      clearGlobalChanges();
+      await storage.clear();
+
+      await checkChanges(
+        areaName,
+        {
+          "test-prop1": { oldValue: "value1" },
+          "test-prop2": { oldValue: "value2" },
+        },
+        "clear"
+      );
+      data = await storage.get(["test-prop1", "test-prop2"]);
+      browser.test.assertFalse("test-prop1" in data, "prop1 absent (clear)");
+      browser.test.assertFalse("test-prop2" in data, "prop2 absent (clear)");
+
+      // Make sure we can store complex JSON data.
+      // known previous values
+      await storage.set({ "test-prop1": "value1", "test-prop2": "value2" });
+
+      // Make sure the set() handler landed.
+      await globalChanges;
+
+      let date = new Date(0);
+
+      clearGlobalChanges();
+      await storage.set({
+        "test-prop1": {
+          str: "hello",
+          bool: true,
+          null: null,
+          undef: undefined,
+          obj: {},
+          arr: [1, 2],
+          date: new Date(0),
+          regexp: /regexp/,
+        },
+      });
+
+      await browser.test.assertRejects(
+        storage.set({
+          window,
+        }),
+        /DataCloneError|cyclic object value/
+      );
+
+      await browser.test.assertRejects(
+        storage.set({ "test-prop2": function func() {} }),
+        /DataCloneError/
+      );
+
+      const recentChanges = await globalChanges;
+
+      browser.test.assertEq(
+        "value1",
+        recentChanges["test-prop1"].oldValue,
+        "oldValue correct"
+      );
+      browser.test.assertEq(
+        "object",
+        typeof recentChanges["test-prop1"].newValue,
+        "newValue is obj"
+      );
+      clearGlobalChanges();
+
+      data = await storage.get({
+        "test-prop1": undefined,
+        "test-prop2": undefined,
+      });
+      let obj = data["test-prop1"];
+
+      if (areaName === "local") {
+        browser.test.assertEq(
+          String(date),
+          String(obj.date),
+          "date part correct"
+        );
+        browser.test.assertEq(
+          "/regexp/",
+          obj.regexp.toString(),
+          "regexp part correct"
+        );
+      } else {
+        browser.test.assertEq(
+          "1970-01-01T00:00:00.000Z",
+          String(obj.date),
+          "date part correct"
+        );
+
+        browser.test.assertEq(
+          "object",
+          typeof obj.regexp,
+          "regexp part is an object"
+        );
+        browser.test.assertEq(
+          0,
+          Object.keys(obj.regexp).length,
+          "regexp part is an empty object"
+        );
+      }
+
+      browser.test.assertEq("hello", obj.str, "string part correct");
+      browser.test.assertEq(true, obj.bool, "bool part correct");
+      browser.test.assertEq(null, obj.null, "null part correct");
+      browser.test.assertEq(undefined, obj.undef, "undefined part correct");
+      browser.test.assertEq(undefined, obj.window, "window part correct");
+      browser.test.assertEq("object", typeof obj.obj, "object part correct");
+      browser.test.assertTrue(Array.isArray(obj.arr), "array part present");
+      browser.test.assertEq(1, obj.arr[0], "arr[0] part correct");
+      browser.test.assertEq(2, obj.arr[1], "arr[1] part correct");
+      browser.test.assertEq(2, obj.arr.length, "arr.length part correct");
+    } catch (e) {
+      browser.test.fail(`Error: ${e} :: ${e.stack}`);
+      browser.test.notifyFail("storage");
+    }
+  }
+
+  browser.test.onMessage.addListener(msg => {
+    let promise;
+    if (msg === "test-local") {
+      promise = runTests("local");
+    } else if (msg === "test-sync") {
+      promise = runTests("sync");
+    } else if (msg === "test-session") {
+      promise = runTests("session");
+    }
+    promise.then(() => browser.test.sendMessage("test-finished"));
+  });
+
+  browser.test.sendMessage("ready");
+}'''
+
+CHECK_STORAGE_AREA_GET_BYTES_IN_USE = r'''async function check_storage_area_getBytesInUse(area) {
+  let impl = browser.storage[area];
+
+  browser.test.assertEq(
+    typeof impl.getBytesInUse,
+    "function",
+    "getBytesInUse API method should be available"
+  );
+  browser.test.sendMessage("test-complete");
+}'''
+
+GET_BYTES_IN_USE_CONTENT_SCRIPT = r'''function contentScript(checkImpl) {
+  browser.test.onMessage.addListener(msg => {
+    if (msg === "test-local") {
+      checkImpl("local");
+    } else if (msg === "test-sync") {
+      checkImpl("sync");
+    } else if (msg === "test-session") {
+      checkImpl("session");
+    } else {
+      browser.test.fail(`Unexpected test message received: ${msg}`);
+      browser.test.sendMessage("test-complete");
+    }
+  });
+  browser.test.sendMessage("ready");
+}'''
+
+
 def test_storage_after_reload(test, area_name, expect_persistency):
     # Just some random extension ID that we can re-use
     extension_id = 'my-extension-id@1'
@@ -882,3 +1183,58 @@ def test_get_bytes_in_use(test, area_name, is_idb_backend='undefined'):
     extension.startup()
     extension.await_message('test-finished')
     extension.unload()
+
+
+def test_contentscript_storage_area_getBytesInUse(test, area):
+    """The test class serves Firefox's data/file_sample.html at
+    http://example.com/data/file_sample.html."""
+    content_page = test.open_tab('http://example.com/data/file_sample.html')
+
+    extension = test.load_extension(
+        manifest={
+            'content_scripts': [{
+                'matches': ['http://example.com/data/file_sample.html'],
+                'js': ['content_script.js'],
+                'run_at': 'document_idle',
+            }],
+            'permissions': ['storage'],
+        },
+        files={
+            'content_script.js': JS(GET_BYTES_IN_USE_CONTENT_SCRIPT,
+                                    CHECK_STORAGE_AREA_GET_BYTES_IN_USE),
+        })
+    extension.startup()
+    extension.await_message('ready')
+
+    extension.send_message(f'test-{area}')
+    extension.await_message('test-complete')
+
+    extension.unload()
+    test.browser.close_target(content_page)
+
+
+def test_contentscript_storage(test, storage_type):
+    """As test_contentscript_storage_area_getBytesInUse(), the test class
+    serves the content page."""
+    content_page = test.open_tab('http://example.com/data/file_sample.html')
+
+    extension = test.load_extension(
+        manifest={
+            'content_scripts': [{
+                'matches': ['http://example.com/data/file_sample.html'],
+                'js': ['content_script.js'],
+                'run_at': 'document_idle',
+            }],
+            'permissions': ['storage'],
+        },
+        files={
+            'content_script.js': JS(STORAGE_CONTENT_SCRIPT, CHECK_GET_IMPL),
+        })
+    extension.startup()
+    extension.await_message('ready')
+
+    extension.send_message(f'test-{storage_type}')
+    extension.await_message('test-finished')
+
+    extension.unload()
+    test.browser.close_target(content_page)
