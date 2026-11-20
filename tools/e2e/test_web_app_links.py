@@ -235,15 +235,6 @@ class WebAppTest(BrowserTest):
         app.eval('new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))',
                  gesture=False)
 
-    @staticmethod
-    def wait_no_activation(app):
-        # Since Chromium 158, a click in the previous test's app window
-        # reaches a new one for the next few seconds, as the activation of
-        # script run in it (kWebScriptExec): a push without a gesture waits
-        # for it to expire.
-        wait_for(lambda: not app.eval('navigator.userActivation.isActive', gesture=False),
-                 what='no user activation in the app window')
-
     def opened(self):
         return self.opened_file.read_text().splitlines() if self.opened_file.exists() else []
 
@@ -532,7 +523,6 @@ class WebAppLinksTest(WebAppTest):
     def test_dropped_push_without_gesture_fires_no_popstate(self):
         self.set_strict()
         app = self.launch_app()
-        self.wait_no_activation(app)
         app.eval('history.pushState(null, "", "/out.html?script")', gesture=False)
         wait_for(self.opened, what='xdg-open')
         self.assertEqual(app.eval('window.popstates', gesture=False), 0)
@@ -559,10 +549,44 @@ class WebAppLinksTest(WebAppTest):
 
     def test_out_of_scope_push_without_gesture_stays_in_app(self):
         app = self.launch_app()
-        self.wait_no_activation(app)
         app.eval('history.pushState(null, "", "/out.html?script")', gesture=False)
         self.assertEqual(app.eval('location.href'), self.server.url('/out.html?script'))
         self.assertEqual(self.opened(), [])
+
+    def push_after_click_in_other_window(self):
+        """Clicks in one app window, then opens another, whose script pushes
+        an out-of-scope URL; returns the new window. Since Chromium 158 a new
+        app window has the user activation of a click in another window for
+        its first 5 s, as the activation of script run in it (kWebScriptExec).
+        That isn't input in the page, so the push isn't from a click."""
+        other = self.launch_app()
+        other.click('#push-inside')
+        app = self.launch_app()
+        # The activation reaches the new window's document shortly after it
+        # loads, with the first script Chromium runs there.
+        wait_for(lambda: app.eval('navigator.userActivation.isActive', gesture=False),
+                 timeout=4, what='the click\'s activation in the new window')
+        active = app.eval('[navigator.userActivation.isActive,'
+                          ' history.pushState(null, "", "/out.html?script")][0]', gesture=False)
+        self.assertTrue(active, 'the new window had no activation from the click')
+        return app
+
+    def test_out_of_scope_push_after_click_in_other_window_stays_in_app(self):
+        app = self.push_after_click_in_other_window()
+        self.assertEqual(app.eval('location.href', gesture=False),
+                         self.server.url('/out.html?script'))
+        # Nor does the browser send it out after the fact: the default
+        # browser gets only the next click's link.
+        app.click('#plain')
+        wait_for(self.opened, what='xdg-open')
+        self.assertEqual(self.opened(), [self.server.url('/out.html?plain')])
+
+    def test_strict_push_after_click_in_other_window_fires_no_popstate(self):
+        self.set_strict()
+        app = self.push_after_click_in_other_window()
+        wait_for(self.opened, what='xdg-open')
+        self.assertEqual(self.opened(), [self.server.url('/out.html?script')])
+        self.assertEqual(app.eval('window.popstates', gesture=False), 0)
 
     def test_redirect_out_of_scope_stays_in_app(self):
         # Only exclusions follow redirects: sign-in flows go through them.
@@ -592,7 +616,6 @@ class WebAppLinksTest(WebAppTest):
     def test_strict_push_without_gesture_never_changes_address(self):
         self.set_strict()
         app = self.launch_app()
-        self.wait_no_activation(app)
         app.eval('history.pushState(null, "", "/out.html?script")', gesture=False)
         wait_for(self.opened, what='xdg-open')
         self.assertEqual(self.opened(), [self.server.url('/out.html?script')])

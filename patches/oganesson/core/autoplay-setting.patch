@@ -56,24 +56,6 @@
  interface AutoplayConfigurationClient {
    // The browser tells the renderer that an origin has specific autoplay flags.
    AddAutoplayFlags(url.mojom.Origin origin, int32 flags);
---- a/third_party/blink/renderer/core/frame/frame.cc
-+++ b/third_party/blink/renderer/core/frame/frame.cc
-@@ -54,6 +54,7 @@
- #include "third_party/blink/renderer/core/frame/web_remote_frame_impl.h"
- #include "third_party/blink/renderer/core/html/html_frame_element_base.h"
- #include "third_party/blink/renderer/core/html/html_object_element.h"
-+#include "third_party/blink/renderer/core/html/media/oganesson_autoplay.h"
- #include "third_party/blink/renderer/core/input/event_handler.h"
- #include "third_party/blink/renderer/core/layout/layout_embedded_content.h"
- #include "third_party/blink/renderer/core/loader/empty_clients.h"
-@@ -1042,6 +1043,7 @@ void Frame::NotifyUserActivationInFrame(
-     node->user_activation_state_.SetHasBeenActive();
-   } else {
-     node->user_activation_state_.Activate(notification_type);
-+    oganesson_autoplay::DidReceiveUserActivation(*node, notification_type);
-   }
-   auto* local_node = DynamicTo<LocalFrame>(node);
-   if (local_node) {
 --- a/third_party/blink/renderer/core/html/build.gni
 +++ b/third_party/blink/renderer/core/html/build.gni
 @@ -531,6 +531,7 @@ blink_core_sources_html = [

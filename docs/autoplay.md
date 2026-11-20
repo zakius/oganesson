@@ -36,7 +36,7 @@ When the page has `kAutoplayFlagDocumentInputRequired`, blink's `AutoplayPolicy`
 - Transient activation counts only when it is the document's own, and not the opener's.
 - Muted video isn't exempt (`DocumentShouldAutoplayMutedVideos()`).
 
-The frame's own sticky activation isn't enough, because Chromium keeps it across same-origin navigations (`StickyUserActivationAcrossSameOriginNavigation`), and a frame reused for the next document also keeps the click's transient activation. So `Frame::NotifyUserActivationInFrame()` marks the window (a `Supplement<LocalDOMWindow>`) on each user activation that isn't the sticky-only state a navigation passes on. A new document has a new window, without the mark.
+The frame's own sticky activation isn't enough, because Chromium keeps it across same-origin navigations (`StickyUserActivationAcrossSameOriginNavigation`), and a frame reused for the next document also keeps the click's transient activation. So `Frame::NotifyUserActivationInFrame()` marks the window (a `Supplement<LocalDOMWindow>`) on each user activation from input, not the sticky-only state a navigation passes on, nor an extension's script or message. A new document has a new window, without the mark. The mark is dubna's (`dubna/src/third_party/blink/renderer/core/html/document_input.cc`, hooked in `dubna/patches/app-links.patch`): web app links count only such input as a click too.
 
 Limits:
 

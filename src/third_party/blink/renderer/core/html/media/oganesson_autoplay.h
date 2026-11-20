@@ -5,8 +5,6 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_HTML_MEDIA_OGANESSON_AUTOPLAY_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_HTML_MEDIA_OGANESSON_AUTOPLAY_H_
 
-#include "third_party/blink/public/mojom/frame/user_activation_notification_type.mojom-blink-forward.h"
-
 namespace blink {
 
 class Document;
@@ -25,7 +23,7 @@ bool RequiresDocumentInput(const Document& document);
 
 // `frame`'s document received user input: the sticky activation that Block
 // audio counts in place of the frame's, which an extension's script or
-// message can also set (see DidReceiveUserActivation()).
+// message can also set (dubna's document_input.h).
 bool HadDocumentInput(const Frame& frame);
 
 // AutoplayPolicy::IsDocumentAllowedToPlay() after the force-allow and media
@@ -39,14 +37,6 @@ bool IsDocumentAllowedToPlay(const Document& document);
 // the previous document, and only once the document had input. Block audio
 // uses it for the frame's own activation too.
 bool HasTransientUserActivation(const LocalFrame& frame);
-
-// A user activation reached `frame`'s document: input in it or in a child
-// frame, or play from the browser's media controls. Script an extension runs
-// or messages it sends don't count, even when they carry the activation of a
-// click elsewhere (see the .cc).
-void DidReceiveUserActivation(
-    Frame& frame,
-    mojom::blink::UserActivationNotificationType type);
 
 }  // namespace oganesson_autoplay
 
