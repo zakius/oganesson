@@ -2809,6 +2809,7 @@ class FirefoxXpiInstallTest(BrowserTest):
     def installed(self, add_on):
         page = self.browser.new_tab('chrome://extensions')
         try:
+            wait_for(lambda: page.eval('!!chrome.developerPrivate'), what='chrome://extensions')
             return page.eval(f"""new Promise(done => chrome.developerPrivate.getExtensionsInfo(
                 {{includeDisabled: true}}, all => done(all.filter(e => e.id === '{add_on}')
                     .map(e => ({{location: e.location, state: e.state}})))))""")
@@ -2921,6 +2922,7 @@ class FirefoxXpiInstallTest(BrowserTest):
             errors='replace'), timeout=30, what=f'the load error of {path}')
         page = self.browser.new_tab('chrome://extensions')
         try:
+            wait_for(lambda: page.eval('!!chrome.developerPrivate'), what='chrome://extensions')
             names = page.eval("""new Promise(done => chrome.developerPrivate.getExtensionsInfo(
                 {includeDisabled: true}, all => done(all.map(e => e.name))))""")
         finally:
