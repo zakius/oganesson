@@ -494,8 +494,16 @@ class Extension:
 
     def content_script_contexts(self, page):
         """The add-on's content scripts' worlds in `page`'s frames: Runtime.enable
-        names each context that exists before it returns."""
-        page.call('Runtime.enable')
+        names each context that exists before it returns. A tab without a
+        renderer, such as a discarded one, never answers, and has no content
+        scripts: a loaded page answers at once, so 5 seconds is plenty."""
+        timeout = page.ws.sock.gettimeout()
+        page.ws.sock.settimeout(5)
+        try:
+            page.call('Runtime.enable')
+        except TimeoutError:
+            return []
+        page.ws.sock.settimeout(timeout)
         origin = f'chrome-extension://{self.id}'
         return [event['params']['context']['id'] for event in page.events
                 if event.get('method') == 'Runtime.executionContextCreated'
