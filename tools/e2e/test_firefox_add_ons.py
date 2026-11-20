@@ -2709,6 +2709,24 @@ def localized_xpi():
     }, LOCALIZED_GECKO_ID))
 
 
+THEME_GECKO_ID = 'xpi-theme@oganesson.test'
+
+
+def theme_xpi():
+    """A signed theme's .xpi. ZipFileInstaller unzips only a theme's images
+    and JSON files, and its signature in META-INF/ too since the review of
+    zakius/dubna#219."""
+    return zipped(amo_signed({
+        'manifest.json': json.dumps({
+            'manifest_version': 2,
+            'name': 'Firefox .xpi install test theme',
+            'version': '1',
+            'browser_specific_settings': {'gecko': {'id': THEME_GECKO_ID}},
+            'theme': {'colors': {'frame': [40, 90, 160]}},
+        }),
+    }, THEME_GECKO_ID))
+
+
 LARGE_ICON_GECKO_ID = 'xpi-large-icon@oganesson.test'
 
 
@@ -2762,6 +2780,8 @@ class FirefoxXpiInstallTest(BrowserTest):
                   '/add-on.xpi': xpi, '/no-gesture.xpi': xpi,
                   '/localized.xpi': (200, {'Content-Type': 'application/x-xpinstall'},
                                      localized_xpi())}
+        routes['/theme.xpi'] = (200, {'Content-Type': 'application/x-xpinstall'},
+                                theme_xpi())
         changed = 'xpi-changed@oganesson.test'
         unlisted = 'xpi-unlisted@oganesson.test'
         other_root = 'xpi-other-root@oganesson.test'
@@ -2926,6 +2946,17 @@ class FirefoxXpiInstallTest(BrowserTest):
     def test_other_gecko_id(self):
         self.refused('/other-id.xpi', CORRUPT, 'xpi-other-id@')
 
+    def test_signed_theme(self):
+        add_on = gecko_extension_id(THEME_GECKO_ID)
+        self.browser.download(self.server.url('/'), '/theme.xpi')
+
+        button = self.browser.wait_view(
+            'MdTextButton', match=lambda v: v['Enabled'] == 'true' and v['Text'] == 'Add theme')
+        self.browser.click_view(button)
+        # chrome://extensions doesn't list themes: the installed theme's folder.
+        wait_for(lambda: (self.browser.profile / 'Default/Extensions' / add_on).is_dir(),
+                 timeout=30, what='the installed theme')
+
     def test_no_gesture(self):
         self.browser.download(self.server.url('/'), '/no-gesture.xpi', gesture=False)
         wait_for(lambda: (self.browser.home / 'Downloads' / 'no-gesture.xpi').exists(),
@@ -2948,6 +2979,7 @@ class FirefoxXpiAskWhereToSaveTest(FirefoxXpiInstallTest):
     test_localized_homepage_url = test_gecko_id_from_signature = None
     test_large_png_icon = test_unsigned = test_changed_after_signing = None
     test_unlisted_file = test_other_root = test_other_gecko_id = None
+    test_signed_theme = None
 
     def test_ask_where_to_save(self):
         add_on = hashlib.sha256(XPI_GECKO_ID.encode()).hexdigest()[:32].translate(
