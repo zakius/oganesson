@@ -80,6 +80,20 @@ class PrerenderTest(BrowserTest):
         else:
             time.sleep(QUIET)
             self.assertEqual(frames.requests, [])
+        # The start page is in the trial: its token is valid. A second tab,
+        # since attaching to the first would have ended its prerender.
+        start = pages.url('/')
+        tab = self.browser.new_tab(start)
+        self.addCleanup(self.browser.close_target, tab)
+        # Not the tab's first document, about:blank, which is complete too.
+        loaded = f'location.href === {json.dumps(start)} && document.readyState === "complete"'
+        wait_for(lambda: tab.eval(loaded, gesture=False), what='the start page in a second tab')
+        frame_id = tab.call('Page.getFrameTree')['frameTree']['frame']['id']
+        trials = tab.call('Page.getOriginTrials', frameId=frame_id)['originTrials']
+        statuses = [token['status'] for trial in trials
+                    if trial['trialName'] == 'Prerender2CrossOriginIframes'
+                    for token in trial['tokensWithStatus']]
+        self.assertEqual(statuses, ['Success'])
 
 
 class PrerenderFlagTest(PrerenderTest):
