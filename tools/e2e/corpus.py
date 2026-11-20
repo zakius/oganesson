@@ -95,7 +95,10 @@ from harness import (BINARY, DEVELOPER_MODE, Browser, Page, Server, gecko_id, un
 # anonymoX reads its profiles and gateways from its server's answer: L3 in
 # the score of 2026-11-19, L1 in five runs alone later that day, on the
 # installed previous release too.
-VARIES = {'firefox-webext@zenmate.com', 'client@anonymox.net'}
+# Flash Player for Firefox's level follows when its server's answer comes, an
+# HTML page where it expects JSON: L1 in most scores, L2 in some (#85).
+VARIES = {'firefox-webext@zenmate.com', 'client@anonymox.net',
+          '{87e997f4-ae0e-42e6-a780-ff73977188c5}'}
 LEVELS = ('L0', 'L1', 'L2', 'L3')
 GROUP = 20
 # The manifest keys that Firefox reads (MDN's manifest.json keys that Firefox
@@ -349,6 +352,11 @@ def shows_something(target):
         return None
     except AssertionError:
         return 'the popup shows nothing'
+    except ConnectionError:
+        # It closed itself while the check ran, as WebToEpub's does once it
+        # has opened its page in a tab: a closed popup has shown what it
+        # meant to, as one that closes at once above.
+        return None
     except OSError:
         return 'the popup does not answer'
     finally:
