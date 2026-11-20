@@ -948,7 +948,11 @@ class Browser:
             if extension_id not in pinned or len(buttons) < len(pinned):
                 return None
             found = buttons[pinned.index(extension_id)]
-            return found if tooltip in found.props.values() else None
+            # The tooltip's first line: a second says the add-on's access to
+            # the site ("Has access to this site").
+            lines = [value.split('\n')[0] for value in found.props.values()
+                     if isinstance(value, str)]
+            return found if tooltip in lines else None
         return self.wait_settled(button, what=f'the toolbar button {tooltip!r}')
 
     def profile_prefs(self):
