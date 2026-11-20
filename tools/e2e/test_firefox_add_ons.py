@@ -14,9 +14,13 @@ import unittest
 import zipfile
 from pathlib import Path
 
+from extension_test_utils import JS
+from firefox import head
 from harness import (DEVELOPER_MODE, BrowserTest, Page, Server, amo_signed, extension_id,
                      signature_root_arg, signing_root, unpack_xpi, wait_for, zipped)
 from test_google_lens import png
+
+MENUS_PAGE = f'{head.BASE}context.html'
 
 ADD_ON = {
     'manifest.json': json.dumps({
@@ -3377,6 +3381,90 @@ class FirefoxBlankHashTest(BrowserTest):
         finally:
             background.close()
             self.browser.close_target(page)
+
+
+class FirefoxMenusClickTest(head.ContextMenuTest):
+    """menus as Firefox's ext-menus.js has them (dubna#205): a checkbox item
+    with a command changes its state before the command runs, an item moved
+    under a parent without contexts takes the parent's, and a click in the
+    tab strip's or the toolbar button's menu gives its modifiers. The menus
+    are the browser's own, clicked as Firefox's ported tests click them
+    (firefox/head.py)."""
+
+    def test_command_checkbox(self):
+        extension = self.load_extension(
+            manifest={'name': 'Menus test', 'permissions': ['menus'], 'browser_action': {}},
+            background=JS('''function background() {
+              browser.menus.create({id: "box", title: "box", type: "checkbox",
+                                    contexts: ["all"], command: "_execute_browser_action"});
+              browser.menus.create({id: "other", title: "other", contexts: ["all"]});
+              browser.menus.onClicked.addListener(() => {
+                browser.test.fail("menus.onClicked fired for a command item");
+              });
+              browser.browserAction.onClicked.addListener(() => {
+                browser.test.sendMessage("action");
+              });
+              browser.test.sendMessage("ready");
+            }'''))
+        tab = self.open_tab(MENUS_PAGE)
+        extension.startup()
+        extension.await_message('ready')
+        for checked in (True, False):
+            menu = head.open_extension_context_menu(self, tab, name='Menus test')
+            box = menu.by_label('box')[0]
+            self.assertEqual(menu.is_checked(box), not checked)
+            head.close_extension_context_menu(self, box)
+            extension.await_message('action')
+            menu = head.open_extension_context_menu(self, tab, name='Menus test')
+            self.assertEqual(menu.is_checked(menu.by_label('box')[0]), checked)
+            head.close_context_menu(self)
+
+    def test_moved_item_takes_parent_contexts(self):
+        extension = self.load_extension(
+            manifest={'permissions': ['menus']},
+            background=JS('''async function background() {
+              browser.menus.create({id: "parent", title: "parent", contexts: ["all"]});
+              browser.menus.create({id: "child", title: "child", contexts: ["link"]});
+              await browser.menus.update("child", {parentId: "parent"});
+              browser.test.sendMessage("ready");
+            }'''))
+        tab = self.open_tab(MENUS_PAGE)
+        extension.startup()
+        extension.await_message('ready')
+        menu = head.open_context_menu(self, tab, '#img1')
+        parent = menu.by_label('parent')
+        self.assertEqual(len(parent), 1, 'the parent shows on an image')
+        self.assertTrue(head.has_submenu(self, parent[0]),
+                        'the child, now in all contexts as its parent, shows on an image')
+        self.assertEqual([head.label_of(item) for item in head.open_submenu(self, parent[0]).items],
+                         ['child'])
+        head.close_context_menu(self)
+
+    def test_modifiers_in_tab_and_action_menus(self):
+        extension = self.load_extension(
+            manifest={'permissions': ['menus'], 'browser_action': {}},
+            background=JS('''function background() {
+              browser.menus.create({id: "tab", title: "tab item", contexts: ["tab"]});
+              browser.menus.create({id: "action", title: "action item",
+                                    contexts: ["browser_action"]});
+              browser.menus.onClicked.addListener(info => {
+                browser.test.sendMessage("clicked", {
+                  id: info.menuItemId, modifiers: info.modifiers, button: info.button,
+                });
+              });
+              browser.test.sendMessage("ready");
+            }'''))
+        self.open_tab(MENUS_PAGE)
+        extension.startup()
+        extension.await_message('ready')
+        menu = head.open_tab_context_menu(self)
+        head.close_extension_context_menu(self, menu.by_label('tab item')[0], {'shiftKey': True})
+        self.assertEqual(extension.await_message('clicked'),
+                         {'id': 'tab', 'modifiers': ['Shift'], 'button': 0})
+        menu = head.open_action_context_menu(self, extension, 'browser')
+        head.close_extension_context_menu(self, menu.by_label('action item')[0], {'ctrlKey': True})
+        self.assertEqual(extension.await_message('clicked'),
+                         {'id': 'action', 'modifiers': ['Ctrl'], 'button': 0})
 
 
 if __name__ == '__main__':
