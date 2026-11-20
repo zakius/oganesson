@@ -124,7 +124,17 @@ def grant_optional_permission(test, extension, origins):
         page.call('Runtime.evaluate', userGesture=True,
                   expression=f'chrome.permissions.request({{origins: {json.dumps(origins)}}})'
                              '.then(granted => globalThis.__fxtestGranted = granted)')
-        test.browser.click_view(test.browser.wait_view('MdTextButton', Text='Allow'))
+        # The prompt ignores clicks for a moment after it shows (Chromium's
+        # InputEventActivationProtector), so Allow is clicked until it closes.
+        test.browser.wait_view('MdTextButton', Text='Allow')
+
+        def allowed():
+            buttons = [view for view in test.browser.views('MdTextButton', Text='Allow')
+                       if view.visible]
+            if buttons:
+                test.browser.click_view(buttons[0])
+            return not buttons
+        wait_for(allowed, interval=0.5, what='the prompt to take the click on Allow')
         wait_for(lambda: page.eval('globalThis.__fxtestGranted === true', gesture=False),
                  what='the optional permission')
     finally:
