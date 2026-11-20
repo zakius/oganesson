@@ -1,15 +1,16 @@
 """The WebExtensions climb's corpus runner (corpus.py): small add-ons of each
 kind it tells apart get the levels it gives them. Each installs from its .xpi
 with the Gecko ID that test_levels() gives it, but where it has a
-browser_specific_settings of its own."""
+browser_specific_settings of its own, signed by the test root that the
+browser trusts, as AMO signs its add-ons (zakius/dubna#219)."""
 
 import json
 import tempfile
 import unittest
-import zipfile
 from pathlib import Path
 
 import corpus
+from harness import amo_signed, signature_root_arg, zipped
 
 BACKGROUND_MV2 = {'manifest_version': 2, 'name': 'probe', 'version': '1',
                   'background': {'scripts': ['background.js']}}
@@ -71,8 +72,9 @@ ADDONS = {
         })();''', 'L3'),
     'not-json': ('{"manifest_version": 2,', '', None),
     # Add-ons that load with --load-extension but whose .xpi doesn't
-    # install: one without a Gecko ID (it has Firefox's other settings), and
-    # one whose icon isn't an image, which only the install decodes.
+    # install: one without a Gecko ID (it has Firefox's other settings) or a
+    # signature, and one whose icon isn't an image, which only the install
+    # decodes.
     'no-gecko-id': ({**BACKGROUND_MV2, 'browser_specific_settings': {
         'gecko': {'strict_min_version': '109.0'}}}, 'self.started = true;', 'L0'),
     'broken-icon': ({**BACKGROUND_MV2, 'icons': {'48': 'icon.png'}}, 'self.started = true;',
@@ -104,17 +106,22 @@ class CorpusTest(unittest.TestCase):
             items, xpis = [], []
             for number, (name, (manifest, background, _, *files)) in enumerate(ADDONS.items()):
                 xpi = folder / f'{name}.xpi'
+                # Signed for its Gecko ID, as AMO signs an add-on.
+                signer_id = f'{name}@corpus.test'
                 if isinstance(manifest, dict):
-                    manifest = json.dumps({'browser_specific_settings': {
-                        'gecko': {'id': f'{name}@corpus.test'}}, **manifest})
-                with zipfile.ZipFile(xpi, 'w') as archive:
-                    archive.writestr('manifest.json', manifest)
-                    archive.writestr('background.js', background)
-                    for file, text in (files[0] if files else {}).items():
-                        archive.writestr(file, text)
+                    manifest = {'browser_specific_settings': {'gecko': {'id': signer_id}},
+                                **manifest}
+                    signer_id = manifest['browser_specific_settings']['gecko'].get('id')
+                    manifest = json.dumps(manifest)
+                contents = {'manifest.json': manifest, 'background.js': background,
+                            **(files[0] if files else {})}
+                if signer_id:
+                    contents = amo_signed(contents, signer_id)
+                xpi.write_bytes(zipped(contents))
                 items.append({'id': name, 'sha256': f'{number:064x}'})
                 xpis.append(xpi)
-            results = corpus.run_group(items, xpis, folder / 'unpacked')
+            results = corpus.run_group(items, xpis, folder / 'unpacked',
+                                       args=[signature_root_arg()])
         for name, (_, _, expected, *_) in ADDONS.items():
             with self.subTest(name):
                 found, error = results[name]
@@ -124,7 +131,7 @@ class CorpusTest(unittest.TestCase):
         self.assertIn("reading 'call'", results['popup-throws'][1])
         self.assertEqual(results['popup-empty'][1], 'the popup shows nothing')
         self.assertIn("reading 'remove'", results['content-throws'][1])
-        self.assertIn('This add-on has no Gecko ID', results['no-gecko-id'][1])
+        self.assertIn('because it appears to be corrupt', results['no-gecko-id'][1])
         self.assertIn("Could not decode image: 'icon.png'", results['broken-icon'][1])
 
     def test_content_url(self):

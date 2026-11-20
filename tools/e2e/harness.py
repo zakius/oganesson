@@ -43,6 +43,9 @@ What's here:
 - installed_env(folder): `browser_env` for a browser installed as a package.
 - unpack_xpi(xpi, folder): an .xpi unpacked for --load-extension;
   extension_id(folder): the ID of the add-on loaded from there.
+- amo_signed(files, signer_id) and zipped(files): a .xpi to install from a
+  download, signed as AMO signs one, by signing_root(), which a browser
+  started with signature_root_arg() trusts.
 
 Tests to copy from: test_ubo_restart.py for the bundled uBlock Origin,
 test_tab_behavior.py for a test extension loaded with --load-extension,
@@ -57,15 +60,18 @@ TMPDIR=../../work/tmp that starts `harness.Browser()`; add-on errors are the
 From its import on, a script that imports this module and what it starts
 run with the CPUs and memory of the build containers (build_slice.py).
 
-Needs Python 3, Xvfb, xdotool and xwd (screen pixels), and labwc for Wayland.
+Needs Python 3, Xvfb, xdotool and xwd (screen pixels), labwc for Wayland, and
+openssl for signed .xpi files.
 Stdlib only.
 """
 
 import atexit
 import base64
 import ctypes
+import functools
 import hashlib
 import http.server
+import io
 import json
 import os
 import re
@@ -167,6 +173,75 @@ def unpack_xpi(xpi, folder):
     with zipfile.ZipFile(xpi) as archive:
         archive.extractall(folder)
     return Path(folder)
+
+
+@functools.cache
+def signing_root(name='test'):
+    """The certificate of a test root for AMO signatures, root.pem, next to
+    its key, root.key, made once per process. The browser trusts the one
+    that signature_root_arg() names, as Firefox's
+    xpinstall.signatures.dev-root pref picks a root for tests
+    (zakius/dubna#219); another `name` makes another root."""
+    folder = Path(tempfile.mkdtemp(prefix=f'oganesson-signing-root-{name}-'))
+    atexit.register(shutil.rmtree, folder, ignore_errors=True)
+    subprocess.run(['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '3650',
+                    '-subj', f'/CN={name}.signing-root.oganesson.test',
+                    '-keyout', 'root.key', '-out', 'root.pem'],
+                   cwd=folder, check=True, capture_output=True)
+    return folder / 'root.pem'
+
+
+def signature_root_arg():
+    """The browser's argument that has it trust signing_root()."""
+    return f'--firefox-add-ons-signature-root={signing_root()}'
+
+
+def amo_signed(files, signer_id, root=None):
+    """The files of a .xpi, `files` ({path: text or bytes}), with AMO's
+    signature added in META-INF/, as Firefox checks it (zakius/dubna#219):
+    manifest.mf gives each file's SHA-256, mozilla.sf gives manifest.mf's,
+    and mozilla.rsa is a PKCS #7 of mozilla.sf by a certificate for code
+    signing whose common name is `signer_id`, issued by `root`, the
+    signing_root() by default."""
+    root = root or signing_root()
+
+    def digest(content):
+        content = content.encode() if isinstance(content, str) else content
+        return base64.b64encode(hashlib.sha256(content).digest()).decode()
+
+    manifest = 'Manifest-Version: 1.0\n\n' + ''.join(
+        f'Name: {name}\nSHA256-Digest: {digest(content)}\n\n' for name, content in files.items())
+    sf = f'Signature-Version: 1.0\nSHA256-Digest-Manifest: {digest(manifest)}\n\n'
+    with tempfile.TemporaryDirectory(prefix='oganesson-amo-signature-') as folder:
+        folder = Path(folder)
+
+        def openssl(*args):
+            subprocess.run(['openssl', *args], cwd=folder, check=True, capture_output=True)
+
+        (folder / 'mozilla.sf').write_text(sf)
+        # As AMO's add-on certificates have them.
+        (folder / 'add-on.ext').write_text(
+            'keyUsage = critical, digitalSignature\nextendedKeyUsage = codeSigning\n')
+        openssl('req', '-newkey', 'rsa:2048', '-nodes', '-subj', f'/CN={signer_id}',
+                '-keyout', 'add-on.key', '-out', 'add-on.csr')
+        openssl('x509', '-req', '-in', 'add-on.csr', '-CA', str(root),
+                '-CAkey', str(root.with_name('root.key')), '-set_serial', '1', '-days', '1',
+                '-extfile', 'add-on.ext', '-out', 'add-on.pem')
+        openssl('cms', '-sign', '-binary', '-in', 'mozilla.sf', '-signer', 'add-on.pem',
+                '-inkey', 'add-on.key', '-md', 'sha256', '-nosmimecap', '-outform', 'DER',
+                '-out', 'mozilla.rsa')
+        rsa = (folder / 'mozilla.rsa').read_bytes()
+    return {**files, 'META-INF/manifest.mf': manifest, 'META-INF/mozilla.sf': sf,
+            'META-INF/mozilla.rsa': rsa}
+
+
+def zipped(files):
+    """A .xpi, a zip archive, of `files` ({path: text or bytes})."""
+    data = io.BytesIO()
+    with zipfile.ZipFile(data, 'w') as archive:
+        for name, content in files.items():
+            archive.writestr(name, content)
+    return data.getvalue()
 
 
 # Firefox's pattern for an add-on ID (dubna's firefox_gecko_id.cc).

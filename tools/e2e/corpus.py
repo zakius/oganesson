@@ -478,8 +478,8 @@ def read_manifest(folder):
 
 def signature_id(folder):
     """The ID in the add-on's AMO signature: the first common name of the
-    certificates in META-INF/mozilla.rsa that is a Gecko ID, as dubna's
-    firefox_xpi_signature.cc reads it, or None."""
+    certificates in META-INF/mozilla.rsa that is a Gecko ID, the signing
+    certificate's, which dubna's firefox_xpi_signature.cc takes, or None."""
     signature = folder / 'META-INF' / 'mozilla.rsa'
     if not signature.is_file():
         return None
@@ -604,9 +604,10 @@ def smoke_levels(browser, at_l2, manifests, installed, log):
     return levels
 
 
-def run_group(items, xpis, work):
+def run_group(items, xpis, work, args=()):
     """Installs the add-ons `items` (corpus entries) from their .xpi files
-    `xpis` in one browser and returns {id: (level, error)}."""
+    `xpis` in one browser, with more of its arguments `args`, and returns
+    {id: (level, error)}."""
     folders = {}
     for item, xpi in zip(items, xpis):
         folder = work / item['sha256']
@@ -624,7 +625,7 @@ def run_group(items, xpis, work):
         routes[f'/{number}.xpi'] = (200, {'Content-Type': 'application/x-xpinstall'},
                                     xpi.read_bytes())
     # --noerrdialogs: a failed install would hold the run with a message box.
-    browser = Browser(args=['--noerrdialogs'], prefs=DEVELOPER_MODE)
+    browser = Browser(args=['--noerrdialogs', *args], prefs=DEVELOPER_MODE)
     server = Server(routes)
     try:
         manifests = {i: read_manifest(f) for i, f in folders.items() if f}

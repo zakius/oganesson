@@ -4,7 +4,6 @@ each on the same small Manifest V2 add-on, as most of AMO's are. An add-on in
 the profile's firefox_add_ons.named_firefox list is told it runs in Firefox."""
 
 import hashlib
-import io
 import json
 import shutil
 import subprocess
@@ -15,8 +14,8 @@ import unittest
 import zipfile
 from pathlib import Path
 
-from harness import (DEVELOPER_MODE, BrowserTest, Page, Server, extension_id, unpack_xpi,
-                     wait_for)
+from harness import (DEVELOPER_MODE, BrowserTest, Page, Server, amo_signed, extension_id,
+                     signature_root_arg, signing_root, unpack_xpi, wait_for, zipped)
 from test_google_lens import png
 
 ADD_ON = {
@@ -2668,31 +2667,10 @@ XPI_GECKO_ID = 'xpi-install@oganesson.test'
 SIGNED_GECKO_ID = '{e8f509f0-b677-11de-8a39-0800200c9a66}'
 
 
-def amo_signature(gecko_id):
-    """A META-INF/mozilla.rsa as AMO's is: a DER PKCS #7 with the add-on's
-    certificate, whose common name is `gecko_id`, and the one of the CA that
-    signed it. AMO's lists the add-on's first; this one lists the CA's first,
-    so the ID comes from the common name, not the order."""
-    with tempfile.TemporaryDirectory(prefix='oganesson-amo-signature-') as folder:
-        folder = Path(folder)
-
-        def openssl(*args):
-            subprocess.run(['openssl', *args], cwd=folder, check=True, capture_output=True)
-
-        openssl('req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1',
-                '-subj', '/CN=signingca.oganesson.test', '-keyout', 'ca.key', '-out', 'ca.pem')
-        openssl('req', '-newkey', 'rsa:2048', '-nodes', '-subj', f'/CN={gecko_id}',
-                '-keyout', 'add-on.key', '-out', 'add-on.csr')
-        openssl('x509', '-req', '-in', 'add-on.csr', '-CA', 'ca.pem', '-CAkey', 'ca.key',
-                '-set_serial', '1', '-days', '1', '-out', 'add-on.pem')
-        openssl('crl2pkcs7', '-nocrl', '-certfile', 'ca.pem', '-certfile', 'add-on.pem',
-                '-outform', 'DER', '-out', 'mozilla.rsa')
-        return (folder / 'mozilla.rsa').read_bytes()
-
-
-def xpi_add_on(gecko_id, signed_id=None):
-    """An .xpi, as AMO serves it: with its signature in META-INF/, a fake one
-    unless `signed_id` is the ID the signature names."""
+def xpi_add_on(gecko_id, signed_id=None, root=None):
+    """The files of a .xpi, signed as AMO signs them for the ID `signed_id`
+    by the test root `root` (signing_root() by default), or unsigned without
+    `signed_id`."""
     manifest = {
         'manifest_version': 2,
         'name': ('Firefox .xpi install test add-on '
@@ -2706,14 +2684,8 @@ def xpi_add_on(gecko_id, signed_id=None):
     files = {
         'manifest.json': json.dumps(manifest),
         'background.js': 'self.started = true;',
-        'META-INF/cose.sig': 'not checked',
-        'META-INF/mozilla.rsa': amo_signature(signed_id) if signed_id else 'not checked',
     }
-    data = io.BytesIO()
-    with zipfile.ZipFile(data, 'w') as archive:
-        for name, text in files.items():
-            archive.writestr(name, text)
-    return data.getvalue()
+    return amo_signed(files, signed_id, root) if signed_id else files
 
 
 LOCALIZED_GECKO_ID = 'xpi-localized@oganesson.test'
@@ -2721,7 +2693,7 @@ LOCALIZED_GECKO_ID = 'xpi-localized@oganesson.test'
 
 def localized_xpi():
     """A .xpi whose homepage_url is a message of its locale files."""
-    files = {
+    return zipped(amo_signed({
         'manifest.json': json.dumps({
             'manifest_version': 2,
             'name': 'Firefox .xpi install test add-on with a localized homepage',
@@ -2734,12 +2706,7 @@ def localized_xpi():
         '_locales/en/messages.json': json.dumps(
             {'homepage': {'message': 'https://example.com/localized'}}),
         'background.js': 'self.started = true;',
-    }
-    data = io.BytesIO()
-    with zipfile.ZipFile(data, 'w') as archive:
-        for name, text in files.items():
-            archive.writestr(name, text)
-    return data.getvalue()
+    }, LOCALIZED_GECKO_ID))
 
 
 LARGE_ICON_GECKO_ID = 'xpi-large-icon@oganesson.test'
@@ -2748,7 +2715,7 @@ LARGE_ICON_GECKO_ID = 'xpi-large-icon@oganesson.test'
 def large_icon_xpi():
     """A .xpi whose 48 px icon is a 2800×2800 PNG, as Clipboard Watchdog's:
     31 MB decoded, more than the 16 MB that Chromium's image decoder takes."""
-    files = {
+    return zipped(amo_signed({
         'manifest.json': json.dumps({
             'manifest_version': 2,
             'name': 'Firefox .xpi install test add-on with a very large icon',
@@ -2759,36 +2726,59 @@ def large_icon_xpi():
         }),
         'icon48.png': png(2800),
         'background.js': 'self.started = true;',
-    }
-    data = io.BytesIO()
-    with zipfile.ZipFile(data, 'w') as archive:
-        for name, content in files.items():
-            archive.writestr(name, content)
-    return data.getvalue()
+    }, LARGE_ICON_GECKO_ID))
+
+
+# Firefox's reasons for a .xpi that doesn't install (dubna's
+# firefox_xpi_installer.cc).
+NOT_VERIFIED = 'This add-on could not be installed because it has not been verified.'
+CORRUPT = 'This add-on could not be installed because it appears to be corrupt.'
 
 
 class FirefoxXpiInstallTest(BrowserTest):
     """A .xpi downloaded after a user gesture opens the install prompt.
     Accepted, an add-on with a Gecko ID installs packed, without developer
     mode, with the ID from its Gecko ID; a second download reinstalls it and
-    keeps its storage. One without a Gecko ID installs with the ID of its AMO
-    signature (META-INF/mozilla.rsa), as in Firefox. One with neither doesn't
-    install, even in developer mode, and without a gesture a .xpi stays a
-    file. An icon too large for Chromium's image decoder is scaled down to
-    fit, and the add-on installs."""
+    keeps its storage. As in Firefox, a .xpi installs only with a valid AMO
+    signature, here by the test root that the browser trusts with
+    --firefox-add-ons-signature-root (zakius/dubna#219), whose certificate's
+    common name is the add-on's ID: one without a Gecko ID installs with
+    that ID. Without a signature, it "has not been verified"; with a file
+    changed after signing or one that manifest.mf doesn't list, signed by
+    another root, or with another Gecko ID than the signature's, it "appears
+    to be corrupt", and so does one without a Gecko ID or a signature, which
+    has no ID. None of them installs, even in developer mode, and without a
+    gesture a .xpi stays a file. An icon too large for Chromium's image
+    decoder is scaled down to fit, and the add-on installs."""
 
     prefs = DEVELOPER_MODE
 
     @classmethod
     def setUpClass(cls):
-        xpi = (200, {'Content-Type': 'application/x-xpinstall'}, xpi_add_on(XPI_GECKO_ID))
-        no_id = (200, {'Content-Type': 'application/x-xpinstall'}, xpi_add_on(None))
-        signed = (200, {'Content-Type': 'application/x-xpinstall'},
-                  xpi_add_on(None, SIGNED_GECKO_ID))
-        localized = (200, {'Content-Type': 'application/x-xpinstall'}, localized_xpi())
-        cls.server = Server({'/': (200, {'Content-Type': 'text/html'}, b'<p>add-ons</p>'),
-                             '/add-on.xpi': xpi, '/no-id.xpi': no_id, '/no-gesture.xpi': xpi,
-                             '/localized.xpi': localized, '/signed.xpi': signed})
+        cls.browser_args = (signature_root_arg(),)
+        xpi = (200, {'Content-Type': 'application/x-xpinstall'},
+               zipped(xpi_add_on(XPI_GECKO_ID, XPI_GECKO_ID)))
+        routes = {'/': (200, {'Content-Type': 'text/html'}, b'<p>add-ons</p>'),
+                  '/add-on.xpi': xpi, '/no-gesture.xpi': xpi,
+                  '/localized.xpi': (200, {'Content-Type': 'application/x-xpinstall'},
+                                     localized_xpi())}
+        changed = 'xpi-changed@oganesson.test'
+        unlisted = 'xpi-unlisted@oganesson.test'
+        other_root = 'xpi-other-root@oganesson.test'
+        for path, files in {
+                '/signed.xpi': xpi_add_on(None, SIGNED_GECKO_ID),
+                '/no-id.xpi': xpi_add_on(None),
+                '/unsigned.xpi': xpi_add_on('xpi-unsigned@oganesson.test'),
+                '/changed.xpi': {**xpi_add_on(changed, changed),
+                                 'background.js': 'self.started = "changed";'},
+                '/unlisted.xpi': {**xpi_add_on(unlisted, unlisted), 'unlisted.js': ''},
+                '/other-root.xpi': xpi_add_on(other_root, other_root, signing_root('other')),
+                # Its Gecko ID isn't the one it is signed for.
+                '/other-id.xpi': xpi_add_on('xpi-other-id@oganesson.test',
+                                            'xpi-signed-id@oganesson.test'),
+        }.items():
+            routes[path] = (200, {'Content-Type': 'application/x-xpinstall'}, zipped(files))
+        cls.server = Server(routes)
         super().setUpClass()
 
     @classmethod
@@ -2902,18 +2892,39 @@ class FirefoxXpiInstallTest(BrowserTest):
         self.assertNotEqual(info[0]['location'], 'UNPACKED')
         self.assertEqual(info[0]['state'], 'ENABLED')
 
-    def test_no_gecko_id(self):
-        # Its signature is fake, so it has no ID there either.
-        self.browser.download(self.server.url('/'), '/no-id.xpi')
-        wait_for(lambda: 'This add-on has no Gecko ID' in self.browser.log_path.read_text(
-            errors='replace'), timeout=30, what='the load error')
+    def refused(self, path, error, name):
+        """Downloads the .xpi at `path`, waits for the browser's `error` for
+        it, and checks that no add-on whose name has `name` installed."""
+        self.browser.download(self.server.url('/'), path)
+        # "Extension error: Failed to load extension from: <path>. <error>"
+        wait_for(lambda: f'{path[1:]}. {error}' in self.browser.log_path.read_text(
+            errors='replace'), timeout=30, what=f'the load error of {path}')
         page = self.browser.new_tab('chrome://extensions')
         try:
             names = page.eval("""new Promise(done => chrome.developerPrivate.getExtensionsInfo(
                 {includeDisabled: true}, all => done(all.map(e => e.name))))""")
         finally:
             self.browser.close_target(page)
-        self.assertNotIn('Firefox .xpi install test add-on without a Gecko ID', names)
+        self.assertFalse([n for n in names if name in n])
+
+    def test_no_gecko_id(self):
+        # Neither a Gecko ID nor a signature: Firefox finds no ID.
+        self.refused('/no-id.xpi', CORRUPT, 'without a Gecko ID')
+
+    def test_unsigned(self):
+        self.refused('/unsigned.xpi', NOT_VERIFIED, 'xpi-unsigned@')
+
+    def test_changed_after_signing(self):
+        self.refused('/changed.xpi', CORRUPT, 'xpi-changed@')
+
+    def test_unlisted_file(self):
+        self.refused('/unlisted.xpi', CORRUPT, 'xpi-unlisted@')
+
+    def test_other_root(self):
+        self.refused('/other-root.xpi', CORRUPT, 'xpi-other-root@')
+
+    def test_other_gecko_id(self):
+        self.refused('/other-id.xpi', CORRUPT, 'xpi-other-id@')
 
     def test_no_gesture(self):
         self.browser.download(self.server.url('/'), '/no-gesture.xpi', gesture=False)
@@ -2935,7 +2946,8 @@ class FirefoxXpiAskWhereToSaveTest(FirefoxXpiInstallTest):
     # Not the base class's tests again: unittest runs only what is callable.
     test_download_installs = test_no_gecko_id = test_no_gesture = None
     test_localized_homepage_url = test_gecko_id_from_signature = None
-    test_large_png_icon = None
+    test_large_png_icon = test_unsigned = test_changed_after_signing = None
+    test_unlisted_file = test_other_root = test_other_gecko_id = None
 
     def test_ask_where_to_save(self):
         add_on = hashlib.sha256(XPI_GECKO_ID.encode()).hexdigest()[:32].translate(
@@ -2964,7 +2976,7 @@ def svg(color, view_box='0 0 16 16'):
 
 def svg_xpi(gecko_id, action, color):
     """A .xpi whose icons and `action`'s icon are one SVG in `color`, as
-    Pouch's are."""
+    Pouch's are, signed by the test root."""
     manifest = {
         'manifest_version': 2,
         'name': f'Firefox SVG icons test add-on {gecko_id}',
@@ -2982,11 +2994,7 @@ def svg_xpi(gecko_id, action, color):
         'background/background.html': '<!doctype html><script src="background.js"></script>',
         'background/background.js': 'self.started = true;',
     }
-    data = io.BytesIO()
-    with zipfile.ZipFile(data, 'w') as archive:
-        for name, text in files.items():
-            archive.writestr(name, text)
-    return data.getvalue()
+    return zipped(amo_signed(files, gecko_id))
 
 
 def near(color, other):
@@ -3008,6 +3016,7 @@ class FirefoxXpiSvgIconsTest(BrowserTest):
 
     @classmethod
     def setUpClass(cls):
+        cls.browser_args = (signature_root_arg(),)
         xpi = 'application/x-xpinstall'
         cls.server = Server({
             '/': (200, {'Content-Type': 'text/html'}, b'<p>add-ons</p>'),
