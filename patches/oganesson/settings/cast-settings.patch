@@ -30,15 +30,15 @@
        // <if expr="is_win">
        isolationStateEnabledPref_: {type: Object},
        // </if>
-@@ -125,6 +126,8 @@
-       chrome.settingsPrivate.PrefObject<ProxyOverrideRule[]>|undefined;
-   protected accessor hardwareAccelerationModeEnabledPref_:
-       chrome.settingsPrivate.PrefObject<boolean>|undefined;
+@@ -119,6 +120,8 @@
+   private processIsolationEnabledAtStartup_: boolean|undefined;
+   // </if>
+ 
 +  protected accessor googleCastEnabledPref_:
 +      chrome.settingsPrivate.PrefObject<boolean>|undefined;
-   // <if expr="is_win">
-   protected accessor isolationStateEnabledPref_:
-       chrome.settingsPrivate.PrefObject<boolean>|undefined;
+   protected accessor proxyPref_: chrome.settingsPrivate.PrefObject<unknown>|
+       undefined;
+   protected accessor proxyOverrideRulesPref_:
 @@ -138,6 +141,7 @@
        'proxy_override_rules': 'proxyOverrideRulesPref_',
        'hardware_acceleration_mode.enabled':
