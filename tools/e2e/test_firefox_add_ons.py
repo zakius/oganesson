@@ -14,7 +14,7 @@ import unittest
 import zipfile
 from pathlib import Path
 
-from extension_test_utils import JS
+from extension_test_utils import JS, FirefoxTest
 from firefox import head
 from harness import (DEVELOPER_MODE, BrowserTest, Page, Server, amo_signed, extension_id,
                      signature_root_arg, signing_root, unpack_xpi, wait_for, zipped)
@@ -3501,6 +3501,34 @@ class FirefoxMenusRefreshTest(head.ContextMenuTest):
             extension.await_message('refreshed')
             self.assertEqual(wait_for(gap_above_item), gap)
         head.close_context_menu(self)
+
+
+class FirefoxMenusBindingsTest(FirefoxTest):
+    """menus.onShown, onHidden and refresh() (dubna#43) are in a Firefox
+    add-on's contextMenus only (dubna#228). A Chrome Web Store extension
+    keeps Chromium's contextMenus, without them: it may tell Chrome from
+    Firefox by `'onShown' in chrome.contextMenus`."""
+
+    def test_only_in_firefox_add_ons(self):
+        background = JS('''function background() {
+          chrome.test.sendMessage("members", ["onClicked", "onShown", "onHidden", "refresh"]
+            .filter(name => name in chrome.contextMenus));
+        }''')
+        firefox = self.load_extension(manifest={'permissions': ['contextMenus']},
+                                      background=background)
+        # A manifest of its own, which load_extension() leaves without a
+        # Gecko ID.
+        chrome = self.load_extension(files={
+            'manifest.json': {'manifest_version': 2, 'name': 'Chrome extension', 'version': '1',
+                              'permissions': ['contextMenus'],
+                              'background': {'scripts': ['background.js']}},
+            'background.js': background,
+        })
+        firefox.startup()
+        chrome.startup()
+        self.assertEqual(firefox.await_message('members'),
+                         ['onClicked', 'onShown', 'onHidden', 'refresh'])
+        self.assertEqual(chrome.await_message('members'), ['onClicked'])
 
 
 if __name__ == '__main__':
