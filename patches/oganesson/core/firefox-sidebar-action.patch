@@ -27,14 +27,14 @@
  
 --- a/chrome/browser/ui/extensions/extension_side_panel_manager.cc
 +++ b/chrome/browser/ui/extensions/extension_side_panel_manager.cc
-@@ -9,6 +9,7 @@
- #include "chrome/browser/profiles/profile.h"
- #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
- #include "chrome/browser/ui/extensions/extension_side_panel_coordinator.h"
+@@ -15,6 +15,7 @@
+ #include "extensions/common/extension.h"
+ #include "extensions/common/permissions/api_permission.h"
+ #include "extensions/common/permissions/permissions_data.h"
 +#include "chrome/common/extensions/api/side_panel/firefox_sidebar_action.h"
- #include "content/public/browser/browser_context.h"
- #include "extensions/browser/extension_registry.h"
- #include "extensions/browser/extension_util.h"
+ 
+ namespace extensions {
+ 
 @@ -90,7 +91,8 @@
  void ExtensionSidePanelManager::MaybeCreateExtensionSidePanelCoordinator(
      const Extension* extension) {
