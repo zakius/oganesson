@@ -1,13 +1,11 @@
 --- a/chrome/browser/extensions/api/tabs/tabs_api.cc
 +++ b/chrome/browser/extensions/api/tabs/tabs_api.cc
-@@ -41,6 +41,7 @@
- #include "chrome/browser/ui/recently_audible_helper.h"
+@@ -42,4 +42,5 @@
  #include "chrome/browser/ui/tabs/tab_enums.h"
  #include "chrome/browser/ui/tabs/tab_muted_utils.h"
 +#include "chrome/browser/ui/tabs/tab_strip_model_oganesson.h"
  #include "chrome/common/pref_names.h"
  #include "chrome/common/webui_url_constants.h"
- #include "components/pref_registry/pref_registry_syncable.h"
 @@ -1126,8 +1127,13 @@ void TabsCreateFunction::OpenTabInBrowser(BrowserWindowInterface& browser,
    options.index = index_;
    options.split_with_tab_id = split_with_tab_id_;
