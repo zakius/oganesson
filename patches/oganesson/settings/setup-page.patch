@@ -100,14 +100,12 @@
        narrow_: {type: Boolean},
        lastSearchQuery_: {type: String},
        isSettingsRefresh2026_: {type: Boolean},
-@@ -83,6 +85,7 @@ export class SettingsUiElement extends SettingsUiElementBase {
+@@ -83,4 +85,5 @@ export class SettingsUiElement extends SettingsUiElementBase {
    }
  
-   protected accessor toolbarSpinnerActive_: boolean = false;
 +  protected accessor setup_: boolean = false;
+   protected accessor toolbarSpinnerActive_: boolean = false;
    protected accessor narrow_: boolean = false;
-   private accessor lastSearchQuery_: string = '';
-   private accessor isSettingsRefresh2026_: boolean =
 @@ -187,6 +190,7 @@ export class SettingsUiElement extends SettingsUiElementBase {
    }
  
