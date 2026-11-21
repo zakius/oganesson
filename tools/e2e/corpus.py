@@ -59,8 +59,8 @@ level depends on its own servers, is printed but doesn't count.
 The add-ons install in groups of GROUP to a browser start, so one bad add-on
 doesn't stop the run, and one after another, so each install error is the
 add-on's own. --jobs groups run at once, each in a browser of its own (by
-default as `./oganesson.py test` does: a quarter of the CPUs, at most 8). The run holds the builds lock ($BUILDS_LOCK, by default
-~/dev/.builds.lock). It reads the .xpi files from the cache of dubna's
+default as `./oganesson.py test` does: a quarter of the CPUs, at most 8). The run holds the builds lock, the file
+$BUILDS_LOCK names. It reads the .xpi files from the cache of dubna's
 `tools/amo_corpus.py fetch`, and the browser from OGANESSON_BINARY, by default
 the release build in work/.
 """
@@ -755,7 +755,9 @@ def run_all(corpus, xpis, work, jobs, report):
 
 
 def hold_builds_lock():
-    lock = open(os.environ.get('BUILDS_LOCK', Path.home() / 'dev/.builds.lock'), 'a')
+    if 'BUILDS_LOCK' not in os.environ:
+        sys.exit('set BUILDS_LOCK to the machine-wide builds lock file')
+    lock = open(os.environ['BUILDS_LOCK'], 'a')
     try:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError:

@@ -598,10 +598,9 @@ def main():
     build_parser.set_defaults(handler=build)
     snapshot_parser = commands.add_parser(
         'snapshot', help='make work/ a btrfs snapshot of the shared base tree')
-    snapshot_parser.add_argument('--base', type=Path,
-                                 default=Path(os.environ.get('OGANESSON_BASE', '~/dev/oganesson-base')),
-                                 help='base tree subvolume (default: $OGANESSON_BASE or '
-                                      '~/dev/oganesson-base)')
+    snapshot_parser.add_argument('--base', type=Path, default=os.environ.get('OGANESSON_BASE'),
+                                 required='OGANESSON_BASE' not in os.environ,
+                                 help='base tree subvolume (default: $OGANESSON_BASE)')
     snapshot_parser.set_defaults(handler=snapshot)
     run_parser = commands.add_parser('run', help='start the built browser')
     run_parser.add_argument('extra', nargs=argparse.REMAINDER, help='extra browser flags')

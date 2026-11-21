@@ -26,9 +26,8 @@ every port's); any other exit status but 0 means the run itself failed.
 A port that the list sets `ported` only in a dubna worktree runs with
 --dubna pointing there.
 
-The run holds the builds lock ($BUILDS_LOCK, by default ~/dev/.builds.lock),
-and runs the browser from OGANESSON_BINARY, by default the release build in
-work/.
+The run holds the builds lock, the file $BUILDS_LOCK names, and runs the
+browser from OGANESSON_BINARY, by default the release build in work/.
 """
 import argparse
 import datetime
