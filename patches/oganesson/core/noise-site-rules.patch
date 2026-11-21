@@ -22,14 +22,14 @@
  #include "chrome/browser/content_settings/generated_javascript_optimizer_pref.h"
  #include "chrome/browser/content_settings/generated_permission_prompting_behavior_pref.h"
  #include "chrome/browser/extensions/api/settings_private/generated_pref.h"
-@@ -19,6 +20,7 @@
- #include "chrome/browser/safe_browsing/generated_security_settings_bundle_pref.h"
- #include "chrome/browser/ssl/generated_https_first_mode_pref.h"
- #include "chrome/common/extensions/api/settings_private.h"
-+#include "chrome/common/pref_names.h"
+@@ -22,6 +23,7 @@
  #include "components/content_settings/core/common/content_settings_types.h"
  #include "components/content_settings/core/common/pref_names.h"
  #include "components/permissions/features.h"
++#include "chrome/common/pref_names.h"
+ 
+ #if BUILDFLAG(IS_CHROMEOS)
+ #include "chrome/browser/extensions/api/settings_private/chromeos_resolve_time_zone_by_geolocation_method_short.h"
 @@ -118,6 +120,8 @@
    prefs_[content_settings::kGeneratedJavascriptOptimizerPref] =
        std::make_unique<content_settings::GeneratedJavascriptOptimizerPref>(
