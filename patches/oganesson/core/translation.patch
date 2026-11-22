@@ -139,10 +139,11 @@
  #include "chrome/browser/translate/translate_ranker_factory.h"
  #include "chrome/browser/translate/translate_service.h"
  #if !BUILDFLAG(IS_ANDROID)
-@@ -246,6 +247,15 @@
-   return false;
+@@ -303,6 +304,15 @@
+   }
+ #endif
  }
- 
++
 +bool ChromeTranslateClient::ConfirmTranslation(std::string_view source_lang,
 +                                               std::string_view target_lang,
 +                                               bool asked_by_user,
@@ -151,10 +152,9 @@
 +                                                target_lang, asked_by_user,
 +                                                std::move(translate));
 +}
-+
- ChromeTranslateClient::ChromeTranslateClient(content::WebContents* web_contents)
-     : content::WebContentsObserver(web_contents),
-       content::WebContentsUserData<ChromeTranslateClient>(*web_contents),
+ 
+ const translate::LanguageState& ChromeTranslateClient::GetLanguageState() {
+   return *translate_manager_->GetLanguageState();
 --- a/chrome/browser/ui/toolbar/app_menu_model.cc
 +++ b/chrome/browser/ui/toolbar/app_menu_model.cc
 @@ -2107,7 +2107,8 @@
