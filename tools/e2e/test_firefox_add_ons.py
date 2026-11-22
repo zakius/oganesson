@@ -2671,10 +2671,10 @@ XPI_GECKO_ID = 'xpi-install@oganesson.test'
 SIGNED_GECKO_ID = '{e8f509f0-b677-11de-8a39-0800200c9a66}'
 
 
-def xpi_add_on(gecko_id, signed_id=None, root=None, sha1=False, cose=None):
+def xpi_add_on(gecko_id, signed_id=None, root=None, sha1=False, cose=None, cose_id=None):
     """The files of a .xpi, signed as AMO signs them for the ID `signed_id`
     by the test root `root` (signing_root() by default), with amo_signed()'s
-    `sha1` and `cose`, or unsigned without `signed_id`."""
+    `sha1`, `cose` and `cose_id`, or unsigned without `signed_id`."""
     manifest = {
         'manifest_version': 2,
         'name': ('Firefox .xpi install test add-on '
@@ -2689,7 +2689,9 @@ def xpi_add_on(gecko_id, signed_id=None, root=None, sha1=False, cose=None):
         'manifest.json': json.dumps(manifest),
         'background.js': 'self.started = true;',
     }
-    return amo_signed(files, signed_id, root, sha1, cose) if signed_id else files
+    if not signed_id:
+        return files
+    return amo_signed(files, signed_id, root, sha1, cose, cose_id)
 
 
 LOCALIZED_GECKO_ID = 'xpi-localized@oganesson.test'
@@ -2756,6 +2758,7 @@ def large_icon_xpi():
 NOT_VERIFIED = 'This add-on could not be installed because it has not been verified.'
 CORRUPT = 'This add-on could not be installed because it appears to be corrupt.'
 SHA1_COSE_GECKO_ID = 'xpi-sha1-cose@oganesson.test'
+COSE_GECKO_ID = 'xpi-cose-gecko-id@oganesson.test'
 
 
 class FirefoxXpiInstallTest(BrowserTest):
@@ -2772,7 +2775,12 @@ class FirefoxXpiInstallTest(BrowserTest):
     to be corrupt", and so does one without a Gecko ID or a signature, which
     has no ID. A SHA-1 signature installs only with a valid COSE signature,
     which is checked whenever a .xpi has one (zakius/dubna#220): without
-    one, or with a broken one, the add-on "appears to be corrupt" too.
+    one, or with a broken one, the add-on "appears to be corrupt" too, and
+    so does one whose COSE certificate is from another root, whose
+    cose.manifest has a wrong digest, or whose COSE certificate names
+    another ID than its Gecko ID. The COSE certificate's common name is the
+    ID, as in Firefox: one without a Gecko ID installs with it, not with the
+    PKCS #7 certificate's.
     None of them installs, even in developer mode, and without a
     gesture a .xpi stays a file. An icon too large for Chromium's image
     decoder is scaled down to fit, and the add-on installs."""
@@ -2795,6 +2803,9 @@ class FirefoxXpiInstallTest(BrowserTest):
         other_root = 'xpi-other-root@oganesson.test'
         sha1 = 'xpi-sha1@oganesson.test'
         broken_cose = 'xpi-broken-cose@oganesson.test'
+        cose_root = 'xpi-cose-root@oganesson.test'
+        cose_digest = 'xpi-cose-digest@oganesson.test'
+        cose_id = 'xpi-cose-id@oganesson.test'
         for path, files in {
                 '/signed.xpi': xpi_add_on(None, SIGNED_GECKO_ID),
                 '/no-id.xpi': xpi_add_on(None),
@@ -2811,6 +2822,13 @@ class FirefoxXpiInstallTest(BrowserTest):
                 '/sha1.xpi': xpi_add_on(sha1, sha1, sha1=True),
                 # A SHA-256 PKCS #7 that is valid: the COSE signature fails.
                 '/broken-cose.xpi': xpi_add_on(broken_cose, broken_cose, cose='broken'),
+                # The PKCS #7 is valid in these too.
+                '/cose-root.xpi': xpi_add_on(cose_root, cose_root, cose='other-root'),
+                '/cose-digest.xpi': xpi_add_on(cose_digest, cose_digest, cose='wrong-digest'),
+                '/cose-id.xpi': xpi_add_on(cose_id, cose_id, cose='valid',
+                                           cose_id='xpi-cose-signed-id@oganesson.test'),
+                '/cose-gecko-id.xpi': xpi_add_on(None, 'xpi-cose-pkcs7@oganesson.test',
+                                                 cose='valid', cose_id=COSE_GECKO_ID),
         }.items():
             routes[path] = (200, {'Content-Type': 'application/x-xpinstall'}, zipped(files))
         cls.server = Server(routes)
@@ -2979,6 +2997,31 @@ class FirefoxXpiInstallTest(BrowserTest):
     def test_broken_cose(self):
         self.refused('/broken-cose.xpi', CORRUPT, 'xpi-broken-cose@')
 
+    def test_cose_other_root(self):
+        self.refused('/cose-root.xpi', CORRUPT, 'xpi-cose-root@')
+
+    def test_cose_wrong_digest(self):
+        self.refused('/cose-digest.xpi', CORRUPT, 'xpi-cose-digest@')
+
+    def test_cose_other_gecko_id(self):
+        self.refused('/cose-id.xpi', CORRUPT, 'xpi-cose-id@')
+
+    def test_gecko_id_from_cose(self):
+        add_on = gecko_extension_id(COSE_GECKO_ID)
+        self.browser.download(self.server.url('/'), '/cose-gecko-id.xpi')
+        self.browser.accept_install_prompt()
+        background = self.started(add_on)
+        try:
+            manifest_id = background.eval(
+                'browser.runtime.getManifest().browser_specific_settings.gecko.id')
+        finally:
+            background.close()
+        self.assertEqual(manifest_id, COSE_GECKO_ID)
+        info = self.installed(add_on)
+        self.assertEqual(len(info), 1)
+        self.assertNotEqual(info[0]['location'], 'UNPACKED')
+        self.assertEqual(info[0]['state'], 'ENABLED')
+
     def test_signed_theme(self):
         add_on = gecko_extension_id(THEME_GECKO_ID)
         self.browser.download(self.server.url('/'), '/theme.xpi')
@@ -3013,7 +3056,8 @@ class FirefoxXpiAskWhereToSaveTest(FirefoxXpiInstallTest):
     test_large_png_icon = test_unsigned = test_changed_after_signing = None
     test_unlisted_file = test_other_root = test_other_gecko_id = None
     test_signed_theme = test_sha1_with_cose = test_sha1_without_cose = None
-    test_broken_cose = None
+    test_broken_cose = test_cose_other_root = test_cose_wrong_digest = None
+    test_cose_other_gecko_id = test_gecko_id_from_cose = None
 
     def test_ask_where_to_save(self):
         add_on = hashlib.sha256(XPI_GECKO_ID.encode()).hexdigest()[:32].translate(

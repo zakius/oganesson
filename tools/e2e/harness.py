@@ -240,18 +240,21 @@ rh-allow-sha1-signatures = yes
 """
 
 
-def amo_signed(files, signer_id, root=None, sha1=False, cose=None):
+def amo_signed(files, signer_id, root=None, sha1=False, cose=None, cose_id=None):
     """The files of a .xpi, `files` ({path: text or bytes}), with AMO's
     signature added in META-INF/, as Firefox checks it (zakius/dubna#219):
     manifest.mf gives each file's SHA-256, mozilla.sf gives manifest.mf's,
     and mozilla.rsa is a PKCS #7 of mozilla.sf by a certificate for code
     signing whose common name is `signer_id`, issued by `root`, the
     signing_root() by default. With `sha1`, the PKCS #7 and its digests
-    are SHA-1, as in AMO's older signatures. `cose`, 'valid' or 'broken',
-    adds a COSE signature as AMO does (zakius/dubna#220): cose.manifest
-    gives each file's SHA-256, and cose.sig is an ES384 signature of it by
-    a P-384 certificate for the same ID from `root`, with its signature
-    bytes wrong if 'broken'; manifest.mf lists both files."""
+    are SHA-1, as in AMO's older signatures. `cose` adds a COSE signature
+    as AMO does (zakius/dubna#220): cose.manifest gives each file's
+    SHA-256, and cose.sig is an ES384 signature of it by a P-384
+    certificate from `root` for `cose_id`, the same ID by default;
+    manifest.mf lists both files. `cose` is 'valid', or one way it fails:
+    'broken' (wrong signature bytes), 'other-root' (a certificate from
+    signing_root('other')) or 'wrong-digest' (cose.manifest's digest of
+    the first file is another file's, signed as it is)."""
     root = root or signing_root()
     algorithm = 'sha1' if sha1 else 'sha256'
 
@@ -279,18 +282,22 @@ def amo_signed(files, signer_id, root=None, sha1=False, cose=None):
         (folder / 'add-on.ext').write_text(
             'keyUsage = critical, digitalSignature\nextendedKeyUsage = codeSigning\n')
 
-        def certificate(name, key, serial, *output):
-            openssl('req', '-newkey', *key, '-nodes', '-subj', f'/CN={signer_id}',
+        def certificate(name, key, serial, common_name, issuer, *output):
+            openssl('req', '-newkey', *key, '-nodes', '-subj', f'/CN={common_name}',
                     '-keyout', f'{name}.key', '-out', f'{name}.csr')
-            openssl('x509', '-req', '-in', f'{name}.csr', '-CA', str(root),
-                    '-CAkey', str(root.with_name('root.key')), '-set_serial', serial,
+            openssl('x509', '-req', '-in', f'{name}.csr', '-CA', str(issuer),
+                    '-CAkey', str(issuer.with_name('root.key')), '-set_serial', serial,
                     '-days', '1', '-extfile', 'add-on.ext', *output)
 
         signed = dict(files)
         if cose:
-            cose_manifest = jar_manifest(files, 'sha256')
+            listed = dict(files)
+            if cose == 'wrong-digest':
+                listed[next(iter(listed))] = 'another file'
+            cose_manifest = jar_manifest(listed, 'sha256')
+            issuer = signing_root('other') if cose == 'other-root' else root
             certificate('cose', ('ec', '-pkeyopt', 'ec_paramgen_curve:P-384'), '2',
-                        '-outform', 'DER', '-out', 'cose.der')
+                        cose_id or signer_id, issuer, '-outform', 'DER', '-out', 'cose.der')
             # The protected headers: the body's has the intermediates, none
             # here, the signature's the algorithm, ES384, and the certificate.
             body_header = cbor({4: []})
@@ -312,7 +319,7 @@ def amo_signed(files, signer_id, root=None, sha1=False, cose=None):
         sf = (f'Signature-Version: 1.0\n'
               f'{algorithm.upper()}-Digest-Manifest: {digest(manifest, algorithm)}\n\n')
         (folder / 'mozilla.sf').write_text(sf)
-        certificate('add-on', ('rsa:2048',), '1', '-out', 'add-on.pem')
+        certificate('add-on', ('rsa:2048',), '1', signer_id, root, '-out', 'add-on.pem')
         openssl('cms', '-sign', '-binary', '-in', 'mozilla.sf', '-signer', 'add-on.pem',
                 '-inkey', 'add-on.key', '-md', algorithm, '-nosmimecap', '-outform', 'DER',
                 '-out', 'mozilla.rsa')
