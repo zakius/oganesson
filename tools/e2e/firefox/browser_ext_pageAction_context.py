@@ -5,7 +5,7 @@ The add-ons' code is Firefox's, but for the URL of Firefox's new tab page,
 about:newtab: a new tab here opens chrome://newtab/, which loads
 chrome://new-tab-page/, the URL that webNavigation gives. runTests() is
 head_pageAction.py's, whose checks of the page action's button in the
-location bar wait for that button (zakius/oganesson#68). example.com is a
+location bar wait for that button. example.com is a
 local server here.
 
 Left out of test_02_multiple_windows: the pref that stops Firefox preloading

@@ -284,10 +284,11 @@ def open_tab_context_menu(test, index=-1):
 def open_action_context_menu(test, extension, kind):
     """openActionContextMenu(extension, kind): a right click on the add-on's
     toolbar button (`kind` "browser"), or on its page action's button in the
-    location bar ("page"), which this browser doesn't have yet
-    (zakius/oganesson#68); the context menu that opens."""
+    location bar ("page", wait_page_action_button()); the context menu that
+    opens."""
     if kind == 'page':
-        raise AssertionError('no page action button in the location bar (zakius/oganesson#68)')
+        test.browser.click_view(wait_page_action_button(test, extension), button=3)
+        return first_menu(test)
     test.browser.click_view(test.browser.toolbar_button(extension.id), button=3)
     return first_menu(test)
 
@@ -637,19 +638,29 @@ IMAGE_BUFFER = base64.b64decode(
 def page_action_button(test, extension):
     """getPageActionButton(), or the element of the id that
     BrowserPageActions.urlbarButtonNodeIDForActionID() gives: the add-on's
-    page action button in the location bar, which shows where the page action
-    is shown, or None. This browser doesn't have that button yet
-    (zakius/oganesson#68): None. Chromium's toolbar button for a Manifest V2
-    add-on whose only action is a page action isn't it: that button stays in
-    the toolbar on every tab, greyed out where the page action is hidden, and
-    a page action next to another action has no button at all."""
-    return None
+    page action button in the location bar of the newest window (as
+    window_view()), which shows where the page action is shown, or None.
+    It is a FirefoxPageActionView with the add-on's ExtensionId. Chromium's
+    toolbar button for a Manifest V2 add-on whose only action is a page
+    action isn't it: that button stays in the toolbar on every tab, greyed
+    out where the page action is hidden."""
+    views = [view for view in test.browser.views('FirefoxPageActionView', ExtensionId=extension.id)
+             if view.visible]
+    return max(views, key=lambda view: view.widget) if views else None
+
+
+def wait_page_action_button(test, extension):
+    """The add-on's page action button (page_action_button()), once it shows
+    and stops moving: the location bar lays its items out anew as buttons
+    come and go."""
+    return test.browser.wait_settled(lambda: page_action_button(test, extension),
+                                     what="the add-on's page action button")
 
 
 def click_page_action(test, extension):
-    """clickPageAction(): a click on the add-on's page action button in the
-    location bar, which this browser doesn't have yet (zakius/oganesson#68)."""
-    raise AssertionError('no page action button in the location bar (zakius/oganesson#68)')
+    """clickPageAction(): a real click on the add-on's page action button in
+    the location bar."""
+    test.browser.click_view(wait_page_action_button(test, extension))
 
 
 def tab_location(page):

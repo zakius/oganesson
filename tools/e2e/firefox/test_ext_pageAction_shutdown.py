@@ -2,9 +2,8 @@
 browser/components/extensions/test/xpcshell/test_ext_pageAction_shutdown.js.
 
 The add-on is Firefox's, as it is. Firefox's PageActions' `pinnedToUrlbar` is
-the page action's place in the location bar: this browser doesn't have the
-page action's button there yet (zakius/oganesson#68), so its page action
-isn't pinned there (pinned_to_urlbar()). Firefox's restart of the add-on
+the page action's place in the location bar: its button there, shown or
+hidden (pinned_to_urlbar()). Firefox's restart of the add-on
 manager is a restart of the browser (restart_browser()), and
 extension.awaitStartup() waits for the add-on to be enabled again. Left out:
 PageActions.init() and _reset(), which start and clear Firefox's page actions
@@ -18,14 +17,15 @@ import json
 from extension_test_utils import FirefoxTest
 from harness import wait_for
 
-PINNED = 'pinnedToUrlbar: the page action shows in the location bar (zakius/oganesson#68)'
+PINNED = 'pinnedToUrlbar: the page action has its button in the location bar'
 
 
 def pinned_to_urlbar(test, extension):
     """PageActions.actionForID(makeWidgetId(extension.id)).pinnedToUrlbar:
-    the add-on's page action shows in the location bar, which needs the page
-    action's button there (zakius/oganesson#68): False."""
-    return False
+    the add-on's page action has its button in the location bar, which shows
+    on the tabs where the page action is shown. This add-on doesn't show it,
+    so the button is there hidden."""
+    return bool(test.browser.views('FirefoxPageActionView', ExtensionId=extension.id))
 
 
 def await_startup(test, extension):

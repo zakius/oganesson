@@ -4,10 +4,9 @@ share.
 
 The add-on's background is Firefox's, as it is. It runs the test's steps,
 and after each one it checks what pageAction's getters give. Then Firefox
-checks the page action's button in the location bar (checkDetails()), which
-this browser doesn't have yet (zakius/oganesson#68, head.page_action_button()):
-a step that expects the page action hidden passes that check, and a step that
-expects it shown fails it. Firefox also waits for the button to change
+checks the page action's button in the location bar (checkDetails(),
+head.page_action_button()): it is there where the step expects details, and
+gone where it expects none. Firefox also waits for the button to change
 (waitForDetails()) and compares its icon, tooltip and accessible name with
 the step's: those checks wait for the button too. Then the add-on runs its
 steps again in a new window.
@@ -21,6 +20,7 @@ internal.
 
 from firefox import head
 from extension_test_utils import JS
+from harness import wait_for
 
 BACKGROUND = r'''function background(getTests) {
   let tests;
@@ -118,7 +118,15 @@ def request_locale(test, lang):
 
 def check_details(test, extension, details):
     """checkDetails(): the add-on's page action button is hidden when the
-    step expects no details, and is there when it expects some."""
+    step expects no details, and is there when it expects some. The browser
+    lays the location bar out after the add-on's call returns, so the check
+    waits a moment for the button to come or go."""
+    def as_expected():
+        return (head.page_action_button(test, extension) is None) == (details is None)
+    try:
+        wait_for(as_expected, timeout=2, what='the page action button')
+    except AssertionError:
+        pass
     button = head.page_action_button(test, extension)
     if details is None:
         test.check(button is None, 'image is disabled')

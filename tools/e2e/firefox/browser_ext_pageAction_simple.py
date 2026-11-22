@@ -3,9 +3,8 @@ browser/components/extensions/test/browser/browser_ext_pageAction_simple.js.
 
 The add-ons' code is Firefox's, as it is. example.com is a local server here,
 with Firefox's file_dummy.html. The page action's button in the location bar,
-which these tests check and click, is zakius/oganesson#68
-(head.page_action_button(), head.click_page_action()): until it exists, those
-checks fail. Firefox's PageActions' `pinnedToUrlbar` is that button: a page
+which these tests check and click, is head.page_action_button() and
+head.click_page_action(). Firefox's PageActions' `pinnedToUrlbar` is that button: a page
 action shows in the location bar.
 
 test_01_pageAction_basic: Firefox's console warning for the unrecognized

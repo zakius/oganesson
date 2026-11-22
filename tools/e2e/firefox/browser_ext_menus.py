@@ -7,10 +7,10 @@ opens a submenu (head.has_submenu()). Firefox's item IDs
 (`<widget id>-menuitem-_<id>`) are Gecko's DOM, so the port checks which
 item it is by its label, as each item's label names its ID. A separator is
 the end of a group of items (head.Menu). Each kind of action menu is a
-subtest, so that the toolbar button's menu is checked while the page action
-has no button (zakius/oganesson#68). A check before a click on the item it
-reads ends the test when the item is missing, or isn't the one Firefox's
-test clicks, as Firefox's click on a missing item does. Left out, as
+subtest: the items of the page action button's menu are zakius/dubna#156.
+A check before a click on the item it reads ends the test when the item is
+missing, or isn't the one Firefox's test clicks, as Firefox's click on a
+missing item does. Left out, as
 Gecko's DOM: that the submenu opened is the item's own menupopup, and the
 overflow submenu's `ext-type` attribute; the submenu's label is checked.
 

@@ -4,7 +4,7 @@ toolkit/components/extensions/test/mochitest/test_ext_pageAction_onClicked.html.
 The add-on's code is Firefox's, as it is. The mochitest runs in a page of
 mochi.test, which is the active tab here too, from a local server.
 AppTestDelegate.clickPageAction() clicks the page action's button in the
-location bar, which is zakius/oganesson#68 (head.click_page_action()).
+location bar (head.click_page_action()).
 closePageAction() closes the page action's popup, and this add-on has none:
 it does nothing. Left out of test_02_pageAction_onClicked_persistent_event:
 assertPersistentListeners(), which reads Gecko's primed listeners.
