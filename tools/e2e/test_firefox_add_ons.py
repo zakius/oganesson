@@ -100,16 +100,17 @@ class FirefoxAddOnsTest(FirefoxAddOn):
 
     def click_page_menu_item(self):
         """Opens a page's context menu, clicks the add-on's item and returns
-        the titles of the menu's items."""
+        the titles of the menu's items, without their access keys' &."""
         page = self.browser.new_tab('data:text/html,<body%20style=height:90vh>')
         try:
             wait_for(lambda: page.eval("location.protocol == 'data:' && document.readyState == 'complete'"),
                      what='the page')
             self.browser.click_element(page, 'body', button=3)
             item = wait_for(lambda: next((i for menu in self.browser.menus() for group in menu
-                                          for i in group if i['Title'] == 'Firefox menu item'), None),
+                                          for i in group if i['Title'].replace('&', '') == 'Firefox menu item'), None),
                             what='the add-on\'s menu item')
-            titles = [i['Title'] for menu in self.browser.menus() for group in menu for i in group]
+            titles = [i['Title'].replace('&', '') for menu in self.browser.menus()
+                      for group in menu for i in group]
             self.browser.click_view(item)
             wait_for(lambda: not self.browser.menus(), what='the menu to close')
             return titles
