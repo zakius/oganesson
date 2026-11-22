@@ -45,7 +45,8 @@ What's here:
   extension_id(folder): the ID of the add-on loaded from there.
 - amo_signed(files, signer_id) and zipped(files): a .xpi to install from a
   download, signed as AMO signs one, by signing_root(), which a browser
-  started with signature_root_arg() trusts.
+  started with signature_root_arg() trusts; with SHA-1 or a COSE signature
+  too by its `sha1` and `cose`.
 
 Tests to copy from: test_ubo_restart.py for the bundled uBlock Origin,
 test_tab_behavior.py for a test extension loaded with --load-extension,
@@ -196,42 +197,127 @@ def signature_root_arg():
     return f'--firefox-add-ons-signature-root={signing_root()}'
 
 
-def amo_signed(files, signer_id, root=None):
+def cbor(value):
+    """`value`, an int, bytes, str, list, dict or None, in CBOR, as COSE
+    writes it; a dict's keys stay in their order."""
+    def head(major, n):
+        if n < 24:
+            return bytes([major << 5 | n])
+        size = 1 if n < 0x100 else 2 if n < 0x10000 else 4
+        return bytes([major << 5 | {1: 24, 2: 25, 4: 26}[size]]) + n.to_bytes(size, 'big')
+
+    if value is None:
+        return b'\xf6'
+    if isinstance(value, int):
+        return head(0, value) if value >= 0 else head(1, -1 - value)
+    if isinstance(value, str):
+        value = value.encode()
+        return head(3, len(value)) + value
+    if isinstance(value, bytes):
+        return head(2, len(value)) + value
+    if isinstance(value, list):
+        return head(4, len(value)) + b''.join(cbor(item) for item in value)
+    return head(5, len(value)) + b''.join(cbor(k) + cbor(v) for k, v in value.items())
+
+
+def ecdsa_p1363(der, size):
+    """The DER ECDSA signature `der` as COSE has it: r and s, `size` bytes
+    each."""
+    # SEQUENCE { INTEGER r, INTEGER s }, with one-byte lengths up to P-384.
+    r_length = der[3]
+    r = der[4:4 + r_length]
+    s = der[6 + r_length:]
+    return r.lstrip(b'\0').rjust(size, b'\0') + s.lstrip(b'\0').rjust(size, b'\0')
+
+
+# OpenSSL's setting that lets it sign with SHA-1, which Fedora's crypto
+# policy forbids; other builds of OpenSSL ignore it.
+SHA1_OPENSSL_CONF = """openssl_conf = openssl_init
+[openssl_init]
+alg_section = evp_properties
+[evp_properties]
+rh-allow-sha1-signatures = yes
+"""
+
+
+def amo_signed(files, signer_id, root=None, sha1=False, cose=None):
     """The files of a .xpi, `files` ({path: text or bytes}), with AMO's
     signature added in META-INF/, as Firefox checks it (zakius/dubna#219):
     manifest.mf gives each file's SHA-256, mozilla.sf gives manifest.mf's,
     and mozilla.rsa is a PKCS #7 of mozilla.sf by a certificate for code
     signing whose common name is `signer_id`, issued by `root`, the
-    signing_root() by default."""
+    signing_root() by default. With `sha1`, the PKCS #7 and its digests
+    are SHA-1, as in AMO's older signatures. `cose`, 'valid' or 'broken',
+    adds a COSE signature as AMO does (zakius/dubna#220): cose.manifest
+    gives each file's SHA-256, and cose.sig is an ES384 signature of it by
+    a P-384 certificate for the same ID from `root`, with its signature
+    bytes wrong if 'broken'; manifest.mf lists both files."""
     root = root or signing_root()
+    algorithm = 'sha1' if sha1 else 'sha256'
 
-    def digest(content):
+    def digest(content, algorithm):
         content = content.encode() if isinstance(content, str) else content
-        return base64.b64encode(hashlib.sha256(content).digest()).decode()
+        return base64.b64encode(hashlib.new(algorithm, content).digest()).decode()
 
-    manifest = 'Manifest-Version: 1.0\n\n' + ''.join(
-        f'Name: {name}\nSHA256-Digest: {digest(content)}\n\n' for name, content in files.items())
-    sf = f'Signature-Version: 1.0\nSHA256-Digest-Manifest: {digest(manifest)}\n\n'
+    def jar_manifest(files, algorithm):
+        return 'Manifest-Version: 1.0\n\n' + ''.join(
+            f'Name: {name}\n{algorithm.upper()}-Digest: {digest(content, algorithm)}\n\n'
+            for name, content in files.items())
+
     with tempfile.TemporaryDirectory(prefix='oganesson-amo-signature-') as folder:
         folder = Path(folder)
+        env = dict(os.environ)
+        if sha1:
+            (folder / 'sha1.cnf').write_text(SHA1_OPENSSL_CONF)
+            env['OPENSSL_CONF'] = str(folder / 'sha1.cnf')
 
         def openssl(*args):
-            subprocess.run(['openssl', *args], cwd=folder, check=True, capture_output=True)
+            subprocess.run(['openssl', *args], cwd=folder, env=env, check=True,
+                           capture_output=True)
 
-        (folder / 'mozilla.sf').write_text(sf)
         # As AMO's add-on certificates have them.
         (folder / 'add-on.ext').write_text(
             'keyUsage = critical, digitalSignature\nextendedKeyUsage = codeSigning\n')
-        openssl('req', '-newkey', 'rsa:2048', '-nodes', '-subj', f'/CN={signer_id}',
-                '-keyout', 'add-on.key', '-out', 'add-on.csr')
-        openssl('x509', '-req', '-in', 'add-on.csr', '-CA', str(root),
-                '-CAkey', str(root.with_name('root.key')), '-set_serial', '1', '-days', '1',
-                '-extfile', 'add-on.ext', '-out', 'add-on.pem')
+
+        def certificate(name, key, serial, *output):
+            openssl('req', '-newkey', *key, '-nodes', '-subj', f'/CN={signer_id}',
+                    '-keyout', f'{name}.key', '-out', f'{name}.csr')
+            openssl('x509', '-req', '-in', f'{name}.csr', '-CA', str(root),
+                    '-CAkey', str(root.with_name('root.key')), '-set_serial', serial,
+                    '-days', '1', '-extfile', 'add-on.ext', *output)
+
+        signed = dict(files)
+        if cose:
+            cose_manifest = jar_manifest(files, 'sha256')
+            certificate('cose', ('ec', '-pkeyopt', 'ec_paramgen_curve:P-384'), '2',
+                        '-outform', 'DER', '-out', 'cose.der')
+            # The protected headers: the body's has the intermediates, none
+            # here, the signature's the algorithm, ES384, and the certificate.
+            body_header = cbor({4: []})
+            signature_header = cbor({1: -35, 4: (folder / 'cose.der').read_bytes()})
+            # RFC 8152's Sig_structure, with a null external_aad, as
+            # Firefox's cose-rust builds it.
+            (folder / 'signed').write_bytes(cbor(
+                ['Signature', body_header, signature_header, None, cose_manifest.encode()]))
+            openssl('dgst', '-sha384', '-sign', 'cose.key', '-out', 'cose.signature', 'signed')
+            signature = ecdsa_p1363((folder / 'cose.signature').read_bytes(), 48)
+            if cose == 'broken':
+                signature = signature[:-1] + bytes([signature[-1] ^ 1])
+            # A COSE_Sign, CBOR tag 98, without its payload.
+            signed['META-INF/cose.manifest'] = cose_manifest
+            signed['META-INF/cose.sig'] = b'\xd8\x62' + cbor(
+                [body_header, {}, None, [[signature_header, {}, signature]]])
+
+        manifest = jar_manifest(signed, algorithm)
+        sf = (f'Signature-Version: 1.0\n'
+              f'{algorithm.upper()}-Digest-Manifest: {digest(manifest, algorithm)}\n\n')
+        (folder / 'mozilla.sf').write_text(sf)
+        certificate('add-on', ('rsa:2048',), '1', '-out', 'add-on.pem')
         openssl('cms', '-sign', '-binary', '-in', 'mozilla.sf', '-signer', 'add-on.pem',
-                '-inkey', 'add-on.key', '-md', 'sha256', '-nosmimecap', '-outform', 'DER',
+                '-inkey', 'add-on.key', '-md', algorithm, '-nosmimecap', '-outform', 'DER',
                 '-out', 'mozilla.rsa')
         rsa = (folder / 'mozilla.rsa').read_bytes()
-    return {**files, 'META-INF/manifest.mf': manifest, 'META-INF/mozilla.sf': sf,
+    return {**signed, 'META-INF/manifest.mf': manifest, 'META-INF/mozilla.sf': sf,
             'META-INF/mozilla.rsa': rsa}
 
 
