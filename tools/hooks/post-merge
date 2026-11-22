@@ -1,0 +1,5 @@
+#!/bin/sh
+# In the main checkout, a pull or merge also moves the submodules to the commits main records, so
+# dubna doesn't stay behind. Worktrees are left alone: a climb worktree's dubna can be ahead.
+[ "$(git rev-parse --git-dir)" = "$(git rev-parse --git-common-dir)" ] || exit 0
+git submodule update --init -q || echo 'post-merge: the submodules are not updated' >&2

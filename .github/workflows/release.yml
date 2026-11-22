@@ -126,3 +126,8 @@ jobs:
           cd "$MAIN"
           printf '\nThe Windows build failed; this release has the Linux packages only.\n' >> work/release-notes.md
           gh release edit "$TAG" --notes-file work/release-notes.md
+      # The new scores are in work/release-scores/ and the notes are posted, so the dubna
+      # submodule goes back to its commit: left changed, it stops the main checkout's post-merge
+      # hook from moving dubna until the next release.
+      - name: Scores out of the dubna submodule
+        run: cd "$MAIN" && git -C dubna checkout -q -- webextensions/score
