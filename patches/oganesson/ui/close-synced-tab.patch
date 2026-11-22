@@ -1,7 +1,7 @@
 --- a/chrome/browser/resources/history/synced_device_card.css
 +++ b/chrome/browser/resources/history/synced_device_card.css
-@@ -61,6 +61,17 @@
-   min-height: var(--item-height);
+@@ -28,6 +28,17 @@
+   color: var(--cr-secondary-text-color);
  }
  
 +.close-tab {
@@ -15,22 +15,18 @@
 +  visibility: visible;
 +}
 +
- .window-separator {
-   background-color: var(--card-border-color);
-   height: 1px;
+ #title-left-content {
+   display: flex;
+   overflow: hidden;
 --- a/chrome/browser/resources/history/synced_device_card.html.ts
 +++ b/chrome/browser/resources/history/synced_device_card.html.ts
-@@ -41,6 +41,10 @@ export function getHtml(this: HistorySyncedDeviceCardElement) {
-                 search-term="${this.searchTerm}">
-             </history-searched-label>
+@@ -43,2 +43,6 @@ export function getHtml(this: HistorySyncedDeviceCardElement) {
            </a>
 +          <cr-icon-button class="close-tab" iron-icon="cr:close"
 +              ?hidden="${!this.canCloseTabs}" data-session-id="${tab.sessionId}"
 +              title="$i18n{closeSyncedTab}" @click="${this.onCloseTabClick_}">
 +          </cr-icon-button>
          </div>
-         <div class="window-separator"
-             ?hidden="${!this.isWindowSeparatorIndex_(index)}">
 --- a/chrome/browser/resources/history/synced_device_card.ts
 +++ b/chrome/browser/resources/history/synced_device_card.ts
 @@ -75,6 +75,9 @@ export class HistorySyncedDeviceCardElement extends CrLitElement {
@@ -43,14 +39,10 @@
      };
    }
  
-@@ -85,6 +88,7 @@ export class HistorySyncedDeviceCardElement extends CrLitElement {
-   accessor searchTerm: string = '';
-   accessor separatorIndexes: number[] = [];
+@@ -87,2 +90,3 @@ export class HistorySyncedDeviceCardElement extends CrLitElement {
    accessor sessionTag: string = '';
 +  accessor canCloseTabs: boolean = false;
  
-   override updated(changedProperties: PropertyValues<this>) {
-     super.updated(changedProperties);
 @@ -203,6 +207,18 @@ export class HistorySyncedDeviceCardElement extends CrLitElement {
      e.stopPropagation();  // Prevent cr-collapse.
    }
@@ -72,32 +64,28 @@
          SYNCED_TABS_HISTOGRAM_NAME, SyncedTabsHistogram.LINK_RIGHT_CLICKED,
 --- a/chrome/browser/resources/history/synced_device_manager.html.ts
 +++ b/chrome/browser/resources/history/synced_device_manager.html.ts
-@@ -21,6 +21,7 @@ export function getHtml(this: HistorySyncedDeviceManagerElement) {
-         .tabs="${syncedDevice.tabs}"
-         .separatorIndexes="${syncedDevice.separatorIndexes}"
-         .searchTerm="${this.searchTerm}" .sessionTag="${syncedDevice.tag}"
+@@ -19,2 +19,3 @@ export function getHtml(this: HistorySyncedDeviceManagerElement) {
+     <history-synced-device-card .device="${syncedDevice.device}"
 +        .canCloseTabs="${syncedDevice.canCloseTabs}"
-         ?opened="${syncedDevice.opened}"
-         @opened-changed="${this.onCardOpenedChanged_}" data-index="${index}">
-     </history-synced-device-card>
+         .lastUpdateTime="${syncedDevice.lastUpdateTime}"
 --- a/chrome/browser/resources/history/synced_device_manager.ts
 +++ b/chrome/browser/resources/history/synced_device_manager.ts
-@@ -39,6 +39,7 @@ interface ForeignDeviceInternal {
-   timestamp: number;
-   tabs: ForeignSessionTab[];
-   tag: string;
+@@ -32,6 +32,7 @@ import {getCss} from './synced_device_manager.css.js';
+ import {getHtml} from './synced_device_manager.html.js';
+ 
+ interface ForeignDeviceInternal {
 +  canCloseTabs: boolean;
- }
- 
- declare global {
-@@ -244,6 +245,7 @@ export class HistorySyncedDeviceManagerElement extends
-       timestamp: session.timestamp,
-       tabs: tabs,
-       tag: session.tag,
+   device: string;
+   lastUpdateTime: string;
+   opened: boolean;
+@@ -237,6 +238,7 @@ export class HistorySyncedDeviceManagerElement extends
+       }
+     }
+     return {
 +      canCloseTabs: session.canCloseTabs,
-     };
-   }
- 
+       device: session.name,
+       lastUpdateTime: '– ' + session.modifiedTime,
+       opened: true,
 --- a/chrome/browser/ui/webui/cr_components/history/history_util.cc
 +++ b/chrome/browser/ui/webui/cr_components/history/history_util.cc
 @@ -16,6 +16,7 @@
