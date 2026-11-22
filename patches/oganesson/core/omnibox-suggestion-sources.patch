@@ -1,14 +1,14 @@
 --- a/components/omnibox/browser/BUILD.gn
 +++ b/components/omnibox/browser/BUILD.gn
-@@ -347,6 +347,8 @@
-     "shortcuts_provider.h",
-     "suggestion_group_util.cc",
-     "suggestion_group_util.h",
+@@ -375,6 +375,8 @@
+     "zero_suggest_provider.h",
+     "zero_suggest_verbatim_match_provider.cc",
+     "zero_suggest_verbatim_match_provider.h",
 +    "suggestion_sources.cc",
 +    "suggestion_sources.h",
-     "tab_group_provider.cc",
-     "tab_group_provider.h",
-     "tab_matcher.cc",
+   ]
+ 
+   public_deps = [
 --- a/components/omnibox/browser/autocomplete_controller.cc
 +++ b/components/omnibox/browser/autocomplete_controller.cc
 @@ -84,6 +84,7 @@
