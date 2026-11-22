@@ -3659,6 +3659,43 @@ class FirefoxMenusClickTest(head.ContextMenuTest):
         head.close_context_menu(self)
 
 
+class FirefoxMenusTargetPatternsTest(head.ContextMenuTest):
+    """An item with targetUrlPatterns (dubna#231) never shows in the tab
+    strip's or the toolbar button's menu, as in Firefox's enabledForContext():
+    those menus have no link or medium for the patterns to match. In a page's
+    menu it shows on a link that matches."""
+
+    def test_target_patterns_only_on_a_matching_link(self):
+        extension = self.load_extension(
+            manifest={'name': 'Menus test', 'permissions': ['menus'], 'browser_action': {}},
+            background=JS('''function background() {
+              // "all" leaves out the tab strip's menu, as in Firefox.
+              browser.menus.create({id: "target", title: "target item", contexts: ["all", "tab"],
+                                    targetUrlPatterns: ["*://*/*some-link"]});
+              browser.menus.create({id: "plain", title: "plain item", contexts: ["all", "tab"]});
+              browser.test.sendMessage("ready");
+            }'''))
+        tab = self.open_tab(MENUS_PAGE)
+        extension.startup()
+        extension.await_message('ready')
+
+        labels = [head.label_of(item) for item in head.open_tab_context_menu(self).items]
+        self.assertIn('plain item', labels)
+        self.assertNotIn('target item', labels)
+        head.close_context_menu(self)
+
+        menu = head.open_action_context_menu(self, extension, 'browser')
+        labels = [head.label_of(item) for item in menu.items]
+        self.assertIn('plain item', labels)
+        self.assertNotIn('target item', labels)
+        head.close_context_menu(self)
+
+        menu = head.open_extension_context_menu(self, tab, '#link1', name='Menus test')
+        labels = [head.label_of(item) for item in menu.items]
+        self.assertIn('target item', labels)
+        head.close_context_menu(self)
+
+
 class FirefoxMenusRefreshTest(head.ContextMenuTest):
     """menus.refresh() (dubna#43) rebuilds an add-on's items in the open menu
     and nothing else: refreshed again and again, a page's menu keeps one
