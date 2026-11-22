@@ -97,8 +97,11 @@ from harness import (BINARY, DEVELOPER_MODE, Browser, Page, Server, gecko_id, un
 # installed previous release too.
 # Flash Player for Firefox's level follows when its server's answer comes, an
 # HTML page where it expects JSON: L1 in most scores, L2 in some (#85).
+# ClearURLs' rules server, kevinroebert.gitlab.io, answers with GitLab's
+# sign-in redirect since 2026-11-22, and since then its Yandex content script
+# throws in the smoke check, on the build that had it at L3 that morning too.
 VARIES = {'firefox-webext@zenmate.com', 'client@anonymox.net',
-          '{87e997f4-ae0e-42e6-a780-ff73977188c5}'}
+          '{87e997f4-ae0e-42e6-a780-ff73977188c5}', '{74145f27-f039-47ce-a470-a662b129930a}'}
 LEVELS = ('L0', 'L1', 'L2', 'L3')
 GROUP = 20
 # The manifest keys that Firefox reads (MDN's manifest.json keys that Firefox
