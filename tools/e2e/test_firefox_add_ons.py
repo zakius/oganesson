@@ -3629,6 +3629,34 @@ class FirefoxMenusClickTest(head.ContextMenuTest):
         self.assertEqual(extension.await_message('clicked'),
                          {'id': 'action', 'modifiers': ['Ctrl'], 'button': 0})
 
+    def test_nbsp_selection_is_no_selection(self):
+        # dubna#222: Firefox trims the selection with JavaScript's trim(),
+        # which strips &nbsp;, so a selected &nbsp; alone is no selection.
+        extension = self.load_extension(
+            manifest={'permissions': ['menus']},
+            background=JS('''function background() {
+              browser.menus.create({id: "page", title: "page item", contexts: ["page"]});
+              browser.menus.create({id: "selection", title: "selection item",
+                                    contexts: ["selection"]});
+              browser.test.sendMessage("ready");
+            }'''))
+        tab = self.open_tab(MENUS_PAGE)
+        extension.startup()
+        extension.await_message('ready')
+        selected = tab.eval('''(() => {
+          document.body.insertAdjacentHTML(
+            "afterbegin", '<p id="nbsp">&nbsp;</p><div id="blank" style="height: 50px"></div>');
+          const range = document.createRange();
+          range.selectNodeContents(document.getElementById("nbsp"));
+          getSelection().removeAllRanges();
+          getSelection().addRange(range);
+          return getSelection().toString();
+        })()''')
+        self.assertEqual(selected, '\xa0')
+        labels = [head.label_of(item) for item in head.open_context_menu(self, tab, '#blank').items]
+        self.assertIn('page item', labels)
+        self.assertNotIn('selection item', labels)
+        head.close_context_menu(self)
 
 
 class FirefoxMenusRefreshTest(head.ContextMenuTest):
@@ -3706,6 +3734,98 @@ class FirefoxMenusRefreshTest(head.ContextMenuTest):
         self.assertIn('item a', labels)
         self.assertIn('item b', labels)
         head.close_context_menu(self)
+
+
+STORED_MENUS_ADD_ON = {
+    'manifest.json': {
+        'manifest_version': 2,
+        'name': 'Stored menus test add-on',
+        'version': '1',
+        'background': {'scripts': ['background.js'], 'persistent': False},
+        'permissions': ['contextMenus'],
+    },
+    'background.js': '',
+    'page.html': '<!DOCTYPE html>',
+}
+
+
+class FirefoxMenusStoredPatternsTest(BrowserTest):
+    """An event page's item stored before dubna#153, with Chromium's
+    target_url_patterns only, keeps targetUrlPatterns cleared after it
+    (dubna#222): the next start doesn't take Chromium's old ones again. The
+    add-on stores the item as a Chrome extension, which stores Chromium's
+    key only, then gets a Gecko key without an ID, which keeps its ID and
+    makes it a Firefox add-on. It loads from the profile, as an install does:
+    --load-extension would install it again at each start, which drops its
+    stored items."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.folder = Path(tempfile.mkdtemp(prefix='oganesson-firefox-stored-menus-'))
+        for file, content in STORED_MENUS_ADD_ON.items():
+            text = json.dumps(content) if isinstance(content, dict) else content
+            (cls.folder / file).write_text(text)
+        cls.browser_args = (f'--load-extension={cls.folder}',)
+        cls.prefs = DEVELOPER_MODE
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(cls.folder)
+
+    def extension_page_eval(self, js):
+        page = self.browser.new_tab(f'chrome-extension://{extension_id(self.folder)}/page.html')
+        try:
+            wait_for(lambda: page.eval("document.readyState == 'complete'"), what='the page')
+            page.eval(js)
+        finally:
+            self.browser.close_target(page)
+        # MenuManager writes an event page's items a second after a change.
+        time.sleep(2)
+
+    def restart(self):
+        """The browser restarts, with the add-on from the profile, unpacked
+        (location 4)."""
+        self.browser.quit()
+        preferences = self.browser.profile / 'Default/Preferences'
+        prefs = json.loads(preferences.read_text())
+        prefs['extensions']['settings'][extension_id(self.folder)]['location'] = 4
+        preferences.write_text(json.dumps(prefs))
+        self.browser.args = [arg for arg in self.browser.args
+                             if not arg.startswith('--load-extension=')]
+        self.browser.start()
+
+    def link_menu_labels(self, href):
+        """The labels of the context menu of a link to `href`."""
+        page = self.browser.new_tab(f'data:text/html,<a%20id=link%20href="{href}">link</a>')
+        try:
+            wait_for(lambda: page.eval("location.protocol == 'data:' && document.readyState == 'complete'"),
+                     what='the page')
+            self.browser.click_element(page, '#link', button=3)
+            labels = wait_for(lambda: [head.label_of(i) for menu in self.browser.menus()
+                                       for group in menu for i in group], what='the menu')
+            head.close_context_menu(self)
+            return labels
+        finally:
+            self.browser.close_target(page)
+
+    def test_cleared_patterns_after_restart(self):
+        self.extension_page_eval('''new Promise(done => chrome.contextMenus.create({
+            id: "link", title: "link item", contexts: ["link"],
+            targetUrlPatterns: ["https://example.com/*"]}, done))''')
+        manifest = {**STORED_MENUS_ADD_ON['manifest.json'],
+                    'browser_specific_settings': {'gecko': {}}}
+        (self.folder / 'manifest.json').write_text(json.dumps(manifest))
+        self.restart()
+        # The stored item, with its old patterns as Firefox's.
+        wait_for(lambda: 'link item' in self.link_menu_labels('https://example.com/a'),
+                 what='the stored item')
+        self.assertNotIn('link item', self.link_menu_labels('https://example.org/'))
+        self.extension_page_eval('browser.menus.update("link", {targetUrlPatterns: []})')
+        self.restart()
+        wait_for(lambda: 'link item' in self.link_menu_labels('https://example.org/'),
+                 what='the item on any link')
 
 
 class FirefoxMenusBindingsTest(FirefoxTest):
