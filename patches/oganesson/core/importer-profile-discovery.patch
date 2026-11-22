@@ -201,18 +201,19 @@
      };
    }
  
-@@ -79,9 +80,11 @@ export class SettingsImportDataDialogElement extends
-     search: false,
-     autofillFormData: false,
-     extensions: false,
-+    chooseFolder: false,
-   };
-   protected accessor noImportDataTypeSelected_: boolean = false;
-   protected accessor importStatus_: ImportDataStatus = ImportDataStatus.INITIAL;
-+  protected accessor noProfileFound_: boolean = false;
-   private browserProxy_: ImportDataBrowserProxy =
-       ImportDataBrowserProxyImpl.getInstance();
+@@ -66,10 +67,12 @@ export class SettingsImportDataDialogElement extends
+     };
+   }
  
++  protected accessor noProfileFound_: boolean = false;
+   protected accessor browserProfiles_: BrowserProfile[] = [];
+   protected accessor importDialogBookmarksPref_:
+       chrome.settingsPrivate.PrefObject<boolean>|undefined;
+   protected accessor selected_: BrowserProfile = {
++    chooseFolder: false,
+     name: '',
+     index: 0,
+     profileName: '',
 @@ -168,15 +171,38 @@ export class SettingsImportDataDialogElement extends
    }
  
