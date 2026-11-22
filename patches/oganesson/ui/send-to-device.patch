@@ -76,14 +76,13 @@
  namespace content {
  class NavigationHandle;
  class RenderFrameHost;
-@@ -654,6 +658,7 @@ class RenderViewContextMenu
-   std::unique_ptr<ui::SimpleMenuModel> send_tab_to_self_submenu_;
-   std::unique_ptr<ui::SimpleMenuModel> split_layout_submenu_;
- 
+@@ -651,4 +655,6 @@ class RenderViewContextMenu
+   // Whether the "Paste and Match Style" menu item should be enabled.
+   const bool is_paste_and_match_style_enabled_;
++
 +  std::unique_ptr<firefox_sync::SendToDeviceMenu> send_to_device_menu_;
-   //  Used for CTR metrics of menu item for opening Glic.
-   bool glic_item_shown_ = false;
-   bool glic_item_executed_ = false;
+ 
+   std::unique_ptr<ui::SimpleMenuModel> send_tab_to_self_submenu_;
 --- a/chrome/browser/ui/tabs/tab_menu_model.cc
 +++ b/chrome/browser/ui/tabs/tab_menu_model.cc
 @@ -29,7 +29,9 @@
