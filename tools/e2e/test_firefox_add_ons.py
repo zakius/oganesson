@@ -3630,6 +3630,7 @@ class FirefoxMenusClickTest(head.ContextMenuTest):
                          {'id': 'action', 'modifiers': ['Ctrl'], 'button': 0})
 
 
+
 class FirefoxMenusRefreshTest(head.ContextMenuTest):
     """menus.refresh() (dubna#43) rebuilds an add-on's items in the open menu
     and nothing else: refreshed again and again, a page's menu keeps one
@@ -3663,6 +3664,47 @@ class FirefoxMenusRefreshTest(head.ContextMenuTest):
             extension.send_message('refresh')
             extension.await_message('refreshed')
             self.assertEqual(wait_for(gap_above_item), gap)
+        head.close_context_menu(self)
+
+    def test_add_ons_refresh_in_turn(self):
+        # dubna#229: two add-ons that refreshed in turn each took command IDs
+        # above the other's, and past the menu's range of 1000 their items
+        # vanished. "a" refreshes, then asks "b" to, 600 times, without a
+        # round trip through the test for each.
+        second = self.load_extension(
+            manifest={'permissions': ['menus'],
+                      'browser_specific_settings': {'gecko': {'id': 'refresh-b@mochi.test'}}},
+            background=JS('''function background() {
+              browser.menus.create({id: "b", title: "item b", contexts: ["all"]});
+              browser.runtime.onMessageExternal.addListener((message, sender, respond) => {
+                browser.menus.refresh().then(() => respond("refreshed"));
+                return true;
+              });
+              browser.test.sendMessage("ready");
+            }'''))
+        first = self.load_extension(
+            manifest={'permissions': ['menus']},
+            background=JS('''function background() {
+              browser.menus.create({id: "a", title: "item a", contexts: ["all"]});
+              browser.test.onMessage.addListener(async () => {
+                for (let i = 0; i < 600; i++) {
+                  await browser.menus.refresh();
+                  await browser.runtime.sendMessage("refresh-b@mochi.test", "refresh");
+                }
+                browser.test.sendMessage("refreshed");
+              });
+              browser.test.sendMessage("ready");
+            }'''))
+        tab = self.open_tab(MENUS_PAGE)
+        for extension in (second, first):
+            extension.startup()
+            extension.await_message('ready')
+        head.open_context_menu(self, tab, 'body')
+        first.send_message('refresh')
+        first.await_message('refreshed', timeout=180)
+        labels = [head.label_of(item) for group in self.browser.menus()[0] for item in group]
+        self.assertIn('item a', labels)
+        self.assertIn('item b', labels)
         head.close_context_menu(self)
 
 
