@@ -3116,31 +3116,36 @@ class FirefoxXpiDropTest(BrowserTest):
         finally:
             page.close()
 
-    def assert_installs(self, gecko_id):
+    def assert_installs(self, gecko_id, path):
         """Accepts the install prompt and checks that the add-on installed
-        packed."""
+        packed, and that its .xpi at `path` is still there: the install
+        takes a downloaded copy, and must never remove the user's file."""
         self.browser.accept_install_prompt()
         add_on = gecko_extension_id(gecko_id)
         self.browser.extension_background(add_on, timeout=30).close()
         self.assertNotEqual(self.browser.extension_info(add_on)['location'], 'UNPACKED')
+        self.assertTrue(path.is_file())
 
     def test_drop_on_extensions_page(self):
         gecko_id = 'xpi-drop-extensions@oganesson.test'
-        self.drop('chrome://extensions', self.extensions_ready, self.xpi(gecko_id))
-        self.assert_installs(gecko_id)
+        path = self.xpi(gecko_id)
+        self.drop('chrome://extensions', self.extensions_ready, path)
+        self.assert_installs(gecko_id, path)
 
     def test_drop_on_page(self):
         gecko_id = 'xpi-drop-page@oganesson.test'
-        self.drop(self.server.url('/'), 'true', self.xpi(gecko_id))
-        self.assert_installs(gecko_id)
+        path = self.xpi(gecko_id)
+        self.drop(self.server.url('/'), 'true', path)
+        self.assert_installs(gecko_id, path)
 
     def test_open_file_url(self):
         gecko_id = 'xpi-file-url@oganesson.test'
-        url = self.xpi(gecko_id).as_uri()
+        path = self.xpi(gecko_id)
+        url = path.as_uri()
         self.browser.key('ctrl+l')
         self.browser.xdotool('type', '--delay', '20', url)
         self.browser.key('Return')
-        self.assert_installs(gecko_id)
+        self.assert_installs(gecko_id, path)
 
 
 class FirefoxXpiDropDeveloperModeTest(FirefoxXpiDropTest):
