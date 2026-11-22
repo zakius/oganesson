@@ -3027,6 +3027,92 @@ class FirefoxXpiAskWhereToSaveTest(FirefoxXpiInstallTest):
         self.assertEqual(info[0]['state'], 'ENABLED')
 
 
+class FirefoxXpiDropTest(BrowserTest):
+    """A .xpi dropped on chrome://extensions or on a page, or opened from
+    file://, installs as a downloaded one does (FirefoxXpiInstallTest),
+    without developer mode: the browser downloads its file:// URL after the
+    user's gesture, and the install prompt opens. The drops come from
+    DevTools (Input.dispatchDragEvent), as from a file manager, which Xvfb
+    doesn't have."""
+
+    # When chrome://extensions takes a drop.
+    extensions_ready = '!!chrome.developerPrivate'
+
+    @classmethod
+    def setUpClass(cls):
+        cls.browser_args = (signature_root_arg(),)
+        cls.folder = Path(tempfile.mkdtemp(prefix='oganesson-xpi-drop-'))
+        cls.server = Server({'/': (200, {'Content-Type': 'text/html'}, b'<p>a page</p>')})
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        cls.server.stop()
+        shutil.rmtree(cls.folder)
+
+    def xpi(self, gecko_id):
+        """The file of a .xpi signed for `gecko_id`."""
+        path = self.folder / f'{gecko_id.split("@")[0]}.xpi'
+        path.write_bytes(zipped(xpi_add_on(gecko_id, gecko_id)))
+        return path
+
+    def drop(self, url, ready, path):
+        """Drops the file at `path` in the middle of a new tab at `url`, once
+        the JavaScript `ready` holds there."""
+        page = self.browser.new_tab(url)
+        try:
+            # No gesture from DevTools: the drop is the user's.
+            wait_for(lambda: page.eval(f'document.readyState == "complete" && {ready}',
+                                       gesture=False), what=url)
+            x, y = page.eval('[innerWidth / 2, innerHeight / 2]', gesture=False)
+            data = {'items': [], 'files': [str(path)], 'dragOperationsMask': 1}
+            for kind in ('dragEnter', 'dragOver', 'drop'):
+                page.call('Input.dispatchDragEvent', type=kind, x=x, y=y, data=data)
+        finally:
+            page.close()
+
+    def assert_installs(self, gecko_id):
+        """Accepts the install prompt and checks that the add-on installed
+        packed."""
+        self.browser.accept_install_prompt()
+        add_on = gecko_extension_id(gecko_id)
+        self.browser.extension_background(add_on, timeout=30).close()
+        self.assertNotEqual(self.browser.extension_info(add_on)['location'], 'UNPACKED')
+
+    def test_drop_on_extensions_page(self):
+        gecko_id = 'xpi-drop-extensions@oganesson.test'
+        self.drop('chrome://extensions', self.extensions_ready, self.xpi(gecko_id))
+        self.assert_installs(gecko_id)
+
+    def test_drop_on_page(self):
+        gecko_id = 'xpi-drop-page@oganesson.test'
+        self.drop(self.server.url('/'), 'true', self.xpi(gecko_id))
+        self.assert_installs(gecko_id)
+
+    def test_open_file_url(self):
+        gecko_id = 'xpi-file-url@oganesson.test'
+        url = self.xpi(gecko_id).as_uri()
+        self.browser.key('ctrl+l')
+        self.browser.xdotool('type', '--delay', '20', url)
+        self.browser.key('Return')
+        self.assert_installs(gecko_id)
+
+
+class FirefoxXpiDropDeveloperModeTest(FirefoxXpiDropTest):
+    """In developer mode, chrome://extensions takes a dropped .crx or .zip
+    itself, and leaves a .xpi to the browser, which installs it as a
+    download."""
+
+    prefs = DEVELOPER_MODE
+    # Its drop handler is on.
+    extensions_ready = ("document.querySelector('extensions-manager')"
+                        "?.shadowRoot.querySelector('extensions-drop-overlay')?.dragEnabled")
+
+    # Not the base class's tests again: unittest runs only what is callable.
+    test_drop_on_page = test_open_file_url = None
+
+
 def gecko_extension_id(gecko_id):
     """The ID that an add-on installed from a .xpi gets from its Gecko ID:
     its SHA-256, in letters a to p."""
