@@ -3779,6 +3779,48 @@ class FirefoxMenusRefreshTest(head.ContextMenuTest):
         head.close_context_menu(self)
 
 
+class FirefoxPinnedTabCloseTest(head.ContextMenuTest):
+    """A pinned tab that closes sends a Firefox add-on no "pinned: false"
+    (dubna#215), but a tab whose close its beforeunload handler cancels stays
+    open, and its pin changes reach the add-on again. TabStripModel can
+    announce a close before it runs the handlers; on the tab menu's Close
+    here it runs them first, so this guards the behaviour, and passes without
+    the announcement's reset in firefox_closing_tab.cc too."""
+
+    def test_cancelled_close_keeps_pinned_updates(self):
+        extension = self.load_extension(
+            manifest={'permissions': ['tabs']},
+            background=JS('''function background() {
+              browser.tabs.onUpdated.addListener((tabId, changeInfo) => {
+                browser.test.sendMessage("pinned", changeInfo.pinned);
+              }, {properties: ["pinned"]});
+              browser.test.onMessage.addListener(async pinned => {
+                const [tab] = await browser.tabs.query({active: true, lastFocusedWindow: true});
+                await browser.tabs.update(tab.id, {pinned});
+              });
+              browser.test.sendMessage("ready");
+            }'''))
+        extension.startup()
+        extension.await_message('ready')
+        tab = self.open_tab(MENUS_PAGE)
+        extension.send_message(True)
+        self.assertEqual(extension.await_message('pinned'), True)
+        # The gesture gives the page the user activation that a beforeunload
+        # dialog needs; with Page enabled, the test can answer the dialog.
+        tab.eval('window.stay = e => e.preventDefault(); addEventListener("beforeunload", stay)')
+        tab.call('Page.enable')
+        # The tab strip's Close, which closes through TabStripModel, as the
+        # user's shortcut and click do; the pinned tab is the first.
+        menu = head.open_tab_context_menu(self, 0)
+        head.close_extension_context_menu(self, menu.by_label('Close')[0])
+        self.browser.wait_view('MessageBoxView')
+        tab.call('Page.handleJavaScriptDialog', accept=False)
+        extension.send_message(False)
+        self.assertEqual(extension.await_message('pinned'), False)
+        tab.eval('removeEventListener("beforeunload", stay)')
+        self.browser.close_target(tab)
+
+
 STORED_MENUS_ADD_ON = {
     'manifest.json': {
         'manifest_version': 2,
