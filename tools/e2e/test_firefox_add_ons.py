@@ -3719,11 +3719,17 @@ class FirefoxMenusRefreshTest(head.ContextMenuTest):
         head.open_context_menu(self, tab, 'body')
 
         def gap_above_item():
-            # A second separator shows as a wider gap between the groups.
-            items = [item for group in self.browser.menus()[0] for item in group]
-            index = [head.label_of(item) for item in items].index('item a')
+            # A second separator shows as a wider gap between the groups. The
+            # gap above the extension items' group: the bundled uBlock
+            # Origin's item joins it, above the add-on's, once uBlock has
+            # started.
+            groups = self.browser.menus()[0]
+            first = next(group for group in groups
+                         if 'item a' in [head.label_of(item) for item in group])[0]
+            items = [item for group in groups for item in group]
+            index = next(i for i, item in enumerate(items) if item is first)
             above = items[index - 1]
-            return items[index].bounds['y'] - above.bounds['y'] - above.bounds['height']
+            return first.bounds['y'] - above.bounds['y'] - above.bounds['height']
         gap = gap_above_item()
         for _ in range(3):
             extension.send_message('refresh')
