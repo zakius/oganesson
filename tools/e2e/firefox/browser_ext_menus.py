@@ -23,6 +23,12 @@ The bookmark task takes the bookmark bar for Firefox's bookmarks toolbar, as
 the contextMenus port does. Firefox's Tools menu is, in this browser, the app
 menu's More tools (head.open_tools_menu()). `http://example.com/` is the test
 server, as mochitest's proxy makes it in Firefox.
+
+Firefox gives `browser.menus` only with the `menus` permission and
+`browser.contextMenus` only with `contextMenus`. This browser gives both
+names with either permission on purpose (zakius/dubna#155), so that an
+add-on that asks for one and calls the other works. The permissions test
+checks for both names.
 """
 
 import json
@@ -59,12 +65,12 @@ class MenusTest(head.ContextMenuTest):
         apis2 = second.await_message('apis')
 
         self.is_(apis1['menus'], 'object', "browser.menus available with 'menus' permission")
-        self.is_(apis1['contextMenus'], 'undefined',
-                 "browser.contextMenus unavailable with  'menus' permission")
+        self.is_(apis1['contextMenus'], 'object',
+                 "browser.contextMenus available with 'menus' permission (zakius/dubna#155)")
         self.is_(apis1['menusInternal'], 'undefined', 'browser.menusInternal is never available')
 
-        self.is_(apis2['menus'], 'undefined',
-                 "browser.menus unavailable with 'contextMenus' permission")
+        self.is_(apis2['menus'], 'object',
+                 "browser.menus available with 'contextMenus' permission (zakius/dubna#155)")
         self.is_(apis2['contextMenus'], 'object',
                  "browser.contextMenus unavailable with  'contextMenus' permission")
         self.is_(apis2['menusInternal'], 'undefined', 'browser.menusInternal is never available')
