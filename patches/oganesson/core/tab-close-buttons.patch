@@ -33,14 +33,14 @@
      ":tab_style_views",
 --- a/chrome/browser/ui/views/tabs/common/BUILD.gn
 +++ b/chrome/browser/ui/views/tabs/common/BUILD.gn
-@@ -126,6 +126,7 @@
-     "//chrome/browser/ui/views/frame:glass_frame_service",
-     "//chrome/browser/ui/views/frame:themed_background",
-     "//chrome/browser/ui/views/tabs:base",
+@@ -168,6 +168,7 @@
+     "//ui/gfx/animation",
+     "//ui/gfx/geometry",
+     "//ui/views",
 +    "//chrome/browser/ui/views/tabs:oganesson_tab_close_buttons",
-     "//chrome/browser/ui/views/tabs:tab",
-     "//chrome/browser/ui/views/tabs:tab_group",
-     "//chrome/browser/ui/views/tabs:tab_style_views",
+   ]
+ 
+   if (is_chromeos) {
 --- a/chrome/browser/ui/views/tabs/common/tab_view_vertical_layout.cc
 +++ b/chrome/browser/ui/views/tabs/common/tab_view_vertical_layout.cc
 @@ -9,6 +9,7 @@
