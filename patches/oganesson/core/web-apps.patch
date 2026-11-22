@@ -227,17 +227,16 @@
  #include "chrome/browser/web_applications/web_app.h"
  #include "chrome/browser/web_applications/web_app_registrar.h"
  #include "chrome/browser/web_applications/web_app_tab_helper.h"
-@@ -229,7 +230,8 @@ content::WebContents* WebAppLaunchProcess::Run() {
-   // urls to be launched here, even if they are not in scope.
-   if (in_scope_result == LaunchUrlInScopeResult::kNotInScope &&
-       !url::IsSameOriginWith(launch_url, web_app_scope->scope())) {
--    launch_url = registrar_->GetAppStartUrl(params_->app_id);
-+    launch_url = GetUserAppStartUrl(*profile_->GetPrefs(), params_->app_id,
-+                                    registrar_->GetAppStartUrl(params_->app_id));
-     // If this was a file handler launch, then it would be unexpected that a
+@@ -234,6 +235,8 @@ content::WebContents* WebAppLaunchProcess::Run() {
      // file handle exists if we are resetting the URL. Thus, reset to only a
      // regular launch.
-@@ -283,7 +285,10 @@ content::WebContents* WebAppLaunchProcess::Run() {
+     is_file_handling = false;
++    launch_url = GetUserAppStartUrl(*profile_->GetPrefs(), params_->app_id,
++                                    launch_url);
+   }
+ 
+   BrowserWindowInterface* browser = MaybeFindBrowserForLaunch();
+@@ -283,7 +286,10 @@ content::WebContents* WebAppLaunchProcess::Run() {
    bool app_wants_focus_existing_without_navigation =
        GetLaunchHandler().NeverNavigateExistingClients() ||
        registrar_->IsPreventCloseEnabled(params_->app_id);
@@ -249,7 +248,7 @@
      auto* tab_helper = WebAppTabHelper::FromWebContents(existing_tab);
      if (tab_helper->pending_launch_app_id() == params_->app_id) {
        // This WebContents is already handling a launch for this app. It may
-@@ -394,7 +399,9 @@ std::tuple<GURL, bool /*is_file_handling*/> WebAppLaunchProcess::GetLaunchUrl(
+@@ -394,7 +400,9 @@ std::tuple<GURL, bool /*is_file_handling*/> WebAppLaunchProcess::GetLaunchUrl(
      launch_url = web_app_->note_taking_new_note_url();
    } else {
      // This is a default launch.
