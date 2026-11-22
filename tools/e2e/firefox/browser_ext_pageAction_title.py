@@ -3,7 +3,7 @@ browser/components/extensions/test/browser/browser_ext_pageAction_title.js.
 
 The add-ons' code is Firefox's, as it is. runTests() is head_pageAction.py's,
 whose checks of the page action's button in the location bar wait for that
-button (zakius/oganesson#68).
+button.
 """
 
 from firefox import head, head_pageAction

@@ -785,7 +785,10 @@ PAGE_ACTION_V3_ADD_ON = {
         'background': {'scripts': ['background.js']},
         'page_action': {'default_title': 'Page V3'},
     }),
-    'background.js': 'self.started = true;',
+    'background.js': '''
+        browser.pageAction.onClicked.addListener(tab => { self.clicked = tab.id; });
+        self.started = true;
+    ''',
 }
 
 # Each pageAction call on the active tab, then what each action holds.
@@ -811,11 +814,19 @@ PAGE_ACTION_CALLS = '''(async () => {
 PAGE_ACTION_TITLE = '''browser.tabs.query({active: true, lastFocusedWindow: true})
     .then(([tab]) => browser.pageAction.getTitle({tabId: tab.id}))'''
 
+# pageAction.show() or hide() on the active tab, whose ID it gives.
+PAGE_ACTION_SHOW = '''browser.tabs.query({active: true, lastFocusedWindow: true})
+    .then(([tab]) => browser.pageAction.%s(tab.id).then(() => tab.id))'''
+
 
 class FirefoxPageActionTest(BrowserTest):
     """page_action next to browser_action, which Chromium refuses to load, and
     page_action in Manifest V3: a second action that pageAction.* reaches, as
-    in Firefox. What a tab sets is reset when the tab navigates."""
+    in Firefox. What a tab sets is reset when the tab navigates. The page
+    action's button in the location bar shows where it is shown."""
+    # The bundled uBlock Origin's button comes into the toolbar after the
+    # start and narrows the location bar: a click would miss the button.
+    wait_ubo = True
 
     @classmethod
     def setUpClass(cls):
@@ -859,6 +870,58 @@ class FirefoxPageActionTest(BrowserTest):
             background.close()
             self.browser.close_target(page)
         self.assertFalse(self.browser.extension_errors(add_on))
+
+    def background_eval(self, add_on, js):
+        background = self.browser.extension_background(add_on)
+        try:
+            wait_for(lambda: background.eval('self.started === true'), what='the background script')
+            return background.eval(js)
+        finally:
+            background.close()
+
+    def page_action_buttons(self, add_on):
+        return [view for view in self.browser.views('FirefoxPageActionView', ExtensionId=add_on)
+                if view.visible]
+
+    def test_page_action_button(self):
+        popup_add_on, clicked_add_on = (extension_id(unpacked) for unpacked in self.unpacked)
+        page = self.browser.new_tab(self.server.url('/one'))
+        try:
+            wait_for(lambda: page.eval("document.readyState == 'complete' && document.body.innerText"),
+                     what='the page')
+            # Hidden until the add-on shows it on the tab.
+            self.assertFalse(self.page_action_buttons(popup_add_on))
+            self.background_eval(popup_add_on, PAGE_ACTION_SHOW % 'show')
+            tab_id = self.background_eval(clicked_add_on, PAGE_ACTION_SHOW % 'show')
+
+            # Without a popup, a real click fires pageAction.onClicked with the tab.
+            button = self.browser.wait_view('FirefoxPageActionView', ExtensionId=clicked_add_on)
+            self.assertEqual(button['TooltipText'], 'Page V3')
+            self.browser.click_view(button)
+            wait_for(lambda: self.background_eval(clicked_add_on, 'self.clicked') == tab_id,
+                     what='pageAction.onClicked')
+
+            # With a popup, the click opens it.
+            button = self.browser.wait_view('FirefoxPageActionView', ExtensionId=popup_add_on)
+            self.assertEqual(button['TooltipText'], 'Page')
+            before = {target['id'] for target in self.browser.targets()}
+            self.browser.click_view(button)
+            url = f'chrome-extension://{popup_add_on}/page.html'
+            target = wait_for(lambda: next((t for t in self.browser.targets()
+                                            if t['id'] not in before and t['url'] == url), None),
+                              what='the page action popup')
+            popup = Page(target)
+            try:
+                wait_for(lambda: popup.eval('document.body?.innerText') == 'page',
+                         what='the popup page')
+            finally:
+                popup.close()
+
+            self.background_eval(popup_add_on, PAGE_ACTION_SHOW % 'hide')
+            wait_for(lambda: not self.page_action_buttons(popup_add_on),
+                     what="the hidden page action's button to go")
+        finally:
+            self.browser.close_target(page)
 
     def test_manifest_v3_page_action(self):
         add_on = extension_id(self.unpacked[1])

@@ -12,8 +12,8 @@ changes and Firefox's frame ID of the page's frame
 add-on with the webNavigation permission (frame_id()). Firefox's popup is
 the add-on's popup (Browser.open_popup()), and its pageUrl the popup's
 chrome-extension: URL for Firefox's moz-extension: one. The page action's
-tasks need the page action's button (zakius/oganesson#68); the Tools menu's,
-the add-on's items in More tools (zakius/oganesson#98). This browser has no
+tasks right-click the page action's button (head.open_action_context_menu());
+the Tools menu's, the add-on's items in More tools (zakius/oganesson#98). This browser has no
 list of all tabs with a tab menu, Firefox's all-tabs panel: that task fails.
 An onShown info that a task doesn't expect at all, as when no menu fired
 it, ends the task at the next await.
