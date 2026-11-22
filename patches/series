@@ -72,6 +72,7 @@ oganesson/ui/containers-menus.patch
 oganesson/ui/containers-page-action.patch
 oganesson/settings/containers-settings.patch
 oganesson/core/firefox-sidebar-action.patch
+oganesson/ui/firefox-page-action-button.patch
 oganesson/core/app-icon.patch
 oganesson/settings/app-icon-settings.patch
 oganesson/core/google-lens.patch

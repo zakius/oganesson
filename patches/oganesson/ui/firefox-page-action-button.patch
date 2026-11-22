@@ -1,0 +1,140 @@
+# Firefox add-ons' page action buttons in the location bar (zakius/oganesson#68, dubna's
+# webextensions/README.md): src/chrome/browser/ui/views/toolbar/firefox_page_actions_view.h.
+# - extension_action_view_model.{h,cc}, BUILD.gn: a model of a Firefox page action, whose
+#   click runs that action (src/chrome/browser/ui/extensions/firefox_page_action_view_model.cc).
+# - toolbar_view.cc, BUILD.gn: the toolbar makes the buttons' view for the location bar.
+# - location_bar_view.{h,cc}: which lays it out left of Chromium's page actions.
+--- a/chrome/browser/ui/extensions/BUILD.gn
++++ b/chrome/browser/ui/extensions/BUILD.gn
+@@ -175,6 +175,8 @@
+     "extensions_menu_view_model.cc",
+     "extensions_overrides/simple_overrides.cc",
+     "extensions_toolbar_view_model.cc",
++    "firefox_page_action_view_model.cc",
++    "firefox_page_action_view_model.h",
+     "icon_with_badge_image_source.cc",
+     "reload_page_dialog_controller.cc",
+     "search_override_stack.cc",
+--- a/chrome/browser/ui/extensions/extension_action_view_model.cc
++++ b/chrome/browser/ui/extensions/extension_action_view_model.cc
+@@ -31,6 +31,7 @@
+ #include "chrome/browser/ui/extensions/extension_action_delegate.h"
+ #include "chrome/browser/ui/extensions/extension_popup_types.h"
+ #include "chrome/browser/ui/extensions/extension_side_panel_utils.h"
++#include "chrome/browser/ui/extensions/firefox_page_action_view_model.h"
+ #include "chrome/browser/ui/extensions/icon_with_badge_image_source.h"
+ #include "chrome/browser/ui/toolbar/toolbar_actions_model.h"
+ #include "chrome/browser/ui/ui_features.h"
+@@ -525,8 +526,14 @@
+   // This method is only called to execute an action by the user, so we can
+   // always grant tab permissions.
+   constexpr bool kGrantTabPermissions = true;
++  // Firefox add-ons (oganesson): the page action next to the add-on's other
++  // action, which RunAction() doesn't know, runs itself.
+   extensions::ExtensionAction::ShowAction action =
+-      action_runner->RunAction(extension_.get(), kGrantTabPermissions);
++      extension_action_ == extensions::ExtensionActionManager::Get(profile_)
++                               ->GetExtensionAction(*extension_)
++          ? action_runner->RunAction(extension_.get(), kGrantTabPermissions)
++          : RunFirefoxPageAction(*action_runner, *extension_,
++                                 *extension_action_, *web_contents);
+ 
+   if (action == extensions::ExtensionAction::ShowAction::kShowPopup) {
+     constexpr bool kByUser = true;
+--- a/chrome/browser/ui/extensions/extension_action_view_model.h
++++ b/chrome/browser/ui/extensions/extension_action_view_model.h
+@@ -63,6 +63,14 @@
+       BrowserWindowInterface* browser,
+       std::unique_ptr<ExtensionActionDelegate> delegate);
+ 
++  // Firefox add-ons (oganesson): the model of the location bar button of
++  // `action`, `extension`'s page action (firefox_page_action_view_model.cc).
++  static std::unique_ptr<ExtensionActionViewModel> CreateForFirefoxPageAction(
++      const extensions::Extension& extension,
++      extensions::ExtensionAction& action,
++      BrowserWindowInterface* browser,
++      std::unique_ptr<ExtensionActionDelegate> delegate);
++
+   ExtensionActionViewModel(const ExtensionActionViewModel&) = delete;
+   ExtensionActionViewModel& operator=(const ExtensionActionViewModel&) = delete;
+ 
+--- a/chrome/browser/ui/views/location_bar/location_bar_view.cc
++++ b/chrome/browser/ui/views/location_bar/location_bar_view.cc
+@@ -980,6 +980,11 @@
+                   LayoutConstant::kLocationBarTrailingDecorationAimEdgePadding)
+             : trailing_decorations_edge_padding);
+   }
++  if (firefox_page_actions_view_) {
++    add_trailing_decoration(firefox_page_actions_view_,
++                            /*intra_item_padding=*/0,
++                            /*edge_padding=*/trailing_decorations_edge_padding);
++  }
+   add_trailing_decoration(ai_mode_hint_label_, /*intra_item_padding=*/0,
+                           /*edge_padding=*/trailing_decorations_edge_padding);
+   for (ContentSettingImageView* view :
+@@ -1119,6 +1124,11 @@
+   return location_icon_view_->HasSecurityStateChanged();
+ }
+ 
++void LocationBarView::SetFirefoxPageActionsView(
++    std::unique_ptr<views::View> view) {
++  firefox_page_actions_view_ = AddChildView(std::move(view));
++}
++
+ void LocationBarView::Update(WebContents* contents) {
+   TRACE_EVENT("omnibox", "LocationBarView::Update");
+   loading_progress_view_->SetWebContents(GetWebContents());
+--- a/chrome/browser/ui/views/location_bar/location_bar_view.h
++++ b/chrome/browser/ui/views/location_bar/location_bar_view.h
+@@ -162,6 +162,11 @@
+     return page_action_container_;
+   }
+ 
++  // Firefox add-ons: the buttons of their page actions, left of Chromium's
++  // page actions. The toolbar makes them (FirefoxPageActionsView): the
++  // location bar doesn't depend on the toolbar's extension buttons.
++  void SetFirefoxPageActionsView(std::unique_ptr<views::View> view);
++
+   // Returns the screen coordinates of the omnibox (where the URL text appears,
+   // not where the icons are shown).
+   gfx::Point GetOmniboxViewOrigin() const;
+@@ -611,6 +616,9 @@
+   raw_ptr<page_actions::PageActionContainerView> page_action_container_ =
+       nullptr;
+ 
++  // See SetFirefoxPageActionsView().
++  raw_ptr<views::View> firefox_page_actions_view_ = nullptr;
++
+   // An [x] that appears in touch mode (when the OSK is visible) and allows the
+   // user to clear all text.
+   raw_ptr<views::ImageButton> clear_all_button_ = nullptr;
+--- a/chrome/browser/ui/views/toolbar/BUILD.gn
++++ b/chrome/browser/ui/views/toolbar/BUILD.gn
+@@ -178,6 +178,8 @@
+     "chrome_labs/chrome_labs_view_controller.cc",
+     "download_button_views.cc",
+     "download_button_views.h",
++    "firefox_page_actions_view.cc",
++    "firefox_page_actions_view.h",
+     "home_button.cc",
+     "overflow_button.cc",
+     "overflow_menu.cc",
+--- a/chrome/browser/ui/views/toolbar/toolbar_view.cc
++++ b/chrome/browser/ui/views/toolbar/toolbar_view.cc
+@@ -110,6 +110,7 @@
+ #include "chrome/browser/ui/views/toolbar/back_forward_button.h"
+ #include "chrome/browser/ui/views/toolbar/browser_app_menu_button.h"
+ #include "chrome/browser/ui/views/toolbar/chrome_labs/chrome_labs_coordinator.h"
++#include "chrome/browser/ui/views/toolbar/firefox_page_actions_view.h"
+ #include "chrome/browser/ui/views/toolbar/home_button.h"
+ #include "chrome/browser/ui/views/toolbar/overflow_menu.h"
+ #include "chrome/browser/ui/views/toolbar/pinned_toolbar_actions_container.h"
+@@ -819,6 +820,8 @@
+ 
+   if (location_bar_view_) {
+     location_bar_view_->Init();
++    location_bar_view_->SetFirefoxPageActionsView(
++        std::make_unique<FirefoxPageActionsView>(browser_));
+   } else {
+     toolbar_webview_->GetLocationBar()->Init(toolbar_webview_.get());
+   }
