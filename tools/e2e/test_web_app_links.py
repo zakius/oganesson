@@ -559,12 +559,17 @@ class WebAppLinksTest(WebAppTest):
         self.assertEqual(app.eval('location.href'), self.server.url('/out.html?script'))
         self.assertEqual(self.opened(), [])
 
-    def push_after_click_in_other_window(self):
-        """Clicks in one app window, then opens another, whose script pushes
-        an out-of-scope URL; returns the new window. Since Chromium 158 a new
-        app window has the user activation of a click in another window for
-        its first 5 s, as the activation of script run in it (kWebScriptExec).
-        That isn't input in the page, so the push isn't from a click."""
+    def push_after_click_in_other_window(self, script='history.pushState(null, "", "/out.html?script")',
+                                         before=None):
+        """Clicks in one app window, then opens another, whose `script`
+        pushes an out-of-scope URL; returns the new window. Since Chromium
+        158 a new app window has the user activation of a click in another
+        window for its first 5 s, as the activation of script run in it
+        (kWebScriptExec). That isn't input in the page, so the push isn't
+        from a click. `before(app)` runs first, in the new window."""
+        # In a browser that has just started, the new window gets no
+        # activation until uBlock Origin filters.
+        self.browser.ubo_background().close()
         other = self.launch_app()
         other.click('#push-inside')
         app = self.launch_app()
@@ -572,8 +577,9 @@ class WebAppLinksTest(WebAppTest):
         # loads, with the first script Chromium runs there.
         wait_for(lambda: app.eval('navigator.userActivation.isActive', gesture=False),
                  timeout=4, what='the click\'s activation in the new window')
-        active = app.eval('[navigator.userActivation.isActive,'
-                          ' history.pushState(null, "", "/out.html?script")][0]', gesture=False)
+        if before:
+            before(app)
+        active = app.eval(f'[navigator.userActivation.isActive, {script}][0]', gesture=False)
         self.assertTrue(active, 'the new window had no activation from the click')
         return app
 
@@ -586,6 +592,42 @@ class WebAppLinksTest(WebAppTest):
         app.click('#plain')
         wait_for(self.opened, what='xdg-open')
         self.assertEqual(self.opened(), [self.server.url('/out.html?plain')])
+
+    def touch_scroll(self, app):
+        """A touch that scrolls the page: the browser sees its touchstart, and
+        the page gets a pointercancel and no user activation. Xvfb has no
+        touch device for xdotool, so the touch comes through DevTools. The
+        page listens for touches, as most do, so the browser sends them."""
+        app.eval('document.body.style.height = "300vh";'
+                 ' addEventListener("touchstart", () => {}, {passive: true});'
+                 ' window.scrolled = new Promise(r => addEventListener("scrollend", r, {once: true}));'
+                 ' undefined', gesture=False)
+        app.call('Input.dispatchTouchEvent', type='touchStart', touchPoints=[{'x': 100, 'y': 300}])
+        for y in (280, 240, 200, 160):
+            app.call('Input.dispatchTouchEvent', type='touchMove', touchPoints=[{'x': 100, 'y': y}])
+        app.call('Input.dispatchTouchEvent', type='touchEnd', touchPoints=[])
+        # Once its fling ends, or it would move the page under a click.
+        app.eval('scrolled', gesture=False)
+        self.assertGreater(app.eval('scrollY', gesture=False), 0)
+
+    def test_out_of_scope_push_after_touch_scroll_and_click_in_other_window_stays_in_app(self):
+        # A scroll is no click, nor is the touch that starts it.
+        app = self.push_after_click_in_other_window(before=self.touch_scroll)
+        self.assertEqual(app.eval('location.href', gesture=False),
+                         self.server.url('/out.html?script'))
+        app.eval('scrollTo(0, 0)', gesture=False)
+        app.click('#plain')
+        wait_for(self.opened, what='xdg-open')
+        self.assertEqual(self.opened(), [self.server.url('/out.html?plain')])
+
+    def test_script_link_click_after_click_in_other_window_stays_in_app(self):
+        # A script's a.click() on an out-of-scope link isn't the user's: it
+        # loads in the window, as a script navigation does.
+        app = self.push_after_click_in_other_window(
+            script='document.getElementById("plain").click()')
+        wait_for(lambda: app.eval('location.href', gesture=False)
+                 == self.server.url('/out.html?plain'), what='the link in the app window')
+        self.assertEqual(self.opened(), [])
 
     def test_strict_push_after_click_in_other_window_fires_no_popstate(self):
         self.set_strict()
