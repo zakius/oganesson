@@ -24,6 +24,7 @@ refusal ("Access to restricted URI denied"), a Gecko internal.
 
 from firefox import head, head_pageAction
 from extension_test_utils import JS, FirefoxTest
+from harness import Page
 
 HTML = {'Content-Type': 'text/html'}
 
@@ -286,7 +287,7 @@ class PageActionPopupTest(FirefoxTest):
                 self.browser.browser_call('Target.activateTarget', targetId=tab.id)
         elif panel:
             head_pageAction.wait_popup_shown(self)
-            self.browser.close_target(panel[0])
+            self.browser.close_target(Page(panel[0]))
             head_pageAction.wait_popup_hidden(self, extension)
 
         assert_view_count(self, extension, 1)

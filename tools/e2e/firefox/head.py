@@ -644,9 +644,13 @@ def page_action_button(test, extension):
     toolbar button for a Manifest V2 add-on whose only action is a page
     action isn't it: that button stays in the toolbar on every tab, greyed
     out where the page action is hidden."""
-    views = [view for view in test.browser.views('FirefoxPageActionView', ExtensionId=extension.id)
-             if view.visible]
-    return max(views, key=lambda view: view.widget) if views else None
+    views = test.browser.views('FirefoxPageActionView', ExtensionId=extension.id)
+    if not views:
+        return None
+    # Each window has the add-on's button, hidden where the page action is:
+    # another window's shown button isn't this window's.
+    newest = max(views, key=lambda view: view.widget)
+    return newest if newest.visible else None
 
 
 def wait_page_action_button(test, extension):
