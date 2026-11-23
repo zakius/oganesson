@@ -7,6 +7,7 @@
 #include <utility>
 
 #include "base/no_destructor.h"
+#include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
 
 namespace web_app {
@@ -29,8 +30,13 @@ WebInstallRequest::WebInstallRequest(content::WebContents* web_contents)
 WebInstallRequest::~WebInstallRequest() = default;
 
 // static
-void WebInstallRequest::Store(content::WebContents* web_contents,
+void WebInstallRequest::Store(content::RenderFrameHost& frame,
                               base::OnceClosure install) {
+  if (!frame.IsInPrimaryMainFrame()) {
+    return;
+  }
+  content::WebContents* web_contents =
+      content::WebContents::FromRenderFrameHost(&frame);
   CreateForWebContents(web_contents);
   FromWebContents(web_contents)->install_ = std::move(install);
   ChangedCallbacks().Notify(web_contents);
@@ -61,6 +67,15 @@ base::CallbackListSubscription WebInstallRequest::RegisterChanged(
 }
 
 void WebInstallRequest::PrimaryPageChanged(content::Page& page) {
+  Drop();
+}
+
+void WebInstallRequest::PrimaryMainFrameRenderProcessGone(
+    base::TerminationStatus status) {
+  Drop();
+}
+
+void WebInstallRequest::Drop() {
   if (install_) {
     install_.Reset();
     ChangedCallbacks().Notify(web_contents());

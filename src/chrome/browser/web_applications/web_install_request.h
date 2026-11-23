@@ -7,11 +7,13 @@
 
 #include "base/callback_list.h"
 #include "base/functional/callback.h"
+#include "base/process/kill.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "content/public/browser/web_contents_user_data.h"
 
 namespace content {
 class Page;
+class RenderFrameHost;
 class WebContents;
 }  // namespace content
 
@@ -29,10 +31,10 @@ class WebInstallRequest
 
   ~WebInstallRequest() override;
 
-  // Keeps `install` as the request of `web_contents`, in place of the one
-  // before.
-  static void Store(content::WebContents* web_contents,
-                    base::OnceClosure install);
+  // Keeps `install` as the request of `frame`'s tab, in place of the one
+  // before. Does nothing unless `frame` is the tab's primary main frame: a
+  // page that has already left the tab (an unload handler) asks for nothing.
+  static void Store(content::RenderFrameHost& frame, base::OnceClosure install);
 
   // Whether `web_contents` has a request that can still run.
   static bool Has(content::WebContents* web_contents);
@@ -46,11 +48,16 @@ class WebInstallRequest
 
   // content::WebContentsObserver:
   void PrimaryPageChanged(content::Page& page) override;
+  void PrimaryMainFrameRenderProcessGone(
+      base::TerminationStatus status) override;
 
  private:
   friend class content::WebContentsUserData<WebInstallRequest>;
 
   explicit WebInstallRequest(content::WebContents* web_contents);
+
+  // Drops the request, if any, when the page that made it is gone.
+  void Drop();
 
   base::OnceClosure install_;
 

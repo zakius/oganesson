@@ -136,7 +136,7 @@
 +  // badge, and its click runs the install as an <install> element's click
 +  // would (web_install_request.h). The promise rejects as if dismissed.
 +  WebInstallRequest::Store(
-+      content::WebContents::FromRenderFrameHost(&render_frame_host()),
++      render_frame_host(),
 +      base::BindOnce(&WebInstallServiceImpl::ElementInstallFromManifest,
 +                     weak_ptr_factory_.GetWeakPtr(), std::move(options),
 +                     InstallFromManifestCallback(base::DoNothing())));
