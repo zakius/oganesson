@@ -2817,10 +2817,21 @@ def large_icon_xpi():
     }, LARGE_ICON_GECKO_ID))
 
 
-# Firefox's reasons for a .xpi that doesn't install (dubna's
+# Firefox's reason for a .xpi that doesn't install (dubna's
 # firefox_xpi_installer.cc).
-NOT_VERIFIED = 'This add-on could not be installed because it has not been verified.'
 CORRUPT = 'This add-on could not be installed because it appears to be corrupt.'
+# What dubna's oganesson_firefox_add_ons_strings.grdp says of an unsigned .xpi:
+# in its install prompt, on chrome://extensions once installed, and when it
+# would replace a verified add-on of its ID.
+UNSIGNED_WARNING = ("Mozilla hasn't checked this add-on. Malicious add-ons can steal your "
+                    'private information or harm your computer. Add it only if you trust its '
+                    'source.')
+UNVERIFIED = "This add-on could not be verified: Mozilla hasn't checked it. Proceed with caution."
+UNSIGNED_OVER_VERIFIED = ('This add-on could not be installed because it has not been verified, '
+                          'and a verified add-on with the same ID is installed.')
+UNSIGNED_GECKO_ID = 'xpi-unsigned@oganesson.test'
+DECLINED_GECKO_ID = 'xpi-declined@oganesson.test'
+TAKEN_GECKO_ID = 'xpi-taken@oganesson.test'
 SHA1_COSE_GECKO_ID = 'xpi-sha1-cose@oganesson.test'
 COSE_GECKO_ID = 'xpi-cose-gecko-id@oganesson.test'
 
@@ -2833,11 +2844,17 @@ class FirefoxXpiInstallTest(BrowserTest):
     signature, here by the test root that the browser trusts with
     --firefox-add-ons-signature-root (zakius/dubna#219), whose certificate's
     common name is the add-on's ID: one without a Gecko ID installs with
-    that ID. Without a signature, it "has not been verified"; with a file
+    that ID. Unsigned, it installs with its Gecko ID once the user accepts
+    the prompt, which warns first that Mozilla hasn't checked it, as Firefox
+    does with signatures not required, and chrome://extensions says it isn't
+    verified (zakius/dubna#233); declined, it doesn't install, and over an
+    installed add-on of its ID from a signed .xpi it is refused before the
+    prompt, so a site can't take that ID and its storage. With a file
     changed after signing or one that manifest.mf doesn't list, signed by
     another root, or with another Gecko ID than the signature's, it "appears
     to be corrupt", and so does one without a Gecko ID or a signature, which
-    has no ID. A SHA-1 signature installs only with a valid COSE signature,
+    has no ID, and one with a COSE signature but no PKCS #7. A SHA-1
+    signature installs only with a valid COSE signature,
     which is checked whenever a .xpi has one (zakius/dubna#220): without
     one, or with a broken one, the add-on "appears to be corrupt" too, and
     so does one whose COSE certificate is from another root, whose
@@ -2870,10 +2887,16 @@ class FirefoxXpiInstallTest(BrowserTest):
         cose_root = 'xpi-cose-root@oganesson.test'
         cose_digest = 'xpi-cose-digest@oganesson.test'
         cose_id = 'xpi-cose-id@oganesson.test'
+        cose_only = 'xpi-cose-only@oganesson.test'
         for path, files in {
                 '/signed.xpi': xpi_add_on(None, SIGNED_GECKO_ID),
                 '/no-id.xpi': xpi_add_on(None),
-                '/unsigned.xpi': xpi_add_on('xpi-unsigned@oganesson.test'),
+                '/unsigned.xpi': xpi_add_on(UNSIGNED_GECKO_ID),
+                '/declined.xpi': xpi_add_on(DECLINED_GECKO_ID),
+                '/taken-signed.xpi': xpi_add_on(TAKEN_GECKO_ID, TAKEN_GECKO_ID),
+                # The same add-on unsigned, which says so once it runs.
+                '/taken-unsigned.xpi': {**xpi_add_on(TAKEN_GECKO_ID),
+                                        'background.js': 'self.started = self.unsigned = true;'},
                 '/changed.xpi': {**xpi_add_on(changed, changed),
                                  'background.js': 'self.started = "changed";'},
                 '/unlisted.xpi': {**xpi_add_on(unlisted, unlisted), 'unlisted.js': ''},
@@ -2893,6 +2916,10 @@ class FirefoxXpiInstallTest(BrowserTest):
                                            cose_id='xpi-cose-signed-id@oganesson.test'),
                 '/cose-gecko-id.xpi': xpi_add_on(None, 'xpi-cose-pkcs7@oganesson.test',
                                                  cose='valid', cose_id=COSE_GECKO_ID),
+                # A valid COSE signature without the PKCS #7.
+                '/cose-only.xpi': {name: data for name, data in
+                                   xpi_add_on(cose_only, cose_only, cose='valid').items()
+                                   if name != 'META-INF/mozilla.rsa'},
         }.items():
             routes[path] = (200, {'Content-Type': 'application/x-xpinstall'}, zipped(files))
         cls.server = Server(routes)
@@ -3010,13 +3037,18 @@ class FirefoxXpiInstallTest(BrowserTest):
         self.assertNotEqual(info[0]['location'], 'UNPACKED')
         self.assertEqual(info[0]['state'], 'ENABLED')
 
-    def refused(self, path, error, name):
-        """Downloads the .xpi at `path`, waits for the browser's `error` for
-        it, and checks that no add-on whose name has `name` installed."""
+    def load_error(self, path, error):
+        """Downloads the .xpi at `path` and waits for the browser's `error`
+        for it."""
         self.browser.download(self.server.url('/'), path)
         # "Extension error: Failed to load extension from: <path>. <error>"
         wait_for(lambda: f'{path[1:]}. {error}' in self.browser.log_path.read_text(
             errors='replace'), timeout=30, what=f'the load error of {path}')
+
+    def refused(self, path, error, name):
+        """Downloads the .xpi at `path`, waits for the browser's `error` for
+        it, and checks that no add-on whose name has `name` installed."""
+        self.load_error(path, error)
         page = self.browser.new_tab('chrome://extensions')
         try:
             wait_for(lambda: page.eval('!!chrome.developerPrivate'), what='chrome://extensions')
@@ -3030,8 +3062,54 @@ class FirefoxXpiInstallTest(BrowserTest):
         # Neither a Gecko ID nor a signature: Firefox finds no ID.
         self.refused('/no-id.xpi', CORRUPT, 'without a Gecko ID')
 
+    def wait_unsigned_warning(self):
+        """Waits for the install prompt's warning of an unsigned .xpi."""
+        self.browser.wait_view('Label', match=lambda v: v['Text'] == UNSIGNED_WARNING)
+
     def test_unsigned(self):
-        self.refused('/unsigned.xpi', NOT_VERIFIED, 'xpi-unsigned@')
+        add_on = gecko_extension_id(UNSIGNED_GECKO_ID)
+        self.browser.download(self.server.url('/'), '/unsigned.xpi')
+        self.wait_unsigned_warning()
+        self.browser.accept_install_prompt()
+        self.started(add_on).close()
+        info = self.browser.extension_info(add_on)
+        self.assertNotEqual(info['location'], 'UNPACKED')
+        self.assertEqual(info['state'], 'ENABLED')
+        self.assertIn(UNVERIFIED, info['runtimeWarnings'])
+
+    def test_unsigned_declined(self):
+        add_on = gecko_extension_id(DECLINED_GECKO_ID)
+        self.browser.download(self.server.url('/'), '/declined.xpi')
+        self.wait_unsigned_warning()
+        # The prompt takes clicks once it enables "Add extension" (Chromium's
+        # install prompt delay): Cancel shows as enabled before.
+        self.browser.wait_view(
+            'MdTextButton', match=lambda v: v['Enabled'] == 'true' and v['Text'] == 'Add extension')
+        cancel = self.browser.wait_view(
+            'MdTextButton', match=lambda v: v['Enabled'] == 'true' and v['Text'] == 'Cancel')
+        self.browser.click_view(cancel)
+        wait_for(lambda: not [v for v in self.browser.views('MdTextButton', Text='Add extension')
+                              if v.visible], what='the install prompt to close')
+        self.assertEqual(self.installed(add_on), [])
+
+    def test_unsigned_over_signed(self):
+        add_on = gecko_extension_id(TAKEN_GECKO_ID)
+        self.browser.download(self.server.url('/'), '/taken-signed.xpi')
+        self.browser.accept_install_prompt()
+        self.started(add_on).close()
+        self.load_error('/taken-unsigned.xpi', UNSIGNED_OVER_VERIFIED)
+        # The signed add-on stays, verified.
+        background = self.started(add_on)
+        try:
+            self.assertFalse(background.eval('!!self.unsigned'))
+        finally:
+            background.close()
+        info = self.browser.extension_info(add_on)
+        self.assertEqual(info['state'], 'ENABLED')
+        self.assertNotIn(UNVERIFIED, info['runtimeWarnings'])
+
+    def test_cose_without_pkcs7(self):
+        self.refused('/cose-only.xpi', CORRUPT, 'xpi-cose-only@')
 
     def test_changed_after_signing(self):
         self.refused('/changed.xpi', CORRUPT, 'xpi-changed@')
@@ -3122,6 +3200,7 @@ class FirefoxXpiAskWhereToSaveTest(FirefoxXpiInstallTest):
     test_signed_theme = test_sha1_with_cose = test_sha1_without_cose = None
     test_broken_cose = test_cose_other_root = test_cose_wrong_digest = None
     test_cose_other_gecko_id = test_gecko_id_from_cose = None
+    test_unsigned_declined = test_unsigned_over_signed = test_cose_without_pkcs7 = None
 
     def test_ask_where_to_save(self):
         add_on = hashlib.sha256(XPI_GECKO_ID.encode()).hexdigest()[:32].translate(
