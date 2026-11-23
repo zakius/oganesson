@@ -40,10 +40,9 @@ constexpr gfx::VectorIcon kBadge(kBadgeRep, 1u, "oganesson_web_install_badge");
 
 bool ShowWebInstallBadge(page_actions::PageActionController& controller,
                          content::WebContents& web_contents) {
-  // A tab whose page never asked has nothing to put back.
-  if (!WebInstallRequest::FromWebContents(&web_contents)) {
-    return false;
-  }
+  // Without a live request, put the icon back, also on a tab whose contents
+  // never asked: a discard replaces the contents, and with them the request,
+  // but the overrides stay on the tab's controller.
   if (!WebInstallRequest::Has(&web_contents)) {
     controller.ClearOverrideImage(kActionInstallPwa);
     controller.OverrideForegroundColor(kActionInstallPwa, std::nullopt);
