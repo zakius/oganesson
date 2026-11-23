@@ -115,6 +115,11 @@
     "message": "Zakończ"
   },
   {
+    "name": "IDS_OGANESSON_WEB_INSTALL_REQUEST",
+    "source": "This site asks you to install an app",
+    "message": "Ta strona prosi o zainstalowanie aplikacji"
+  },
+  {
     "name": "IDS_CONTENT_CONTEXT_OPENLINKDEFAULTBROWSER",
     "source": "Open link in default browser",
     "message": "Otwórz link w domyślnej przeglądarce"

@@ -47,6 +47,17 @@ The same page has a "Start address" card: the URL the app opens at, in place of 
 
 Code: `src/chrome/browser/web_applications/user_app_start_url.cc` and `src/chrome/browser/resources/app_settings/start_url_item.ts`, hooked in by `patches/oganesson/core/web-apps.patch`. Verified by `./oganesson.py test web_app_links`.
 
+## Install requests from sites
+
+Chromium 158's Web Install API lets a page ask to install a web app: its own, or another site's from that site's manifest.
+
+- **From a script.** `navigator.install()` shows no dialog. The promise rejects at once with an `AbortError`, as if the user dismissed the dialog, so the script can't wait for the answer or ask again. The address bar's install icon shows in the accent color, with a dot, and the tooltip "This site asks you to install an app", also on a page that isn't installable itself. A click on it opens the install dialog that an `<install>` element's click opens, and takes the badge away. The tab keeps one request, the last; a new page in the tab drops it. The app menu's "Install page as app…" stays as it was.
+- **The `<install>` element.** A button the browser draws on the page: its click opens the install dialog, as in Chromium.
+
+An app installed either way is an installed web app like any other, with the link handling, scope rules and start address above.
+
+Code: `src/chrome/browser/web_applications/web_install_request.cc` (the request kept on the tab) and `src/chrome/browser/ui/web_applications/web_install_badge.cc` (the icon and its click), hooked in by `patches/oganesson/core/web-install-badge.patch`. Verified by `./oganesson.py test web_app_links` (`ScriptInstallTest`, `ScriptManifestInstallTest`, `ElementInstallTest`).
+
 ## Tray
 
 An installed app's settings page has a "Keep running in the tray" switch, off by default. With it on, the app keeps running after its window closes, and its notifications and messages keep arriving with every other browser window closed: the browser keeps running for the app, as it does for any open window.

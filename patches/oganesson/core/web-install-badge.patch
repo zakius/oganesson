@@ -1,0 +1,146 @@
+# The Web Install API without a dialog from scripts (src/chrome/browser/web_applications/web_install_request.h,
+# src/chrome/browser/ui/web_applications/web_install_badge.cc): navigator.install() keeps its install on
+# the tab and rejects at once as if dismissed; the address bar's install icon shows with a badge, and its
+# click runs the install as the <install> element's click does. The element keeps Chromium's behavior.
+--- a/chrome/browser/ui/browser_actions.cc
++++ b/chrome/browser/ui/browser_actions.cc
+@@ -184,6 +184,7 @@
+ #include "chrome/browser/ui/views/zoom/zoom_view_controller.h"
+ #include "chrome/browser/ui/web_applications/app_browser_controller.h"
+ #include "chrome/browser/ui/web_applications/web_app_dialog_utils.h"
++#include "chrome/browser/ui/web_applications/web_install_badge.h"
+ #include "chrome/browser/ui/webid/account_selection_view.h"
+ #include "chrome/browser/ui/webui/inspect/inspect_ui.h"
+ #include "chrome/browser/ui/webui/side_panel/customize_chrome/customize_chrome_section.h"
+@@ -2061,6 +2062,9 @@
+           base::BindRepeating(
+               [](BrowserWindowInterface* bwi, actions::ActionItem* item,
+                  actions::ActionInvocationContext context) {
++                if (web_app::RunWebInstallRequest(bwi, context)) {
++                  return;
++                }
+                 base::RecordAction(
+                     base::UserMetricsAction("InstallWebAppFromMenu"));
+                 web_app::CreateWebAppFromCurrentWebContents(
+--- a/chrome/browser/ui/views/page_action/page_action_view.cc
++++ b/chrome/browser/ui/views/page_action/page_action_view.cc
+@@ -447,7 +447,7 @@
+   if (icon_image.IsVectorIcon()) {
+     SetImageModel(ui::ImageModel::FromVectorIcon(
+         *icon_image.GetVectorIcon().vector_icon(), icon_color,
+-        drawing_icon_size));
++        drawing_icon_size, icon_image.GetVectorIcon().badge_icon()));
+     image_container_view()->SetFlipCanvasOnPaintForRTLUI(true);
+   } else {
+     SetImageModel(icon_image);
+--- a/chrome/browser/ui/web_applications/BUILD.gn
++++ b/chrome/browser/ui/web_applications/BUILD.gn
+@@ -151,7 +151,11 @@
+   }
+ 
+   if (toolkit_views) {
+-    sources += [ "pwa_install_page_action.cc" ]
++    sources += [
++      "pwa_install_page_action.cc",
++      "web_install_badge.cc",
++    ]
++    deps += [ "//components/vector_icons" ]
+   }
+ 
+   if (enable_extensions) {
+--- a/chrome/browser/ui/web_applications/pwa_install_page_action.cc
++++ b/chrome/browser/ui/web_applications/pwa_install_page_action.cc
+@@ -16,9 +16,11 @@
+ #include "chrome/browser/ui/page_action/page_action_observer.h"
+ #include "chrome/browser/ui/tabs/public/tab_features.h"
+ #include "chrome/browser/ui/user_education/browser_user_education_interface.h"
++#include "chrome/browser/ui/web_applications/web_install_badge.h"
+ #include "chrome/browser/web_applications/web_app_constants.h"
+ #include "chrome/browser/web_applications/web_app_helpers.h"
+ #include "chrome/browser/web_applications/web_app_pref_guardrails.h"
++#include "chrome/browser/web_applications/web_install_request.h"
+ #include "chrome/grit/generated_resources.h"
+ #include "components/feature_engagement/public/feature_constants.h"
+ #include "components/site_engagement/content/site_engagement_service.h"
+@@ -66,6 +68,15 @@
+   will_deactivate_subscription_ = tab_interface_->RegisterWillDeactivate(
+       base::BindRepeating(&PwaInstallPageActionController::WillDeactivate,
+                           base::Unretained(this)));
++  web_install_request_subscription_ =
++      web_app::WebInstallRequest::RegisterChanged(base::BindRepeating(
++          [](PwaInstallPageActionController* self,
++             content::WebContents* web_contents) {
++            if (web_contents == self->tab_interface_->GetContents()) {
++              self->UpdateVisibility();
++            }
++          },
++          base::Unretained(this)));
+ 
+   RegisterAsPageActionObserver(page_action_controller_.get());
+ }
+@@ -161,6 +172,11 @@
+     return;
+   }
+ 
++  // oganesson: a site's navigator.install() call (web_install_badge.h).
++  if (web_app::ShowWebInstallBadge(*page_action_controller_, *web_contents)) {
++    return;
++  }
++
+   if (!manager_) {
+     return;
+   }
+--- a/chrome/browser/ui/web_applications/pwa_install_page_action.h
++++ b/chrome/browser/ui/web_applications/pwa_install_page_action.h
+@@ -131,6 +131,7 @@
+ 
+   base::CallbackListSubscription will_discard_contents_subscription_;
+   base::CallbackListSubscription will_deactivate_subscription_;
++  base::CallbackListSubscription web_install_request_subscription_;
+ 
+   base::WeakPtrFactory<PwaInstallPageActionController> weak_ptr_factory_{this};
+ };
+--- a/chrome/browser/web_applications/BUILD.gn
++++ b/chrome/browser/web_applications/BUILD.gn
+@@ -416,6 +416,8 @@
+     "web_contents/web_contents_manager.h",
+     "web_install_manifest_fetcher.cc",
+     "web_install_manifest_fetcher.h",
++    "web_install_request.cc",
++    "web_install_request.h",
+     "web_install_service_impl.cc",
+     "web_install_service_impl.h",
+   ]
+--- a/chrome/browser/web_applications/web_install_service_impl.cc
++++ b/chrome/browser/web_applications/web_install_service_impl.cc
+@@ -38,6 +38,7 @@
+ #include "chrome/browser/web_applications/web_contents/web_app_data_retriever.h"
+ #include "chrome/browser/web_applications/web_contents/web_contents_manager.h"
+ #include "chrome/browser/web_applications/web_install_manifest_fetcher.h"
++#include "chrome/browser/web_applications/web_install_request.h"
+ #include "components/permissions/permission_request.h"
+ #include "components/ukm/app_source_url_recorder.h"
+ #include "components/webapps/browser/install_result_code.h"
+@@ -359,13 +360,15 @@
+ void WebInstallServiceImpl::InstallFromManifest(
+     blink::mojom::ManifestInstallOptionsPtr options,
+     InstallFromManifestCallback callback) {
+-  if (options) {
+-    InstallFromManifestInternal(std::move(options), std::move(callback),
+-                                /*triggered_from_element=*/false);
+-  } else {
+-    InstallCurrentDocumentInternal(std::move(callback),
+-                                   /*triggered_from_element=*/false);
+-  }
++  // oganesson: a script shows no dialog. The address bar's install icon gets a
++  // badge, and its click runs the install as an <install> element's click
++  // would (web_install_request.h). The promise rejects as if dismissed.
++  WebInstallRequest::Store(
++      content::WebContents::FromRenderFrameHost(&render_frame_host()),
++      base::BindOnce(&WebInstallServiceImpl::ElementInstallFromManifest,
++                     weak_ptr_factory_.GetWeakPtr(), std::move(options),
++                     InstallFromManifestCallback(base::DoNothing())));
++  std::move(callback).Run(blink::mojom::WebInstallServiceResult::kAbortError);
+ }
+ 
+ void WebInstallServiceImpl::ElementInstallFromManifest(

@@ -7,6 +7,9 @@ handler and records the URLs it gets, and the activation token variables it
 sees, which decide whether the browser it starts may take focus; a stub `xdg-settings` and a desktop
 file make oganesson the default browser when a test needs it. An app window
 also stays usable while a regular window shows a "Leave this page?" dialog.
+Apps installed through the Web Install API get the same handling: from a
+navigator.install() call, which only badges the address bar's install icon,
+and from an <install> element.
 """
 
 import base64
@@ -77,6 +80,9 @@ LINKS_PAGE = b'''<!doctype html>
 # The address bar's "Open in app" icon: its tooltip with and without the
 # link capturing UX.
 OPEN_IN_APP = {'Open in app', 'To open this link, choose an app'}
+# The address bar's install icon with the badge a page's navigator.install()
+# call gives it: its tooltip.
+INSTALL_REQUEST = 'This site asks you to install an app'
 
 
 
@@ -1105,6 +1111,166 @@ class DiyAppTest(WebAppTest):
     def test_launch_opens_start_url(self):
         self.set_start_url(self.server.url('/app/start.html'))
         self.launch_app(url=self.server.url('/app/start.html'))
+
+
+class WebInstallTest(WebAppTest):
+    """The Web Install API: the app installed from a page that asks, through
+    the install dialog. The classes below ask in their ways."""
+
+    # The page that asks, on `requester_host`.
+    requester = '/app/index.html'
+    requester_host = '127.0.0.1'
+
+    @classmethod
+    def open_requester(cls):
+        url = cls.server.url(cls.requester, cls.requester_host)
+        tab = cls.browser.new_tab(url)
+        wait_for(lambda: tab.eval('location.href', gesture=False) == url
+                 and tab.eval('document.readyState', gesture=False) == 'complete',
+                 what='the page that asks')
+        return tab
+
+    @classmethod
+    def install_dialog_shown(cls):
+        return any(v.visible for v in cls.browser.views('MdTextButton', Text='Install'))
+
+    @classmethod
+    def badge_shown(cls):
+        return any(v.visible for v in cls.browser.views('PageActionView', TooltipText=INSTALL_REQUEST))
+
+    @classmethod
+    def installed(cls):
+        """Whether the app is installed. Not while the install dialog is
+        open: the install holds the app's lock, which this waits for."""
+        try:
+            cls.browser.pipe_call('PWA.getOsAppState', manifestId=cls.manifest_id)
+            return True
+        except RuntimeError:
+            return False
+
+    @classmethod
+    def wait_installed(cls, tab, before):
+        """Clicks Install in the open dialog until the app is installed, then
+        closes the tab that asked and the windows the install opened."""
+        browser = cls.browser
+
+        # The dialog ignores clicks for a moment after it shows or moves:
+        # click Install again while it is still there.
+        def click_install():
+            if cls.install_dialog_shown():
+                browser.click_view(browser.wait_view('MdTextButton', Text='Install'))
+                return False
+            return cls.installed()
+        wait_for(click_install, timeout=30, interval=1, what='the app installed')
+        # Installing a tab's own page moves the tab to the app's new window,
+        # or a bubble offers to; another site's app may open in a window.
+        for target in browser.targets():
+            if target['type'] == 'page' and (target['id'] == tab.id or target['id'] not in before):
+                browser.close_target(Page(target))
+
+    def check_plain_link_opens_in_default_browser(self):
+        app = self.launch_app()
+        app.click('#plain')
+        wait_for(self.opened, what='xdg-open')
+        self.assertEqual(self.opened(), [self.server.url('/out.html?plain')])
+        self.assertEqual(self.out_tabs(), [])
+
+
+class ScriptInstallTest(WebInstallTest):
+    """navigator.install() on the app's own page shows no dialog: the promise
+    rejects at once as if dismissed, and the address bar's install icon gets a
+    badge. A click on the icon opens Chromium's install dialog and takes the
+    badge away. The app installed from there sends links out like any other."""
+
+    # The manifest the page names: None for its own.
+    manifest = None
+
+    @classmethod
+    def install(cls):
+        browser = cls.browser
+        cls.server.routes['/launcher.html'] = (200, {'Content-Type': 'text/html'}, b'launcher')
+        tab = cls.open_requester()
+        before = {t['id'] for t in browser.targets()}
+        options = json.dumps({'manifest': cls.manifest}) if cls.manifest else ''
+        # With the eval's user gesture, which the call needs.
+        cls.result, cls.took = tab.eval(
+            '(async () => { const start = performance.now();'
+            f' try {{ await navigator.install({options}); return ["resolved", 0]; }}'
+            ' catch (e) { return [e.name, performance.now() - start]; } })()')
+        browser.wait_view('PageActionView', TooltipText=INSTALL_REQUEST)
+        cls.dialog_before_click = cls.install_dialog_shown()
+
+        # A click on the icon takes the badge away. One that missed, as the
+        # address bar moved, leaves it: click again.
+        def dialog():
+            if not cls.install_dialog_shown():
+                for icon in browser.views('PageActionView', TooltipText=INSTALL_REQUEST):
+                    if icon.visible:
+                        browser.click_view(icon)
+            return cls.install_dialog_shown()
+        wait_for(dialog, timeout=30, interval=1, what='the install dialog')
+        cls.badge_after_click = cls.badge_shown()
+        cls.wait_installed(tab, before)
+
+    def test_install_rejects_at_once(self):
+        self.assertEqual(self.result, 'AbortError')
+        self.assertLess(self.took, 5000)
+
+    def test_icon_click_opens_dialog(self):
+        self.assertFalse(self.dialog_before_click)
+        self.assertFalse(self.badge_after_click)
+
+    def test_plain_link_opens_in_default_browser(self):
+        self.check_plain_link_opens_in_default_browser()
+
+
+class ScriptManifestInstallTest(ScriptInstallTest):
+    """navigator.install() for another site's app, from a page that isn't
+    installable itself: the install icon shows there, with the badge."""
+
+    requester = '/launcher.html'
+    requester_host = 'localhost'
+
+    @classmethod
+    def install(cls):
+        cls.manifest = cls.server.url('/app/manifest.json', cls.app_host)
+        super().install()
+
+
+class ElementInstallTest(WebInstallTest):
+    """The page's <install> element keeps Chromium's behavior: its click
+    opens the install dialog, and the install icon gets no badge. The app
+    installed from there sends links out like any other."""
+
+    requester = '/app/element.html'
+
+    @classmethod
+    def install(cls):
+        browser = cls.browser
+        cls.server.routes['/app/element.html'] = (
+            200, {'Content-Type': 'text/html'},
+            b'<!doctype html><link rel="manifest" href="/app/manifest.json">'
+            b'<install id="install"></install>')
+        tab = cls.open_requester()
+        before = {t['id'] for t in browser.targets()}
+        wait_for(lambda: tab.eval('document.getElementById("install").isValid', gesture=False),
+                 what='the <install> element valid')
+
+        # The element takes clicks only once it has been on screen for a
+        # moment: click until the dialog shows.
+        def dialog():
+            if not cls.install_dialog_shown():
+                browser.click_element(tab, '#install')
+            return cls.install_dialog_shown()
+        wait_for(dialog, timeout=30, interval=1, what='the install dialog')
+        cls.badged = cls.badge_shown()
+        cls.wait_installed(tab, before)
+
+    def test_element_shows_no_badge(self):
+        self.assertFalse(self.badged)
+
+    def test_plain_link_opens_in_default_browser(self):
+        self.check_plain_link_opens_in_default_browser()
 
 
 class IsolatedWebAppTest(WebAppTest):

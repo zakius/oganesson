@@ -28,6 +28,7 @@ oganesson/core/webstore-prodversion.patch
 oganesson/core/web-apps.patch
 ../dubna/patches/app-links.patch
 oganesson/core/web-app-tray.patch
+oganesson/core/web-install-badge.patch
 oganesson/core/no-background-mode.patch
 oganesson/core/firefox-tab-behavior.patch
 oganesson/settings/tab-behavior-settings.patch
