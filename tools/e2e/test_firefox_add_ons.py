@@ -769,6 +769,7 @@ PAGE_ACTION_ADD_ON = {
         # Both actions, as Multi-Account Containers and Sidebery have them.
         'browser_action': {'default_title': 'Toolbar', 'default_popup': 'toolbar.html'},
         'page_action': {'default_title': 'Page', 'default_popup': 'page.html'},
+        'permissions': ['menus'],
     }),
     'background.js': 'self.started = true;',
     'toolbar.html': '<!doctype html><p>toolbar',
@@ -920,6 +921,43 @@ class FirefoxPageActionTest(BrowserTest):
             self.background_eval(popup_add_on, PAGE_ACTION_SHOW % 'hide')
             wait_for(lambda: not self.page_action_buttons(popup_add_on),
                      what="the hidden page action's button to go")
+        finally:
+            self.browser.close_target(page)
+
+    def menu_titles(self, view):
+        """The titles of the menu a right click on `view` opens; the menu is
+        closed again."""
+        self.browser.click_view(view, button=3)
+        menus = wait_for(lambda: self.browser.menus(), what='the menu')
+        titles = [item['Title'] for group in menus[0] for item in group]
+        while self.browser.menus():
+            self.browser.key('Escape')
+            time.sleep(0.2)
+        return titles
+
+    def test_page_action_button_menu(self):
+        # Each button's menu has its own action's items, as in Firefox: an
+        # add-on with both actions has two buttons (zakius/dubna's
+        # ScopedFirefoxMenuAction).
+        add_on = extension_id(self.unpacked[0])
+        page = self.browser.new_tab(self.server.url('/one'))
+        try:
+            wait_for(lambda: page.eval("document.readyState == 'complete' && document.body.innerText"),
+                     what='the page')
+            self.background_eval(add_on, '''(async () => {
+                await new Promise(done => browser.menus.create(
+                    {id: 'page', title: 'Page only', contexts: ['page_action']}, done));
+                await new Promise(done => browser.menus.create(
+                    {id: 'toolbar', title: 'Toolbar only', contexts: ['browser_action']}, done));
+            })()''')
+            self.background_eval(add_on, PAGE_ACTION_SHOW % 'show')
+            button = self.browser.wait_view('FirefoxPageActionView', ExtensionId=add_on)
+            titles = self.menu_titles(button)
+            self.assertIn('Page only', titles)
+            self.assertNotIn('Toolbar only', titles)
+            titles = self.menu_titles(self.browser.toolbar_button(add_on, 'Toolbar'))
+            self.assertIn('Toolbar only', titles)
+            self.assertNotIn('Page only', titles)
         finally:
             self.browser.close_target(page)
 
