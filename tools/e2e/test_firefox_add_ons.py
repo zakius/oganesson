@@ -2870,6 +2870,7 @@ UNSIGNED_OVER_VERIFIED = ('This add-on could not be installed because it has not
 UNSIGNED_GECKO_ID = 'xpi-unsigned@oganesson.test'
 DECLINED_GECKO_ID = 'xpi-declined@oganesson.test'
 TAKEN_GECKO_ID = 'xpi-taken@oganesson.test'
+LATER_SIGNED_GECKO_ID = 'xpi-later-signed@oganesson.test'
 SHA1_COSE_GECKO_ID = 'xpi-sha1-cose@oganesson.test'
 COSE_GECKO_ID = 'xpi-cose-gecko-id@oganesson.test'
 
@@ -2933,6 +2934,9 @@ class FirefoxXpiInstallTest(BrowserTest):
                 '/declined.xpi': xpi_add_on(DECLINED_GECKO_ID),
                 '/taken-signed.xpi': xpi_add_on(TAKEN_GECKO_ID, TAKEN_GECKO_ID),
                 # The same add-on unsigned, which says so once it runs.
+                '/later-unsigned.xpi': {**xpi_add_on(LATER_SIGNED_GECKO_ID),
+                                        'background.js': 'self.started = self.unsigned = true;'},
+                '/later-signed.xpi': xpi_add_on(LATER_SIGNED_GECKO_ID, LATER_SIGNED_GECKO_ID),
                 '/taken-unsigned.xpi': {**xpi_add_on(TAKEN_GECKO_ID),
                                         'background.js': 'self.started = self.unsigned = true;'},
                 '/changed.xpi': {**xpi_add_on(changed, changed),
@@ -3146,6 +3150,23 @@ class FirefoxXpiInstallTest(BrowserTest):
         self.assertEqual(info['state'], 'ENABLED')
         self.assertNotIn(UNVERIFIED, info['runtimeWarnings'])
 
+    def test_signed_over_unsigned(self):
+        # An unsigned .xpi may replace an add-on from an unsigned one, and a
+        # signed .xpi replaces it and is verified.
+        add_on = gecko_extension_id(LATER_SIGNED_GECKO_ID)
+        for path in ('/later-unsigned.xpi', '/later-unsigned.xpi'):
+            self.browser.download(self.server.url('/'), path)
+            self.wait_unsigned_warning()
+            self.browser.accept_install_prompt()
+            self.started(add_on, '!!self.unsigned').close()
+            self.assertIn(UNVERIFIED, self.browser.extension_info(add_on)['runtimeWarnings'])
+        self.browser.download(self.server.url('/'), '/later-signed.xpi')
+        self.browser.accept_install_prompt()
+        self.started(add_on, '!self.unsigned').close()
+        info = self.browser.extension_info(add_on)
+        self.assertEqual(info['state'], 'ENABLED')
+        self.assertNotIn(UNVERIFIED, info['runtimeWarnings'])
+
     def test_cose_without_pkcs7(self):
         self.refused('/cose-only.xpi', CORRUPT, 'xpi-cose-only@')
 
@@ -3239,6 +3260,7 @@ class FirefoxXpiAskWhereToSaveTest(FirefoxXpiInstallTest):
     test_broken_cose = test_cose_other_root = test_cose_wrong_digest = None
     test_cose_other_gecko_id = test_gecko_id_from_cose = None
     test_unsigned_declined = test_unsigned_over_signed = test_cose_without_pkcs7 = None
+    test_signed_over_unsigned = None
 
     def test_ask_where_to_save(self):
         add_on = hashlib.sha256(XPI_GECKO_ID.encode()).hexdigest()[:32].translate(
