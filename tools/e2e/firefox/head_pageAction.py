@@ -174,3 +174,44 @@ def run_tests(test, manifest, files, get_tests):
         test.check(head.page_action_button(test, extension) is None,
                    'pageAction image removed from second document')
         head.close_window(test, window)
+
+
+# popup ports
+
+def popup_targets(test, extension):
+    """The add-on's popup pages open in the browser: its DevTools targets
+    other than its background."""
+    prefix = f'chrome-extension://{extension.id}/'
+    return [t for t in test.browser.targets() if t['url'].startswith(prefix)
+            and t['type'] not in ('background_page', 'service_worker')]
+
+
+def popup_view(test):
+    """The popup bubble (Chromium's ExtensionPopup) that is shown, or None.
+    The browser shows one popup at a time."""
+    return next((v for v in test.browser.views('ExtensionPopup') if v.visible), None)
+
+
+def wait_popup_shown(test):
+    """promisePopupShown(): the popup bubble shows, and stops moving."""
+    return test.browser.wait_view('ExtensionPopup')
+
+
+def wait_popup_hidden(test, extension):
+    """promisePopupHidden(): the popup bubble is gone, and so is the add-on's
+    popup page."""
+    wait_for(lambda: popup_view(test) is None and not popup_targets(test, extension),
+             what="the add-on's popup to close")
+
+
+def await_extension_panel(test, extension):
+    """awaitExtensionPanel(): the add-on's popup page once it has loaded
+    and its bubble shows."""
+    from harness import Page
+    target = wait_for(lambda: next(iter(popup_targets(test, extension)), None),
+                      what="the add-on's popup")
+    page = Page(target)
+    wait_for(lambda: page.eval('document.readyState', gesture=False) == 'complete',
+             what="the add-on's popup to load")
+    wait_popup_shown(test)
+    return page
