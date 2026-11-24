@@ -4147,5 +4147,43 @@ class FirefoxMenusBindingsTest(FirefoxTest):
         self.assertEqual(chrome.await_message('members'), ['onClicked'])
 
 
+class FirefoxUpdateFilterBindingsTest(FirefoxTest):
+    """tabs.onUpdated takes Firefox's filter (dubna#30) in a Firefox add-on
+    only. A Chrome Web Store extension keeps Chromium's event, which takes no
+    filter: Violentmonkey tries one, and only when that throws drops the one
+    it passes later, `isFirefox && filter`, so `false` stopped its service
+    worker."""
+
+    def test_only_in_firefox_add_ons(self):
+        source = '''(() => {
+          const errors = [];
+          for (const filter of [{properties: ["status"]}, false]) {
+            try {
+              chrome.tabs.onUpdated.addListener(() => {}, filter);
+              errors.push(null);
+            } catch (e) {
+              errors.push(e.message);
+            }
+          }
+          chrome.test.sendMessage("errors", errors);
+        })();'''
+        firefox = self.load_extension(manifest={'permissions': ['tabs']},
+                                      background=JS(f'function background() {{ {source} }}'))
+        # Violentmonkey's kind: a manifest without a Gecko ID, and a service
+        # worker.
+        chrome = self.load_extension(files={
+            'manifest.json': {'manifest_version': 3, 'name': 'Chrome extension', 'version': '1',
+                              'permissions': ['tabs'],
+                              'background': {'service_worker': 'worker.js'}},
+            'worker.js': source,
+        })
+        firefox.startup()
+        chrome.startup()
+        self.assertEqual(firefox.await_message('errors'),
+                         [None, 'Incorrect argument types for tabs.onUpdated.'])
+        self.assertEqual(chrome.await_message('errors'),
+                         ['This event does not support filters'] * 2)
+
+
 if __name__ == '__main__':
     unittest.main()
