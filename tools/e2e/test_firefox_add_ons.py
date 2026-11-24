@@ -2872,6 +2872,7 @@ UNSIGNED_GECKO_ID = 'xpi-unsigned@oganesson.test'
 DECLINED_GECKO_ID = 'xpi-declined@oganesson.test'
 TAKEN_GECKO_ID = 'xpi-taken@oganesson.test'
 LATER_SIGNED_GECKO_ID = 'xpi-later-signed@oganesson.test'
+RACE_GECKO_ID = 'xpi-race@oganesson.test'
 SHA1_COSE_GECKO_ID = 'xpi-sha1-cose@oganesson.test'
 COSE_GECKO_ID = 'xpi-cose-gecko-id@oganesson.test'
 
@@ -2889,7 +2890,8 @@ class FirefoxXpiInstallTest(BrowserTest):
     does with signatures not required, and chrome://extensions says it isn't
     verified (zakius/dubna#233); declined, it doesn't install, and over an
     installed add-on of its ID from a signed .xpi it is refused before the
-    prompt, so a site can't take that ID and its storage. With a file
+    prompt, so a site can't take that ID and its storage, and again when its
+    prompt is accepted after such an add-on installed (zakius/dubna#237). With a file
     changed after signing or one that manifest.mf doesn't list, signed by
     another root, or with another Gecko ID than the signature's, it "appears
     to be corrupt", and so does one without a Gecko ID or a signature, which
@@ -2943,6 +2945,9 @@ class FirefoxXpiInstallTest(BrowserTest):
                 '/later-unsigned-2.xpi': {**xpi_add_on(LATER_SIGNED_GECKO_ID),
                                           'background.js': 'self.started = true; self.unsigned = 2;'},
                 '/later-signed.xpi': xpi_add_on(LATER_SIGNED_GECKO_ID, LATER_SIGNED_GECKO_ID),
+                '/race-signed.xpi': xpi_add_on(RACE_GECKO_ID, RACE_GECKO_ID),
+                '/race-unsigned.xpi': {**xpi_add_on(RACE_GECKO_ID),
+                                       'background.js': 'self.started = self.unsigned = true;'},
                 '/changed.xpi': {**xpi_add_on(changed, changed),
                                  'background.js': 'self.started = "changed";'},
                 '/unlisted.xpi': {**xpi_add_on(unlisted, unlisted), 'unlisted.js': ''},
@@ -3144,6 +3149,33 @@ class FirefoxXpiInstallTest(BrowserTest):
         self.browser.accept_install_prompt()
         self.started(add_on).close()
         self.load_error('/taken-unsigned.xpi', UNSIGNED_OVER_VERIFIED)
+        # The signed add-on stays, verified.
+        background = self.started(add_on)
+        try:
+            self.assertFalse(background.eval('!!self.unsigned'))
+        finally:
+            background.close()
+        info = self.browser.extension_info(add_on)
+        self.assertEqual(info['state'], 'ENABLED')
+        self.assertNotIn(UNVERIFIED, info['runtimeWarnings'])
+
+    def test_unsigned_accepted_after_signed(self):
+        # The signed add-on of its ID installs from another tab while the
+        # unsigned .xpi's prompt is open: accepting the prompt is refused.
+        add_on = gecko_extension_id(RACE_GECKO_ID)
+        refusal = f'Extension error: {UNSIGNED_OVER_VERIFIED}'
+        refusals = self.browser.log_path.read_text(errors='replace').count(refusal)
+        unsigned_tab = self.browser.download(self.server.url('/'), '/race-unsigned.xpi')
+        self.wait_unsigned_warning()
+        # The unsigned prompt belongs to its tab, which the new tab hides.
+        self.browser.download(self.server.url('/'), '/race-signed.xpi')
+        self.browser.accept_install_prompt()
+        self.started(add_on).close()
+        self.browser.browser_call('Target.activateTarget', targetId=unsigned_tab.id)
+        self.wait_unsigned_warning()
+        self.browser.accept_install_prompt()
+        wait_for(lambda: self.browser.log_path.read_text(errors='replace').count(refusal)
+                 > refusals, timeout=30, what='the refusal')
         # The signed add-on stays, verified.
         background = self.started(add_on)
         try:
