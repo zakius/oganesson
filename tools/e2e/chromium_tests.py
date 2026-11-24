@@ -20,14 +20,20 @@ Many tests need more than that: Chromium's C++ test fixture (policies, a
 second extension, chrome.test.sendMessage() replies, other test data). Stock
 Helium of the same Chromium version sorts them out:
 
-- --baseline runs every test in stock Helium (HELIUM_BINARY: the helium
+- --baseline runs every test (or --only's) in stock Helium (HELIUM_BINARY: the helium
   binary of the helium-linux release that linux/helium-linux pins) and writes
   dubna's webextensions/chromium-tests.json: each test's result there, and
-  "expected", what passed: the names of its runTests() tests, or "*" for a
-  test that passed without them. Run it again when Chromium moves.
+  "expected", what passed in each of BASELINE_RUNS runs: the names of its
+  runTests() tests, or "*" for a test that passed without them. What passed
+  only some of the time, such as a test that races an event, is "flaky": it
+  fails the baseline (exit 1) until FIXES removes its race or its entry has a
+  "reason".
+  Run it again when Chromium moves.
 - A run without it checks oganesson (OGANESSON_BINARY, by default the release
   build in work/): what passed in stock Helium has to pass. A test where it
-  doesn't is printed as DOWN, with what failed, and the run exits 3; any other
+  doesn't is printed as DOWN, with what failed, and the run exits 3, which
+  stops a release, until it is fixed or the test's entry in the list gets a
+  "reason" for its failure, which --baseline keeps; any other
   exit status but 0 means the run itself failed. --only runs those tests alone.
 
 The run holds the builds lock, the file $BUILDS_LOCK names.
@@ -58,12 +64,40 @@ NAMESPACES = ['bindings', 'bookmarks', 'browser_action', 'content_scripts', 'con
               'cookies', 'events', 'executescript', 'extension_action', 'i18n', 'messaging',
               'page_action', 'permissions', 'preference', 'privacy', 'proxy', 'runtime',
               'scripting', 'storage', 'tabs', 'web_navigation', 'web_request', 'windows']
+# How many times --baseline runs a test that passes: what passes each time counts.
+BASELINE_RUNS = 3
 # A test's longest run, from its browser's start to its end.
 TIMEOUT = 60
 DOWN = 3
 os.environ.setdefault('OGANESSON_BINARY',
                       str(ROOT / 'work/helium-linux/build/src/out/Release/oganesson'))
 os.environ.setdefault('TMPDIR', str(ROOT / 'work/tmp'))
+
+# Chromium's tests that race on their own, in stock Helium too, with the edit
+# (file, old text, new text) that removes the race. A test that turns out
+# flaky gets an edit here, or a "reason" in the list, before its baseline.
+FIXES = {
+    # The test adds its onUpdated listener after tabs.create() resolves, and the
+    # new tab's "complete" can come first: the browser sends an event only to a
+    # worker with a listener. The listener now comes before the tab.
+    'tabs/zoom': [('worker.js', """  const tab = await chrome.tabs.create({url: 'about:blank'});
+  chrome.test.assertNoLastError();
+  await waitForTabComplete(tab.id);
+""", """  const completed = new Set();
+  let wake = () => {};
+  chrome.tabs.onUpdated.addListener((id, changeInfo) => {
+    if (changeInfo.status === 'complete') {
+      completed.add(id);
+      wake();
+    }
+  });
+  const tab = await chrome.tabs.create({url: 'about:blank'});
+  chrome.test.assertNoLastError();
+  while (!completed.has(tab.id)) {
+    await new Promise(resolve => wake = resolve);
+  }
+""")],
+}
 
 SHIM = """(() => {
   const state = self.__chromiumTest = {result: null, current: null, passing: []};
@@ -164,10 +198,15 @@ def find_tests(api_test):
     return names
 
 
-def prepare(source, target, port, page):
-    """The test in `source` copied to `target`, with the shim running first in
-    its background or in `page`."""
+def prepare(source, target, port, page, fixes=()):
+    """The test in `source` copied to `target`, with `fixes` (FIXES) made and
+    the shim running first in its background or in `page`."""
     shutil.copytree(source, target)
+    for file, old, new in fixes:
+        text = (target / file).read_text()
+        if text.count(old) != 1:
+            raise ValueError(f'FIXES of {source.name}: {file} changed upstream')
+        (target / file).write_text(text.replace(old, new))
     (target / '__shim.js').write_text(SHIM % json.dumps(
         {'testServer': {'port': port}, 'testDataDirectory': f'http://localhost:{port}/extensions'}))
     manifest = read_manifest(target)
@@ -195,7 +234,7 @@ def run_test(name, api_test, port):
     source, _, page_path = name.partition(':')
     browser = None
     try:
-        prepare(api_test / source, folder, port, page_path)
+        prepare(api_test / source, folder, port, page_path, FIXES.get(source, ()))
         # chrome.test is only there with --test-type (feature_cache.cc).
         browser = Browser(args=('--test-type', f'--load-extension={folder}',
                                 f'--host-resolver-rules=MAP * 127.0.0.1:{port}'))
@@ -232,6 +271,11 @@ def expected(run):
     if run['passing']:
         return sorted(set(run['passing']))
     return ['*'] if run['result'] == 'pass' else []
+
+
+def missing(baseline, name, run):
+    """What passed in stock Helium and didn't in `run`."""
+    return sorted(set(baseline['tests'][name]['expected']) - set(expected(run)))
 
 
 def serve(api_test):
@@ -281,31 +325,59 @@ def main():
     start = time.monotonic()
     try:
         with ThreadPoolExecutor(args.jobs) as pool:
-            results = dict(zip(names, pool.map(
-                lambda name: run_test(name, api_test, server.port), names)))
+            def run_all(tests):
+                return dict(zip(tests, pool.map(
+                    lambda name: run_test(name, api_test, server.port), tests)))
+            results = run_all(names)
+            if args.baseline:
+                # A test whose result depends on timing would stop releases at random:
+                # only what passes every time counts, and the rest is "flaky".
+                for name in names:
+                    results[name]['ever'] = set(expected(results[name]))
+                for _ in range(BASELINE_RUNS - 1):
+                    again = run_all([name for name in names if results[name]['ever']])
+                    for name, run in again.items():
+                        results[name]['ever'] |= set(expected(run))
+                        results[name]['passing'] = sorted(
+                            set(expected(results[name])) & set(expected(run)))
+                        if run['result'] != 'pass':
+                            results[name]['result'] = run['result']
     finally:
         server.stop()
     minutes = (time.monotonic() - start) / 60
     if args.baseline:
-        tests = {name: {'helium': run['result'], 'expected': expected(run)}
-                 for name, run in results.items()}
+        old = json.loads(listing.read_text())['tests'] if listing.is_file() else {}
+        tests = dict(old) if args.only else {}
+        for name, run in results.items():
+            tests[name] = {'helium': run['result'], 'expected': expected(run)}
+            flaky = sorted(run['ever'] - set(expected(run)))
+            if flaky:
+                tests[name]['flaky'] = flaky
+            if old.get(name, {}).get('reason'):
+                tests[name]['reason'] = old[name]['reason']
         listing.write_text(json.dumps({'chromium': CHROMIUM, 'tests': tests}, indent=1,
                                       sort_keys=True) + '\n')
         count = sum(len(test['expected']) for test in tests.values())
-        print(f'{listing}: {count} tests of {len(tests)} test extensions pass in stock Helium '
-              f'({minutes:.1f} min)')
-        return 0
-    down = {}
-    for name, run in results.items():
-        missing = sorted(set(baseline['tests'][name]['expected']) - set(expected(run)))
-        if missing:
-            down[name] = (missing, run['result'])
-    for name, (missing, result) in sorted(down.items()):
-        print(f"DOWN {name}: {', '.join(missing)}: {result}")
+        print(f'{listing}: {count} tests of {len(tests)} test extensions pass in stock Helium, '
+              f'{BASELINE_RUNS} times ({minutes:.1f} min)')
+        flaky = {name: test['flaky'] for name, test in tests.items()
+                 if test.get('flaky') and not test.get('reason')}
+        for name, lost in sorted(flaky.items()):
+            print(f"FLAKY {name}: {', '.join(lost)}: fix it in FIXES, or give it a reason")
+        return 1 if flaky else 0
+    for name in results:
+        if baseline['tests'][name].get('reason'):
+            print(f"known {name}: {baseline['tests'][name]['reason']}")
+    down = {name: (missing(baseline, name, run), run['result'])
+            for name, run in results.items()
+            if missing(baseline, name, run) and not baseline['tests'][name].get('reason')}
+    for name, (lost, result) in sorted(down.items()):
+        print(f"DOWN {name}: {', '.join(lost)}: {result}")
     count = sum(len(baseline['tests'][name]['expected']) for name in results)
-    print(f"{count - sum(len(m) for m, _ in down.values())} of {count} tests that pass in "
+    print(f"{count - sum(len(lost) for lost, _ in down.values())} of {count} tests that pass in "
           f'stock Helium pass ({minutes:.1f} min)')
     return DOWN if down else 0
+
 
 if __name__ == '__main__':
     sys.exit(main())
