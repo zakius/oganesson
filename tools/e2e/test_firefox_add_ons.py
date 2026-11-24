@@ -1779,12 +1779,13 @@ class FirefoxWindowActionTest(BrowserTest):
 
     def test_chrome_extension(self):
         """A Chrome extension keeps Chromium's setIcon: its promise resolves
-        on the browser's error, which a callback gets as runtime.lastError."""
+        on the browser's error, which a callback gets as runtime.lastError.
+        Firefox's windowId isn't in its schema, so it calls with a tab."""
         background = self.browser.extension_background(extension_id(self.unpacked['chrome']))
         try:
             wait_for(lambda: background.eval('self.started === true'), what='the background script')
             result = background.eval('''(async () => {
-                const details = {path: 'icon.png', windowId: 2147483647};
+                const details = {path: 'icon.png', tabId: 2147483647};
                 return [
                     await chrome.browserAction.setIcon(details).then(() => 'resolved', e => e.message),
                     await new Promise(resolve => chrome.browserAction.setIcon(
@@ -1793,7 +1794,7 @@ class FirefoxWindowActionTest(BrowserTest):
             })()''')
         finally:
             background.close()
-        self.assertEqual(result, ['resolved', 'Invalid window ID: 2147483647'])
+        self.assertEqual(result, ['resolved', 'No tab with id: 2147483647.'])
 
 
 CONTEXTUAL_IDENTITIES_ADD_ON = {
