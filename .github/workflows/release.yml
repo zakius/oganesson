@@ -38,6 +38,10 @@ jobs:
           if [ -e dubna/.git ]; then git -C dubna checkout -q -- webextensions/score; fi
           git submodule update --init -q
           echo "RELEASE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+      # What firefox-add-ons.patch adds is Firefox add-ons' alone (dubna's webextensions/README.md,
+      # "Firefox add-ons only"): about a second, no browser.
+      - name: Firefox add-ons only
+        run: cd "$MAIN" && python3 dubna/tools/firefox_gates.py
       - name: Linux build and browser tests
         run: cd "$MAIN" && flock "$BUILDS_LOCK" sh -c './oganesson.py build --release && ./oganesson.py test --release'
       # All of Firefox's ported WebExtensions tests (dubna's webextensions/README.md, "Test
@@ -51,6 +55,12 @@ jobs:
           python3 tools/e2e/firefox_tests.py
           mkdir -p work/release-scores
           cp dubna/webextensions/score/oganesson-firefox-tests.json work/release-scores/
+      # Chromium's own extension API tests as Chrome extensions (tools/e2e/chromium_tests.py):
+      # each one that passes in stock Helium of the same Chromium, as dubna's
+      # webextensions/chromium-tests.json says, has to pass here, or the release stops (exit 3).
+      # The run takes the lock itself.
+      - name: Chromium's extension API tests
+        run: cd "$MAIN" && python3 tools/e2e/chromium_tests.py
       # The full corpus of AMO add-ons (dubna's webextensions/README.md, "Corpus score"), also
       # before Windows: an add-on that is lower than in the score committed in dubna, also after
       # a second run of it, stops the release (exit 1). The run takes the lock itself; a flock
