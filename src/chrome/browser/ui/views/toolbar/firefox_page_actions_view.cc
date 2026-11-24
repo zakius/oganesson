@@ -265,11 +265,19 @@ FirefoxPageActionsView::~FirefoxPageActionsView() {
 bool FirefoxPageActionsView::RunPageAction(
     const extensions::Extension& extension) {
   for (const std::unique_ptr<ExtensionActionViewModel>& model : models_) {
-    if (model->GetId() == extension.id()) {
+    if (model->GetId() != extension.id()) {
+      continue;
+    }
+    // Hidden in the tab, it does nothing, as in Firefox: the model would run
+    // it with activeTab, or open its menu in its place.
+    content::WebContents* contents = GetCurrentWebContents();
+    extensions::ExtensionAction* action = PageActionOf(profile_, extension);
+    if (contents && action &&
+        action->GetIsVisible(sessions::SessionTabHelper::IdForTab(contents).id())) {
       model->ExecuteUserAction(
           ToolbarActionViewModel::InvocationSource::kCommand);
-      return true;
     }
+    return true;
   }
   return false;
 }

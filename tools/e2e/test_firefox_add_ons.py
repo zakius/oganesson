@@ -947,9 +947,24 @@ class FirefoxPageActionTest(BrowserTest):
         try:
             wait_for(lambda: page.eval("document.readyState == 'complete' && document.body.innerText"),
                      what='the page')
-            tab_id = self.background_eval(clicked_add_on, PAGE_ACTION_SHOW % 'show')
             background = self.browser.extension_background(clicked_add_on)
             try:
+                # No user activation in the background page before this:
+                # Chromium's lasts a few seconds after a user action (an
+                # earlier test's evaluation).
+                wait_for(lambda: background.eval(
+                    'self.started === true && !navigator.userActivation.isActive',
+                    gesture=False), what='the background script without a user activation')
+                # Hidden in the tab, the page action does nothing: no
+                # onClicked, and no menu in the button's place.
+                self.assertEqual(background.eval(open_popup), 'opened')
+                time.sleep(1)
+                self.assertIsNone(background.eval('self.clicked', gesture=False))
+                self.assertFalse(self.browser.menus())
+                wait_for(lambda: background.eval('!navigator.userActivation.isActive',
+                                                 gesture=False),
+                         what='the user activation to end')
+                tab_id = background.eval(PAGE_ACTION_SHOW % 'show', gesture=False)
                 self.assertEqual(background.eval(open_popup, gesture=False),
                                  'pageAction.openPopup may only be called from a user input handler')
                 self.assertEqual(background.eval(open_popup), 'opened')
@@ -3225,22 +3240,64 @@ class FirefoxXpiInstallTest(BrowserTest):
         self.assertNotIn(UNVERIFIED, info['runtimeWarnings'])
 
     def test_unsigned_accepted_after_signed(self):
-        # The signed add-on of its ID installs from another tab while the
-        # unsigned .xpi's prompt is open: accepting the prompt is refused.
+        # The signed add-on of its ID installs from another window while the
+        # unsigned .xpi's prompt is open: accepting the prompt is refused. A
+        # window shows one install prompt at a time, so the windows are side
+        # by side, and each prompt's "Add extension" is told apart by where it is.
         add_on = gecko_extension_id(RACE_GECKO_ID)
         refusal = f'Extension error: {UNSIGNED_OVER_VERIFIED}'
         refusals = self.browser.log_path.read_text(errors='replace').count(refusal)
-        unsigned_tab = self.browser.download(self.server.url('/'), '/race-unsigned.xpi')
-        self.wait_unsigned_warning()
-        # The unsigned prompt belongs to its tab, which the new tab hides.
-        self.browser.download(self.server.url('/'), '/race-signed.xpi')
-        self.browser.accept_install_prompt()
-        self.started(add_on).close()
-        self.browser.browser_call('Target.activateTarget', targetId=unsigned_tab.id)
-        self.wait_unsigned_warning()
-        self.browser.accept_install_prompt()
-        wait_for(lambda: self.browser.log_path.read_text(errors='replace').count(refusal)
-                 > refusals, timeout=30, what='the refusal')
+        first = self.browser.browser_call('Browser.getWindowForTarget',
+                                          targetId=self.browser.targets()[0]['id'])
+        self.browser.browser_call('Browser.setWindowBounds', windowId=first['windowId'],
+                                  bounds={'windowState': 'normal'})
+        self.browser.browser_call('Browser.setWindowBounds', windowId=first['windowId'],
+                                  bounds={'left': 700, 'top': 0, 'width': 700, 'height': 850})
+        second = None
+        try:
+            self.browser.download(self.server.url('/'), '/race-unsigned.xpi')
+            self.wait_unsigned_warning()
+            second = self.browser.browser_call('Target.createTarget', url=self.server.url('/'),
+                                               newWindow=True)['targetId']
+            window = self.browser.browser_call('Browser.getWindowForTarget', targetId=second)
+            self.browser.browser_call('Browser.setWindowBounds', windowId=window['windowId'],
+                                      bounds={'left': 0, 'top': 0, 'width': 690, 'height': 850})
+            page = Page(next(t for t in self.browser.targets() if t['id'] == second))
+            url = self.server.url('/')
+            wait_for(lambda: page.eval('location.href + document.readyState', gesture=False)
+                     == url + 'complete', what='the page')
+            page.eval("location.href = '/race-signed.xpi'")
+
+            def add_button(left):
+                return next((v for v in self.browser.views('MdTextButton', Text='Add extension')
+                             if v.visible and v['Enabled'] == 'true'
+                             and (v.center[0] < 695) == left), None)
+
+            def accept(left, what):
+                # A prompt ignores a click that comes right after its window
+                # shows again (views' InputEventActivationProtector).
+                wait_for(lambda: add_button(left), what=what)
+
+                def clicked():
+                    button = add_button(left)
+                    if button:
+                        self.browser.click_view(button)
+                        time.sleep(1)
+                    return not add_button(left)
+                wait_for(clicked, what=f'{what} to close')
+
+            accept(True, "the signed .xpi's prompt")
+            self.started(add_on).close()
+            self.browser.close_window(second)
+            second = None
+            accept(False, "the unsigned .xpi's prompt")
+            wait_for(lambda: self.browser.log_path.read_text(errors='replace').count(refusal)
+                     > refusals, timeout=30, what='the refusal')
+        finally:
+            if second:
+                self.browser.close_window(second)
+            self.browser.browser_call('Browser.setWindowBounds', windowId=first['windowId'],
+                                      bounds={'windowState': 'maximized'})
         # The signed add-on stays, verified.
         background = self.started(add_on)
         try:
@@ -3361,7 +3418,7 @@ class FirefoxXpiAskWhereToSaveTest(FirefoxXpiInstallTest):
     test_broken_cose = test_cose_other_root = test_cose_wrong_digest = None
     test_cose_other_gecko_id = test_gecko_id_from_cose = None
     test_unsigned_declined = test_unsigned_over_signed = test_cose_without_pkcs7 = None
-    test_signed_over_unsigned = None
+    test_signed_over_unsigned = test_unsigned_accepted_after_signed = None
 
     def test_ask_where_to_save(self):
         add_on = hashlib.sha256(XPI_GECKO_ID.encode()).hexdigest()[:32].translate(
