@@ -3247,8 +3247,9 @@ class FirefoxXpiInstallTest(BrowserTest):
         add_on = gecko_extension_id(RACE_GECKO_ID)
         refusal = f'Extension error: {UNSIGNED_OVER_VERIFIED}'
         refusals = self.browser.log_path.read_text(errors='replace').count(refusal)
-        first = self.browser.browser_call('Browser.getWindowForTarget',
-                                          targetId=self.browser.targets()[0]['id'])
+        tab = next(t for t in self.browser.targets() if t['type'] == 'page')
+        first = self.browser.browser_call('Browser.getWindowForTarget', targetId=tab['id'])
+        bounds = first['bounds']
         self.browser.browser_call('Browser.setWindowBounds', windowId=first['windowId'],
                                   bounds={'windowState': 'normal'})
         self.browser.browser_call('Browser.setWindowBounds', windowId=first['windowId'],
@@ -3297,7 +3298,12 @@ class FirefoxXpiInstallTest(BrowserTest):
             if second:
                 self.browser.close_window(second)
             self.browser.browser_call('Browser.setWindowBounds', windowId=first['windowId'],
-                                      bounds={'windowState': 'maximized'})
+                                      bounds={key: bounds[key] for key in
+                                              ('left', 'top', 'width', 'height')})
+            if bounds['windowState'] != 'normal':
+                self.browser.browser_call('Browser.setWindowBounds',
+                                          windowId=first['windowId'],
+                                          bounds={'windowState': bounds['windowState']})
         # The signed add-on stays, verified.
         background = self.started(add_on)
         try:
