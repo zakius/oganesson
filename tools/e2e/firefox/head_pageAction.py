@@ -20,7 +20,7 @@ internal.
 
 from firefox import head
 from extension_test_utils import JS
-from harness import wait_for
+from harness import Page, wait_for
 
 BACKGROUND = r'''function background(getTests) {
   let tests;
@@ -114,6 +114,17 @@ def request_locale(test, lang):
     test.browser.args = [arg for arg in test.browser.args if not arg.startswith('--lang=')]
     test.browser.args.append(f'--lang={lang}')
     test.restart_browser()
+    # The window's tab loads the new tab page after the start: a step that
+    # waits for a new tab's webNavigation.onCompleted of that page would
+    # take this one's, and its own tab's load would then reset the values it
+    # sets.
+    for target in [t for t in test.browser.targets() if t['type'] == 'page']:
+        page = Page(target)
+        try:
+            wait_for(lambda: page.eval('document.readyState') == 'complete',
+                     what='the tab to load')
+        finally:
+            page.close()
 
 
 def check_details(test, extension, details):
