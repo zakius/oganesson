@@ -2934,11 +2934,14 @@ class FirefoxXpiInstallTest(BrowserTest):
                 '/declined.xpi': xpi_add_on(DECLINED_GECKO_ID),
                 '/taken-signed.xpi': xpi_add_on(TAKEN_GECKO_ID, TAKEN_GECKO_ID),
                 # The same add-on unsigned, which says so once it runs.
-                '/later-unsigned.xpi': {**xpi_add_on(LATER_SIGNED_GECKO_ID),
-                                        'background.js': 'self.started = self.unsigned = true;'},
-                '/later-signed.xpi': xpi_add_on(LATER_SIGNED_GECKO_ID, LATER_SIGNED_GECKO_ID),
                 '/taken-unsigned.xpi': {**xpi_add_on(TAKEN_GECKO_ID),
                                         'background.js': 'self.started = self.unsigned = true;'},
+                # Unsigned twice, each saying which it is once it runs, then signed.
+                '/later-unsigned.xpi': {**xpi_add_on(LATER_SIGNED_GECKO_ID),
+                                        'background.js': 'self.started = true; self.unsigned = 1;'},
+                '/later-unsigned-2.xpi': {**xpi_add_on(LATER_SIGNED_GECKO_ID),
+                                          'background.js': 'self.started = true; self.unsigned = 2;'},
+                '/later-signed.xpi': xpi_add_on(LATER_SIGNED_GECKO_ID, LATER_SIGNED_GECKO_ID),
                 '/changed.xpi': {**xpi_add_on(changed, changed),
                                  'background.js': 'self.started = "changed";'},
                 '/unlisted.xpi': {**xpi_add_on(unlisted, unlisted), 'unlisted.js': ''},
@@ -3154,11 +3157,11 @@ class FirefoxXpiInstallTest(BrowserTest):
         # An unsigned .xpi may replace an add-on from an unsigned one, and a
         # signed .xpi replaces it and is verified.
         add_on = gecko_extension_id(LATER_SIGNED_GECKO_ID)
-        for path in ('/later-unsigned.xpi', '/later-unsigned.xpi'):
+        for path, number in (('/later-unsigned.xpi', 1), ('/later-unsigned-2.xpi', 2)):
             self.browser.download(self.server.url('/'), path)
             self.wait_unsigned_warning()
             self.browser.accept_install_prompt()
-            self.started(add_on, '!!self.unsigned').close()
+            self.started(add_on, f'self.unsigned === {number}').close()
             self.assertIn(UNVERIFIED, self.browser.extension_info(add_on)['runtimeWarnings'])
         self.browser.download(self.server.url('/'), '/later-signed.xpi')
         self.browser.accept_install_prompt()

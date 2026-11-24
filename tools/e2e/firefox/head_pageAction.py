@@ -121,7 +121,9 @@ def request_locale(test, lang):
     for target in [t for t in test.browser.targets() if t['type'] == 'page']:
         page = Page(target)
         try:
-            wait_for(lambda: page.eval('document.readyState') == 'complete',
+            # Not the empty document a tab has before its page commits.
+            wait_for(lambda: page.eval("document.readyState == 'complete' && "
+                                       "location.href != 'about:blank'"),
                      what='the tab to load')
         finally:
             page.close()
