@@ -14,10 +14,12 @@
 #include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
 #include "chrome/browser/extensions/extension_action_dispatcher.h"
+#include "chrome/browser/extensions/firefox_page_action_buttons.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_action_view.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_registry_observer.h"
 #include "ui/base/metadata/metadata_header_macros.h"
+#include "ui/base/unowned_user_data/scoped_unowned_user_data.h"
 #include "ui/views/view.h"
 
 class BrowserWindowInterface;
@@ -34,9 +36,12 @@ class Profile;
 // next to an add-on's other action (extensions/common/firefox_page_action.h),
 // or the only action of a Manifest V2 Firefox add-on, which keeps its toolbar
 // button and the shortcut there too. The toolbar makes this view, and the
-// location bar lays it out left of Chromium's page actions.
+// location bar lays it out left of Chromium's page actions. It is the
+// window's FirefoxPageActionButtons, for pageAction.openPopup() and the menus
+// command _execute_page_action.
 class FirefoxPageActionsView
     : public views::View,
+      public extensions::FirefoxPageActionButtons,
       public ToolbarActionView::Delegate,
       public extensions::ExtensionActionDispatcher::Observer,
       public extensions::ExtensionRegistryObserver {
@@ -47,6 +52,9 @@ class FirefoxPageActionsView
   FirefoxPageActionsView(const FirefoxPageActionsView&) = delete;
   FirefoxPageActionsView& operator=(const FirefoxPageActionsView&) = delete;
   ~FirefoxPageActionsView() override;
+
+  // extensions::FirefoxPageActionButtons:
+  bool RunPageAction(const extensions::Extension& extension) override;
 
   // ToolbarActionView::Delegate:
   content::WebContents* GetCurrentWebContents() override;
@@ -100,6 +108,9 @@ class FirefoxPageActionsView
   std::vector<std::unique_ptr<ExtensionActionViewModel>> models_;
 
   bool update_scheduled_ = false;
+
+  ui::ScopedUnownedUserData<extensions::FirefoxPageActionButtons>
+      buttons_user_data_;
 
   base::CallbackListSubscription active_tab_subscription_;
   base::ScopedObservation<extensions::ExtensionActionDispatcher,

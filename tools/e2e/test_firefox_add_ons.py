@@ -924,6 +924,71 @@ class FirefoxPageActionTest(BrowserTest):
         finally:
             self.browser.close_target(page)
 
+    def wait_page_popup(self, add_on, before):
+        """Waits for `add_on`'s page action popup, a target that isn't in
+        `before`, and closes it."""
+        url = f'chrome-extension://{add_on}/page.html'
+        target = wait_for(lambda: next((t for t in self.browser.targets()
+                                        if t['id'] not in before and t['url'] == url), None),
+                          what='the page action popup')
+        popup = Page(target)
+        try:
+            wait_for(lambda: popup.eval('document.body?.innerText') == 'page',
+                     what='the popup page')
+        finally:
+            popup.close()
+
+    def test_open_popup(self):
+        # pageAction.openPopup() runs the page action as a click on its
+        # button does, from a user action only, as in Firefox (zakius/dubna#238).
+        popup_add_on, clicked_add_on = (extension_id(unpacked) for unpacked in self.unpacked)
+        open_popup = "browser.pageAction.openPopup().then(() => 'opened', error => error.message)"
+        page = self.browser.new_tab(self.server.url('/one'))
+        try:
+            wait_for(lambda: page.eval("document.readyState == 'complete' && document.body.innerText"),
+                     what='the page')
+            tab_id = self.background_eval(clicked_add_on, PAGE_ACTION_SHOW % 'show')
+            background = self.browser.extension_background(clicked_add_on)
+            try:
+                self.assertEqual(background.eval(open_popup, gesture=False),
+                                 'pageAction.openPopup may only be called from a user input handler')
+                self.assertEqual(background.eval(open_popup), 'opened')
+                wait_for(lambda: background.eval('self.clicked') == tab_id,
+                         what='pageAction.onClicked')
+            finally:
+                background.close()
+            self.background_eval(popup_add_on, PAGE_ACTION_SHOW % 'show')
+            before = {target['id'] for target in self.browser.targets()}
+            self.assertEqual(self.background_eval(popup_add_on, open_popup), 'opened')
+            self.wait_page_popup(popup_add_on, before)
+        finally:
+            self.browser.close_target(page)
+
+    def test_page_action_menu_command(self):
+        # A menus item with the command _execute_page_action runs the page
+        # action, as its shortcut does (zakius/dubna#238).
+        add_on = extension_id(self.unpacked[0])
+        page = self.browser.new_tab(self.server.url('/one'))
+        try:
+            wait_for(lambda: page.eval("document.readyState == 'complete' && document.body.innerText"),
+                     what='the page')
+            self.background_eval(add_on, '''new Promise(done => browser.menus.create(
+                {id: 'command', title: 'Page action command', contexts: ['page'],
+                 command: '_execute_page_action'}, done))''')
+            self.background_eval(add_on, PAGE_ACTION_SHOW % 'show')
+            before = {target['id'] for target in self.browser.targets()}
+            self.browser.click_element(page, 'p', button=3)
+            item = wait_for(lambda: next((i for menu in self.browser.menus() for group in menu
+                                          for i in group
+                                          if i['Title'].replace('&', '') == 'Page action command'),
+                                         None),
+                            what="the add-on's menu item")
+            self.browser.click_view(item)
+            self.wait_page_popup(add_on, before)
+        finally:
+            self.background_eval(add_on, 'browser.menus.remove("command")')
+            self.browser.close_target(page)
+
     def menu_titles(self, view):
         """The titles of the menu a right click on `view` opens; the menu is
         closed again."""

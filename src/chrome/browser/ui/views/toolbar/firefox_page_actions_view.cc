@@ -242,7 +242,9 @@ class FirefoxPageActionsView::ActionDelegate
 };
 
 FirefoxPageActionsView::FirefoxPageActionsView(BrowserWindowInterface* browser)
-    : browser_(browser), profile_(browser->GetProfile()) {
+    : browser_(browser),
+      profile_(browser->GetProfile()),
+      buttons_user_data_(browser->GetUnownedUserDataHost(), *this) {
   SetLayoutManager(std::make_unique<views::BoxLayout>());
   dispatcher_observation_.Observe(
       extensions::ExtensionActionDispatcher::Get(profile_));
@@ -258,6 +260,18 @@ FirefoxPageActionsView::FirefoxPageActionsView(BrowserWindowInterface* browser)
 
 FirefoxPageActionsView::~FirefoxPageActionsView() {
   RemoveAllChildViews();
+}
+
+bool FirefoxPageActionsView::RunPageAction(
+    const extensions::Extension& extension) {
+  for (const std::unique_ptr<ExtensionActionViewModel>& model : models_) {
+    if (model->GetId() == extension.id()) {
+      model->ExecuteUserAction(
+          ToolbarActionViewModel::InvocationSource::kCommand);
+      return true;
+    }
+  }
+  return false;
 }
 
 content::WebContents* FirefoxPageActionsView::GetCurrentWebContents() {
