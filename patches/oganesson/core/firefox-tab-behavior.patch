@@ -32,6 +32,18 @@
        "tab_strip_model_selection_state.cc",
        "tab_strip_model_stats_recorder.cc",
        "tab_strip_prefs.cc",
+--- a/chrome/browser/ui/tabs/pinned_tab_codec.cc
++++ b/chrome/browser/ui/tabs/pinned_tab_codec.cc
+@@ -83,6 +83,8 @@ void PinnedTabCodec::RegisterProfilePrefs(
+     user_prefs::PrefRegistrySyncable* registry) {
+   registry->RegisterListPref(prefs::kPinnedTabs);
+-  registry->RegisterBooleanPref(prefs::kHeliumPersistentPins, true);
++  // oganesson: pinned tabs belong to their window and close, as in Firefox;
++  // Helium's shared pins are an opt-in in Settings.
++  registry->RegisterBooleanPref(prefs::kHeliumPersistentPins, false);
+ }
+ 
+ // static
 --- a/chrome/browser/ui/tabs/tab_strip_model.cc
 +++ b/chrome/browser/ui/tabs/tab_strip_model.cc
 @@ -66,6 +66,7 @@
