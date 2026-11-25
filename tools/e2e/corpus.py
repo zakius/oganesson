@@ -100,8 +100,12 @@ from harness import (BINARY, DEVELOPER_MODE, Browser, Page, Server, gecko_id, un
 # ClearURLs' rules server, kevinroebert.gitlab.io, answers with GitLab's
 # sign-in redirect since 2026-11-22, and since then its Yandex content script
 # throws in the smoke check, on the build that had it at L3 that morning too.
+# Repeek's background reads its announcements from extension-api.repeek.gg,
+# which answered 500 on 2026-11-25: L3 in the score of 2026-11-24, L2 twice
+# that evening, its uncaught FetchError the smoke check's error.
 VARIES = {'firefox-webext@zenmate.com', 'client@anonymox.net',
-          '{87e997f4-ae0e-42e6-a780-ff73977188c5}', '{74145f27-f039-47ce-a470-a662b129930a}'}
+          '{87e997f4-ae0e-42e6-a780-ff73977188c5}', '{74145f27-f039-47ce-a470-a662b129930a}',
+          '{e6fc2bbd-183e-4518-9ea5-04a8a913ab00}'}
 LEVELS = ('L0', 'L1', 'L2', 'L3')
 GROUP = 20
 # The manifest keys that Firefox reads (MDN's manifest.json keys that Firefox
