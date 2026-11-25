@@ -144,8 +144,17 @@ def fetch_tests():
     """The api_test/ folder of CHROMIUM, downloaded once."""
     folder = CACHE / CHROMIUM / 'api_test'
     if not folder.is_dir():
-        with urllib.request.urlopen(ARCHIVE, timeout=300) as response:
-            data = response.read()
+        # googlesource answers an archive request with 503 now and then, and
+        # the same request a moment later with the archive.
+        for attempt in range(5):
+            try:
+                with urllib.request.urlopen(ARCHIVE, timeout=300) as response:
+                    data = response.read()
+                break
+            except urllib.error.HTTPError as error:
+                if error.code < 500 or attempt == 4:
+                    raise
+                time.sleep(10)
         partial = folder.with_name('api_test.partial')
         shutil.rmtree(partial, ignore_errors=True)
         with tarfile.open(fileobj=io.BytesIO(data)) as archive:
