@@ -97,6 +97,18 @@ FIXES = {
     await new Promise(resolve => wake = resolve);
   }
 """)],
+    # removeManaged expects bookmark 5 to be managed, which only Chromium's C++
+    # fixture makes it, and follows subtests that fail without that fixture.
+    # Stock Helium 158.0.8127.88 passed it in some baseline runs only. The
+    # test is left out.
+    'bookmarks': [('test.js', """    function removeManaged() {
+      const managedNode = expected[0].children[2];
+      const removingNode = managedNode.children[0];
+      const error = `Can't modify managed bookmarks.`;
+      chrome.bookmarks.remove(removingNode.id, fail(error));
+    },
+
+""", '')],
 }
 
 SHIM = """(() => {
