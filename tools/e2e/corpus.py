@@ -103,9 +103,14 @@ from harness import (BINARY, DEVELOPER_MODE, Browser, Page, Server, gecko_id, un
 # Repeek's background reads its announcements from extension-api.repeek.gg,
 # which answered 500 on 2026-11-25: L3 in the score of 2026-11-24, L2 twice
 # that evening, its uncaught FetchError the smoke check's error.
+# Eagle's popup asks the Eagle app on localhost, with a 500 ms timeout, and
+# throws when none answers (showEagleNotOpenedDialog of an undefined object),
+# whether or not the smoke check still waits: L2 in the scores since
+# 2026-11-16, then on 2026-11-25 L3 in one run and L2 in the next, on the
+# same build.
 VARIES = {'firefox-webext@zenmate.com', 'client@anonymox.net',
           '{87e997f4-ae0e-42e6-a780-ff73977188c5}', '{74145f27-f039-47ce-a470-a662b129930a}',
-          '{e6fc2bbd-183e-4518-9ea5-04a8a913ab00}'}
+          '{e6fc2bbd-183e-4518-9ea5-04a8a913ab00}', '{228a49ed-af0c-452c-bc77-630f99cb0470}'}
 LEVELS = ('L0', 'L1', 'L2', 'L3')
 GROUP = 20
 # The manifest keys that Firefox reads (MDN's manifest.json keys that Firefox
