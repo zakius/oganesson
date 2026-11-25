@@ -16,7 +16,7 @@
        role-description="$i18n{subpageArrowRoleDescription}"
 --- a/chrome/browser/resources/settings/about_page/about_page.ts
 +++ b/chrome/browser/resources/settings/about_page/about_page.ts
-@@ -30,6 +30,8 @@ import {CrLitElement} from 'chrome://resources/lit/v3_0/lit.rollup.js';
+@@ -29,6 +29,8 @@ import {CrLitElement} from 'chrome://resources/lit/v3_0/lit.rollup.js';
  import type {PropertyValues} from 'chrome://resources/lit/v3_0/lit.rollup.js';
  
  import {loadTimeData} from '../i18n_setup.js';
@@ -25,7 +25,7 @@
  import {RelaunchMixinLit, RestartType} from '../relaunch_mixin_lit.js';
  import type {SettingsPlugin} from '../settings_main/settings_plugin.js';
  
-@@ -336,6 +338,11 @@ export class SettingsAboutPageElement extends SettingsAboutPageElementBase
+@@ -335,6 +337,11 @@ export class SettingsAboutPageElement extends SettingsAboutPageElementBase
          });
    }
  
@@ -91,7 +91,7 @@
            ?hidden="${this.getLeftMenuHidden_()}"
 --- a/chrome/browser/resources/settings/settings_ui/settings_ui.ts
 +++ b/chrome/browser/resources/settings/settings_ui/settings_ui.ts
-@@ -76,6 +76,8 @@ export class SettingsUiElement extends SettingsUiElementBase {
+@@ -76,12 +76,15 @@ export class SettingsUiElement extends SettingsUiElementBase {
    static override get properties() {
      return {
        toolbarSpinnerActive_: {type: Boolean},
@@ -100,12 +100,13 @@
        narrow_: {type: Boolean},
        lastSearchQuery_: {type: String},
        isSettingsRefresh2026_: {type: Boolean},
-@@ -83,4 +85,5 @@ export class SettingsUiElement extends SettingsUiElementBase {
+     };
    }
  
 +  protected accessor setup_: boolean = false;
    protected accessor toolbarSpinnerActive_: boolean = false;
    protected accessor narrow_: boolean = false;
+   private accessor lastSearchQuery_: string = '';
 @@ -187,6 +190,7 @@ export class SettingsUiElement extends SettingsUiElementBase {
    }
  
@@ -116,15 +117,15 @@
  
 --- a/chrome/browser/ui/startup/startup_browser_creator_impl.cc
 +++ b/chrome/browser/ui/startup/startup_browser_creator_impl.cc
-@@ -64,6 +64,7 @@
+@@ -63,6 +63,7 @@
  #include "chrome/common/pref_names.h"
  #include "chrome/common/webui_url_constants.h"
  #include "components/custom_handlers/protocol_handler_registry.h"
 +#include "components/browser_traffic/browser_traffic.h"
  #include "components/helium_services/pref_names.h"
  #include "components/prefs/pref_service.h"
- #include "components/sessions/core/serialized_navigation_entry.h"
-@@ -682,8 +683,13 @@ StartupBrowserCreatorImpl::DetermineStartupTabs(
+ #include "components/signin/public/base/signin_switches.h"
+@@ -661,8 +662,13 @@ StartupBrowserCreatorImpl::DetermineStartupTabs(
    bool no_first_run =
        base::CommandLine::ForCurrentProcess()->HasSwitch(switches::kNoFirstRun);
    if (!is_incognito_or_guest && !no_first_run) {

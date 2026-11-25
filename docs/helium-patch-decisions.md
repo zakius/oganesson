@@ -69,7 +69,7 @@ The model is my own code in dubna (`components/browser_traffic`), not a copy of 
 | Browser updates | | WinSparkle | none |
 
 - Each row has Download, Automatic or On request (no "Never"), and Route, Direct or Proxy, where both exist. A row offers only the routes it has.
-- The Chrome Root Store and the CT log list (the PKI Metadata component) join the component allowlist. Direct component update checks go to update.googleapis.com, a narrow exception past ungoogled-chromium's request blocking and domain substitution; components send no pings.
+- The Chrome Root Store and the CT log list (the PKI Metadata component) join the component allowlist; since Helium 0.22.4.1, Helium's `component-updates` allows it itself, with the SSL Error Assistant. The SSL Error Assistant is in no row, so it never updates. Direct component update checks go to update.googleapis.com, a narrow exception past ungoogled-chromium's request blocking and domain substitution; components send no pings.
 - A proxy-only row never makes a server required: bangs stay off without one, and the row says so.
 - Browser updates are a row only on a Windows per-user install. An all-users install shows it read-only; Linux shows a note that the package manager updates the browser.
 - Presets, as in Tab behavior: Direct (all Automatic and Direct, the default), Through my server (all Automatic and Proxy) and Shut in (all On request, routes untouched). The preset is derived from the rows, never stored; Custom shows when they match none.
@@ -83,6 +83,8 @@ The model is my own code in dubna (`components/browser_traffic`), not a copy of 
 
 ## Notes on carried patches
 
+- `helium/core/add-cache-encryption-flag` (Helium 0.22.4.1): a `chrome://flags` entry that encrypts the HTTP cache on disk, off by default. Carried as Helium ships it, 2026-11-25.
+- helium-windows' `helium/windows/bundle-hyphenation-data` (helium-windows 0.22.4.1): the Windows packages ship the hyphenation data. Carried as Helium ships it, 2026-11-25.
 - `helium/core/ui-density-prefs`, `helium/settings/ui-density-settings` (Helium 0.22.1.1): Settings > Appearance > Interface density, Default or Spacious (larger tabs, toolbar buttons and address bar), applied after a relaunch. Default keeps today's sizes. Carried as Helium ships it, 2026-11-19.
 - `helium/settings/simplify-side-panel-position` (Helium 0.22.1.1): Appearance's side panel position is one setting again instead of one per side panel, and Chromium 158's contextual tasks side panel (its Google search panel) is off. Carried as Helium ships it, 2026-11-19.
 - `helium/core/disable-reading-mode-omnibox-chip` (Helium 0.22.1.1): turns off Chromium 158's reading mode chip in the address bar. Reading mode's entry stays the page context menu's (above). Carried as Helium ships it, 2026-11-19.
