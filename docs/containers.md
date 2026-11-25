@@ -54,7 +54,7 @@ Sessions and closed tabs save each page's container as the page's extended info 
 
 A tab's sessionStorage lives in its partition. Chromium saves only the default partition's for sessions and closed tabs, and restores it there, so a container tab would lose its own. The shared hooks save the container's instead (`GetTabSessionStorageNamespace()`), and a restored tab recreates it by the same id in its container's partition. Chromium deletes the sessionStorage that no restored tab uses only in the default partition, once the session is restored or can no longer be; `ContainersService::DeleteStaleSessionData()`, called next to it, does the same in each container's partition that has sessionStorage on disk.
 
-Pinned tabs that open at startup without the session (Settings > On startup > Open the New Tab page) are saved by `pinned_tab_codec.cc`, which keeps the container next to the URL.
+Pinned tabs that open at startup without the session (Settings > On startup > Open the New Tab page) are saved by `pinned_tab_codec.cc`, which keeps the container next to the URL. Helium's persistent pins, off by default, ignore containers: when the user turns them on (Settings > Appearance > "Keep pinned tabs across windows and sessions"), Helium's pin service saves the pins without their container and opens its copies of them in other windows outside it ([Helium patch decisions](helium-patch-decisions.md)).
 
 ### Prefs
 
