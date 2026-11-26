@@ -272,7 +272,18 @@ class BrowserActionPopupTest(FirefoxTest):
         # Unload the extension and verify that the browserAction widget is gone.
         extension.unload()
 
-        self.check(head_pageAction.popup_view(self) is None,
+        # Firefox's widget keeps its popup's panel view in the document until
+        # the add-on goes; here a popup's view goes when it closes, so the
+        # add-on's toolbar button, named after it, is what has to go.
+        def buttons():
+            return [view for view in self.browser.views('ToolbarActionView') if view.visible
+                    and (view['TooltipText'] or '').startswith('Generated extension')]
+        try:
+            wait_for(lambda: not buttons(), timeout=5, what="the add-on's toolbar button to go")
+            gone = True
+        except AssertionError:
+            gone = False
+        self.check(head_pageAction.popup_view(self) is None and gone,
                    'browserAction view removed from document')
 
     def test_01_browser_action_in_toolbar(self):
