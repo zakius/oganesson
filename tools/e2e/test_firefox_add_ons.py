@@ -1445,6 +1445,87 @@ class FirefoxPeerConnectionTest(BrowserTest):
         self.assertFalse(self.browser.extension_errors(add_on))
 
 
+WEBRTC_PROXY_ONLY_ADD_ON = {
+    'manifest.json': json.dumps({
+        'manifest_version': 2,
+        'name': 'Firefox webRTCIPHandlingPolicy test add-on',
+        'version': '1',
+        'browser_specific_settings': {'gecko': {'id': 'firefox-webrtc-proxy-only@oganesson.test'}},
+        'background': {'scripts': ['background.js']},
+        'permissions': ['privacy'],
+    }),
+    'background.js': 'self.started = true;',
+}
+
+# The ICE candidates a new peer connection in the page gathers, with no
+# STUN or TURN server: only the host's own addresses can come.
+GATHER_CANDIDATES = '''(async () => {
+    const pc = new RTCPeerConnection();
+    pc.createDataChannel("x");
+    const found = [];
+    pc.onicecandidate = event => event.candidate?.candidate && found.push(event.candidate.candidate);
+    const done = new Promise(resolve => {
+        pc.onicegatheringstatechange = () => pc.iceGatheringState === "complete" && resolve();
+        setTimeout(resolve, 10000);
+    });
+    await pc.setLocalDescription(await pc.createOffer());
+    await done;
+    pc.close();
+    return found;
+})()'''
+
+
+class FirefoxWebRtcProxyOnlyTest(BrowserTest):
+    """Firefox's webRTCIPHandlingPolicy proxy_only (zakius/dubna#202): get()
+    gives it back, and WebRTC runs as Chromium's disable_non_proxied_udp, so a
+    page without a proxy gathers no candidate at all, where Chromium's
+    default policy gathers the host candidates. Helium's own default,
+    default_public_interface_only, gathers none without a STUN server
+    either, so the add-on sets "default" first."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.folder = Path(tempfile.mkdtemp(prefix='oganesson-firefox-webrtc-'))
+        xpi = cls.folder / 'add-on.xpi'
+        with zipfile.ZipFile(xpi, 'w') as archive:
+            for name, text in WEBRTC_PROXY_ONLY_ADD_ON.items():
+                archive.writestr(name, text)
+        cls.unpacked = unpack_xpi(xpi, cls.folder / 'unpacked')
+        cls.browser_args = (f'--load-extension={cls.unpacked}',)
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(cls.folder)
+
+    def candidates(self):
+        page = self.browser.new_tab('about:blank')
+        try:
+            return page.eval(GATHER_CANDIDATES)
+        finally:
+            self.browser.close_target(page)
+
+    def set_policy(self, value):
+        """The add-on sets the policy, and gives get()'s value back."""
+        background = self.browser.extension_background(extension_id(self.unpacked))
+        try:
+            wait_for(lambda: background.eval('self.started === true'), what='the background script')
+            return background.eval(f'''(async () => {{
+                const setting = browser.privacy.network.webRTCIPHandlingPolicy;
+                await setting.set({{value: {json.dumps(value)}}});
+                return (await setting.get({{}})).value;
+            }})()''')
+        finally:
+            background.close()
+
+    def test_proxy_only(self):
+        self.assertEqual(self.set_policy('default'), 'default')
+        self.assertTrue(self.candidates(), 'the default policy gathers host candidates')
+        self.assertEqual(self.set_policy('proxy_only'), 'proxy_only')
+        self.assertEqual(self.candidates(), [])
+
+
 CONTENT_SCRIPTS_ADD_ON = {
     'manifest.json': json.dumps({
         'manifest_version': 2,
