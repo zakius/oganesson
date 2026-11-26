@@ -11,8 +11,8 @@ given in Firefox's form:
   and off as 0.
 - browser.send_pings (hyperlinkAuditingEnabled): enable_a_ping.
 - media.peerconnection.ice.* (webRTCIPHandlingPolicy): Chromium's
-  webrtc.ip_handling_policy, whose values are Firefox's but for proxy_only,
-  which Chromium doesn't have: ice.proxy_only is always false.
+  webrtc.ip_handling_policy, whose values are Firefox's. A Firefox add-on's
+  proxy_only is kept as it is (zakius/dubna#202).
 - media.peerconnection.enabled (peerConnectionEnabled): always true, as WebRTC
   is always on here (zakius/dubna#93).
 - signon.rememberSignons (passwordSavingEnabled): credentials_enable_service.
@@ -102,12 +102,12 @@ FIREFOX_PREFS = {
     'network.dns.disablePrefetch': lambda prefs: not prediction_on(prefs),
     'browser.send_pings': lambda prefs: prefs['enable_a_ping']['value'],
     'media.peerconnection.ice.default_address_only':
-        lambda prefs: webrtc_policy(prefs) != 'default',
+        lambda prefs: webrtc_policy(prefs) not in ('default', 'proxy_only'),
     'media.peerconnection.ice.no_host': lambda prefs: webrtc_policy(prefs) in (
         'default_public_interface_only', 'disable_non_proxied_udp'),
     'media.peerconnection.ice.proxy_only_if_behind_proxy':
         lambda prefs: webrtc_policy(prefs) == 'disable_non_proxied_udp',
-    'media.peerconnection.ice.proxy_only': lambda prefs: False,
+    'media.peerconnection.ice.proxy_only': lambda prefs: webrtc_policy(prefs) == 'proxy_only',
     'media.peerconnection.enabled': lambda prefs: True,
     'signon.rememberSignons': lambda prefs: prefs['credentials_enable_service']['value'],
     'network.http.sendRefererHeader':

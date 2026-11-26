@@ -5,8 +5,7 @@ Gecko's prefs that the test sets and reads take this browser's form
 (head_privacy.py): each is read from this browser's own pref for its setting,
 in the profile, and given in Firefox's form. Network prediction's three prefs
 are net.network_prediction_options, browser.send_pings is enable_a_ping,
-media.peerconnection.ice.* are webrtc.ip_handling_policy (ice.proxy_only is
-always false), media.peerconnection.enabled is always true,
+media.peerconnection.ice.* are webrtc.ip_handling_policy, media.peerconnection.enabled is always true,
 signon.rememberSignons is credentials_enable_service,
 network.http.sendRefererHeader is enable_referrers,
 network.cookie.cookieBehavior is the cookies settings (third-party cookies
