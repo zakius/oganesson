@@ -1477,9 +1477,10 @@ GATHER_CANDIDATES = '''(async () => {
 
 class FirefoxWebRtcProxyOnlyTest(BrowserTest):
     """Firefox's webRTCIPHandlingPolicy proxy_only (zakius/dubna#202): get()
-    gives it back, and WebRTC runs as Chromium's disable_non_proxied_udp, so a
-    page without a proxy gathers no candidate at all, where Chromium's
-    default policy gathers the host candidates. Helium's own default,
+    gives it back, and a page without a proxy gathers no candidate at all,
+    where Chromium's default policy, which an unknown value falls back to,
+    gathers the host candidates. Without a STUN server this doesn't tell
+    disable_non_proxied_udp from default_public_interface_only. Helium's own default,
     default_public_interface_only, gathers none without a STUN server
     either, so the add-on sets "default" first."""
 
