@@ -4,11 +4,14 @@
 
 #include "chrome/browser/ui/browser_shortcuts/oganesson_shortcut_migration.h"
 
+#include <algorithm>
 #include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
 
 #include "base/feature_list.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/values.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/ui/browser_shortcuts/browser_shortcut_prefs.h"
 #include "chrome/browser/ui/browser_shortcuts/browser_shortcut_serialization.h"
@@ -26,72 +29,99 @@ namespace browser_shortcuts {
 
 namespace {
 
-// Gives the key to `to` if it is still on `from`: the user may have taken it
-// away, or given it to another command.
-void MoveKey(BrowserShortcutService& service,
-             ui::KeyboardCode key_code,
-             int modifiers,
-             int from,
-             int to) {
-  const std::string key =
-      AcceleratorToString(ui::Accelerator(key_code, modifiers));
-  if (service.FindCommandForAccelerator(key) == from) {
+constexpr char kAdded[] = "added";
+constexpr char kRemoved[] = "removed";
+
+bool ListHas(const base::ListValue* list, std::string_view key) {
+  return list && std::ranges::find(*list, base::Value(key)) != list->end();
+}
+
+// Gives every key of `from` to `to`.
+void MoveAllKeys(BrowserShortcutService& service, int from, int to) {
+  std::vector<std::string> keys;
+  for (const CommandInfo& command : service.GetCommands()) {
+    if (command.command_id != from) {
+      continue;
+    }
+    for (const ShortcutInfo& accelerator : command.accelerators) {
+      if (accelerator.user_modifiable) {
+        keys.push_back(accelerator.serialized);
+      }
+    }
+  }
+  for (const std::string& key : keys) {
     service.AssignAcceleratorToCommand(to, key);
-  }
-}
-
-// Takes out of the prefs the keys the user added to or removed from a
-// switch-dependent command. No key runs that command now, so the service drops
-// them the next time it saves.
-base::DictValue TakeCustomKeys(PrefService& prefs, int command_id) {
-  const std::string pref_key = base::NumberToString(command_id);
-  const base::DictValue* stored =
-      prefs.GetDict(prefs::kCustomAccelerators).FindDict(pref_key);
-  if (!stored) {
-    return base::DictValue();
-  }
-  base::DictValue keys = stored->Clone();
-  ScopedDictPrefUpdate(&prefs, prefs::kCustomAccelerators)->Remove(pref_key);
-  return keys;
-}
-
-// Adds and removes those keys on the command the switch picked.
-void ApplyCustomKeys(BrowserShortcutService& service,
-                     const base::DictValue& keys,
-                     int command_id) {
-  if (const base::ListValue* added = keys.FindList("added")) {
-    for (const base::Value& key : *added) {
-      if (key.is_string()) {
-        service.AssignAcceleratorToCommand(command_id, key.GetString());
-      }
-    }
-  }
-  if (const base::ListValue* removed = keys.FindList("removed")) {
-    for (const base::Value& key : *removed) {
-      if (key.is_string()) {
-        service.UnassignAcceleratorFromCommand(command_id, key.GetString());
-      }
-    }
   }
 }
 
 }  // namespace
 
-void MigrateShortcutSwitches(BrowserShortcutService& service,
-                             PrefService& prefs) {
-  constexpr int kCtrl = ui::EF_CONTROL_DOWN;
-  constexpr int kCtrlShift = ui::EF_CONTROL_DOWN | ui::EF_SHIFT_DOWN;
-  const base::DictValue copy_or_inspect_keys =
-      TakeCustomKeys(prefs, IDC_COPY_OR_INSPECT_SHORTCUT);
-  const base::DictValue ctrl_s_keys =
-      TakeCustomKeys(prefs, IDC_CTRL_S_SHORTCUT);
+ShortcutSwitchMigration::ShortcutSwitchMigration(PrefService& prefs)
+    : prefs_(prefs),
+      copy_or_inspect_(TakeOldKey(
+          IDC_COPY_OR_INSPECT_SHORTCUT,
+          AcceleratorToString(ui::Accelerator(
+              ui::VKEY_C, ui::EF_CONTROL_DOWN | ui::EF_SHIFT_DOWN)))),
+      ctrl_s_(TakeOldKey(
+          IDC_CTRL_S_SHORTCUT,
+          AcceleratorToString(ui::Accelerator(ui::VKEY_S,
+                                              ui::EF_CONTROL_DOWN)))) {}
+
+ShortcutSwitchMigration::~ShortcutSwitchMigration() = default;
+
+ShortcutSwitchMigration::OldKey ShortcutSwitchMigration::TakeOldKey(
+    int command_id,
+    std::string key) {
+  OldKey old;
+  old.key = std::move(key);
+  const std::string pref_key = base::NumberToString(command_id);
+  const base::DictValue& all = prefs_->GetDict(prefs::kCustomAccelerators);
+  for (auto [other_key, other] : all) {
+    if (other_key != pref_key && other.is_dict() &&
+        ListHas(other.GetDict().FindList(kAdded), old.key)) {
+      old.given_to_another = true;
+    }
+  }
+  if (const base::DictValue* custom = all.FindDict(pref_key)) {
+    old.custom = custom->Clone();
+    ScopedDictPrefUpdate(&prefs_.get(), prefs::kCustomAccelerators)
+        ->Remove(pref_key);
+  }
+  return old;
+}
+
+void ShortcutSwitchMigration::MoveOldKey(BrowserShortcutService& service,
+                                         const OldKey& old,
+                                         int new_default,
+                                         int to) {
+  if (!ListHas(old.custom.FindList(kRemoved), old.key)) {
+    // The key ran the old command. The new defaults give it to `new_default`,
+    // which is also where it stays once the switch is reset.
+    if (to != new_default) {
+      service.AssignAcceleratorToCommand(to, old.key);
+    }
+  } else if (!old.given_to_another) {
+    // The user took the key away.
+    service.UnassignAcceleratorFromCommand(new_default, old.key);
+  }
+  // Otherwise the service has it where the user put it.
+  if (const base::ListValue* added = old.custom.FindList(kAdded)) {
+    for (const base::Value& key : *added) {
+      if (key.is_string()) {
+        service.AssignAcceleratorToCommand(to, key.GetString());
+      }
+    }
+  }
+}
+
+void ShortcutSwitchMigration::Run(BrowserShortcutService& service) {
+  PrefService& prefs = *prefs_;
 
   // Ctrl+Shift+C: Copy URL with the switch on (its default), else Inspect.
-  const int copy_or_inspect = prefs.GetBoolean(::prefs::kCopyPageUrlShortcut)
-                                  ? IDC_COPY_URL
-                                  : IDC_DEV_TOOLS_INSPECT;
-  MoveKey(service, ui::VKEY_C, kCtrlShift, IDC_COPY_URL, copy_or_inspect);
-  ApplyCustomKeys(service, copy_or_inspect_keys, copy_or_inspect);
+  MoveOldKey(service, copy_or_inspect_, IDC_COPY_URL,
+             prefs.GetBoolean(::prefs::kCopyPageUrlShortcut)
+                 ? IDC_COPY_URL
+                 : IDC_DEV_TOOLS_INSPECT);
   prefs.ClearPref(::prefs::kCopyPageUrlShortcut);
 
   // Ctrl+S: collapse vertical tabs with the switch on (its default) in the
@@ -101,23 +131,19 @@ void MigrateShortcutSwitches(BrowserShortcutService& service,
       prefs.GetBoolean(::prefs::kVerticalCollapseShortcut) &&
       prefs.GetInteger(::prefs::kHeliumLayout) ==
           static_cast<int>(HeliumLayoutType::kVertical);
-  const int save_or_collapse =
-      collapse ? IDC_TOGGLE_VERTICAL_TABS_COLLAPSE : IDC_SAVE_PAGE;
-  MoveKey(service, ui::VKEY_S, kCtrl, IDC_SAVE_PAGE, save_or_collapse);
-  ApplyCustomKeys(service, ctrl_s_keys, save_or_collapse);
+  MoveOldKey(service, ctrl_s_, IDC_SAVE_PAGE,
+             collapse ? IDC_TOGGLE_VERTICAL_TABS_COLLAPSE : IDC_SAVE_PAGE);
   prefs.SetBoolean(::prefs::kVerticalCollapseShortcut, false);
 
-  // Ctrl+Tab and Ctrl+Shift+Tab: recent order with Helium's switch on, or
-  // with Chromium's while its flag is on, else the next and previous tab.
+  // Recent order, with Helium's switch on or Chromium's while its flag is on,
+  // was what every key of Next tab and Previous tab ran.
   const bool recent_order =
       prefs.GetBoolean(::prefs::kTabCyclingMRU) ||
       (base::FeatureList::IsEnabled(features::kCtrlTabMru) &&
        prefs.GetBoolean(::prefs::kCtrlTabMru));
   if (recent_order) {
-    MoveKey(service, ui::VKEY_TAB, kCtrl, IDC_SELECT_NEXT_TAB,
-            IDC_CYCLE_TO_NEXT_TAB);
-    MoveKey(service, ui::VKEY_TAB, kCtrlShift, IDC_SELECT_PREVIOUS_TAB,
-            IDC_CYCLE_TO_PREV_TAB);
+    MoveAllKeys(service, IDC_SELECT_NEXT_TAB, IDC_CYCLE_TO_NEXT_TAB);
+    MoveAllKeys(service, IDC_SELECT_PREVIOUS_TAB, IDC_CYCLE_TO_PREV_TAB);
   }
   prefs.ClearPref(::prefs::kTabCyclingMRU);
   prefs.ClearPref(::prefs::kCtrlTabMru);

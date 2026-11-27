@@ -81,7 +81,7 @@ class ShortcutsTest(ShortcutsTestBase):
     def test_0_recent_order_switch_became_keys(self):
         self.assertEqual(
             self.command_keys(NEXT_RECENT_TAB, PREVIOUS_RECENT_TAB, NEXT_TAB, PREVIOUS_TAB),
-            [['Control+Tab'], ['Control+Shift+Tab'], ['Control+PageDown'], ['Control+PageUp']])
+            [['Control+PageDown', 'Control+Tab'], ['Control+PageUp', 'Control+Shift+Tab'], [], []])
 
     def test_1_mru_cycling_after_closing_a_tab(self):
         self.only_tabs('A', 'B', 'C')
@@ -178,7 +178,7 @@ class ShortcutsTest(ShortcutsTestBase):
                 self.browser.quit()
                 self.browser.start()
             self.only_tabs('D', 'E')
-            # Next tab keeps its other shortcut.
+            # Recent order keeps its other key, Ctrl+PgDown.
             self.no_switch('ctrl+Tab', 'E', 'D')
             self.no_switch('ctrl+shift+Tab', 'E', 'D')
 
@@ -221,6 +221,22 @@ class MigratedShortcutSwitchesTest(ShortcutsTestBase):
                                   NEXT_TAB, NEXT_RECENT_TAB),
                 [[], ['Control+Shift+KeyC', 'Control+Shift+KeyE'], [],
                  ['Alt+KeyK', 'Control+KeyS'], ['Control+PageDown', 'Control+Tab'], []])
+
+
+class MovedShortcutKeysTest(ShortcutsTestBase):
+    # Before the switches became plain commands, in the vertical layout with
+    # both switches on (their defaults): the user had given Ctrl+S to Save page
+    # and taken Ctrl+Shift+C away.
+    prefs = {'helium': {'browser': {'layout': 2, 'custom_accelerators': {
+        '34090': {'removed': ['Control+KeyS']},
+        '35004': {'added': ['Control+KeyS']},
+        '34080': {'removed': ['Control+Shift+KeyC']},
+    }}}}
+
+    def test_keys_stay_where_the_user_put_them(self):
+        self.assertEqual(
+            self.command_keys(SAVE_PAGE, COLLAPSE_VERTICAL_TABS, COPY_URL, INSPECT),
+            [['Control+KeyS'], [], [], ['Control+Shift+KeyE']])
 
 
 if __name__ == '__main__':

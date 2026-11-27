@@ -102,7 +102,7 @@
  #include "chrome/common/pref_names.h"
  #include "components/prefs/pref_service.h"
  #include "ui/base/l10n/l10n_util.h"
-@@ -110,16 +111,10 @@
+@@ -110,16 +111,11 @@
  BrowserShortcutService::BrowserShortcutService(PrefService* prefs)
      : prefs_(prefs) {
    pref_change_registrar_.Init(prefs_);
@@ -114,9 +114,10 @@
 -  pref_change_registrar_.Add(::prefs::kVerticalCollapseShortcut,
 -                             on_label_pref_changed);
  
++  ShortcutSwitchMigration switch_migration(*prefs_);
    LoadFromPrefs();
    RebuildCommandCache();
-+  MigrateShortcutSwitches(*this, *prefs_);
++  switch_migration.Run(*this);
  }
  
  BrowserShortcutService::~BrowserShortcutService() = default;
