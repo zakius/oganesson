@@ -233,17 +233,24 @@ MV3_ADD_ONS = {
     'page': mv3_add_on('page', {'page': 'background.html'},
                        {'background.html': '<!doctype html><script src="background.js"></script>',
                         'background.js': 'self.started = "page";'}),
-    # For Firefox and Chromium both: each browser takes its own key.
+    # For Firefox and Chromium both: Firefox runs the scripts, with a warning,
+    # unless preferred_environment puts the worker first.
     'both': mv3_add_on('both', {'scripts': ['background.js'], 'service_worker': 'worker.js'},
                        {'background.js': 'self.started = "page";',
                         'worker.js': 'self.started = "worker";'}),
+    'worker-first': mv3_add_on('worker-first', {'scripts': ['background.js'],
+                                                'service_worker': 'worker.js',
+                                                'preferred_environment': ['service_worker']},
+                               {'background.js': 'self.started = "page";',
+                                'worker.js': 'self.started = "worker";'}),
 }
 
 
 class FirefoxManifestV3Test(BrowserTest):
     """Firefox's Manifest V3 backgrounds: background.scripts and
-    background.page run as a background page, and a manifest with a service
-    worker too runs the worker, as Chromium does."""
+    background.page run as a background page, and so do they in a manifest
+    with a service worker too, as in Firefox, unless
+    background.preferred_environment puts "service_worker" first."""
 
     @classmethod
     def setUpClass(cls):
@@ -263,7 +270,7 @@ class FirefoxManifestV3Test(BrowserTest):
         super().tearDownClass()
         shutil.rmtree(cls.folder)
 
-    def check_background(self, name, kind, started):
+    def check_background(self, name, kind, started, warnings=()):
         add_on = extension_id(self.unpacked[name])
         background = self.browser.extension_background(add_on)
         try:
@@ -274,7 +281,7 @@ class FirefoxManifestV3Test(BrowserTest):
         self.assertEqual([t['type'] for t in self.browser.targets() if t['url'].startswith(prefix)],
                          [kind])
         errors = self.browser.extension_errors(add_on)
-        self.assertFalse([e for e in errors if 'background' in e], errors)
+        self.assertEqual([e for e in errors if 'background' in e], list(warnings), errors)
 
     def test_background_scripts(self):
         self.check_background('scripts', 'background_page', 'page')
@@ -283,7 +290,13 @@ class FirefoxManifestV3Test(BrowserTest):
         self.check_background('page', 'background_page', 'page')
 
     def test_service_worker_too(self):
-        self.check_background('both', 'service_worker', 'worker')
+        self.check_background('both', 'background_page', 'page', [
+            'Reading manifest: Warning processing background: with both '
+            'background.service_worker and background.scripts, only background.scripts '
+            'will be loaded. This can be changed with background.preferred_environment.'])
+
+    def test_service_worker_first(self):
+        self.check_background('worker-first', 'service_worker', 'worker')
 
     def test_get_contexts(self):
         # Duplicate Tabs Closer calls it at its start. Chromium, which has no
