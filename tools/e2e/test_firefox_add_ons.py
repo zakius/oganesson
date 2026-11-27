@@ -515,6 +515,13 @@ SHORTCUTS_ADD_ON = {
             # A key for another platform only, and no key at all.
             'mac-only': {'suggested_key': {'mac': 'Alt+Shift+M'}, 'description': 'Mac only'},
             'no-key': {},
+            # One of the browser's shortcuts, which the add-on takes, as in
+            # Firefox, and one that Chromium reserves, which stays the
+            # browser's (dubna#177).
+            'browser-shortcut': {'suggested_key': {'default': 'Ctrl+Shift+D'},
+                                 'description': 'Bookmark all tabs'},
+            'reserved-shortcut': {'suggested_key': {'default': 'Ctrl+T'},
+                                  'description': 'New tab'},
         },
     }),
     'background.js': '''
@@ -529,7 +536,9 @@ class FirefoxShortcutsTest(BrowserTest):
     """Shortcuts as Firefox reads them: Ctrl+Alt, F1 to F12 alone or with
     Shift, MacCtrl as Ctrl, more than four shortcuts, and commands without a
     description or without a key for this platform. Chromium refuses to load
-    such an add-on."""
+    such an add-on. A command without a description has a null one, and a
+    key that is one of the browser's shortcuts is the add-on's, unless
+    Chromium reserves it."""
 
     @classmethod
     def setUpClass(cls):
@@ -555,16 +564,19 @@ class FirefoxShortcutsTest(BrowserTest):
             commands = background.eval(
                 'browser.commands.getAll().then(all => all.map(c => [c.name, c.shortcut, c.description]))')
             self.assertEqual(sorted(commands), [
+                ['browser-shortcut', 'Ctrl+Shift+D', 'Bookmark all tabs'],
                 ['ctrl-alt', 'Alt+Ctrl+Y', 'Ctrl+Alt'],
                 ['function-key', 'F9', 'F9'],
                 ['mac-ctrl', 'Ctrl+Shift+Y', 'MacCtrl'],
                 ['mac-only', '', 'Mac only'],
-                ['no-description', 'Alt+Shift+5', 'no-description'],
-                ['no-key', '', 'no-key'],
+                ['no-description', 'Alt+Shift+5', None],
+                ['no-key', '', None],
+                ['reserved-shortcut', '', 'New tab'],
                 ['shift-function-key', 'Shift+F9', 'Shift+F9'],
             ])
             for keys, name in (('F9', 'function-key'), ('shift+F9', 'shift-function-key'),
-                               ('ctrl+alt+y', 'ctrl-alt'), ('ctrl+shift+y', 'mac-ctrl')):
+                               ('ctrl+alt+y', 'ctrl-alt'), ('ctrl+shift+y', 'mac-ctrl'),
+                               ('ctrl+shift+d', 'browser-shortcut')):
                 self.browser.key(keys)
                 wait_for(lambda name=name: background.eval(f'self.commands.includes({name!r})'),
                          what=f'the {name} command from {keys}')
@@ -610,11 +622,14 @@ class FirefoxShortcutsTest(BrowserTest):
         finally:
             page.close()
 
-    def shortcut_of(self, description):
+    def shortcut_of(self, label):
+        """The shortcut of the command that the shortcuts page shows as
+        `label`: its description, or its name when it has none."""
         background = self.browser.extension_background(extension_id(self.unpacked))
         try:
             return background.eval(
-                f'browser.commands.getAll().then(all => all.find(c => c.description == {description!r}).shortcut)')
+                'browser.commands.getAll().then(all => all.find('
+                f'c => (c.description ?? c.name) == {label!r}).shortcut)')
         finally:
             background.close()
 
