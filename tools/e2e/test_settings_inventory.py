@@ -29,20 +29,21 @@ class SettingsInventoryTest(BrowserTest):
                           ".filter(a => a.getClientRects().length).map(a => a.id)")
         self.assertEqual(shown, MENU)
 
-    def test_shortcut_switches_only_on_shortcuts_page(self):
-        ids = ['copyPageUrlShortcut', 'verticalCollapseShortcut']
+    def test_no_shortcut_switches(self):
+        # Each command they switched between is a row on the shortcuts page.
+        ids = ['copyPageUrlShortcut', 'verticalCollapseShortcut', 'tabCyclingMRU']
         page = self.browser.new_tab('chrome://settings/system/shortcuts')
-        root = f"({FIND})('settings-browser-shortcuts-page')?.shadowRoot"
-        wait_for(lambda: page.eval(f"!!{root}?.querySelector('#copyPageUrlShortcut')"),
-                 what='the shortcut switches')
-        self.assertEqual(page.eval(f"{json.dumps(ids)}.map(id => !!{root}.getElementById(id))"),
-                         [True, True])
+        root = f"({FIND})('settings-browser-shortcuts-page')"
+        wait_for(lambda: page.eval(f"!!{root}?.commandsLoaded_"), what='the shortcuts')
+        self.assertEqual(
+            page.eval(f"{json.dumps(ids)}.map(id => !!{root}.shadowRoot.getElementById(id))"),
+            [False, False, False])
         page = self.browser.new_tab('chrome://settings/appearance')
         behavior = f"({FIND})('settings-appearance-behavior-page')?.shadowRoot"
-        wait_for(lambda: page.eval(f"!!{behavior}?.querySelector('#tabCyclingMRU')"),
+        wait_for(lambda: page.eval(f"!!{behavior}?.querySelector('#shiftRightClickContextMenu')"),
                  what='the behavior page')
         self.assertEqual(page.eval(f"{json.dumps(ids)}.map(id => !!{behavior}.getElementById(id))"),
-                         [False, False])
+                         [False, False, False])
 
     def test_browser_traffic_row_icon(self):
         page = self.browser.new_tab('chrome://settings/privacy')

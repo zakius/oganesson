@@ -3,6 +3,11 @@ after Ctrl+W closes a tab mid-cycle, and recording browser shortcuts
 such as Ctrl+T on the shortcuts page, also while another settings tab
 of the window that recorded closes, and Ctrl+Tab and Ctrl+Shift+Tab
 removed there staying off, also after a restart.
+
+Ctrl+Shift+C, Ctrl+S and Ctrl+Tab each run one plain command, which the
+shortcuts page lists with the key: a new profile's defaults, and a profile
+whose old switches picked the other command keeping its keys once, also
+after a restart.
 """
 
 import unittest
@@ -26,13 +31,20 @@ NEXT_TAB_ADD = f"""(() => {{
     return row.querySelector('.actions cr-button');
 }})()"""
 
+# Command ids (chrome/app/chrome_command_ids.h).
+NEXT_TAB, PREVIOUS_TAB = 34016, 34017
+NEXT_RECENT_TAB, PREVIOUS_RECENT_TAB = 34062, 34063
+COLLAPSE_VERTICAL_TABS, COPY_URL, SAVE_PAGE, INSPECT = 34061, 34071, 35004, 40023
+# Each command's keys on the shortcuts page, by command id.
+COMMAND_KEYS = f"""Object.fromEntries({PAGE}.commands_.map(command => [command.commandId,
+    command.accelerators.map(a => a.serializedAccelerator).sort()]))"""
+
 
 def tab(name):
     return f'data:text/html,<title>{name}</title>{name}'
 
 
-class ShortcutsTest(BrowserTest):
-    prefs = {'helium': {'browser': {'mru_tab_cycling': True}}}
+class ShortcutsTestBase(BrowserTest):
 
     def pages(self):
         return [t for t in self.browser.targets() if t['type'] == 'page']
@@ -51,6 +63,25 @@ class ShortcutsTest(BrowserTest):
         wait_for(lambda: sorted(t['title'] for t in self.pages()) == sorted(names),
                  what=f'just the tabs {names}')
         wait_for(lambda: self.active() == names[-1], what=f'{names[-1]} active')
+
+    def command_keys(self, *commands):
+        """The keys of each command, as the shortcuts page lists them."""
+        settings = self.browser.new_tab('chrome://settings/system/shortcuts')
+        wait_for(lambda: settings.eval(f'!!{PAGE}?.commandsLoaded_'), what='the shortcuts')
+        keys = settings.eval(COMMAND_KEYS)
+        self.browser.close_target(settings)
+        return [keys.get(str(command)) for command in commands]
+
+
+class ShortcutsTest(ShortcutsTestBase):
+    # Helium's switch for Ctrl+Tab in recent order, from before the switches
+    # became plain commands.
+    prefs = {'helium': {'browser': {'mru_tab_cycling': True}}}
+
+    def test_0_recent_order_switch_became_keys(self):
+        self.assertEqual(
+            self.command_keys(NEXT_RECENT_TAB, PREVIOUS_RECENT_TAB, NEXT_TAB, PREVIOUS_TAB),
+            [['Control+Tab'], ['Control+Shift+Tab'], ['Control+PageDown'], ['Control+PageUp']])
 
     def test_1_mru_cycling_after_closing_a_tab(self):
         self.only_tabs('A', 'B', 'C')
@@ -152,6 +183,44 @@ class ShortcutsTest(BrowserTest):
             self.no_switch('ctrl+shift+Tab', 'E', 'D')
 
 
+class DefaultShortcutsTest(ShortcutsTestBase):
+
+    def test_plain_commands(self):
+        self.assertEqual(
+            self.command_keys(COPY_URL, INSPECT, SAVE_PAGE, COLLAPSE_VERTICAL_TABS,
+                              NEXT_TAB, PREVIOUS_TAB, NEXT_RECENT_TAB, PREVIOUS_RECENT_TAB),
+            [['Control+Shift+KeyC'], ['Control+Shift+KeyE'], ['Control+KeyS'], [],
+             ['Control+PageDown', 'Control+Tab'], ['Control+PageUp', 'Control+Shift+Tab'],
+             [], []])
+
+    def test_ctrl_tab_selects_the_next_tab(self):
+        # Recent order would select B, the tab used before C.
+        self.only_tabs('A', 'B', 'C')
+        self.browser.key('ctrl+Tab')
+        wait_for(lambda: self.active() == 'A', what='A, the tab after C in the strip')
+        self.browser.key('ctrl+shift+Tab')
+        wait_for(lambda: self.active() == 'C', what='C, the tab before A')
+
+
+class MigratedShortcutSwitchesTest(ShortcutsTestBase):
+    # Before the switches became plain commands: Ctrl+Shift+C ran Inspect, and
+    # Ctrl+S, with its switch on by default, collapsed the vertical layout's
+    # tabs, with Alt+K added to it on the shortcuts page.
+    prefs = {'helium': {
+        'browser': {'layout': 2, 'custom_accelerators': {'34090': {'added': ['Alt+KeyK']}}},
+        'settings': {'a11y': {'copy_page_url_shortcut': False}},
+    }}
+
+    def test_switches_became_keys(self):
+        for restart in (False, True):
+            if restart:
+                self.browser.quit()
+                self.browser.start()
+            self.assertEqual(
+                self.command_keys(COPY_URL, INSPECT, SAVE_PAGE, COLLAPSE_VERTICAL_TABS,
+                                  NEXT_TAB, NEXT_RECENT_TAB),
+                [[], ['Control+Shift+KeyC', 'Control+Shift+KeyE'], [],
+                 ['Alt+KeyK', 'Control+KeyS'], ['Control+PageDown', 'Control+Tab'], []])
 
 
 if __name__ == '__main__':

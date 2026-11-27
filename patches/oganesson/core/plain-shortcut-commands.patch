@@ -1,0 +1,307 @@
+--- a/chrome/browser/ui/browser_shortcuts/browser_shortcut_metadata.cc
++++ b/chrome/browser/ui/browser_shortcuts/browser_shortcut_metadata.cc
+@@ -16,6 +16,7 @@
+ #include "chrome/browser/ui/helium/helium_layout_state_controller.h"
+ #include "chrome/common/pref_names.h"
+ #include "chrome/grit/generated_resources.h"
++#include "chrome/grit/oganesson_strings.h"
+ #include "components/prefs/pref_service.h"
+ #include "ui/strings/grit/ui_strings.h"
+ 
+@@ -23,16 +24,6 @@
+ 
+ namespace {
+ 
+-bool ShouldUseVerticalCollapseLabel(const PrefService* prefs) {
+-  return prefs && prefs->GetBoolean(prefs::kVerticalCollapseShortcut) &&
+-         prefs->GetInteger(prefs::kHeliumLayout) ==
+-             std::to_underlying(HeliumLayoutType::kVertical);
+-}
+-
+-bool ShouldUseCopyPageUrlLabel(const PrefService* prefs) {
+-  return prefs && prefs->GetBoolean(prefs::kCopyPageUrlShortcut);
+-}
+-
+ bool ShouldHideBrowserShortcutCommand(int command_id) {
+   switch (command_id) {
+     case IDC_COPY:
+@@ -55,6 +46,10 @@
+     case IDC_CONTENT_CONTEXT_REDO:
+     case IDC_CONTENT_CONTEXT_SELECTALL:
+     case IDC_CONTENT_CONTEXT_UNDO:
++    // No key runs these switch-dependent commands: each command they chose
++    // between has its own row.
++    case IDC_COPY_OR_INSPECT_SHORTCUT:
++    case IDC_CTRL_S_SHORTCUT:
+       return true;
+     default:
+       return false;
+@@ -138,11 +133,13 @@
+     case IDC_RESTORE_TAB:
+       return Label(IDS_RESTORE_TAB);
+     case IDC_SELECT_NEXT_TAB:
+-    case IDC_CYCLE_TO_NEXT_TAB:
+       return Label(IDS_SHORTCUT_COMMAND_SELECT_NEXT_TAB);
+     case IDC_SELECT_PREVIOUS_TAB:
+-    case IDC_CYCLE_TO_PREV_TAB:
+       return Label(IDS_SHORTCUT_COMMAND_SELECT_PREVIOUS_TAB);
++    case IDC_CYCLE_TO_NEXT_TAB:
++      return Label(IDS_SHORTCUT_COMMAND_CYCLE_NEXT_MRU_TAB);
++    case IDC_CYCLE_TO_PREV_TAB:
++      return Label(IDS_SHORTCUT_COMMAND_CYCLE_PREVIOUS_MRU_TAB);
+     case IDC_SELECT_LAST_TAB:
+       return Label(IDS_SHORTCUT_COMMAND_SELECT_LAST_TAB);
+     case IDC_SELECT_TAB_0:
+@@ -209,10 +206,6 @@
+       return Label(IDS_OPEN_FILE_DIALOG_TITLE);
+     case IDC_SAVE_PAGE:
+       return Label(IDS_SAVE_PAGE);
+-    case IDC_CTRL_S_SHORTCUT:
+-      return Label(ShouldUseVerticalCollapseLabel(prefs)
+-                       ? IDS_SHORTCUT_COMMAND_TOGGLE_VERTICAL_TABS
+-                       : IDS_SAVE_PAGE);
+     case IDC_TOGGLE_VERTICAL_TABS_COLLAPSE:
+       return Label(IDS_SHORTCUT_COMMAND_TOGGLE_VERTICAL_TABS);
+     case IDC_PRINT:
+@@ -303,9 +296,6 @@
+       return Label(IDS_DEV_TOOLS_ELEMENTS);
+     case IDC_COPY_URL:
+       return Label(IDS_COPY_URL);
+-    case IDC_COPY_OR_INSPECT_SHORTCUT:
+-      return Label(ShouldUseCopyPageUrlLabel(prefs) ? IDS_COPY_URL
+-                                                    : IDS_DEV_TOOLS_ELEMENTS);
+     case IDC_VIEW_SOURCE:
+       return Label(IDS_VIEW_SOURCE);
+   }
+@@ -318,16 +308,13 @@
+ std::vector<int> GetBrowserShortcutCommandsWithoutDefault(
+     const PrefService* prefs) {
+   std::vector<int> commands;
+-  if (ShouldUseVerticalCollapseLabel(prefs)) {
+-    commands.push_back(IDC_SAVE_PAGE);
+-  }
+   commands.push_back(IDC_TOGGLE_VERTICAL_TABS_COLLAPSE);
++  commands.push_back(IDC_CYCLE_TO_NEXT_TAB);
++  commands.push_back(IDC_CYCLE_TO_PREV_TAB);
+   commands.push_back(IDC_SCROLL_TO_TOP);
+   commands.push_back(IDC_SCROLL_TO_BOTTOM);
+   commands.push_back(IDC_OGANESSON_NEW_TAB_IN_CURRENT_CONTAINER);
+ 
+-  commands.push_back(ShouldUseCopyPageUrlLabel(prefs) ? IDC_DEV_TOOLS_INSPECT
+-                                                      : IDC_COPY_URL);
+   commands.push_back(IDC_FORCE_PASTE);
+   commands.push_back(IDC_DUPLICATE_TAB);
+ #if !BUILDFLAG(IS_MAC)
+--- a/chrome/browser/ui/browser_shortcuts/browser_shortcut_service.cc
++++ b/chrome/browser/ui/browser_shortcuts/browser_shortcut_service.cc
+@@ -21,6 +21,7 @@
+ #include "chrome/browser/ui/browser_shortcuts/browser_shortcut_metadata.h"
+ #include "chrome/browser/ui/browser_shortcuts/browser_shortcut_prefs.h"
+ #include "chrome/browser/ui/browser_shortcuts/browser_shortcut_serialization.h"
++#include "chrome/browser/ui/browser_shortcuts/oganesson_shortcut_migration.h"
+ #include "chrome/common/pref_names.h"
+ #include "components/prefs/pref_service.h"
+ #include "ui/base/l10n/l10n_util.h"
+@@ -110,16 +111,10 @@
+ BrowserShortcutService::BrowserShortcutService(PrefService* prefs)
+     : prefs_(prefs) {
+   pref_change_registrar_.Init(prefs_);
+-  const auto on_label_pref_changed = base::BindRepeating(
+-      &BrowserShortcutService::OnCommandLabelsChanged, base::Unretained(this));
+-  pref_change_registrar_.Add(::prefs::kCopyPageUrlShortcut,
+-                             on_label_pref_changed);
+-  pref_change_registrar_.Add(::prefs::kHeliumLayout, on_label_pref_changed);
+-  pref_change_registrar_.Add(::prefs::kVerticalCollapseShortcut,
+-                             on_label_pref_changed);
+ 
+   LoadFromPrefs();
+   RebuildCommandCache();
++  MigrateShortcutSwitches(*this, *prefs_);
+ }
+ 
+ BrowserShortcutService::~BrowserShortcutService() = default;
+--- a/chrome/browser/ui/accelerator_table.cc
++++ b/chrome/browser/ui/accelerator_table.cc
+@@ -74,15 +74,15 @@
+     {ui::VKEY_R, ui::EF_PLATFORM_ACCELERATOR, IDC_RELOAD},
+     {ui::VKEY_R, ui::EF_SHIFT_DOWN | ui::EF_PLATFORM_ACCELERATOR,
+      IDC_RELOAD_BYPASSING_CACHE},
+-    {ui::VKEY_S, ui::EF_PLATFORM_ACCELERATOR, IDC_CTRL_S_SHORTCUT},
++    {ui::VKEY_S, ui::EF_PLATFORM_ACCELERATOR, IDC_SAVE_PAGE},
+     {ui::VKEY_9, ui::EF_PLATFORM_ACCELERATOR, IDC_SELECT_LAST_TAB},
+     {ui::VKEY_NUMPAD9, ui::EF_PLATFORM_ACCELERATOR, IDC_SELECT_LAST_TAB},
+     // Control modifier is rarely used on Mac, so we allow it only in several
+     // specific cases.
+-    {ui::VKEY_TAB, ui::EF_CONTROL_DOWN, IDC_CYCLE_TO_NEXT_TAB},
++    {ui::VKEY_TAB, ui::EF_CONTROL_DOWN, IDC_SELECT_NEXT_TAB},
+     {ui::VKEY_NEXT, ui::EF_CONTROL_DOWN, IDC_SELECT_NEXT_TAB},
+     {ui::VKEY_TAB, ui::EF_SHIFT_DOWN | ui::EF_CONTROL_DOWN,
+-     IDC_CYCLE_TO_PREV_TAB},
++     IDC_SELECT_PREVIOUS_TAB},
+     {ui::VKEY_PRIOR, ui::EF_CONTROL_DOWN, IDC_SELECT_PREVIOUS_TAB},
+     {ui::VKEY_1, ui::EF_PLATFORM_ACCELERATOR, IDC_SELECT_TAB_0},
+     {ui::VKEY_NUMPAD1, ui::EF_PLATFORM_ACCELERATOR, IDC_SELECT_TAB_0},
+@@ -181,8 +181,7 @@
+      IDC_DEV_TOOLS_CONSOLE},
+     {ui::VKEY_E, ui::EF_SHIFT_DOWN | ui::EF_CONTROL_DOWN,
+      IDC_DEV_TOOLS_INSPECT},
+-    {ui::VKEY_C, ui::EF_SHIFT_DOWN | ui::EF_CONTROL_DOWN,
+-     IDC_COPY_OR_INSPECT_SHORTCUT},
++    {ui::VKEY_C, ui::EF_SHIFT_DOWN | ui::EF_CONTROL_DOWN, IDC_COPY_URL},
+     {ui::VKEY_U, ui::EF_CONTROL_DOWN, IDC_VIEW_SOURCE},
+ #endif  // !BUILDFLAG(IS_MAC)
+ };
+@@ -377,7 +376,7 @@
+     IDC_CYCLE_TO_NEXT_TAB,
+     IDC_CYCLE_TO_PREV_TAB,
+     IDC_EXIT,
+-    IDC_COPY_OR_INSPECT_SHORTCUT,
++    IDC_COPY_URL,
+     IDC_DEV_TOOLS,
+     IDC_DEV_TOOLS_TOGGLE,
+     IDC_TAB_SEARCH,
+--- a/chrome/browser/ui/browser_command_controller.cc
++++ b/chrome/browser/ui/browser_command_controller.cc
+@@ -761,6 +761,13 @@
+       ToggleVerticalTabs(browser_);
+       break;
+     case IDC_TOGGLE_VERTICAL_TABS_COLLAPSE:
++      // In zen mode it shows or hides the side chrome, as Helium's Ctrl+S did.
++      if (auto* browser_view = BrowserView::GetBrowserViewForBrowser(browser_);
++          browser_view && browser_view->IsZenModeEnabledForLayout() &&
++          browser_view->ShouldDrawVerticalTabStrip()) {
++        browser_view->ToggleZenModeSideChrome();
++        break;
++      }
+ #if !BUILDFLAG(IS_MAC)
+       // On Mac, the logging for both the keyboard shortcut and the view menu
+       // is handled in BrowserNativeWidgetMac::ExecuteCommand to correctly
+@@ -829,34 +836,14 @@
+               TabStripUserGestureDetails::GestureType::kKeyboard, time_stamp));
+       break;
+     case IDC_CYCLE_TO_NEXT_TAB:
+-      if (IsCtrlTabMruEnabled(browser_)) {
+-        base::RecordAction(base::UserMetricsAction("Accel_CycleToNextTab"));
+-        CycleToMruTab(browser_,
+-                      TabStripUserGestureDetails(
+-                          TabStripUserGestureDetails::GestureType::kKeyboard,
+-                          time_stamp));
+-      } else {
+-        base::RecordAction(base::UserMetricsAction("Accel_SelectNextTab"));
+-        SelectNextTab(browser_,
+-                      TabStripUserGestureDetails(
+-                          TabStripUserGestureDetails::GestureType::kKeyboard,
+-                          time_stamp));
+-      }
++      browser_->GetTabStripModel()->SelectNextMRUTab(
++          TabStripUserGestureDetails(
++              TabStripUserGestureDetails::GestureType::kKeyboard, time_stamp));
+       break;
+     case IDC_CYCLE_TO_PREV_TAB:
+-      if (IsCtrlTabMruEnabled(browser_)) {
+-        base::RecordAction(base::UserMetricsAction("Accel_CycleToPrevTab"));
+-        CycleToMruTab(browser_,
+-                      TabStripUserGestureDetails(
+-                          TabStripUserGestureDetails::GestureType::kKeyboard,
+-                          time_stamp));
+-      } else {
+-        base::RecordAction(base::UserMetricsAction("Accel_SelectPreviousTab"));
+-        SelectPreviousTab(
+-            browser_, TabStripUserGestureDetails(
+-                          TabStripUserGestureDetails::GestureType::kKeyboard,
+-                          time_stamp));
+-      }
++      browser_->GetTabStripModel()->SelectPreviousMRUTab(
++          TabStripUserGestureDetails(
++              TabStripUserGestureDetails::GestureType::kKeyboard, time_stamp));
+       break;
+     case IDC_MOVE_TAB_NEXT:
+       MoveTabNext(browser_);
+--- a/chrome/browser/ui/tabs/tab_strip_model.cc
++++ b/chrome/browser/ui/tabs/tab_strip_model.cc
+@@ -1960,11 +1960,19 @@
+ }
+ 
+ void TabStripModel::SelectNextTab(TabStripUserGestureDetails detail) {
+-  SelectRelativeTabCycle(TabRelativeDirection::kNext, detail);
++  SelectRelativeTab(TabRelativeDirection::kNext, detail);
+ }
+ 
+ void TabStripModel::SelectPreviousTab(TabStripUserGestureDetails detail) {
+-  SelectRelativeTabCycle(TabRelativeDirection::kPrevious, detail);
++  SelectRelativeTab(TabRelativeDirection::kPrevious, detail);
++}
++
++void TabStripModel::SelectNextMRUTab(TabStripUserGestureDetails detail) {
++  SelectMRUTab(TabRelativeDirection::kNext, detail);
++}
++
++void TabStripModel::SelectPreviousMRUTab(TabStripUserGestureDetails detail) {
++  SelectMRUTab(TabRelativeDirection::kPrevious, detail);
+ }
+ 
+ void TabStripModel::SelectLastTab(TabStripUserGestureDetails detail) {
+@@ -4636,18 +4644,6 @@
+   return selection;
+ }
+ 
+-void TabStripModel::SelectRelativeTabCycle(TabRelativeDirection direction,
+-                                           TabStripUserGestureDetails detail) {
+-  const bool enable_mru =
+-      profile_->GetPrefs()->GetBoolean(prefs::kTabCyclingMRU);
+-
+-  if (enable_mru) {
+-    SelectMRUTab(direction, detail);
+-  } else {
+-    SelectRelativeTab(direction, detail);
+-  }
+-}
+-
+ void TabStripModel::SelectMRUTab(TabRelativeDirection direction,
+                                  TabStripUserGestureDetails detail) {
+   if (mru_cycle_list_.empty()) {
+--- a/chrome/browser/ui/tabs/tab_strip_model.h
++++ b/chrome/browser/ui/tabs/tab_strip_model.h
+@@ -627,6 +627,11 @@
+       TabStripUserGestureDetails detail = TabStripUserGestureDetails(
+           TabStripUserGestureDetails::GestureType::kOther));
+ 
++  // Select the next or previous tab in most recently used order, cycling
++  // while Ctrl is held.
++  void SelectNextMRUTab(TabStripUserGestureDetails detail);
++  void SelectPreviousMRUTab(TabStripUserGestureDetails detail);
++
+   // Selects the last tab in the tab strip.
+   void SelectLastTab(
+       TabStripUserGestureDetails detail = TabStripUserGestureDetails(
+@@ -1233,11 +1238,6 @@
+     kPrevious,
+   };
+ 
+-  // Selects either the next tab or the previous tab.
+-  // Uses MRU order if the user prefers it.
+-  void SelectRelativeTabCycle(TabRelativeDirection direction,
+-                              TabStripUserGestureDetails detail);
+-
+   // Selects either the most recently used tab
+   // or the least recently used tab.
+   void SelectMRUTab(TabRelativeDirection direction,
+--- a/chrome/browser/ui/browser_shortcuts/BUILD.gn
++++ b/chrome/browser/ui/browser_shortcuts/BUILD.gn
+@@ -16,6 +16,8 @@
+     "browser_shortcut_service.h",
+     "browser_shortcut_service_factory.cc",
+     "browser_shortcut_service_factory.h",
++    "oganesson_shortcut_migration.cc",
++    "oganesson_shortcut_migration.h",
+   ]
+ 
+   public_deps = [
+@@ -30,6 +32,7 @@
+     "//chrome/app:command_ids",
+     "//chrome/app:generated_resources",
+     "//chrome/browser/ui:accelerator_table",
++    "//chrome/browser/ui:ui_features",
+     "//chrome/browser/ui/helium:helium_layout_state_controller",
+     "//chrome/common:constants",
+     "//ui/events:event_constants",
