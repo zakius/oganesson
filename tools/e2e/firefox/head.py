@@ -302,12 +302,12 @@ def open_tools_menu(test):
     return open_submenu(test, menu.by_label('More tools')[0])
 
 
-def open_extensions_panel(test):
+def open_extensions_panel(test, timeout=15):
     """openExtensionsPanel(): Firefox's unified extensions panel is this
     browser's Extensions menu, which the toolbar's Extensions button opens."""
     test.browser.click_view(test.browser.wait_view('ExtensionsToolbarButton'))
     wait_for(lambda: any(view.visible for view in test.browser.views('ExtensionMenuItemView')),
-             what='the Extensions menu')
+             timeout=timeout, what='the Extensions menu')
 
 
 def close_extensions_panel(test):
@@ -406,6 +406,30 @@ def synthesize_mouse_at_center(test, item, button=0):
     with Firefox's button number (0 left, 1 middle, 2 right)."""
     x, y = item.center
     test.browser.xdotool('mousemove', str(x), str(y), 'click', str(button + 1))
+
+
+def has_focus(test, view):
+    """`view` has the keyboard focus: its focus ring (views' FocusRing, a
+    child of the button over its bounds) shows only then."""
+    box = view.bounds
+    for ring in test.browser.views('FocusRing'):
+        x, y = ring.center
+        inside = box['x'] <= x < box['x'] + box['width'] and box['y'] <= y < box['y'] + box['height']
+        if ring.visible and inside and ring.bounds['width'] < 2 * box['width']:
+            return True
+    return False
+
+
+def focus_toolbar_view(test, view):
+    """`view`, a button in the toolbar or the location bar, gets the keyboard
+    focus as the user gives it: the toolbar's keyboard focus (Alt+Shift+T),
+    then Tab until the button's focus ring shows."""
+    test.browser.key('alt+shift+t')
+    for _ in range(40):
+        if has_focus(test, view):
+            return
+        test.browser.key('Tab')
+    raise AssertionError(f"{view} doesn't take the keyboard focus")
 
 
 def close_extension_context_menu(test, item=None, modifiers=None):

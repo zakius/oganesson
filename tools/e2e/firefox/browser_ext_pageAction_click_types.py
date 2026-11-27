@@ -56,31 +56,12 @@ def click_page_action(test, extension, modifiers=None):
             test.browser.xdotool('keyup', key)
 
 
-def has_focus(test, view):
-    """`view` has the keyboard focus: its focus ring (views' FocusRing, a
-    child of the button over its bounds) shows only then."""
-    box = view.bounds
-    for ring in test.browser.views('FocusRing'):
-        x, y = ring.center
-        inside = box['x'] <= x < box['x'] + box['width'] and box['y'] <= y < box['y'] + box['height']
-        if ring.visible and inside and ring.bounds['width'] < 2 * box['width']:
-            return True
-    return False
-
-
 def trigger_page_action_with_keyboard(test, extension, modifiers=None):
     """triggerPageActionWithKeyboard(extension, modifiers): the add-on's page
     action button gets the keyboard focus, from the toolbar's (Alt+Shift+T)
     and Tab, and Enter is pressed with the keys of `modifiers` held; then the
     focus leaves the toolbar (Escape), as Firefox blurs the button."""
-    button = head.wait_page_action_button(test, extension)
-    test.browser.key('alt+shift+t')
-    for _ in range(40):
-        if has_focus(test, button):
-            break
-        test.browser.key('Tab')
-    else:
-        raise AssertionError("the page action button doesn't take the keyboard focus")
+    head.focus_toolbar_view(test, head.wait_page_action_button(test, extension))
     keys = [head.MODIFIERS[name] for name, held in (modifiers or {}).items() if held]
     test.browser.key('+'.join([*keys, 'Return']))
     test.browser.key('Escape')
