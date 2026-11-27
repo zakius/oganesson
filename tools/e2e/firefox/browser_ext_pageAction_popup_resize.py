@@ -7,23 +7,19 @@ on the add-on's page action button in the location bar
 (head_pageAction.await_extension_panel()).
 
 Firefox's popup browser, whose size the content window's must match
-(promiseContentDimensions()), is the popup's web view here, Chromium's
-ExtensionViewViews in the popup bubble, read through UI DevTools. Firefox's
-SpecialPowers.spawn() runs the test's function in the popup through
-DevTools, with `content` its window. awaitPopupResize() waits for Firefox's
-WebExtPopupResized event; here the browser resizes the web view to the
-content, so the port waits for the web view to change its size (2 seconds at
-most: a size can stay the same) and to stop changing. Gecko's
-window.scrollMaxX and scrollMaxY, which Chromium lacks, are the page's scroll
-range: the root's scroll size less its client size. Firefox's popup is at
-most 800 by 600 pixels, as Chromium's is.
+(promiseContentDimensions(), head_pageAction.content_dimensions()), is the
+popup's web view here, Chromium's ExtensionViewViews in the popup bubble,
+read through UI DevTools. Firefox's SpecialPowers.spawn() runs the test's
+function in the popup through DevTools, with `content` its window
+(head_pageAction.alter_content(), which also says how the port waits for
+Firefox's WebExtPopupResized event). Gecko's window.scrollMaxX and
+scrollMaxY, which Chromium lacks, are the page's scroll range: the root's
+scroll size less its client size. Firefox's popup is at most 800 by 600
+pixels, as Chromium's is.
 """
-
-import json
 
 from firefox import head, head_pageAction
 from extension_test_utils import JS, FirefoxTest
-from harness import wait_for
 
 SHOW = JS('''function () {
       browser.tabs.query({ active: true, currentWindow: true }, tabs => {
@@ -35,98 +31,11 @@ SHOW = JS('''function () {
       });
     }''')
 
-# promisePossiblyInaccurateContentDimensions(): Firefox's, in the popup.
-DIMENSIONS = '''(() => {
-    function copyProps(obj, props) {
-      let res = {};
-      for (let prop of props) {
-        res[prop] = obj[prop];
-      }
-      return res;
-    }
-
-    let content = window;
-    let root = content.document.documentElement;
-    return {
-      window: {
-        ...copyProps(content, [
-          "innerWidth",
-          "innerHeight",
-          "outerWidth",
-          "outerHeight",
-          "scrollX",
-          "scrollY",
-        ]),
-        scrollMaxX: root.scrollWidth - root.clientWidth,
-        scrollMaxY: root.scrollHeight - root.clientHeight,
-      },
-      body: copyProps(content.document.body, [
-        "clientWidth",
-        "clientHeight",
-        "scrollWidth",
-        "scrollHeight",
-      ]),
-      root: copyProps(content.document.documentElement, [
-        "clientWidth",
-        "clientHeight",
-        "scrollWidth",
-        "scrollHeight",
-      ]),
-      visualViewport: copyProps(content.visualViewport, [
-        "width",
-        "height",
-        "scale",
-      ]),
-      isStandards: content.document.compatMode !== "BackCompat",
-    };
-  })()'''
-
-
 class PageActionPopupResizeTest(FirefoxTest):
-
-    def web_view(self):
-        """The popup's browser: its web view, once it stops moving."""
-        return self.browser.wait_view('ExtensionViewViews')
-
-    def content_dimensions(self, popup, tolerated_width_size_diff=1):
-        """promiseContentDimensions(): the popup's dimensions, once its window
-        is as large as its web view."""
-        def matching():
-            dims = popup.eval(DIMENSIONS, gesture=False)
-            bounds = self.web_view().bounds
-            if (abs(bounds['width'] - dims['window']['innerWidth']) <= tolerated_width_size_diff
-                    and bounds['height'] == round(dims['window']['innerHeight'])):
-                return dims
-            return None
-
-        dims = wait_for(matching, what="the popup's content to fit its web view")
-        self.is_(dims['visualViewport']['scale'], 1, 'We expect no pinch zoom on these tests')
-        if not dims['window']['scrollMaxY'] and not dims['window']['scrollMaxX']:
-            self.check(abs(dims['window']['innerHeight'] - dims['visualViewport']['height']) <= 1,
-                       'VisualViewport and window height are consistent - '
-                       f"Expected: {dims['window']['innerHeight']}, "
-                       f"Actual: {dims['visualViewport']['height']}")
-            self.check(abs(dims['window']['innerWidth'] - dims['visualViewport']['width']) <= 1,
-                       'VisualViewport and window width are consistent - '
-                       f"Expected: {dims['window']['innerWidth']}, "
-                       f"Actual: {dims['visualViewport']['width']}")
-        return dims
-
-    def alter_content(self, popup, task, arg):
-        """alterContent(): runs `task`, a function's source, in the popup
-        with `arg`, then awaitPopupResize()."""
-        before = self.web_view().bounds
-        popup.eval(f'((content, arg) => ({task})(arg))(window, {json.dumps(arg)})', gesture=False)
-        try:
-            wait_for(lambda: self.web_view().bounds != before, timeout=2,
-                     what="the popup's web view to change size")
-        except AssertionError:
-            pass
-        return self.content_dimensions(popup)
 
     def check_size(self, popup, height, width):
         """checkSize()."""
-        dims = self.content_dimensions(popup)
+        dims = head_pageAction.content_dimensions(self, popup)
         body, root = dims['body'], dims['root']
 
         self.is_(dims['window']['innerHeight'], height, f'Panel window should be {height}px tall')
@@ -182,10 +91,10 @@ class PageActionPopupResizeTest(FirefoxTest):
         sizes = [200, 400, 300]
 
         for size in sizes:
-            self.alter_content(popup, set_size, size)
+            head_pageAction.alter_content(self, popup, set_size, size)
             self.check_size(popup, size, size)
 
-        dims = self.alter_content(popup, set_size, 1400)
+        dims = head_pageAction.alter_content(self, popup, set_size, 1400)
         body, root = dims['body'], dims['root']
 
         self.is_(dims['window']['innerWidth'], 800, 'Panel window width')
@@ -199,7 +108,7 @@ class PageActionPopupResizeTest(FirefoxTest):
         self.is_(root['scrollHeight'], 1400, 'Panel root scroll height')
 
         for size in sizes:
-            self.alter_content(popup, set_height, size)
+            head_pageAction.alter_content(self, popup, set_height, size)
             self.check_size(popup, size, None)
 
         extension.unload()
@@ -237,7 +146,7 @@ class PageActionPopupResizeTest(FirefoxTest):
     content.document.body.style.fontSize = `${size}px`;
   }'''
 
-        dims = self.alter_content(popup, set_size, 18)
+        dims = head_pageAction.alter_content(self, popup, set_size, 18)
 
         self.is_(dims['window']['innerWidth'], 800, 'Panel window should be 800px wide')
         self.is_(dims['body']['clientWidth'], 800, 'Panel body should be 800px wide')

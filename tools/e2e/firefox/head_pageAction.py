@@ -16,7 +16,12 @@ it as its UI language (--lang), so the browser restarts before the add-on
 loads, and again when the test ends. Left out: the mocked
 `Services.locale.availableLocales`, the languages Firefox ships, a Gecko
 internal.
+
+The popup ports share the helpers under "popup ports", which are head.js's
+in Firefox: the add-on's popup page, its bubble, and its size.
 """
+
+import json
 
 from firefox import head
 from extension_test_utils import JS
@@ -228,3 +233,100 @@ def await_extension_panel(test, extension):
              what="the add-on's popup to load")
     wait_popup_shown(test)
     return page
+
+
+# promisePossiblyInaccurateContentDimensions(): Firefox's, in the popup.
+# Gecko's window.scrollMaxX and scrollMaxY, which Chromium lacks, are the
+# page's scroll range: the root's scroll size less its client size.
+DIMENSIONS = '''(() => {
+    function copyProps(obj, props) {
+      let res = {};
+      for (let prop of props) {
+        res[prop] = obj[prop];
+      }
+      return res;
+    }
+
+    let content = window;
+    let root = content.document.documentElement;
+    return {
+      window: {
+        ...copyProps(content, [
+          "innerWidth",
+          "innerHeight",
+          "outerWidth",
+          "outerHeight",
+          "scrollX",
+          "scrollY",
+        ]),
+        scrollMaxX: root.scrollWidth - root.clientWidth,
+        scrollMaxY: root.scrollHeight - root.clientHeight,
+      },
+      body: copyProps(content.document.body, [
+        "clientWidth",
+        "clientHeight",
+        "scrollWidth",
+        "scrollHeight",
+      ]),
+      root: copyProps(content.document.documentElement, [
+        "clientWidth",
+        "clientHeight",
+        "scrollWidth",
+        "scrollHeight",
+      ]),
+      visualViewport: copyProps(content.visualViewport, [
+        "width",
+        "height",
+        "scale",
+      ]),
+      isStandards: content.document.compatMode !== "BackCompat",
+    };
+  })()'''
+
+
+def popup_web_view(test):
+    """Firefox's popup browser: the popup's web view, Chromium's
+    ExtensionViewViews in the popup bubble, once it stops moving."""
+    return test.browser.wait_view('ExtensionViewViews')
+
+
+def content_dimensions(test, popup, tolerated_width_size_diff=1):
+    """promiseContentDimensions(): the popup's dimensions, once its window
+    is as large as its web view."""
+    def matching():
+        dims = popup.eval(DIMENSIONS, gesture=False)
+        bounds = popup_web_view(test).bounds
+        if (abs(bounds['width'] - dims['window']['innerWidth']) <= tolerated_width_size_diff
+                and bounds['height'] == round(dims['window']['innerHeight'])):
+            return dims
+        return None
+
+    dims = wait_for(matching, what="the popup's content to fit its web view")
+    test.is_(dims['visualViewport']['scale'], 1, 'We expect no pinch zoom on these tests')
+    if not dims['window']['scrollMaxY'] and not dims['window']['scrollMaxX']:
+        test.check(abs(dims['window']['innerHeight'] - dims['visualViewport']['height']) <= 1,
+                   'VisualViewport and window height are consistent - '
+                   f"Expected: {dims['window']['innerHeight']}, "
+                   f"Actual: {dims['visualViewport']['height']}")
+        test.check(abs(dims['window']['innerWidth'] - dims['visualViewport']['width']) <= 1,
+                   'VisualViewport and window width are consistent - '
+                   f"Expected: {dims['window']['innerWidth']}, "
+                   f"Actual: {dims['visualViewport']['width']}")
+    return dims
+
+
+def alter_content(test, popup, task, arg=None):
+    """alterContent(): runs `task`, a function's source, in the popup with
+    `arg` (SpecialPowers.spawn(), with `content` the popup's window), then
+    awaitPopupResize(). Firefox waits for its WebExtPopupResized event; here
+    the browser resizes the web view to the content, so this waits for the
+    web view to change its size (2 seconds at most: a size can stay the
+    same) and to stop changing."""
+    before = popup_web_view(test).bounds
+    popup.eval(f'((content, arg) => ({task})(arg))(window, {json.dumps(arg)})', gesture=False)
+    try:
+        wait_for(lambda: popup_web_view(test).bounds != before, timeout=2,
+                 what="the popup's web view to change size")
+    except AssertionError:
+        pass
+    return content_dimensions(test, popup)
