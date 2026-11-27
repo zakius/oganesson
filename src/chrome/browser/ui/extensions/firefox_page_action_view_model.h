@@ -21,8 +21,8 @@ class ExtensionActionRunner;
 // (extensions/common/firefox_page_action.h), in `web_contents`. It runs as
 // ExtensionActionRunner::RunAction() runs an add-on's one action, which it
 // looks up itself: the add-on gets activeTab, then the page action's popup
-// opens (kShowPopup) or pageAction.onClicked fires. A hidden page action does
-// nothing.
+// opens (kShowPopup) or pageAction.onClicked fires, as it does for a middle
+// click (dubna's firefox_action_click.h). A hidden page action does nothing.
 extensions::ExtensionAction::ShowAction RunFirefoxPageAction(
     extensions::ExtensionActionRunner& runner,
     const extensions::Extension& extension,

@@ -11,6 +11,7 @@
 #include "base/memory/scoped_refptr.h"
 #include "chrome/browser/extensions/extension_action_dispatcher.h"
 #include "chrome/browser/extensions/extension_action_runner.h"
+#include "chrome/browser/extensions/firefox_action_click.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/extensions/extension_action_delegate.h"
@@ -44,7 +45,9 @@ extensions::ExtensionAction::ShowAction RunFirefoxPageAction(
   if (!action.GetIsVisible(tab_id)) {
     return extensions::ExtensionAction::ShowAction::kNone;
   }
-  if (action.HasPopup(tab_id)) {
+  // A middle click fires onClicked, popup or not, as in Firefox.
+  if (action.HasPopup(tab_id) &&
+      !extensions::IsFirefoxMiddleClickRunning(extension)) {
     return extensions::ExtensionAction::ShowAction::kShowPopup;
   }
   extensions::ExtensionActionDispatcher::Get(web_contents.GetBrowserContext())
